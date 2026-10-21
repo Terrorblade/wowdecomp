@@ -3,13 +3,21 @@
 
 #include <cstdint>
 #include <new>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/Process/Process.h"
 
 namespace Blizzard {
 namespace Lock {
 
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+// Auto-reset event (see Lock/Linux/Event.cpp). A pointer, like the HANDLE it replaces.
+struct EventRecord;
+typedef EventRecord* Event;
+#else
 typedef HANDLE Event;
+#endif
 typedef CRITICAL_SECTION Mutex;
 
 class Atomic {

@@ -1,3 +1,30 @@
+if (WOWDECOMP_PLATFORM_LINUX)
+    # Linked straight into the client against the system xvidcore (Debian: libxvidcore-dev); no DLL on Linux.
+    find_path(XVIDCORE_INCLUDE_DIR xvid.h)
+    find_library(XVIDCORE_LIBRARY NAMES xvidcore)
+
+    if (NOT XVIDCORE_INCLUDE_DIR OR NOT XVIDCORE_LIBRARY)
+        message(FATAL_ERROR "XvidDecoder: xvidcore not found. Install it (Debian: sudo apt-get install libxvidcore-dev).")
+    endif ()
+
+    add_library(XvidDecoder STATIC
+        XvidDecoder.cpp
+    )
+
+    target_include_directories(XvidDecoder
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}
+            ${XVIDCORE_INCLUDE_DIR}
+    )
+
+    target_link_libraries(XvidDecoder
+        PRIVATE
+            ${XVIDCORE_LIBRARY}
+    )
+
+    return()
+endif ()
+
 add_library(XvidDecoder SHARED
     XvidDecoder.cpp
     XvidDecoder.def

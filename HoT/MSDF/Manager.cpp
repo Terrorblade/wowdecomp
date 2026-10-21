@@ -1,7 +1,12 @@
 #include "HoT/MSDF/Manager.h"
 
+#if !defined(_WIN32)
+#include <sys/stat.h>
+#endif
+
 namespace HoT::MSDF {
 
+#if defined(_WIN32)
 static SYSTEM_INFO& SystemInfo() {
     static SYSTEM_INFO s_info = []() {
         SYSTEM_INFO info;
@@ -11,6 +16,7 @@ static SYSTEM_INFO& SystemInfo() {
 
     return s_info;
 }
+#endif
 
 void Manager::MappedBlock::Close() {
     this->m_view.Close();
@@ -33,17 +39,24 @@ Manager::ArenaState::ArenaState() {
     this->m_slotAddresses.fill(nullptr);
     this->m_slotToBlockIndex.fill(0xFFFFFFFF);
 
+#if defined(_WIN32)
     if (!PlaceholderVA::Available() || IsWine()) {
         return;
     }
+#endif
 
     const uint32_t maxGlyphDim = SDF_RENDER_SIZE + 2 * SDF_SPREAD;
     const uint32_t maxBytesPerGlyph = maxGlyphDim * maxGlyphDim * 4;
     const size_t maxBlockSize = sizeof(BlockFileHeader) + BLOCK_SIZE * sizeof(GlyphEntry) + BLOCK_SIZE * sizeof(uint32_t) + BLOCK_SIZE * maxBytesPerGlyph;
 
+#if defined(_WIN32)
     const size_t granularity = SystemInfo().dwAllocationGranularity;
+#else
+    const size_t granularity = AllocationGranularity();
+#endif
     this->m_slotSize = ((maxBlockSize + granularity - 1) / granularity) * granularity;
 
+#if defined(_WIN32)
     this->m_base = PlaceholderVA::VirtualAlloc2P()(GetCurrentProcess(), nullptr, this->m_slotSize * MAX_ARENA_SLOTS, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, nullptr, 0);
 
     if (!this->m_base) {
@@ -55,11 +68,29 @@ Manager::ArenaState::ArenaState() {
         this->m_slotAddresses[i] = slotAddr;
         VirtualFreeEx(GetCurrentProcess(), slotAddr, this->m_slotSize, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER);
     }
+#else
+    // One PROT_NONE reservation stands in for the placeholders, block files are mapped over a slot with MAP_FIXED.
+    void* base = mmap(nullptr, this->m_slotSize * MAX_ARENA_SLOTS, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+
+    if (base == MAP_FAILED) {
+        return;
+    }
+
+    this->m_base = base;
+
+    for (size_t i = 0; i < MAX_ARENA_SLOTS; i++) {
+        this->m_slotAddresses[i] = static_cast<char*>(this->m_base) + i * this->m_slotSize;
+    }
+#endif
 }
 
 Manager::ArenaState::~ArenaState() {
     if (this->m_base) {
+#if defined(_WIN32)
         VirtualFreeEx(GetCurrentProcess(), this->m_base, 0, MEM_RELEASE);
+#else
+        munmap(this->m_base, this->m_slotSize * MAX_ARENA_SLOTS);
+#endif
         this->m_base = nullptr;
     }
 }
@@ -88,6 +119,7 @@ void Manager::ArenaState::FreeSlot(uint32_t slotIndex) {
     }
 
     void* slotAddr = this->m_slotAddresses[slotIndex];
+#if defined(_WIN32)
     uintptr_t current = reinterpret_cast<uintptr_t>(slotAddr);
     uintptr_t end = current + this->m_slotSize;
 
@@ -115,6 +147,9 @@ void Manager::ArenaState::FreeSlot(uint32_t slotIndex) {
 
     VirtualFreeEx(GetCurrentProcess(), slotAddr, 0, MEM_RELEASE | MEM_COALESCE_PLACEHOLDERS);
     PlaceholderVA::VirtualAlloc2P()(GetCurrentProcess(), slotAddr, this->m_slotSize, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, nullptr, 0);
+#else
+    mmap(slotAddr, this->m_slotSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0);
+#endif
 
     this->m_freeMask |= 1ULL << slotIndex;
     this->m_slotToBlockIndex[slotIndex] = 0xFFFFFFFF;
@@ -138,7 +173,12 @@ bool Manager::CacheAvailable() {
 }
 
 size_t Manager::AllocationGranularity() {
+#if defined(_WIN32)
     return SystemInfo().dwAllocationGranularity;
+#else
+    static const size_t s_pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+    return s_pageSize;
+#endif
 }
 
 void Manager::FreeBlock(uint32_t blockIndex) {
@@ -198,6 +238,7 @@ uint32_t Manager::RegisterFont(FontHash hash) {
 bool Manager::LoadMappedBlock(const BlockWrap& wrap, MappedBlock& outBlock, void* slotAddr, uint32_t slotIndex) {
     ArenaState& arena = Arena();
 
+#if defined(_WIN32)
     outBlock.m_file.m_handle = CreateFileW(wrap.m_path.native().c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS, nullptr);
 
     if (!outBlock.m_file.IsValid()) {
@@ -248,6 +289,46 @@ bool Manager::LoadMappedBlock(const BlockWrap& wrap, MappedBlock& outBlock, void
     }
 
     outBlock.m_view.m_placeholder = true;
+#else
+    outBlock.m_file.m_handle = open(wrap.m_path.c_str(), O_RDONLY | O_CLOEXEC);
+
+    if (!outBlock.m_file.IsValid()) {
+        arena.FreeSlot(slotIndex);
+        return false;
+    }
+
+    struct stat st;
+
+    // Windows refuses a read only mapping larger than the file, here a page past EOF would fault on first touch,
+    // so require at least the header up front (the remaining reads are bounded by m_fileSize below).
+    if (fstat(outBlock.m_file.m_handle, &st) != 0 || static_cast<uint64_t>(st.st_size) < sizeof(BlockFileHeader)) {
+        arena.FreeSlot(slotIndex);
+        return false;
+    }
+
+    outBlock.m_fileSize = static_cast<uint64_t>(st.st_size);
+
+    const size_t granularity = AllocationGranularity();
+    uint64_t splitSize = ((outBlock.m_fileSize + granularity - 1) / granularity) * granularity;
+
+    if (splitSize > arena.m_slotSize) {
+        arena.FreeSlot(slotIndex);
+        return false;
+    }
+
+    outBlock.m_slotIndex = slotIndex;
+
+    void* view = mmap(slotAddr, static_cast<size_t>(splitSize), PROT_READ, MAP_SHARED | MAP_FIXED, outBlock.m_file.m_handle, 0);
+
+    if (view == MAP_FAILED) {
+        arena.FreeSlot(slotIndex);
+        return false;
+    }
+
+    outBlock.m_view.m_ptr = view;
+    outBlock.m_view.m_size = static_cast<size_t>(splitSize);
+    outBlock.m_view.m_placeholder = true;
+#endif
 
     const uint8_t* base = static_cast<const uint8_t*>(outBlock.m_view.m_ptr);
     outBlock.m_header = reinterpret_cast<const BlockFileHeader*>(base);

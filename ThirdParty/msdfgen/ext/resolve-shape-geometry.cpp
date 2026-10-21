@@ -1,5 +1,7 @@
 #include "resolve-shape-geometry.h"
 
+#if defined(_WIN32)
+
 #include <windows.h>
 #include <d2d1.h>
 #include <wrl/client.h>
@@ -156,3 +158,17 @@ bool resolveShapeGeometry(Shape& shape) {
 }
 
 } // namespace msdfgen
+
+#else
+
+namespace msdfgen {
+
+// No Direct2D off Windows, so intersections are left alone and only the winding is made consistent.
+bool resolveShapeGeometry(Shape &shape) {
+    shape.orientContours();
+    return false;
+}
+
+} // namespace msdfgen
+
+#endif

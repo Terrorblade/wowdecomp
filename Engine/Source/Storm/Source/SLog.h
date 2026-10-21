@@ -2,7 +2,9 @@
 #define ENGINE_SOURCE_STORM_SOURCE_SLOG_H
 
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 
 struct HLOCKEDLOG__ {

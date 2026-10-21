@@ -411,6 +411,9 @@ FodyWeavers.xsd
 
 # Local Visual Studio CMake settings (absolute paths to re/tools)
 CMakeSettings.json
+
+# CMake build directories (README builds into build/)
+/build/
 /HoT/Editor/DataGen/bindings.py
 /HoT/Editor/DataGen/enumparse.py
 /HoT/Editor/DataGen/gen.py

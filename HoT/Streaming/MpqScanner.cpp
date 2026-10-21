@@ -1,5 +1,12 @@
 #include "HoT/Streaming/MpqScanner.h"
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPath.h"
+#endif
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -38,8 +45,20 @@ static std::string ToLower(const std::string& s) {
     return out;
 }
 
+#if defined(_WIN32)
+static fs::path HostFolder(const fs::path& folder) {
+    return folder;
+}
+#else
+// The player's copy of Data keeps whatever case it has, match the folder names like the rest of the client does.
+static fs::path HostFolder(const fs::path& folder) {
+    char resolved[4096];
+    return OsLinuxResolvePath(folder.string().c_str(), resolved, sizeof(resolved), true) ? fs::path(resolved) : folder;
+}
+#endif
+
 static fs::path GetDataFolder() {
-    return Paths::ExeDir() / "Data";
+    return HostFolder(Paths::ExeDir() / "Data");
 }
 
 // An archive with a (hotmanifest) is identified by its contents, anything else by the sampled digest.
@@ -98,8 +117,8 @@ static void Rescan() {
     };
 
     scanFolder(dataFolder);
-    scanFolder(dataFolder / "enUS");
-    scanFolder(dataFolder / "enGB");
+    scanFolder(HostFolder(dataFolder / "enUS"));
+    scanFolder(HostFolder(dataFolder / "enGB"));
     LocalDigests::Save();
 }
 
@@ -135,7 +154,12 @@ void ScanAsync(Callback onDone) {
     s_asyncReady = false;
 
     std::thread([] {
+#if defined(_WIN32)
         SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+#else
+        // Linux nice values are per thread when given the thread id.
+        setpriority(PRIO_PROCESS, static_cast<id_t>(syscall(SYS_gettid)), 19);
+#endif
         std::vector<MpqInfo> scanned;
 
         try {

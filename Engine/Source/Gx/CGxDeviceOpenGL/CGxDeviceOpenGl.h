@@ -4,6 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 #include "Engine/Source/Gx/CGxDeviceOpenGL/GlExt.h"
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+#include <SDL.h>
+#endif
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/C2Vector.h"
@@ -53,6 +56,12 @@ class CGxDeviceOpenGl : public CGxDevice {
     /* 3AE0 */ const GLubyte* m_glVendor;
     /* 3AE4 */ const GLubyte* m_glRenderer;
     /* 3AE8 */ const GLubyte* m_glVersion;
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+    SDL_Window* m_window;
+    int32_t m_ownhwnd;
+    SDL_GLContext m_glContext;
+    int32_t m_gammaSet;
+#else
     /* 3AEC */ HWND m_hwnd;
     /* 3AF0 */ int32_t m_ownhwnd;
     /* 3AF4 */ ATOM m_hwndClass;
@@ -62,6 +71,7 @@ class CGxDeviceOpenGl : public CGxDevice {
     /* 3B00 */ HPBUFFERARB m_pbuffer;
     /* 3B04 */ HDC m_pbufferDC;
     /* 3B08 */ HGLRC m_pbufferRC;
+#endif
     /* 3B0C */ TSFixedArray<C3Vector> m_vertexArray;
     /* 3B18 */ TSFixedArray<C3Vector> m_normalArray;
     /* 3B24 */ TSFixedArray<CImVector> m_colorArray;
@@ -134,7 +144,11 @@ class CGxDeviceOpenGl : public CGxDevice {
     virtual void DeviceUnk82();
     virtual void DeviceUnk83(uint32_t a, uint32_t b);
 
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+    static intptr_t WindowProcGl(void* window, uint32_t message, uintptr_t wparam, intptr_t lparam);
+#else
     static LRESULT CALLBACK WindowProcGl(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
+#endif
 
     CGxDeviceOpenGl();
 
@@ -150,6 +164,10 @@ class CGxDeviceOpenGl : public CGxDevice {
     int32_t IDevAttachGlContext(const CGxFormat& format);
     void IDevRemoveGlContext();
     void IDevSetFocus(int32_t focus, const CGxFormat& format);
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+    void IDevDestroyWindow();
+    void IDevRestoreDesktopMode();
+#endif
     void IDeviceSetRenderTargetCopy(EGxBuffer buffer, CGxTex* texture, uint32_t plane);
     void IDeviceSetRenderTargetFBO(EGxBuffer buffer, CGxTex* texture, uint32_t plane);
     void IBindPixelShader(CGxShader* shader);

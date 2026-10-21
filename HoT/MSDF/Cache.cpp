@@ -170,6 +170,7 @@ bool Cache::LoadManifestFromFile(const std::filesystem::path& path, ManifestMap&
         return false;
     }
 
+#if defined(_WIN32)
     FileGuard file(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr));
 
     if (!file.IsValid()) {
@@ -187,6 +188,21 @@ bool Cache::LoadManifestFromFile(const std::filesystem::path& path, ManifestMap&
     if (!view.m_ptr) {
         return false;
     }
+#else
+    FileGuard file(open(path.c_str(), O_RDONLY | O_CLOEXEC));
+
+    if (!file.IsValid()) {
+        return false;
+    }
+
+    void* mapped = mmap(nullptr, static_cast<size_t>(fileSize), PROT_READ, MAP_PRIVATE, file.m_handle, 0);
+
+    if (mapped == MAP_FAILED) {
+        return false;
+    }
+
+    ViewGuard view(mapped, static_cast<size_t>(fileSize));
+#endif
 
     const ManifestHeader* header = static_cast<const ManifestHeader*>(view.m_ptr);
 
@@ -256,7 +272,11 @@ bool Cache::AppendManifestJournal(const std::vector<ManifestEntry>& entries) {
         return false;
     }
 
+#if defined(_WIN32)
     FileGuard file(CreateFileW(this->m_manifestJournalPath.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+#else
+    FileGuard file(open(this->m_manifestJournalPath.c_str(), O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644));
+#endif
 
     if (!file.IsValid() || entries.size() > UINT32_MAX / sizeof(ManifestEntry)) {
         return false;
@@ -266,8 +286,12 @@ bool Cache::AppendManifestJournal(const std::vector<ManifestEntry>& entries) {
     std::vector<uint8_t> buffer = Pools::s_byte.AcquireSized(totalBytes);
     memcpy(buffer.data(), entries.data(), totalBytes);
 
+#if defined(_WIN32)
     DWORD written = 0;
     bool ok = WriteFile(file.m_handle, buffer.data(), totalBytes, &written, nullptr) && written == totalBytes;
+#else
+    bool ok = WriteAll(file.m_handle, buffer.data(), totalBytes);
+#endif
 
     if (ok) {
         file.m_successful = true;
@@ -288,7 +312,11 @@ bool Cache::SaveManifest(bool isLocked) {
     std::filesystem::path tmpManifest = this->m_manifestPath;
     tmpManifest.replace_extension(".tmp");
 
+#if defined(_WIN32)
     FileGuard file(CreateFileW(tmpManifest.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+#else
+    FileGuard file(open(tmpManifest.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644));
+#endif
 
     if (!file.IsValid()) {
         return false;
@@ -301,11 +329,17 @@ bool Cache::SaveManifest(bool isLocked) {
     header.m_entryCount = static_cast<uint32_t>(this->m_manifest.size());
     header.m_pad = 0;
 
+#if defined(_WIN32)
     DWORD written = 0;
 
     if (!WriteFile(file.m_handle, &header, sizeof(header), &written, nullptr)) {
         return false;
     }
+#else
+    if (!WriteAll(file.m_handle, &header, sizeof(header))) {
+        return false;
+    }
+#endif
 
     std::vector<ManifestEntry> entries = Pools::s_manifest.Acquire(this->m_manifest.size());
 
@@ -322,13 +356,23 @@ bool Cache::SaveManifest(bool isLocked) {
         entries.push_back(entry);
     }
 
+#if defined(_WIN32)
     if (!entries.empty() && !WriteFile(file.m_handle, entries.data(), static_cast<DWORD>(entries.size() * sizeof(ManifestEntry)), &written, nullptr)) {
         return false;
     }
+#else
+    if (!entries.empty() && !WriteAll(file.m_handle, entries.data(), entries.size() * sizeof(ManifestEntry))) {
+        return false;
+    }
+#endif
 
     file.Close();
 
+#if defined(_WIN32)
     if (MoveFileExW(tmpManifest.c_str(), this->m_manifestPath.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+#else
+    if (rename(tmpManifest.c_str(), this->m_manifestPath.c_str()) == 0) {
+#endif
         std::error_code ec;
         std::filesystem::remove(this->m_manifestJournalPath, ec);
         return true;
@@ -531,7 +575,11 @@ bool Cache::WriteBlockFile(uint32_t blockId, std::vector<GlyphToStore*>& pending
     tmpPath.replace_extension(".tmp");
 
     {
+#if defined(_WIN32)
         FileGuard tmpFile(CreateFileW(tmpPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr));
+#else
+        FileGuard tmpFile(open(tmpPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644));
+#endif
 
         if (!tmpFile.IsValid()) {
             return false;
@@ -552,6 +600,7 @@ bool Cache::WriteBlockFile(uint32_t blockId, std::vector<GlyphToStore*>& pending
             payload.resize(payload.size() + padding, 0);
         }
 
+#if defined(_WIN32)
         DWORD written = 0;
 
         if (!WriteFile(tmpFile.m_handle, &header, sizeof(header), &written, nullptr) || written != sizeof(header)) {
@@ -569,15 +618,28 @@ bool Cache::WriteBlockFile(uint32_t blockId, std::vector<GlyphToStore*>& pending
         if (!WriteFile(tmpFile.m_handle, payload.data(), static_cast<DWORD>(payload.size()), &written, nullptr)) {
             return false;
         }
+#else
+        if (!WriteAll(tmpFile.m_handle, &header, sizeof(header)) || !WriteAll(tmpFile.m_handle, merged.data(), merged.size() * sizeof(GlyphEntry)) || !WriteAll(tmpFile.m_handle, hashTable.data(), BLOCK_SIZE * sizeof(uint32_t)) || !WriteAll(tmpFile.m_handle, payload.data(), payload.size())) {
+            return false;
+        }
+#endif
     }
 
+#if defined(_WIN32)
     if (!MoveFileExW(tmpPath.c_str(), blockPath.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+#else
+    if (rename(tmpPath.c_str(), blockPath.c_str()) != 0) {
+#endif
         std::filesystem::path oldPath = blockPath;
         oldPath.replace_extension(".old");
 
         std::error_code ec;
 
+#if defined(_WIN32)
         if (!MoveFileExW(tmpPath.c_str(), oldPath.c_str(), MOVEFILE_REPLACE_EXISTING) && !std::filesystem::exists(oldPath, ec)) {
+#else
+        if (rename(tmpPath.c_str(), oldPath.c_str()) != 0 && !std::filesystem::exists(oldPath, ec)) {
+#endif
             return false;
         }
 

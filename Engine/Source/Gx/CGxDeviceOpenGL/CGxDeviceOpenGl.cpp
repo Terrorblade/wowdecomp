@@ -97,11 +97,16 @@ static GLenum s_glColorMaterial[3] = { GL_AMBIENT_AND_DIFFUSE, GL_SPECULAR, GL_E
 // STATIC: 0x00AD8EAC
 static GLenum s_glPrim[GxPrims_Last] = { GL_POINTS, GL_LINES, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN };
 
+#if defined(_WIN32)
 // STATIC: 0x00C60334
 static bool s_dummyContextCreated;
 
 // STATIC: 0x00C60338
 static int32_t s_deviceChanging;
+#else
+// Shared with Linux/CGxDeviceOpenGl.cpp, which holds the window and context code.
+int32_t s_deviceChanging;
+#endif
 
 // STATIC: 0x00C6030C
 static EmergencyMem s_emergencyMem[GxPoolTargets_Last];
@@ -122,6 +127,12 @@ CGxDevice* CreateCGxDeviceOpenGl() {
 // OFFSET: 0x0068BBC0
 CGxDeviceOpenGl::CGxDeviceOpenGl() {
     this->m_api = GxApi_OpenGl;
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+    this->m_window = nullptr;
+    this->m_ownhwnd = 0;
+    this->m_glContext = nullptr;
+    this->m_gammaSet = 0;
+#else
     this->m_hwnd = nullptr;
     this->m_ownhwnd = 0;
     this->m_hdc = nullptr;
@@ -129,6 +140,7 @@ CGxDeviceOpenGl::CGxDeviceOpenGl() {
     this->m_pbuffer = nullptr;
     this->m_pbufferDC = nullptr;
     this->m_pbufferRC = nullptr;
+#endif
     this->m_fbo = 0;
     this->m_boundFbo = 0;
     this->unused_3B48 = 6;
@@ -1397,6 +1409,7 @@ void CGxDeviceOpenGl::DeviceDestroyPoolAPI() {
     }
 }
 
+#if defined(_WIN32)
 // VERIFY: 63ba8840 manual
 // OFFSET: 0x0068C670
 static void CreateDummyContext() {
@@ -1599,6 +1612,7 @@ void CGxDeviceOpenGl::DeviceDestroy() {
 
     s_deviceChanging = 0;
 }
+#endif
 
 // VERIFY: 2fa3d260 auto
 // OFFSET: 0x0068CC00
@@ -1607,6 +1621,7 @@ void CGxDeviceOpenGl::DeviceSetBaseMipLevel(uint32_t level) {
     CGxDevice::DeviceSetBaseMipLevel(level);
 }
 
+#if defined(_WIN32)
 // VERIFY: 01f4b10a auto
 // OFFSET: 0x0068CC20
 void CGxDeviceOpenGl::DeviceSetGamma(float gamma) {
@@ -2083,6 +2098,7 @@ static HGLRC CreateGLContext(HDC dc, const CGxFormat& format) {
 
     return wglCreateContext(dc);
 }
+#endif
 
 // VERIFY: b403578c manual
 // OFFSET: 0x0069E140
@@ -2090,6 +2106,7 @@ void CGxDeviceOpenGl::IShaderConstantsClear() {
     this->ShaderConstantsClear();
 }
 
+#if defined(_WIN32)
 // VERIFY: 80ad3a5a auto
 // OFFSET: 0x0068CF60
 int32_t CGxDeviceOpenGl::IDevAttachGlContext(const CGxFormat& format) {
@@ -2301,6 +2318,7 @@ LRESULT CALLBACK CGxDeviceOpenGl::WindowProcGl(HWND hwnd, UINT message, WPARAM w
 
     return DefWindowProcA(hwnd, message, wparam, lparam);
 }
+#endif
 
 // VERIFY: bb87ce15 manual
 // OFFSET: 0x0068D460
@@ -2342,8 +2360,12 @@ int32_t CGxDeviceOpenGl::DeviceWM(EGxWM wm, uintptr_t param1, uintptr_t param2) 
             this->m_windowFocus = 0;
 
             if (!this->m_format.m_window || this->m_format.m_maximize == 2) {
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+                this->IDevRestoreDesktopMode();
+#else
                 ChangeDisplaySettingsExA(nullptr, nullptr, nullptr, 0, nullptr);
                 ShowWindow(this->m_hwnd, SW_MINIMIZE);
+#endif
             }
 
             break;
@@ -2360,8 +2382,12 @@ int32_t CGxDeviceOpenGl::DeviceWM(EGxWM wm, uintptr_t param1, uintptr_t param2) 
                 this->m_windowFocus = 0;
 
                 if (!this->m_format.m_window || this->m_format.m_maximize == 2) {
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+                    this->IDevRestoreDesktopMode();
+#else
                     ChangeDisplaySettingsExA(nullptr, nullptr, nullptr, 0, nullptr);
                     ShowWindow(this->m_hwnd, SW_MINIMIZE);
+#endif
                 }
             }
 
@@ -2374,6 +2400,7 @@ int32_t CGxDeviceOpenGl::DeviceWM(EGxWM wm, uintptr_t param1, uintptr_t param2) 
     return 0;
 }
 
+#if defined(_WIN32)
 // VERIFY: 075c29d3 auto
 // OFFSET: 0x0068D610
 int32_t CGxDeviceOpenGl::DeviceCreate(void* window, const CGxFormat& format) {
@@ -2432,6 +2459,7 @@ int32_t CGxDeviceOpenGl::DeviceSetFormat(const CGxFormat& format) {
     s_deviceChanging = 0;
     return 0;
 }
+#endif
 
 // VERIFY: 12cc2e1f manual
 // OFFSET: 0x0068D7B0
@@ -2478,6 +2506,10 @@ void CGxDeviceOpenGl::IDeviceSetRenderTargetCopy(EGxBuffer buffer, CGxTex* textu
 
     target.m_apiSpecific = texture;
 
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+    // No pbuffer on Linux: the copy path renders into the window's back buffer.
+    SDL_GL_MakeCurrent(this->m_window, this->m_glContext);
+#else
     HDC dc = this->m_hdc;
     HGLRC context = this->m_hglrc;
 
@@ -2487,6 +2519,7 @@ void CGxDeviceOpenGl::IDeviceSetRenderTargetCopy(EGxBuffer buffer, CGxTex* textu
     }
 
     wglMakeCurrent(dc, context);
+#endif
 
     GxXformSetViewport(this->m_viewport.m_x.m_l, this->m_viewport.m_x.m_h, this->m_viewport.m_y.m_l, this->m_viewport.m_y.m_h, this->m_viewport.m_z.m_l, this->m_viewport.m_z.m_h);
     g_theGxDevicePtr->XformSetProjection(this->m_projection);
@@ -2503,7 +2536,18 @@ void CGxDeviceOpenGl::CapsWindowSizeInScreenCoords(CRect& rect) {
         points[0].y = 0;
         points[1].x = static_cast<LONG>(window.maxX);
         points[1].y = static_cast<LONG>(window.maxY);
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+        int windowX = 0;
+        int windowY = 0;
+        SDL_GetWindowPosition(this->m_window, &windowX, &windowY);
+
+        for (POINT& point : points) {
+            point.x += windowX;
+            point.y += windowY;
+        }
+#else
         MapWindowPoints(this->m_hwnd, nullptr, points, 2);
+#endif
 
         rect.minY = static_cast<float>(points[0].y);
         rect.minX = static_cast<float>(points[0].x);
@@ -2518,6 +2562,7 @@ void CGxDeviceOpenGl::CapsWindowSizeInScreenCoords(CRect& rect) {
     }
 }
 
+#if defined(_WIN32)
 // VERIFY: a93b9ae1 manual
 // OFFSET: 0x0068DA10
 static ATOM WindowClassCreate() {
@@ -2835,6 +2880,7 @@ int32_t CGxDevice::OpenGlAdapterFormats(TSGrowableArray<CGxFormat>& formats) {
 
     return formats.Count() != 0;
 }
+#endif
 
 // VERIFY: f1a2e45f auto
 // OFFSET: 0x006A5A00
@@ -3907,7 +3953,11 @@ void CGxDeviceOpenGl::ScenePresent() {
         HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::Swap);
 
         if (this->m_hwMasterEnables & 0x40) {
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+            SDL_GL_SwapWindow(this->m_window);
+#else
             wglSwapLayerBuffers(this->m_hdc, WGL_SWAP_MAIN_PLANE);
+#endif
         } else {
             glFinish();
         }
@@ -3927,7 +3977,7 @@ void CGxDeviceOpenGl::ScenePresent() {
 void CGxDeviceOpenGl::IXformSetProjection(const C44Matrix& matrix) {
     C44Matrix projection(matrix.a0, matrix.a1, matrix.a2, matrix.a3, matrix.b0, matrix.b1, matrix.b2, matrix.b3, -matrix.c0, -matrix.c1, -matrix.c2, -matrix.c3, matrix.d0, matrix.d1, matrix.d2, matrix.d3);
 
-    if (static_cast<int32_t>(this->m_appMasterEnables) >= 0 && 1.0f != matrix.d3) {
+    if (!(this->m_appMasterEnables & (1 << GxMasterEnable_NormalProjection)) && 1.0f != matrix.d3) {
         C44Matrix scale(0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
         projection = projection * scale;
     }

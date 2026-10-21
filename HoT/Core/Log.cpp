@@ -36,7 +36,11 @@ static void EnsureOpen(const char* mode) {
     }
 
     s_opened = true;
+#if defined(_WIN32)
     s_file = fopen("Logs\\HoT.log", mode);
+#else
+    s_file = fopen("Logs/HoT.log", mode);
+#endif
 }
 
 void Reset() {

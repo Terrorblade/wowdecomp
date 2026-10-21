@@ -1,4 +1,5 @@
 file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
 add_library(Os STATIC
     ${PRIVATE_SOURCES}
@@ -20,3 +21,10 @@ if(WIN32)
             version
     )
 endif()
+
+if (WOWDECOMP_PLATFORM_LINUX)
+    target_link_libraries(Os
+        PUBLIC
+            SDL2::SDL2
+    )
+endif ()

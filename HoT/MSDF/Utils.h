@@ -1,6 +1,7 @@
 #ifndef HOT_MSDF_UTILS_H
 #define HOT_MSDF_UTILS_H
 
+#if defined(_WIN32)
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0A00
 #endif
@@ -8,6 +9,15 @@
 #include <windows.h>
 #undef min
 #undef max
+#else
+#include <cerrno>
+#include <chrono>
+#include <thread>
+#include <fcntl.h>
+#include <sys/file.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -19,6 +29,7 @@
 
 namespace HoT::MSDF {
 
+#if defined(_WIN32)
 namespace PlaceholderVA {
 
 using VirtualAlloc2Fn = PVOID (WINAPI*)(HANDLE, PVOID, SIZE_T, ULONG, ULONG, MEM_EXTENDED_PARAMETER*, ULONG);
@@ -57,6 +68,11 @@ inline bool IsWine() {
 
     return ntdll && GetProcAddress(ntdll, "wine_get_version") != nullptr;
 }
+#else
+inline bool IsWine() {
+    return false;
+}
+#endif
 
 class ScopedFileLock {
     public:
@@ -66,6 +82,7 @@ class ScopedFileLock {
     ScopedFileLock(const ScopedFileLock&) = delete;
     ScopedFileLock& operator=(const ScopedFileLock&) = delete;
 
+#if defined(_WIN32)
     bool AcquireExclusive(const std::filesystem::path& lockFilePath, DWORD timeoutMs = 2000) {
         return this->AcquireInternal(lockFilePath, LOCKFILE_EXCLUSIVE_LOCK, timeoutMs);
     }
@@ -120,6 +137,60 @@ class ScopedFileLock {
     HANDLE m_file = INVALID_HANDLE_VALUE;
     OVERLAPPED m_overlapped = {};
     bool m_locked = false;
+#else
+    // flock() on a separate open file description, which also excludes other handles in this process like LockFileEx.
+    bool AcquireExclusive(const std::filesystem::path& lockFilePath, DWORD timeoutMs = 2000) {
+        return this->AcquireInternal(lockFilePath, LOCK_EX, timeoutMs);
+    }
+
+    bool AcquireShared(const std::filesystem::path& lockFilePath, DWORD timeoutMs = 2000) {
+        return this->AcquireInternal(lockFilePath, LOCK_SH, timeoutMs);
+    }
+
+    void Release() noexcept {
+        if (this->m_locked && this->m_file >= 0) {
+            flock(this->m_file, LOCK_UN);
+            close(this->m_file);
+            this->m_file = -1;
+            this->m_locked = false;
+        }
+    }
+
+    private:
+    bool AcquireInternal(const std::filesystem::path& lockFilePath, int operation, DWORD timeoutMs) {
+        std::error_code ec;
+        std::filesystem::create_directories(lockFilePath.parent_path(), ec);
+
+        this->m_file = open(lockFilePath.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+
+        if (this->m_file < 0) {
+            return false;
+        }
+
+        auto start = std::chrono::steady_clock::now();
+
+        do {
+            if (flock(this->m_file, operation | LOCK_NB) == 0) {
+                this->m_locked = true;
+                return true;
+            }
+
+            if (timeoutMs == 0 || errno != EWOULDBLOCK) {
+                break;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        } while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(timeoutMs));
+
+        close(this->m_file);
+        this->m_file = -1;
+
+        return false;
+    }
+
+    int m_file = -1;
+    bool m_locked = false;
+#endif
 };
 
 // Keeps released vectors in power of two buckets so glyph generation does not churn the heap.
@@ -200,6 +271,7 @@ class VectorPool {
     std::array<std::vector<std::vector<T>>, BUCKETS> m_buckets;
 };
 
+#if defined(_WIN32)
 struct FileGuard {
     HANDLE m_handle = INVALID_HANDLE_VALUE;
     std::filesystem::path m_path;
@@ -272,6 +344,91 @@ struct ViewGuard {
         this->m_ptr = nullptr;
     }
 };
+#else
+// m_handle is a file descriptor here.
+struct FileGuard {
+    int m_handle = -1;
+    std::filesystem::path m_path;
+    bool m_deleteOnFailure = false;
+    bool m_successful = false;
+
+    FileGuard(int handle = -1) : m_handle(handle) {}
+    ~FileGuard() { this->Close(); }
+
+    FileGuard(const FileGuard&) = delete;
+    FileGuard& operator=(const FileGuard&) = delete;
+
+    void Close() {
+        if (this->m_handle >= 0) {
+            close(this->m_handle);
+            this->m_handle = -1;
+        }
+
+        if (this->m_deleteOnFailure && !this->m_successful && !this->m_path.empty()) {
+            std::error_code ec;
+            std::filesystem::remove(this->m_path, ec);
+        }
+    }
+
+    bool IsValid() const { return this->m_handle >= 0; }
+};
+
+// mmap() maps the descriptor directly, there is no section object to keep, so this only mirrors the Windows shape.
+struct MappingGuard {
+    void Close() {}
+    bool IsValid() const { return true; }
+};
+
+// A placeholder view sits inside the Manager arena: closing it puts the PROT_NONE reservation back instead of
+// unmapping, so the slot's address range stays reserved.
+struct ViewGuard {
+    void* m_ptr = nullptr;
+    size_t m_size = 0;
+    bool m_placeholder = false;
+
+    ViewGuard(void* ptr = nullptr, size_t size = 0) : m_ptr(ptr), m_size(size) {}
+    ~ViewGuard() { this->Close(); }
+
+    ViewGuard(const ViewGuard&) = delete;
+    ViewGuard& operator=(const ViewGuard&) = delete;
+
+    void Close() {
+        if (!this->m_ptr) {
+            return;
+        }
+
+        if (this->m_placeholder) {
+            mmap(this->m_ptr, this->m_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0);
+        } else {
+            munmap(this->m_ptr, this->m_size);
+        }
+
+        this->m_ptr = nullptr;
+        this->m_size = 0;
+    }
+};
+
+inline bool WriteAll(int fd, const void* data, size_t size) {
+    const uint8_t* p = static_cast<const uint8_t*>(data);
+
+    while (size > 0) {
+        ssize_t n = write(fd, p, size);
+
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            return false;
+        }
+
+        p += n;
+        size -= static_cast<size_t>(n);
+    }
+
+    return true;
+}
+#endif
 
 template <typename F>
 struct FinalAction {

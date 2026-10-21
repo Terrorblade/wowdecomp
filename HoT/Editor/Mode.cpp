@@ -1,5 +1,22 @@
 #include "HoT/Editor/Mode.h"
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <ctime>
+
+// QueryPerformance* on CLOCK_MONOTONIC in nanoseconds, as the Linux TimeManager does.
+static int32_t QueryPerformanceFrequency(LARGE_INTEGER* frequency) {
+    frequency->QuadPart = 1000000000;
+    return 1;
+}
+
+static int32_t QueryPerformanceCounter(LARGE_INTEGER* count) {
+    timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    count->QuadPart = static_cast<int64_t>(now.tv_sec) * 1000000000 + now.tv_nsec;
+    return 1;
+}
+#endif
 #include <cstring>
 #include <string>
 #include <vector>

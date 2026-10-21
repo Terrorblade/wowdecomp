@@ -116,17 +116,27 @@ static int (*s_drawListSorters[GxuSorts_Last])(const void*, const void*) = { Dra
 // VERIFY: 0b88acbc auto
 // OFFSET: 0x008C8DE0
 EGxApi GxDefaultApi() {
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+    return GxApi_OpenGl;
+#else
     return GxApi_D3d9;
+#endif
 }
 
 // VERIFY: cef2b995 auto
 // OFFSET: 0x006811D0
 int32_t GxApiSupported(EGxApi api) {
     switch (api) {
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+        // The Direct3D devices are not built on Linux.
+        case GxApi_OpenGl:
+            return 1;
+#else
         case GxApi_OpenGl:
         case GxApi_D3d9:
         case GxApi_D3d9Ex:
             return 1;
+#endif
 
         default:
             return 0;
@@ -186,6 +196,13 @@ CGxDevice* CreateGxDevice(EGxApi api, GxWindowProc windowProc, const CGxFormat& 
             g_theGxDevicePtr = device;
             break;
 
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+        case GxApi_D3d9:
+        case GxApi_D3d9Ex:
+            device = CreateCGxDeviceOpenGl();
+            g_theGxDevicePtr = device;
+            break;
+#else
         case GxApi_D3d9:
             device = CreateCGxDeviceD3d();
             g_theGxDevicePtr = device;
@@ -195,6 +212,7 @@ CGxDevice* CreateGxDevice(EGxApi api, GxWindowProc windowProc, const CGxFormat& 
             device = CreateCGxDeviceD3d9Ex();
             g_theGxDevicePtr = device;
             break;
+#endif
 
         default:
             device = g_theGxDevicePtr;

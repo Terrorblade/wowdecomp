@@ -1,6 +1,9 @@
 file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
-if (NOT WIN32)
+if (WOWDECOMP_PLATFORM_LINUX)
+    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDevice(D3d|D3d9Ex)/")
+elseif (NOT WIN32)
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDevice(D3d|D3d9Ex|OpenGL)/")
 endif ()
 
@@ -13,10 +16,19 @@ target_include_directories(Gx
         ${CMAKE_SOURCE_DIR}
 )
 
-target_link_libraries(Gx
-    PRIVATE
-        d3d9.lib
-)
+if (WOWDECOMP_PLATFORM_LINUX)
+    find_package(OpenGL REQUIRED)
+    target_link_libraries(Gx
+        PUBLIC
+            SDL2::SDL2
+            OpenGL::GL
+    )
+else ()
+    target_link_libraries(Gx
+        PRIVATE
+            d3d9.lib
+    )
+endif ()
 
 if (WIN32)
     target_link_libraries(Gx

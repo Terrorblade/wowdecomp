@@ -3,7 +3,9 @@
 
 #include "Engine/Source/BlizzardCore/Source/System/Using/Using.h"
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/Debug/ErrorStack.h"
 #include "Engine/Source/BlizzardCore/Source/System/File/Filestack.h"
 #include "Engine/Source/BlizzardCore/Source/System/File/Types.h"

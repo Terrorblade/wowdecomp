@@ -4,7 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 #include "Engine/Source/Tempest/C3Vector.h"
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 
 enum CHAR_CUSTOMIZATION_TYPE {
     CHAR_CUSTOMIZATION_SKIN = 0,

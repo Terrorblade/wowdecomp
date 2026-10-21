@@ -1,6 +1,11 @@
 #include "HoT/Runtime/LuaPool.h"
 #include <cstring>
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <cstdlib>
+#include <sys/mman.h>
+#endif
 
 namespace HoT::LuaRuntime {
 
@@ -33,17 +38,25 @@ LuaPool::LuaPool() {
         this->m_classOf[bucket] = static_cast<uint8_t>(current);
     }
 
+#if defined(_WIN32)
     this->m_heap = HeapCreate(HEAP_NO_SERIALIZE, 0, 0);
+#endif
 }
 
 LuaPool::~LuaPool() {
     for (void* slab : this->m_slabs) {
+#if defined(_WIN32)
         VirtualFree(slab, 0, MEM_RELEASE);
+#else
+        munmap(slab, SLAB_SIZE);
+#endif
     }
 
+#if defined(_WIN32)
     if (this->m_heap) {
         HeapDestroy(this->m_heap);
     }
+#endif
 }
 
 void* LuaPool::Reallocate(void* ptr, size_t osize, size_t nsize) {
@@ -79,7 +92,11 @@ void* LuaPool::Reallocate(void* ptr, size_t osize, size_t nsize) {
     }
 
     if (!oldSmall && !newSmall) {
+#if defined(_WIN32)
         void* block = HeapReAlloc(this->m_heap, 0, ptr, nsize);
+#else
+        void* block = realloc(ptr, nsize);
+#endif
 
         if (block) {
             this->m_live += nsize - osize;
@@ -103,7 +120,12 @@ void* LuaPool::Reallocate(void* ptr, size_t osize, size_t nsize) {
 
 void* LuaPool::Allocate(size_t size) {
     if (size > SMALL_LIMIT) {
+#if defined(_WIN32)
         return this->m_heap ? HeapAlloc(this->m_heap, 0, size) : nullptr;
+#else
+        // Large blocks go to the C heap on Linux, m_heap stays unused.
+        return malloc(size);
+#endif
     }
 
     return this->AllocateSmall(this->ClassOf(size));
@@ -111,7 +133,11 @@ void* LuaPool::Allocate(size_t size) {
 
 void LuaPool::Free(void* ptr, size_t size) {
     if (size > SMALL_LIMIT) {
+#if defined(_WIN32)
         HeapFree(this->m_heap, 0, ptr);
+#else
+        free(ptr);
+#endif
         return;
     }
 
@@ -135,11 +161,19 @@ void* LuaPool::AllocateSmall(uint32_t cls) {
 }
 
 bool LuaPool::Refill(uint32_t cls) {
+#if defined(_WIN32)
     void* slab = VirtualAlloc(nullptr, SLAB_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
     if (!slab) {
         return false;
     }
+#else
+    void* slab = mmap(nullptr, SLAB_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+    if (slab == MAP_FAILED) {
+        return false;
+    }
+#endif
 
     this->m_slabs.push_back(slab);
 

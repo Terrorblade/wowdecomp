@@ -1,6 +1,9 @@
 file(GLOB PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
-if (WOWDECOMP_ARCH_64)
+if (WOWDECOMP_PLATFORM_LINUX)
+    file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Linux/*.cpp")
+elseif (WOWDECOMP_ARCH_64)
     file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Win64/*.cpp")
 else ()
     file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Win32/*.cpp")
@@ -14,14 +17,20 @@ else ()
     set(WOW_OUTPUT_NAME Wow32)
 endif ()
 
+if (WOWDECOMP_PLATFORM_LINUX)
+    set(WOW_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/bin/Linux)
+else ()
+    set(WOW_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/bin/Win)
+endif ()
+
 set_target_properties(Wow PROPERTIES
     OUTPUT_NAME ${WOW_OUTPUT_NAME}
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/Win
+    RUNTIME_OUTPUT_DIRECTORY ${WOW_OUTPUT_DIR}
 )
 
 foreach (config ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
     string(TOUPPER ${config} config)
-    set_target_properties(Wow PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${CMAKE_SOURCE_DIR}/bin/Win)
+    set_target_properties(Wow PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${WOW_OUTPUT_DIR})
 endforeach ()
 
 target_include_directories(Wow
@@ -29,7 +38,9 @@ target_include_directories(Wow
         ${CMAKE_SOURCE_DIR}
 )
 
-target_link_options(Wow PRIVATE "/INCREMENTAL:NO" "/ENTRY:start")
+if (WOWDECOMP_PLATFORM_WIN)
+    target_link_options(Wow PRIVATE "/INCREMENTAL:NO" "/ENTRY:start")
+endif ()
 
 target_link_libraries(Wow
     PRIVATE

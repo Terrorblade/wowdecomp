@@ -19,6 +19,10 @@
 #include "HoT/MSDF/Utils.h"
 #include "HoT/MSDF/Validator.h"
 
+#if !defined(_WIN32)
+#define scanf_s scanf
+#endif
+
 namespace HoT::MSDF::Pregen {
 
 // Sleeps between work slices so the worker threads stay near the requested CPU share.
@@ -53,6 +57,7 @@ class Throttle {
     std::chrono::milliseconds m_accumulatedWork{ 0 };
 };
 
+#if defined(_WIN32)
 struct ConsoleGuard {
     FILE* m_out = nullptr;
     FILE* m_in = nullptr;
@@ -97,6 +102,17 @@ struct ConsoleGuard {
     ConsoleGuard(const ConsoleGuard&) = delete;
     ConsoleGuard& operator=(const ConsoleGuard&) = delete;
 };
+#else
+// The prompts use the terminal the client was started from, there is no console to allocate; without a terminal
+// on stdin this behaves like a failed AllocConsole and pre-generation is skipped.
+struct ConsoleGuard {
+    bool m_allocated = isatty(STDIN_FILENO) != 0;
+
+    ConsoleGuard() = default;
+    ConsoleGuard(const ConsoleGuard&) = delete;
+    ConsoleGuard& operator=(const ConsoleGuard&) = delete;
+};
+#endif
 
 struct PreGenRequest {
     FT_Face m_face = nullptr;
@@ -108,7 +124,11 @@ struct PreGenRequest {
 };
 
 static std::vector<PreGenRequest> s_pendingRequests;
+#if defined(_WIN32)
 static HANDLE s_lockFile = INVALID_HANDLE_VALUE;
+#else
+static int s_lockFile = -1;
+#endif
 
 static std::string GameLocale() {
     CVar* locale = CVar::Lookup("locale");
@@ -154,11 +174,25 @@ static bool AcquirePreGenLock() {
     std::filesystem::create_directories(Cache::CACHE_DIR, ec);
 
     std::string path = (std::filesystem::path(Cache::CACHE_DIR) / "pregen.lock").string();
+#if defined(_WIN32)
     HANDLE handle = CreateFileA(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
 
     if (handle == INVALID_HANDLE_VALUE) {
         return false;
     }
+#else
+    // An flock() held for the session replaces the delete on close file, it is dropped even if the client crashes.
+    int handle = open(path.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+
+    if (handle < 0) {
+        return false;
+    }
+
+    if (flock(handle, LOCK_EX | LOCK_NB) != 0) {
+        close(handle);
+        return false;
+    }
+#endif
 
     s_lockFile = handle;
 
@@ -166,10 +200,17 @@ static bool AcquirePreGenLock() {
 }
 
 static void ReleasePreGenLock() {
+#if defined(_WIN32)
     if (s_lockFile != INVALID_HANDLE_VALUE) {
         CloseHandle(s_lockFile);
         s_lockFile = INVALID_HANDLE_VALUE;
     }
+#else
+    if (s_lockFile >= 0) {
+        close(s_lockFile);
+        s_lockFile = -1;
+    }
+#endif
 }
 
 static bool GenerateFont(const PreGenRequest& request) {

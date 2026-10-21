@@ -1,6 +1,9 @@
 file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
-if (NOT WIN32)
+if (WOWDECOMP_PLATFORM_LINUX)
+    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/UILCD/(Windows/|LCD\\.cpp$)")
+elseif (NOT WIN32)
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/UILCD/Windows/")
 endif ()
 

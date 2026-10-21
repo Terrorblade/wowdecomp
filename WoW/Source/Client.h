@@ -97,7 +97,9 @@ uint32_t GetM2CvarFlags();
 int32_t InitializeEngineCallback(const void* data, void* param);
 bool InitializeGlobal();
 bool LocaleCallback(CVar* var, const char* oldValue, const char* value, void* arg);
+#if defined(_WIN32)
 int main();
+#endif
 int32_t Packet_SMSG_NOTIFICATION(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 int32_t Packet_SMSG_PLAYED_TIME(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 int32_t Packet_SMSG_TRANSFER_ABORTED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);

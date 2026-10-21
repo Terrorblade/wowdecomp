@@ -1,5 +1,7 @@
 #include "HoT/Streaming/LocalDigests.h"
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -291,9 +293,19 @@ void Save() {
         out.close();
     }
 
+#if defined(_WIN32)
     if (out && MoveFileExW(tmp.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING)) {
         return;
     }
+#else
+    if (out) {
+        fs::rename(tmp, file, ec);
+
+        if (!ec) {
+            return;
+        }
+    }
+#endif
 
     fs::remove(tmp, ec);
     std::lock_guard<std::mutex> lock(s_mutex);

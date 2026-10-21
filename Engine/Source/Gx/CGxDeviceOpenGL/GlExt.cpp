@@ -4,8 +4,17 @@
 #include "Engine/Source/Gx/CGxDeviceOpenGL/GlExt.h"
 #include "Engine/Source/Storm/H/storm.h"
 
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+#include <SDL.h>
+
+// Entry points come from the SDL GL context (GLX/EGL) instead of WGL.
+#define wglGetProcAddress(name) SDL_GL_GetProcAddress(name)
+#endif
+
+#if defined(_WIN32)
 // STATIC: 0x00C6061C
 static const char* s_wglExtensions;
+#endif
 
 // STATIC: 0x00C60620
 static const char* s_glExtensions;
@@ -118,6 +127,7 @@ int32_t glARBFragmentProgram;
 // STATIC: 0x00C604EC
 int32_t glARBVertexProgram;
 
+#if defined(_WIN32)
 // STATIC: 0x00C604F0
 PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
@@ -144,6 +154,7 @@ PFNWGLGETPIXELFORMATATTRIBIVARBPROC wglGetPixelFormatAttribivARB;
 
 // STATIC: 0x00C60514
 PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB;
+#endif
 
 // STATIC: 0x00C60518
 PFNGLBLENDCOLOREXTPROC glBlendColorEXT;
@@ -335,7 +346,9 @@ uint32_t glVersion;
 // OFFSET: 0x006908A0
 void UnbindGlExtensions() {
     s_glExtensions = nullptr;
+#if defined(_WIN32)
     s_wglExtensions = nullptr;
+#endif
 }
 
 // VERIFY: f55df59e auto
@@ -380,6 +393,7 @@ bool FindGlExt(const char* name) {
     return ScanString(s_glExtensions, name);
 }
 
+#if defined(_WIN32)
 // VERIFY: 5f60079f auto
 // OFFSET: 0x00690960
 bool HasWGLExtension(const char* name) {
@@ -393,6 +407,12 @@ bool HasWGLExtension(const char* name) {
 
     return ScanString(s_wglExtensions, name);
 }
+#else
+// There is no WGL; the window system extensions the device uses are covered by SDL.
+bool HasWGLExtension(const char* name) {
+    return false;
+}
+#endif
 
 // VERIFY: df2e8e3f auto
 // OFFSET: 0x006909A0
@@ -620,6 +640,7 @@ void BindGlExtensions() {
     }
 }
 
+#if defined(_WIN32)
 // VERIFY: 31ee35e7 auto
 // OFFSET: 0x0068C5A0
 void BindWglExtensions() {
@@ -645,3 +666,12 @@ void BindWglExtensions() {
         wglSwapIntervalEXT = reinterpret_cast<PFNWGLSWAPINTERVALEXTPROC>(wglGetProcAddress("wglSwapIntervalEXT"));
     }
 }
+#else
+// Pixel formats and pbuffers are WGL-only (SDL picks the visual, render targets use FBOs). Swap control is always
+// available through SDL_GL_SetSwapInterval.
+void BindWglExtensions() {
+    wglArbPixelFormat = 0;
+    wglArbPbuffer = 0;
+    wglExtSwapControl = 1;
+}
+#endif

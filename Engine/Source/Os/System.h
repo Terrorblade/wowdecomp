@@ -59,4 +59,10 @@ int32_t OsSleepInBackground();
 void OsSystemEnableCpuLog();
 void OsValidateFunctionPointer(const void* ptr);
 
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+// Linux has no GetCommandLine; main hands argv to the Os layer.
+const char* OsGetCommandLine();
+void OsSetCommandLine(int argc, char** argv);
+#endif
+
 #endif

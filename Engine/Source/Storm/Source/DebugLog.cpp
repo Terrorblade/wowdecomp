@@ -1,7 +1,12 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#if defined(_WIN32)
 #include <windows.h>
+#else
+// No debugger output channel on Linux; stderr is where a developer looks.
+#define OutputDebugStringA(str) fputs(str, stderr)
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 
 #ifndef NDEBUG

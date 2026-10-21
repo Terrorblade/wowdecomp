@@ -5,12 +5,22 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#if defined(_WIN32)
 #include <windows.h>
 #include <psapi.h>
+#endif
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/CGxDevice/CGxShader.h"
+#if defined(_WIN32)
 #include "Engine/Source/Gx/CGxDeviceD3d/CGxDeviceD3d.h"
 #include "Engine/Source/Gx/CGxDeviceD3d9Ex/CGxDeviceD3d9Ex.h"
+#else
+#include <cstring>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include "Engine/Source/Os/Path.h"
+#endif
 #include "Engine/Source/Gx/CGxTex.h"
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Model2/M2Shared.h"
@@ -226,6 +236,7 @@ struct ShaderStat {
     uint64_t m_prims = 0;
 };
 
+#if defined(_WIN32)
 struct GpuMark {
     Zone m_zone;
     IDirect3DQuery9* m_begin;
@@ -244,6 +255,7 @@ struct GpuFrame {
     bool m_open = false;
     bool m_pending = false;
 };
+#endif
 
 struct Published {
     double m_seconds = 0;
@@ -293,6 +305,12 @@ static float s_hitchMs = 50.0f;
 static bool s_luaStatsWasOn = false;
 static DWORD s_mainThread = 0;
 
+#if !defined(_WIN32)
+static DWORD GetCurrentThreadId() {
+    return static_cast<DWORD>(gettid());
+}
+#endif
+
 static FrameData s_frame;
 static StackEntry s_stack[STACK_DEPTH];
 static uint32_t s_depth = 0;
@@ -324,13 +342,18 @@ static float s_historyGpu[HISTORY_SIZE];
 static uint32_t s_historyIndex = 0;
 static uint32_t s_historyGpuIndex = 0;
 
+#if defined(_WIN32)
 static GpuFrame s_gpu[GPU_RING];
 static uint32_t s_gpuSlot = 0;
 static bool s_gpuCreated = false;
+#endif
 static bool s_gpuUnsupported = false;
+#if defined(_WIN32)
 static IDirect3DDevice9* s_gpuDevice = nullptr;
 static GpuFrame* s_gpuCurrent = nullptr;
+#endif
 
+#if defined(_WIN32)
 static int64_t Now() {
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
@@ -352,6 +375,26 @@ static void FormatClock(char* buffer, size_t size) {
     GetLocalTime(&st);
     snprintf(buffer, size, "%02u:%02u:%02u.%03u", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 }
+#else
+// Ticks are CLOCK_MONOTONIC nanoseconds.
+static int64_t Now() {
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<int64_t>(ts.tv_sec) * 1000000000 + ts.tv_nsec;
+}
+
+static double ToMs(int64_t ticks) {
+    return ticks / 1000000.0;
+}
+
+static void FormatClock(char* buffer, size_t size) {
+    timeval tv;
+    gettimeofday(&tv, nullptr);
+    tm local;
+    localtime_r(&tv.tv_sec, &local);
+    snprintf(buffer, size, "%02d:%02d:%02d.%03d", local.tm_hour, local.tm_min, local.tm_sec, static_cast<int>(tv.tv_usec / 1000));
+}
+#endif
 
 static size_t Index(Zone zone) {
     return static_cast<size_t>(zone);
@@ -369,6 +412,8 @@ static uint32_t Depth(Zone zone) {
 }
 
 // GPU timestamps, D3D9 and D3D9Ex only, read back a few frames later without stalling.
+
+#if defined(_WIN32)
 
 static IDirect3DDevice9* CurrentD3dDevice() {
     CGxDevice* device = g_theGxDevicePtr;
@@ -579,6 +624,28 @@ static void EndGpuMark(int32_t mark) {
         frame->m_end[mark]->Issue(D3DISSUE_END);
     }
 }
+#else
+// There is no D3D9 device on Linux, so GPU timing reports as unavailable like a device without timestamp queries.
+static void* CurrentD3dDevice() {
+    return nullptr;
+}
+
+static void ReleaseGpu() {
+}
+
+static void BeginGpuFrame() {
+}
+
+static void EndGpuFrame() {
+}
+
+static int32_t BeginGpuMark(Zone zone) {
+    return -1;
+}
+
+static void EndGpuMark(int32_t mark) {
+}
+#endif
 
 // CPU zones.
 
@@ -764,6 +831,7 @@ static void SampleMemory(Published& out) {
         out.m_textureMB = bytes / (1024.0 * 1024.0);
         out.m_renderTargetMB = targetBytes / (1024.0 * 1024.0);
 
+#if defined(_WIN32)
         if (IDirect3DDevice9* d3d = CurrentD3dDevice()) {
             out.m_availableTexMB = d3d->GetAvailableTextureMem() / (1024.0 * 1024.0);
         }
@@ -773,8 +841,10 @@ static void SampleMemory(Published& out) {
             out.m_texCacheMB = ex->m_texCacheUsed / (1024.0 * 1024.0);
             out.m_texCacheLimitMB = ex->m_texCacheSize / (1024.0 * 1024.0);
         }
+#endif
     }
 
+#if defined(_WIN32)
     PROCESS_MEMORY_COUNTERS_EX memory = {};
     memory.cb = sizeof(memory);
 
@@ -782,6 +852,29 @@ static void SampleMemory(Published& out) {
         out.m_workingSetMB = memory.WorkingSetSize / (1024.0 * 1024.0);
         out.m_privateMB = memory.PrivateUsage / (1024.0 * 1024.0);
     }
+#else
+    // Working set is VmRSS; private bytes is approximated by anonymous resident memory plus swap.
+    if (FILE* status = fopen("/proc/self/status", "r")) {
+        char line[256];
+        unsigned long long rssKB = 0;
+        unsigned long long anonKB = 0;
+        unsigned long long swapKB = 0;
+
+        while (fgets(line, sizeof(line), status)) {
+            if (strncmp(line, "VmRSS:", 6) == 0) {
+                rssKB = strtoull(line + 6, nullptr, 10);
+            } else if (strncmp(line, "RssAnon:", 8) == 0) {
+                anonKB = strtoull(line + 8, nullptr, 10);
+            } else if (strncmp(line, "VmSwap:", 7) == 0) {
+                swapKB = strtoull(line + 7, nullptr, 10);
+            }
+        }
+
+        fclose(status);
+        out.m_workingSetMB = rssKB / 1024.0;
+        out.m_privateMB = (anonKB + swapKB) / 1024.0;
+    }
+#endif
 }
 
 template <class Map, class Fill>
@@ -1093,6 +1186,7 @@ static void Toggle() {
 // Report file.
 
 static std::string ReportPath() {
+#if defined(_WIN32)
     char module[MAX_PATH];
     GetModuleFileNameA(nullptr, module, MAX_PATH);
     std::string directory = module;
@@ -1106,6 +1200,22 @@ static std::string ReportPath() {
     strftime(name, sizeof(name), "\\gfxprofile_%Y-%m-%d_%H-%M-%S.txt", &local);
 
     return directory + name;
+#else
+    char module[MAX_PATH] = {};
+    GetModuleFileNameUTF8(nullptr, module, MAX_PATH);
+    std::string directory = module;
+    size_t slash = directory.find_last_of('/');
+    directory = (slash == std::string::npos ? std::string(".") : directory.substr(0, slash)) + "/Logs";
+    mkdir(directory.c_str(), 0755);
+
+    time_t now = time(nullptr);
+    tm local;
+    localtime_r(&now, &local);
+    char name[64];
+    strftime(name, sizeof(name), "/gfxprofile_%Y-%m-%d_%H-%M-%S.txt", &local);
+
+    return directory + name;
+#endif
 }
 
 static void WriteZoneTree(FILE* file, const Published& data) {

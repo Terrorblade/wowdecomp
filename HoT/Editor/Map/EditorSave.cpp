@@ -2,7 +2,12 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <filesystem>
+#include "Engine/Source/Os/Linux/OsPath.h"
+#endif
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -556,6 +561,7 @@ bool ApplyObjectChanges(CMapArea* area, const ObjectChanges& changes) {
     return true;
 }
 
+#if defined(_WIN32)
 static std::wstring Widen(const std::string& text) {
     if (text.empty()) {
         return std::wstring();
@@ -612,6 +618,52 @@ static void BackupOriginal(const std::wstring& path, const char* gamePath) {
     WriteBytes(backup, data, size);
     SFile::Unload(data);
 }
+#else
+// Game-relative paths resolve against the working directory (the game folder) with on-disk case, like the Linux
+// OsFile does, instead of against the exe directory.
+static std::filesystem::path GameFilePath(const std::string& relative) {
+    char resolved[1024];
+    OsLinuxResolvePath(relative.c_str(), resolved, sizeof(resolved), true);
+    return std::filesystem::path(resolved);
+}
+
+static void CreateDirectories(const std::filesystem::path& path) {
+    std::error_code error;
+    std::filesystem::create_directories(path, error);
+}
+
+static bool WriteBytes(const std::filesystem::path& path, const void* data, size_t size) {
+    FILE* file = fopen(path.c_str(), "wb");
+
+    if (!file) {
+        return false;
+    }
+
+    bool ok = fwrite(data, 1, size, file) == size;
+    fclose(file);
+    return ok;
+}
+
+static void BackupOriginal(const std::filesystem::path& path, const char* gamePath) {
+    std::filesystem::path backup = path;
+    backup += ".bak";
+    std::error_code error;
+
+    if (std::filesystem::exists(backup, error)) {
+        return;
+    }
+
+    void* data = nullptr;
+    uint32_t size = 0;
+
+    if (!SFile::LoadFile(gamePath, &data, &size, 0, nullptr) || !data) {
+        return;
+    }
+
+    WriteBytes(backup, data, size);
+    SFile::Unload(data);
+}
+#endif
 
 static bool SaveArea(CMapArea* area) {
     std::vector<uint8_t> data;
@@ -625,8 +677,13 @@ static bool SaveArea(CMapArea* area) {
     std::string relative = gamePath;
     std::replace(relative.begin(), relative.end(), '/', '\\');
 
+#if defined(_WIN32)
     std::wstring path = ExeDirectory() + L"\\" + Widen(relative);
     CreateDirectories(path.substr(0, path.find_last_of(L'\\')));
+#else
+    std::filesystem::path path = GameFilePath(relative);
+    CreateDirectories(path.parent_path());
+#endif
     BackupOriginal(path, relative.c_str());
     return WriteBytes(path, data.data(), data.size());
 }

@@ -1,7 +1,9 @@
 #ifndef ENGINE_SOURCE_STORM_SOURCE_SMSG_H
 #define ENGINE_SOURCE_STORM_SOURCE_SMSG_H
 
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Engine/Source/Storm/H/stpl.h"
 
 struct WNDREC : TSLinkedNode<WNDREC> {

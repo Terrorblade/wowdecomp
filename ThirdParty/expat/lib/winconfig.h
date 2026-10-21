@@ -10,9 +10,11 @@
 #ifndef WINCONFIG_H
 #define WINCONFIG_H
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #undef WIN32_LEAN_AND_MEAN
+#endif
 
 #include <memory.h>
 #include <string.h>

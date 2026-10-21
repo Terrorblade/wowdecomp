@@ -74,6 +74,23 @@ The client is written to `bin/Win/`:
 `WowClient_crash.log` when the client crashes. `Wow` is the same client without it. You can also turn the
 logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
+### Linux (native)
+
+The client also builds as a native Linux x86_64 executable. It renders through the OpenGL device on an SDL2 window,
+plays sound through FMOD Ex's SDL2 output, and the `Win32/`/`Win64/` platform sources are replaced by the `Linux/`
+ones next to them. Requirements: clang, lld, CMake, Ninja, SDL2, the OpenGL headers and xvidcore. On Debian/Ubuntu:
+
+```sh
+sudo apt-get install clang lld cmake ninja-build libsdl2-dev libgl-dev libxvidcore-dev
+
+cmake -S . -B build/linux -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+cmake --build build/linux --target Wow
+```
+
+The client is written to `bin/Linux/Wow64`. Copy the `Data` folder of your 3.3.5a client next to it; file names are
+matched case-insensitively, so the folder can be copied as-is. Registry settings are kept in
+`~/.config/wowdecomp/registry.ini`.
+
 ### Options
 
 | CMake option | Default | Effect |

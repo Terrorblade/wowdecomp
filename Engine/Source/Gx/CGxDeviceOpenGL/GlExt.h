@@ -3,8 +3,75 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include <GL/gl.h>
+
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+// Mesa's GL/gl.h declares some of these entry points (glActiveTextureARB, ...) as functions and libGL exports all of
+// them, so the extension pointers get their own symbol names; the code keeps calling them by their GL names.
+#define glActiveTextureARB GlExt_glActiveTextureARB
+#define glBeginQueryARB GlExt_glBeginQueryARB
+#define glBindBufferARB GlExt_glBindBufferARB
+#define glBindFramebufferEXT GlExt_glBindFramebufferEXT
+#define glBindProgramARB GlExt_glBindProgramARB
+#define glBindProgramNV GlExt_glBindProgramNV
+#define glBindRenderbufferEXT GlExt_glBindRenderbufferEXT
+#define glBlendColorEXT GlExt_glBlendColorEXT
+#define glBufferDataARB GlExt_glBufferDataARB
+#define glBufferSubDataARB GlExt_glBufferSubDataARB
+#define glCheckFramebufferStatusEXT GlExt_glCheckFramebufferStatusEXT
+#define glClientActiveTextureARB GlExt_glClientActiveTextureARB
+#define glCombinerInputNV GlExt_glCombinerInputNV
+#define glCombinerOutputNV GlExt_glCombinerOutputNV
+#define glCombinerParameterfvNV GlExt_glCombinerParameterfvNV
+#define glCombinerParameteriNV GlExt_glCombinerParameteriNV
+#define glCombinerStageParameterfvNV GlExt_glCombinerStageParameterfvNV
+#define glCompressedTexImage2DARB GlExt_glCompressedTexImage2DARB
+#define glCompressedTexSubImage2DARB GlExt_glCompressedTexSubImage2DARB
+#define glDeleteBuffersARB GlExt_glDeleteBuffersARB
+#define glDeleteFramebuffersEXT GlExt_glDeleteFramebuffersEXT
+#define glDeleteProgramsARB GlExt_glDeleteProgramsARB
+#define glDeleteProgramsNV GlExt_glDeleteProgramsNV
+#define glDeleteQueriesARB GlExt_glDeleteQueriesARB
+#define glDeleteRenderbuffersEXT GlExt_glDeleteRenderbuffersEXT
+#define glDisableVertexAttribArrayARB GlExt_glDisableVertexAttribArrayARB
+#define glDrawRangeElementsEXT GlExt_glDrawRangeElementsEXT
+#define glEnableVertexAttribArrayARB GlExt_glEnableVertexAttribArrayARB
+#define glEndQueryARB GlExt_glEndQueryARB
+#define glFinalCombinerInputNV GlExt_glFinalCombinerInputNV
+#define glFramebufferRenderbufferEXT GlExt_glFramebufferRenderbufferEXT
+#define glFramebufferTexture1DEXT GlExt_glFramebufferTexture1DEXT
+#define glFramebufferTexture2DEXT GlExt_glFramebufferTexture2DEXT
+#define glFramebufferTexture3DEXT GlExt_glFramebufferTexture3DEXT
+#define glGenBuffersARB GlExt_glGenBuffersARB
+#define glGenFramebuffersEXT GlExt_glGenFramebuffersEXT
+#define glGenProgramsARB GlExt_glGenProgramsARB
+#define glGenProgramsNV GlExt_glGenProgramsNV
+#define glGenQueriesARB GlExt_glGenQueriesARB
+#define glGenRenderbuffersEXT GlExt_glGenRenderbuffersEXT
+#define glGetProgramivARB GlExt_glGetProgramivARB
+#define glGetQueryObjectivARB GlExt_glGetQueryObjectivARB
+#define glGetQueryObjectuivARB GlExt_glGetQueryObjectuivARB
+#define glGetQueryivARB GlExt_glGetQueryivARB
+#define glIsProgramARB GlExt_glIsProgramARB
+#define glLoadProgramNV GlExt_glLoadProgramNV
+#define glLockArraysEXT GlExt_glLockArraysEXT
+#define glMapBufferARB GlExt_glMapBufferARB
+#define glPointParameterfARB GlExt_glPointParameterfARB
+#define glPointParameterfvARB GlExt_glPointParameterfvARB
+#define glProgramEnvParameter4fvARB GlExt_glProgramEnvParameter4fvARB
+#define glProgramEnvParameters4fvEXT GlExt_glProgramEnvParameters4fvEXT
+#define glProgramLocalParameter4fvARB GlExt_glProgramLocalParameter4fvARB
+#define glProgramLocalParameters4fvEXT GlExt_glProgramLocalParameters4fvEXT
+#define glProgramParameters4fvNV GlExt_glProgramParameters4fvNV
+#define glProgramStringARB GlExt_glProgramStringARB
+#define glRenderbufferStorageEXT GlExt_glRenderbufferStorageEXT
+#define glUnlockArraysEXT GlExt_glUnlockArraysEXT
+#define glUnmapBufferARB GlExt_glUnmapBufferARB
+#define glVertexAttribPointerARB GlExt_glVertexAttribPointerARB
+#endif
 
 #define GL_TEXTURE0_ARB 0x84C0
 #define GL_MAX_TEXTURE_UNITS_ARB 0x84E2
@@ -111,7 +178,9 @@
 #define WGL_SAMPLE_BUFFERS_ARB 0x2041
 #define WGL_SAMPLES_ARB 0x2042
 
+#if defined(_WIN32)
 DECLARE_HANDLE(HPBUFFERARB);
+#endif
 
 typedef char GLcharARB;
 typedef ptrdiff_t GLintptrARB;
@@ -173,6 +242,7 @@ typedef void (APIENTRY* PFNGLFRAMEBUFFERTEXTURE3DEXTPROC)(GLenum target, GLenum 
 typedef void (APIENTRY* PFNGLFRAMEBUFFERRENDERBUFFEREXTPROC)(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 typedef void (APIENTRY* PFNGLBLENDCOLOREXTPROC)(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
 
+#if defined(_WIN32)
 typedef const char* (WINAPI* PFNWGLGETEXTENSIONSSTRINGARBPROC)(HDC hdc);
 typedef BOOL (WINAPI* PFNWGLGETPIXELFORMATATTRIBIVARBPROC)(HDC hdc, int pixelFormat, int layerPlane, UINT attributeCount, const int* attributes, int* values);
 typedef BOOL (WINAPI* PFNWGLCHOOSEPIXELFORMATARBPROC)(HDC hdc, const int* attribIList, const FLOAT* attribFList, UINT maxFormats, int* formats, UINT* numFormats);
@@ -182,6 +252,7 @@ typedef int (WINAPI* PFNWGLRELEASEPBUFFERDCARBPROC)(HPBUFFERARB pbuffer, HDC hdc
 typedef BOOL (WINAPI* PFNWGLDESTROYPBUFFERARBPROC)(HPBUFFERARB pbuffer);
 typedef BOOL (WINAPI* PFNWGLQUERYPBUFFERARBPROC)(HPBUFFERARB pbuffer, int attribute, int* value);
 typedef BOOL (WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int interval);
+#endif
 typedef void (APIENTRY* PFNGLGENPROGRAMSNVPROC)(GLsizei n, GLuint* programs);
 typedef void (APIENTRY* PFNGLDELETEPROGRAMSNVPROC)(GLsizei n, const GLuint* programs);
 typedef void (APIENTRY* PFNGLPROGRAMPARAMETERS4FVNVPROC)(GLenum target, GLuint index, GLsizei count, const GLfloat* params);
@@ -224,6 +295,7 @@ extern int32_t glARBTextureEnvCombine;
 extern int32_t glARBVertexBufferObject;
 extern int32_t glARBFragmentProgram;
 extern int32_t glARBVertexProgram;
+#if defined(_WIN32)
 extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 extern PFNWGLQUERYPBUFFERARBPROC wglQueryPbufferARB;
 extern PFNWGLDESTROYPBUFFERARBPROC wglDestroyPbufferARB;
@@ -233,6 +305,7 @@ extern PFNWGLCREATEPBUFFERARBPROC wglCreatePbufferARB;
 extern PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB;
 extern PFNWGLGETPIXELFORMATATTRIBIVARBPROC wglGetPixelFormatAttribivARB;
 extern PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB;
+#endif
 extern PFNGLBLENDCOLOREXTPROC glBlendColorEXT;
 extern PFNGLFRAMEBUFFERRENDERBUFFEREXTPROC glFramebufferRenderbufferEXT;
 extern PFNGLFRAMEBUFFERTEXTURE3DEXTPROC glFramebufferTexture3DEXT;

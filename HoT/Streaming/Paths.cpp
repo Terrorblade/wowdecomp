@@ -1,5 +1,7 @@
 #include "HoT/Streaming/Paths.h"
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include <string>
 #include <vector>
 
@@ -7,6 +9,7 @@ namespace HoT::Streaming::Paths {
 
 std::filesystem::path ExeDir() {
     static const std::filesystem::path s_dir = [] {
+#if defined(_WIN32)
         std::vector<wchar_t> buffer(MAX_PATH);
 
         for (;;) {
@@ -23,6 +26,16 @@ std::filesystem::path ExeDir() {
 
             buffer.resize(buffer.size() * 2);
         }
+#else
+        std::error_code ec;
+        std::filesystem::path exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+
+        if (ec) {
+            return std::filesystem::current_path(ec);
+        }
+
+        return exe.parent_path();
+#endif
     }();
 
     return s_dir;

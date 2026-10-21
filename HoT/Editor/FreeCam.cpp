@@ -1,5 +1,23 @@
 #include "HoT/Editor/FreeCam.h"
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <ctime>
+#include "Engine/Source/Os/Gui.h"
+
+// QueryPerformance* on CLOCK_MONOTONIC in nanoseconds, as the Linux TimeManager does.
+static int32_t QueryPerformanceFrequency(LARGE_INTEGER* frequency) {
+    frequency->QuadPart = 1000000000;
+    return 1;
+}
+
+static int32_t QueryPerformanceCounter(LARGE_INTEGER* count) {
+    timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    count->QuadPart = static_cast<int64_t>(now.tv_sec) * 1000000000 + now.tv_nsec;
+    return 1;
+}
+#endif
 #include <cmath>
 #include <cstdint>
 #include "Engine/Source/Event/Event.h"
@@ -342,6 +360,7 @@ static void Fly(CGCamera* camera, float seconds) {
     if (length > 0.0f && seconds > 0.0f) {
         float speed = s_state.m_speed;
 
+#if defined(_WIN32)
         if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
             speed *= 4.0f;
         }
@@ -349,6 +368,16 @@ static void Fly(CGCamera* camera, float seconds) {
         if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
             speed *= 0.25f;
         }
+#else
+        // SDL modifier state (1 = shift, 0 = control) stands in for GetAsyncKeyState.
+        if (OsGuiIsModifierKeyDown(1)) {
+            speed *= 4.0f;
+        }
+
+        if (OsGuiIsModifierKeyDown(0)) {
+            speed *= 0.25f;
+        }
+#endif
 
         s_state.m_position = VectorMath::Add(s_state.m_position, VectorMath::Scale(move, speed * seconds / length));
     }

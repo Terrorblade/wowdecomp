@@ -2,7 +2,9 @@
 #define ENGINE_SOURCE_STORM_H_SCRITSECT_H
 
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 
 class CCritSect {
     public:

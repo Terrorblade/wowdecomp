@@ -1,6 +1,9 @@
 #include "HoT/Streaming/ArchivePatcher.h"
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFile.h"
@@ -17,7 +20,7 @@ static constexpr uint32_t s_addReplaceExisting = 0x1;
 static constexpr uint32_t s_addCompress = 0x200;
 
 static bool ReadBinaryFile(const std::wstring& path, std::string& out) {
-    std::ifstream f(path, std::ios::binary | std::ios::ate);
+    std::ifstream f(std::filesystem::path(path), std::ios::binary | std::ios::ate);
 
     if (!f) {
         return false;
@@ -117,7 +120,12 @@ ArchivePatchResult Apply(const ArchivePatchJob& job) {
 
     if (ok) {
         for (const ArchiveWrite& w : job.m_writes) {
+#if defined(_WIN32)
             DeleteFileW(w.m_blobPath.c_str());
+#else
+            std::error_code ec;
+            std::filesystem::remove(w.m_blobPath, ec);
+#endif
         }
     }
 

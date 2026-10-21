@@ -26,6 +26,11 @@ add_library(HoT STATIC
 
 add_dependencies(HoT HoTBuildVersion)
 
+# The MSDF packer uses SSE4.1 intrinsics unconditionally, MSVC allows that without a flag but clang and gcc don't.
+if (NOT MSVC)
+    set_source_files_properties(MSDF/Font.cpp PROPERTIES COMPILE_OPTIONS "-msse4.1")
+endif ()
+
 # The game editor UI is compiled into the exe, Resources.cpp serves it to SFile.
 file(GLOB_RECURSE HOT_EDITOR_UI_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Editor/Interface/*")
 set(HOT_EDITOR_UI_SOURCE "${HOT_VERSION_DIR}/HoT/EditorResources.cpp")
@@ -57,7 +62,7 @@ target_include_directories(HoT
 )
 
 # The Discord SDK is loaded at runtime, the client just needs it next to the exe.
-if (WOWDECOMP_ARCH_64)
+if (WIN32 AND WOWDECOMP_ARCH_64)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Discord/redist/discord_game_sdk.dll" "${CMAKE_SOURCE_DIR}/bin/Win/discord_game_sdk_64.dll" COPYONLY)
 endif ()
 
@@ -81,6 +86,17 @@ if (WIN32)
         PUBLIC
             windowscodecs
             ole32
+    )
+endif ()
+
+# Off Windows the streaming client uses libcurl for HTTP and OpenSSL for SHA-256 and ECDSA in place of WinHTTP and BCrypt.
+if (NOT WIN32)
+    find_package(CURL REQUIRED)
+    find_package(OpenSSL REQUIRED)
+    target_link_libraries(HoT
+        PUBLIC
+            CURL::libcurl
+            OpenSSL::Crypto
     )
 endif ()
 

@@ -1,5 +1,15 @@
 #include "HoT/Streaming/BackgroundDownloader.h"
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/file.h>
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPath.h"
+#endif
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -88,6 +98,73 @@ static std::atomic<unsigned long long> s_lastProgressMs{ 0 };
 static std::vector<StreamListener> s_artListeners;
 static std::vector<StreamListener> s_batchListeners;
 
+#if !defined(_WIN32)
+static constexpr uint32_t MOVEFILE_REPLACE_EXISTING = 0x1;
+static constexpr uint32_t MOVEFILE_COPY_ALLOWED = 0x2;
+static constexpr uint32_t MOVEFILE_WRITE_THROUGH = 0x8;
+
+static unsigned long long GetTickCount64() {
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<unsigned long long>(ts.tv_sec) * 1000ULL + static_cast<unsigned long long>(ts.tv_nsec / 1000000);
+}
+
+static void LowerThreadPriority() {
+    // Linux nice values are per thread when given the thread id.
+    setpriority(PRIO_PROCESS, static_cast<id_t>(syscall(SYS_gettid)), 19);
+}
+
+// /proc/self/exe stats the running image even after it was renamed over, so this holds only before a replace.
+static bool IsRunningExe(const std::wstring& path) {
+    std::error_code ec;
+    return fs::equivalent(fs::path(path), fs::path("/proc/self/exe"), ec);
+}
+
+// Linux renames over files that are open or running, so nothing here fails for being in use. A replaced running
+// binary only takes effect on the next launch, which is what a staged exe means on Windows.
+static bool MoveFileExW(const wchar_t* src, const wchar_t* dst, uint32_t flags) {
+    std::error_code ec;
+    const fs::path from(src);
+    const fs::path to(dst);
+
+    if (!(flags & MOVEFILE_REPLACE_EXISTING) && fs::exists(to, ec)) {
+        return false;
+    }
+
+    const bool runningExe = IsRunningExe(dst);
+    fs::rename(from, to, ec);
+
+    if (ec == std::errc::cross_device_link && (flags & MOVEFILE_COPY_ALLOWED)) {
+        const fs::path tmp = to.wstring() + L".copy";
+        ec.clear();
+        fs::copy_file(from, tmp, fs::copy_options::overwrite_existing, ec);
+
+        if (!ec) {
+            fs::rename(tmp, to, ec);
+        }
+
+        if (ec) {
+            std::error_code ignored;
+            fs::remove(tmp, ignored);
+            return false;
+        }
+
+        fs::remove(from, ec);
+        ec.clear();
+    }
+
+    if (ec) {
+        return false;
+    }
+
+    if (runningExe) {
+        s_restartNeeded = true;
+    }
+
+    return true;
+}
+#endif
+
 static void ResetProgress() {
     s_filesDone = 0;
     s_filesTotal = 0;
@@ -136,6 +213,7 @@ static std::string NarrowOem(const std::wstring& s, bool* lossy) {
         return "";
     }
 
+#if defined(_WIN32)
     const bool utf8 = GetOEMCP() == CP_UTF8;
     const DWORD flags = utf8 ? 0 : WC_NO_BEST_FIT_CHARS;
     BOOL usedDefault = FALSE;
@@ -149,13 +227,43 @@ static std::string NarrowOem(const std::wstring& s, bool* lossy) {
     }
 
     return out;
+#else
+    (void)lossy;
+    return Text::NarrowUtf8(s);
+#endif
 }
 
 #ifdef AUTO_UPDATER_IGNORES_EXE
 static bool IsDiscordDll(const std::string& path) {
     size_t slash = path.find_last_of("/\\");
     std::string name = (slash == std::string::npos) ? path : path.substr(slash + 1);
+#if defined(_WIN32)
     return Text::LowerAscii(name) == "discord_game_sdk_64.dll";
+#else
+    return Text::LowerAscii(name) == "discord_game_sdk_64.dll" || Text::LowerAscii(name) == "discord_game_sdk.so";
+#endif
+}
+#endif
+
+#if !defined(_WIN32)
+// The manifest describes the Windows install; its PE executables and DLLs have no use next to bin/Linux/Wow64.
+static bool IsWindowsBinary(const std::string& path) {
+    size_t dot = path.find_last_of('.');
+    size_t slash = path.find_last_of("/\\");
+
+    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) {
+        return false;
+    }
+
+    const std::string ext = Text::LowerAscii(path.substr(dot));
+    return ext == ".exe" || ext == ".dll";
+}
+
+// Manifest paths may use either separator, and the files on disk keep whatever case the player's copy has.
+static fs::path HostRelPath(const std::string& relPath) {
+    std::string p = relPath;
+    std::replace(p.begin(), p.end(), '\\', '/');
+    return fs::path(p);
 }
 #endif
 
@@ -176,11 +284,19 @@ static bool PathEqual(const std::wstring& a, const std::wstring& b) {
 static std::wstring StagedPath(const ManifestFile& mf, const std::wstring& local) {
     fs::path lp(local);
     std::wstring name = lp.stem().wstring() + L".new-" + Widen(mf.m_sha256.substr(0, 8)) + lp.extension().wstring();
+#if defined(_WIN32)
     return (Paths::StagedDir() / fs::path(mf.m_path).parent_path() / name).wstring();
+#else
+    return (Paths::StagedDir() / HostRelPath(mf.m_path).parent_path() / name).wstring();
+#endif
 }
 
 static std::wstring PartPath(const ManifestFile& mf) {
+#if defined(_WIN32)
     return (Paths::DownloadsDir() / fs::path(mf.m_path)).wstring() + L".part";
+#else
+    return (Paths::DownloadsDir() / HostRelPath(mf.m_path)).wstring() + L".part";
+#endif
 }
 
 // The other half of StagedPath, does the name end in the .new-<8 hex> tag it appends.
@@ -218,7 +334,7 @@ static std::wstring AppendQuery(const std::wstring& url, const std::wstring& key
 }
 
 static std::string ReadSmallFile(const std::wstring& p) {
-    std::ifstream f(p, std::ios::binary);
+    std::ifstream f(fs::path(p), std::ios::binary);
 
     if (!f) {
         return "";
@@ -229,7 +345,7 @@ static std::string ReadSmallFile(const std::wstring& p) {
 }
 
 static void WriteSmallFile(const std::wstring& p, const std::string& s) {
-    std::ofstream f(p, std::ios::trunc | std::ios::binary);
+    std::ofstream f(fs::path(p), std::ios::trunc | std::ios::binary);
 
     if (f) {
         f.write(s.data(), static_cast<std::streamsize>(s.size()));
@@ -320,7 +436,18 @@ static std::set<std::wstring> s_plannedUpdates;
 static std::atomic<unsigned> s_updateGeneration{ 0 };
 
 static std::wstring LocalPath(const std::string& relPath) {
+#if defined(_WIN32)
     return (fs::path(s_installDir) / fs::path(relPath)).wstring();
+#else
+    const std::string joined = (fs::path(s_installDir) / HostRelPath(relPath)).string();
+    char resolved[4096];
+
+    if (!OsLinuxResolvePath(joined.c_str(), resolved, sizeof(resolved), true)) {
+        return fs::path(joined).wstring();
+    }
+
+    return fs::path(resolved).wstring();
+#endif
 }
 
 static std::string s_launcherExe = "HoTLauncher.exe";
@@ -347,7 +474,7 @@ static std::wstring TargetPath(const ManifestFile& mf) {
     return fs::exists(recorded, ec) ? recorded : LocalPath(mf.m_path);
 }
 
-#ifdef AUTO_UPDATER_IGNORES_EXE
+#if defined(AUTO_UPDATER_IGNORES_EXE) && defined(_WIN32)
 static bool IsRunningExe(const std::wstring& path) {
     std::vector<wchar_t> buffer(MAX_PATH * 4);
     DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
@@ -380,11 +507,16 @@ static void WritePendingLocked() {
         f << "D|" << NarrowOem(ToBackslashes(d), &lossy) << "\r\n";
     }
 
+#if defined(_WIN32)
     if (lossy) {
         StreamLog("stream: pending path not representable in OEM code page %u, exit swap may fail", GetOEMCP());
     }
+#else
+    (void)lossy;
+#endif
 }
 
+#if defined(_WIN32)
 static HANDLE s_swapHold = INVALID_HANDLE_VALUE;
 static constexpr const char* s_swapHoldName = "hotstream-swap.hold";
 
@@ -502,6 +634,15 @@ static void SpawnExitSwapHelper() {
         StreamLog("stream: exit swap helper spawn FAILED (err %lu)", GetLastError());
     }
 }
+#else
+// Nothing the client holds open blocks a rename on Linux, so whatever is still pending is retried in process by
+// SwapOnClose and no helper has to outlive the client.
+static void SpawnCloseSwapHelper() {
+}
+
+static void SpawnExitSwapHelper() {
+}
+#endif
 
 static void RecordPending(const std::wstring& newPath, const std::wstring& target, bool needsRestart) {
     {
@@ -992,7 +1133,7 @@ static std::wstring BlobPath(const std::string& sha) {
 }
 
 static bool ReadBinaryFile(const std::wstring& path, std::string& out) {
-    std::ifstream f(path, std::ios::binary | std::ios::ate);
+    std::ifstream f(fs::path(path), std::ios::binary | std::ios::ate);
 
     if (!f) {
         return false;
@@ -1013,7 +1154,7 @@ static bool WriteBinaryFileAtomic(const std::wstring& path, const std::string& d
     std::wstring tmp = path + L".tmp";
 
     {
-        std::ofstream f(tmp, std::ios::trunc | std::ios::binary);
+        std::ofstream f(fs::path(tmp), std::ios::trunc | std::ios::binary);
 
         if (!f || !f.write(data.data(), static_cast<std::streamsize>(data.size()))) {
             return false;
@@ -1601,6 +1742,7 @@ struct ActiveScope {
     }
 };
 
+#if defined(_WIN32)
 static HANDLE s_patchLock = nullptr;
 
 static bool AcquirePatchLock() {
@@ -1636,6 +1778,34 @@ static bool AcquirePatchLock() {
     s_patchLock = handle;
     return true;
 }
+#else
+static int32_t s_patchLock = -1;
+
+// An flock on a file inside the install stands in for the install-path named mutex, held for the process lifetime.
+static bool AcquirePatchLock() {
+    if (s_patchLock >= 0) {
+        return true;
+    }
+
+    std::error_code ec;
+    fs::create_directories(Paths::WorkDir(), ec);
+    const std::string path = (Paths::WorkDir() / "hotstream-patcher.lock").string();
+    int32_t fd = open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+
+    if (fd < 0) {
+        return true;
+    }
+
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        const bool held = errno == EWOULDBLOCK;
+        close(fd);
+        return !held;
+    }
+
+    s_patchLock = fd;
+    return true;
+}
+#endif
 
 struct FirstPassScope {
     ~FirstPassScope() {
@@ -1753,6 +1923,12 @@ static void Run() {
 #ifdef AUTO_UPDATER_IGNORES_EXE
         if (IsRunningExe(local) || IsDiscordDll(mf.m_path)) {
             StreamLog("stream: AUTO_UPDATER_IGNORES_EXE set, ignoring %s", mf.m_path.c_str());
+            continue;
+        }
+#endif
+
+#if !defined(_WIN32)
+        if (IsWindowsBinary(mf.m_path)) {
             continue;
         }
 #endif
@@ -1947,7 +2123,11 @@ static void Run() {
 
     for (size_t w = 0; w < workerCount; w++) {
         workers.emplace_back([&] {
+#if defined(_WIN32)
             SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+#else
+            LowerThreadPriority();
+#endif
 
             for (;;) {
                 size_t t = pool.m_next.fetch_add(1);
@@ -2106,7 +2286,11 @@ void Trigger() {
     }
 
     std::thread([] {
+#if defined(_WIN32)
         SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+#else
+        LowerThreadPriority();
+#endif
         Run();
         s_running = false;
     }).detach();

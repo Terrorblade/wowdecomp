@@ -5,10 +5,20 @@ set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "${SOUNDENGINE_DEFINITIO
 set(FMODEX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fmodex)
 set(FMODEX_FLAC_DIR ${FMODEX_DIR}/lib/flac-1.1.4)
 
+if (WOWDECOMP_PLATFORM_LINUX)
+    # FMOD OS layer + SDL2 output for Linux (fmodex/linux/src); the win32 one is not used.
+    set(FMODEX_PLATFORM_DIR ${FMODEX_DIR}/linux/src)
+    set(FMODEX_PLATFORM_GLOBS "${FMODEX_DIR}/linux/src/*.cpp")
+    set(FMODEX_WMSDK_INCLUDE_DIR)
+else ()
+    set(FMODEX_PLATFORM_DIR ${FMODEX_DIR}/win32/src)
+    set(FMODEX_PLATFORM_GLOBS "${FMODEX_DIR}/win32/src/*.cpp" "${FMODEX_DIR}/win32/src/asio/*.cpp")
+    set(FMODEX_WMSDK_INCLUDE_DIR ${FMODEX_DIR}/win32/lib/wmsdk/include)
+endif ()
+
 file(GLOB FMODEX_SOURCES CONFIGURE_DEPENDS
     "${FMODEX_DIR}/src/*.cpp"
-    "${FMODEX_DIR}/win32/src/*.cpp"
-    "${FMODEX_DIR}/win32/src/asio/*.cpp"
+    ${FMODEX_PLATFORM_GLOBS}
     "${FMODEX_DIR}/lib/ogg_vorbis/ogg/src/*.c"
     "${FMODEX_DIR}/lib/ogg_vorbis/vorbis/lib/*.c"
     "${FMODEX_FLAC_DIR}/src/libFLAC/*.c"
@@ -16,6 +26,12 @@ file(GLOB FMODEX_SOURCES CONFIGURE_DEPENDS
     "${FMODEX_DIR}/lib/freeverb/*.cpp"
     "${FMODEX_DIR}/lib/sfx/foreverb/*.cpp"
 )
+wowdecomp_filter_platform_sources(FMODEX_SOURCES)
+
+if (WOWDECOMP_PLATFORM_LINUX)
+    # OpenAL output is part of the Windows output set; Linux outputs live in fmodex/linux/src.
+    list(FILTER FMODEX_SOURCES EXCLUDE REGEX "/lib/openal/")
+endif ()
 
 add_library(fmodex STATIC ${FMODEX_SOURCES})
 
@@ -23,14 +39,14 @@ target_include_directories(fmodex
     PUBLIC
         ${FMODEX_DIR}/src
     PRIVATE
-        ${FMODEX_DIR}/win32/src
+        ${FMODEX_PLATFORM_DIR}
         ${FMODEX_DIR}/lib/ogg_vorbis/ogg/include
         ${FMODEX_DIR}/lib/ogg_vorbis/vorbis/include
         ${FMODEX_DIR}/lib/ogg_vorbis/vorbis/lib
         ${FMODEX_FLAC_DIR}/include
         ${FMODEX_FLAC_DIR}/src/libFLAC/include
         ${FMODEX_DIR}/lib/openal/include
-        ${FMODEX_DIR}/win32/lib/wmsdk/include
+        ${FMODEX_WMSDK_INCLUDE_DIR}
         ${FMODEX_DIR}/lib/sfx/foreverb
         ${FMODEX_DIR}/lib/freeverb
 )
@@ -41,12 +57,21 @@ target_compile_definitions(fmodex
         FLAC__HAS_OGG=1
 )
 
-target_link_libraries(fmodex
-    INTERFACE
-        winmm
-        ws2_32
-        msacm32
-)
+if (WOWDECOMP_PLATFORM_LINUX)
+    target_link_libraries(fmodex
+        PRIVATE
+            SDL2::SDL2
+        INTERFACE
+            ${CMAKE_DL_LIBS}
+    )
+else ()
+    target_link_libraries(fmodex
+        INTERFACE
+            winmm
+            ws2_32
+            msacm32
+    )
+endif ()
 
 if (MSVC)
     target_compile_options(fmodex PRIVATE /MP)
@@ -102,6 +127,7 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4)
 endif ()
 
 file(GLOB SOUNDENGINE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+wowdecomp_filter_platform_sources(SOUNDENGINE_SOURCES)
 
 add_library(SoundEngine STATIC
     ${SOUNDENGINE_SOURCES}

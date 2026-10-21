@@ -1,5 +1,9 @@
 #include "HoT/Editor/Selection.h"
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include "Engine/Source/Os/Gui.h"
+#endif
 #include <cfloat>
 #include <cmath>
 #include <cstdlib>
@@ -107,9 +111,18 @@ struct SelectionState {
 
 static SelectionState s_state;
 
+#if defined(_WIN32)
 static bool KeyHeld(int key) {
     return (GetAsyncKeyState(key) & 0x8000) != 0;
 }
+#else
+// Only the modifiers are polled; map them onto OsGuiIsModifierKeyDown (SDL modifier state).
+enum { VK_SHIFT = 1, VK_CONTROL = 0, VK_MENU = 2 };
+
+static bool KeyHeld(int key) {
+    return OsGuiIsModifierKeyDown(key) != 0;
+}
+#endif
 
 static const char* KindName(Kind kind) {
     switch (kind) {

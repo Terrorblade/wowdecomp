@@ -401,24 +401,24 @@
 
 #elif defined(PLATFORM_LINUX64)
 
-    #define FMOD_SUPPORT_OSS
-    #define FMOD_SUPPORT_ALSA
-    #define FMOD_SUPPORT_ESD
+    /* Native port: output goes through SDL2 audio (linux/src/fmod_output_sdl.cpp), registered as FMOD_OUTPUTTYPE_ALSA. */
+    #define FMOD_SUPPORT_SDL
     #define FMOD_SUPPORT_NEURAL
 
     #undef  FMOD_SUPPORT_ASF
+    #undef  FMOD_SUPPORT_CDDA
 
     #undef FMOD_SUPPORT_MYEARS
 
 #elif defined(PLATFORM_LINUX)
 
-    #define FMOD_SUPPORT_OSS
-    #define FMOD_SUPPORT_ALSA
-    #define FMOD_SUPPORT_ESD
+    /* Native port: output goes through SDL2 audio (linux/src/fmod_output_sdl.cpp), registered as FMOD_OUTPUTTYPE_ALSA. */
+    #define FMOD_SUPPORT_SDL
     #define FMOD_SUPPORT_SIMD
     #define FMOD_SUPPORT_NEURAL
 
     #undef  FMOD_SUPPORT_ASF
+    #undef  FMOD_SUPPORT_CDDA
 
     #undef FMOD_SUPPORT_MYEARS
 

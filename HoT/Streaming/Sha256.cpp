@@ -1,12 +1,19 @@
 #include "HoT/Streaming/Sha256.h"
+#if defined(_WIN32)
 #include <windows.h>
 #include <bcrypt.h>
+#else
+#include <openssl/evp.h>
+#include <filesystem>
+#endif
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <vector>
 
+#if defined(_WIN32)
 #pragma comment(lib, "bcrypt.lib")
+#endif
 
 namespace HoT::Streaming {
 
@@ -27,6 +34,11 @@ static std::string ToHex(const unsigned char* d, size_t n) {
     }
 
     return s;
+}
+
+#if defined(_WIN32)
+static const std::wstring& FilePath(const std::wstring& path) {
+    return path;
 }
 
 struct Sha256Hasher {
@@ -83,6 +95,59 @@ struct Sha256Hasher {
         }
     }
 };
+#else
+// libstdc++ converts a wide path to UTF-8, which matches TextConv on Linux.
+static std::filesystem::path FilePath(const std::wstring& path) {
+    return std::filesystem::path(path);
+}
+
+struct Sha256Hasher {
+    EVP_MD_CTX* m_ctx = nullptr;
+
+    bool Open() {
+        this->m_ctx = EVP_MD_CTX_new();
+
+        if (!this->m_ctx) {
+            return false;
+        }
+
+        if (EVP_DigestInit_ex(this->m_ctx, EVP_sha256(), nullptr) != 1) {
+            EVP_MD_CTX_free(this->m_ctx);
+            this->m_ctx = nullptr;
+            return false;
+        }
+
+        return true;
+    }
+
+    void Update(const void* data, size_t n) {
+        if (n > 0) {
+            EVP_DigestUpdate(this->m_ctx, data, n);
+        }
+    }
+
+    bool FinishRaw(unsigned char out[32]) {
+        unsigned int len = 0;
+        return EVP_DigestFinal_ex(this->m_ctx, out, &len) == 1 && len == 32;
+    }
+
+    std::string Finish() {
+        unsigned char digest[32];
+
+        if (!this->FinishRaw(digest)) {
+            return "";
+        }
+
+        return ToHex(digest, sizeof(digest));
+    }
+
+    ~Sha256Hasher() {
+        if (this->m_ctx) {
+            EVP_MD_CTX_free(this->m_ctx);
+        }
+    }
+};
+#endif
 
 // Hashes count bytes from the current position, false on a short read.
 static bool HashRange(std::ifstream& f, Sha256Hasher& h, std::vector<char>& buf, long long count) {
@@ -103,7 +168,7 @@ static bool HashRange(std::ifstream& f, Sha256Hasher& h, std::vector<char>& buf,
 }
 
 std::string Sha256File(const std::wstring& path) {
-    std::ifstream f(path, std::ios::binary);
+    std::ifstream f(FilePath(path), std::ios::binary);
 
     if (!f) {
         return "";
@@ -130,7 +195,7 @@ std::string Sha256File(const std::wstring& path) {
 }
 
 std::string QuickDigestFile(const std::wstring& path) {
-    std::ifstream f(path, std::ios::binary | std::ios::ate);
+    std::ifstream f(FilePath(path), std::ios::binary | std::ios::ate);
 
     if (!f) {
         return "";

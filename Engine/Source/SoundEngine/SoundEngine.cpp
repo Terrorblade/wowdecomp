@@ -3191,6 +3191,10 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
         SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " - Hardware is %s", hardware ? "ENABLED" : "DISABLED");
 
         if (openAL) {
+#if defined(WOWDECOMP_PLATFORM_LINUX)
+            // FMOD's OpenAL output is Windows-only; Linux always uses the default (SDL) output.
+            SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " - OpenAL is not available on this platform. NOT using OpenAL.");
+#else
             if (hardware) {
                 SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " - OpenAL is ENABLED");
                 SE_ERRCHECK(s_system->setOutput(FMOD_OUTPUTTYPE_OPENAL));
@@ -3199,6 +3203,7 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
                 SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# ERROR! OpenAL Mode requires Hardware to be enabled! NOT using OpenAL.");
                 SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -###########################################################################################");
             }
+#endif
         }
 
         s_reverbEnabled = enableReverb;

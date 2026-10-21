@@ -4,7 +4,9 @@
 #include <cstdlib>
 #include <unordered_map>
 #include <vector>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Controller/Buttons.h"
 #include "Controller/CVars.h"
 #include "Controller/Devices.h"

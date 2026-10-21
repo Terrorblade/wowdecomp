@@ -13,9 +13,25 @@ project(wowdecomp CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
-    message(FATAL_ERROR "wowdecomp targets Windows only.")
+if (CMAKE_SYSTEM_NAME MATCHES "Windows")
+    set(WOWDECOMP_PLATFORM_WIN 1)
+elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    # Native Linux port: the Win32/Win64 platform sources are swapped for Linux/ ones (POSIX + SDL2), and the
+    # client renders through the OpenGL device.
+    set(WOWDECOMP_PLATFORM_LINUX 1)
+else ()
+    message(FATAL_ERROR "wowdecomp targets Windows and Linux only.")
 endif ()
+
+# Each module globs its sources; this drops the ones that belong to another platform.
+function(wowdecomp_filter_platform_sources var)
+    if (WOWDECOMP_PLATFORM_LINUX)
+        list(FILTER ${var} EXCLUDE REGEX "/[Ww]in(32|64)/")
+    else ()
+        list(FILTER ${var} EXCLUDE REGEX "/Linux/")
+    endif ()
+    set(${var} ${${var}} PARENT_SCOPE)
+endfunction()
 
 # x64 is the target. Win32 stays buildable: it is the configuration whose struct layouts can be
 # checked against Wow.exe 3.3.5a (12340).
@@ -39,13 +55,40 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-add_compile_definitions(
-    WIN32
-    _WINDOWS
-    NOMINMAX
-    WIN32_LEAN_AND_MEAN
-    _CRT_SECURE_NO_WARNINGS
-)
+if (WOWDECOMP_PLATFORM_WIN)
+    add_compile_definitions(
+        WIN32
+        _WINDOWS
+        NOMINMAX
+        WIN32_LEAN_AND_MEAN
+        _CRT_SECURE_NO_WARNINGS
+    )
+else ()
+    if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "The Linux build needs clang (-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++).")
+    endif ()
+    add_compile_definitions(WOWDECOMP_PLATFORM_LINUX=1)
+    find_package(SDL2 REQUIRED CONFIG)
+    find_package(Threads REQUIRED)
+    # The decompiled code is written against MSVC: keep its extensions (__int64, __declspec, ...) and the
+    # semantics MSVC gives it (no strict aliasing, wrapping signed arithmetic). Compat.h fills in the rest of the
+    # Windows names the portable code uses.
+    add_compile_options(
+        -fms-extensions
+        -fno-strict-aliasing
+        -fwrapv
+        -fno-delete-null-pointer-checks
+        -include ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Linux/Compat.h
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-c++11-narrowing>
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-register>
+        -Wno-microsoft
+        -Wno-ignored-attributes
+    )
+    # The modules are static libraries that reference each other in cycles, as MSVC's linker allows; lld resolves
+    # archive members regardless of order.
+    add_link_options(-fuse-ld=lld)
+    link_libraries(Threads::Threads ${CMAKE_DL_LIBS})
+endif ()
 
 # Off by default: the client checks MPQ file MD5s (signaturefile) and GlueXML/FrameXML/AddOn .toc.sig files like the
 # original. ON accepts unsigned or modified game data and interface files.
@@ -110,12 +153,14 @@ add_subdirectory(Controller)
 if (WIN32)
     add_subdirectory(Tools/WowClient)
 endif ()
-if (WOWDECOMP_ARCH_64)
+if (WOWDECOMP_ARCH_64 AND (WOWDECOMP_PLATFORM_WIN OR WOWDECOMP_PLATFORM_LINUX))
     add_subdirectory(Tools/XvidDecoder)
 endif ()
 
 foreach (target Wow WowClient MapViewer M2Viewer GxTest MpqTest BlpTest DbcTest AssetCheck)
     if (TARGET ${target})
-        target_sources(${target} PRIVATE ${CMAKE_SOURCE_DIR}/waystone.rc)
+        if (WOWDECOMP_PLATFORM_WIN)
+            target_sources(${target} PRIVATE ${CMAKE_SOURCE_DIR}/waystone.rc)
+        endif ()
     endif ()
 endforeach ()

@@ -1,6 +1,8 @@
 #include <cstdint>
 #include <cstring>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/Unicode/Unicode.h"
 
 // STATIC: 0x009E5360

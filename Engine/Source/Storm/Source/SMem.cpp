@@ -1,7 +1,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#if defined(_WIN32)
 #include <winerror.h>
+#endif
 #include <malloc.h>
 #include "Engine/Source/Storm/H/storm.h"
 

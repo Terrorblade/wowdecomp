@@ -1,3 +1,16 @@
 [submodule "ThirdParty/SDL"]
 	path = ThirdParty/SDL
 	url = https://github.com/libsdl-org/SDL.git
+[submodule "ThirdParty/macos-sdk"]
+	path = ThirdParty/macos-sdk
+	url = https://github.com/alexey-lysiuk/macos-sdk
+	update = none
+	shallow = true
+[submodule "ThirdParty/sse2neon"]
+	path = ThirdParty/sse2neon
+	url = https://github.com/DLTcollab/sse2neon
+	shallow = true
+[submodule "ThirdParty/curl"]
+	path = ThirdParty/curl
+	url = https://github.com/curl/curl.git
+	shallow = true

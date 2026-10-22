@@ -4,16 +4,8 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#if defined(_WIN32)
-#include <windows.h>
-#include <tlhelp32.h>
-#else
-#include <cctype>
-#include <filesystem>
-#include <fstream>
-#include <strings.h>
-#endif
 #include "HoT/Discord/DiscordRPC.h"
+#include "HoT/Discord/Host.h"
 #include "HoT/Discord/sdk/discord.h"
 
 namespace HoT::Discord::RPC {
@@ -25,78 +17,6 @@ static const auto CONNECTED_SLEEP = std::chrono::milliseconds(100);
 
 static bool IsWine() {
     return true;
-#if defined(_WIN32)
-    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
-
-    return ntdll && GetProcAddress(ntdll, "wine_get_version") != nullptr;
-#endif
-}
-
-// Core::Create with default flags relaunches the game through Discord when it is not running, so look for it first.
-static bool IsDiscordRunning() {
-#if defined(_WIN32)
-    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-
-    if (snap == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-
-    static const wchar_t* PROCESS_NAMES[] = { L"Discord", L"DiscordPTB", L"DiscordCanary", L"DiscordDevelopment" };
-
-    PROCESSENTRY32W entry{};
-    entry.dwSize = sizeof(entry);
-    bool found = false;
-
-    if (Process32FirstW(snap, &entry)) {
-        do {
-            std::wstring name = entry.szExeFile;
-
-            if (name.size() > 4 && _wcsicmp(name.c_str() + name.size() - 4, L".exe") == 0) {
-                name.resize(name.size() - 4);
-            }
-
-            for (const wchar_t* candidate : PROCESS_NAMES) {
-                if (_wcsicmp(name.c_str(), candidate) == 0) {
-                    found = true;
-                    break;
-                }
-            }
-        } while (!found && Process32NextW(snap, &entry));
-    }
-
-    CloseHandle(snap);
-
-    return found;
-#else
-    // /proc/<pid>/comm stands in for the process snapshot; the kernel cuts it to 15 characters, so compare that much.
-    static const char* PROCESS_NAMES[] = { "Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment" };
-    static const size_t COMM_LENGTH = 15;
-
-    std::error_code ec;
-
-    for (std::filesystem::directory_iterator it("/proc", ec), end; !ec && it != end; it.increment(ec)) {
-        const std::string pid = it->path().filename().string();
-
-        if (pid.empty() || !isdigit(static_cast<unsigned char>(pid[0]))) {
-            continue;
-        }
-
-        std::ifstream comm(it->path() / "comm");
-        std::string name;
-
-        if (!comm || !std::getline(comm, name)) {
-            continue;
-        }
-
-        for (const char* candidate : PROCESS_NAMES) {
-            if (strncasecmp(name.c_str(), candidate, COMM_LENGTH) == 0 && name.size() == std::min(strlen(candidate), COMM_LENGTH)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-#endif
 }
 
 static const char* OrEmpty(const char* value) {
@@ -214,7 +134,7 @@ class Client {
                 if (now >= nextDetect) {
                     nextDetect = now + DETECT_INTERVAL;
 
-                    if (IsDiscordRunning()) {
+                    if (Host::IsDiscordRunning()) {
                         TryConnect();
                     }
                 }

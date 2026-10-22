@@ -1,18 +1,19 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
-#include <sys/eventfd.h>
+
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cerrno>
 #include <cstdint>
 #include "WoW/Source/WowServices/WowConnectionNet.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 // The Windows network thread waits on one manual-reset event (m_event, set to wake it up) plus one WSAEventSelect
 // event per connection, then hands each connection that reported network events to a worker. Here the wake-up
-// event is an eventfd and the per-connection events are replaced by a poll() over the sockets; the select masks
+// event is an OsPosixWake and the per-connection events are replaced by a poll() over the sockets; the select masks
 // are rebuilt from the connection state on every pass, as PlatformRun does on Windows. The per-connection m_event
 // is not used.
 
@@ -20,37 +21,19 @@ namespace {
 
 const uint32_t kMaxWaitObjects = 64;
 
-struct NetWakeEvent {
-    int m_fd;
-};
-
 int WakeFd(void* event) {
-    return event ? static_cast<NetWakeEvent*>(event)->m_fd : -1;
+    return event ? static_cast<OsPosixWake*>(event)->m_readFd : -1;
 }
 
 void SetWake(void* event) {
-    int fd = WakeFd(event);
-
-    if (fd >= 0) {
-        uint64_t one = 1;
-        ssize_t written;
-
-        do {
-            written = write(fd, &one, sizeof(one));
-        } while (written < 0 && errno == EINTR);
+    if (event) {
+        OsPosixWakeSignal(static_cast<OsPosixWake*>(event));
     }
 }
 
 void ResetWake(void* event) {
-    int fd = WakeFd(event);
-
-    if (fd >= 0) {
-        uint64_t value;
-        ssize_t bytes;
-
-        do {
-            bytes = read(fd, &value, sizeof(value));
-        } while (bytes < 0 && errno == EINTR);
+    if (event) {
+        OsPosixWakeDrain(static_cast<OsPosixWake*>(event));
     }
 }
 
@@ -197,12 +180,12 @@ void WowConnectionNet::PlatformRun() {
 }
 
 void WowConnectionNet::PlatformInit(bool useEngine) {
-    int fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    OsPosixWake* event = new OsPosixWake;
 
-    if (fd >= 0) {
-        NetWakeEvent* event = new NetWakeEvent;
-        event->m_fd = fd;
+    if (OsPosixWakeCreate(event)) {
         this->m_event = event;
+    } else {
+        delete event;
     }
 }
 
@@ -230,8 +213,8 @@ void WowConnectionNet::PlatformStop() {
 
 void WowConnectionNet::PlatformDestroy() {
     if (this->m_event) {
-        NetWakeEvent* event = static_cast<NetWakeEvent*>(this->m_event);
-        close(event->m_fd);
+        OsPosixWake* event = static_cast<OsPosixWake*>(this->m_event);
+        OsPosixWakeDestroy(event);
         delete event;
         this->m_event = nullptr;
     }

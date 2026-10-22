@@ -1,19 +1,10 @@
 #include "HoT/Streaming/Sha256.h"
-#if defined(_WIN32)
-#include <windows.h>
-#include <bcrypt.h>
-#else
-#include <openssl/evp.h>
-#include <filesystem>
-#endif
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <vector>
-
-#if defined(_WIN32)
-#pragma comment(lib, "bcrypt.lib")
-#endif
+#include "HoT/Platform/Crypto.h"
 
 namespace HoT::Streaming {
 
@@ -36,43 +27,21 @@ static std::string ToHex(const unsigned char* d, size_t n) {
     return s;
 }
 
-#if defined(_WIN32)
-static const std::wstring& FilePath(const std::wstring& path) {
-    return path;
-}
-
 struct Sha256Hasher {
-    BCRYPT_ALG_HANDLE m_alg = nullptr;
-    BCRYPT_HASH_HANDLE m_hash = nullptr;
-    std::vector<unsigned char> m_obj;
+    Platform::Sha256 m_sha;
 
     bool Open() {
-        if (BCryptOpenAlgorithmProvider(&this->m_alg, BCRYPT_SHA256_ALGORITHM, nullptr, 0) != 0) {
-            this->m_alg = nullptr;
-            return false;
-        }
-
-        DWORD objLen = 0;
-        DWORD cb = 0;
-        BCryptGetProperty(this->m_alg, BCRYPT_OBJECT_LENGTH, reinterpret_cast<PUCHAR>(&objLen), sizeof(objLen), &cb, 0);
-        this->m_obj.resize(objLen);
-
-        if (BCryptCreateHash(this->m_alg, &this->m_hash, this->m_obj.data(), objLen, nullptr, 0, 0) != 0) {
-            this->m_hash = nullptr;
-            return false;
-        }
-
-        return true;
+        return this->m_sha.Open();
     }
 
     void Update(const void* data, size_t n) {
         if (n > 0) {
-            BCryptHashData(this->m_hash, reinterpret_cast<PUCHAR>(const_cast<void*>(data)), static_cast<ULONG>(n), 0);
+            this->m_sha.Update(data, n);
         }
     }
 
     bool FinishRaw(unsigned char out[32]) {
-        return BCryptFinishHash(this->m_hash, out, 32, 0) == 0;
+        return this->m_sha.Finish(out);
     }
 
     std::string Finish() {
@@ -84,70 +53,7 @@ struct Sha256Hasher {
 
         return ToHex(digest, sizeof(digest));
     }
-
-    ~Sha256Hasher() {
-        if (this->m_hash) {
-            BCryptDestroyHash(this->m_hash);
-        }
-
-        if (this->m_alg) {
-            BCryptCloseAlgorithmProvider(this->m_alg, 0);
-        }
-    }
 };
-#else
-// libstdc++ converts a wide path to UTF-8, which matches TextConv on Linux.
-static std::filesystem::path FilePath(const std::wstring& path) {
-    return std::filesystem::path(path);
-}
-
-struct Sha256Hasher {
-    EVP_MD_CTX* m_ctx = nullptr;
-
-    bool Open() {
-        this->m_ctx = EVP_MD_CTX_new();
-
-        if (!this->m_ctx) {
-            return false;
-        }
-
-        if (EVP_DigestInit_ex(this->m_ctx, EVP_sha256(), nullptr) != 1) {
-            EVP_MD_CTX_free(this->m_ctx);
-            this->m_ctx = nullptr;
-            return false;
-        }
-
-        return true;
-    }
-
-    void Update(const void* data, size_t n) {
-        if (n > 0) {
-            EVP_DigestUpdate(this->m_ctx, data, n);
-        }
-    }
-
-    bool FinishRaw(unsigned char out[32]) {
-        unsigned int len = 0;
-        return EVP_DigestFinal_ex(this->m_ctx, out, &len) == 1 && len == 32;
-    }
-
-    std::string Finish() {
-        unsigned char digest[32];
-
-        if (!this->FinishRaw(digest)) {
-            return "";
-        }
-
-        return ToHex(digest, sizeof(digest));
-    }
-
-    ~Sha256Hasher() {
-        if (this->m_ctx) {
-            EVP_MD_CTX_free(this->m_ctx);
-        }
-    }
-};
-#endif
 
 // Hashes count bytes from the current position, false on a short read.
 static bool HashRange(std::ifstream& f, Sha256Hasher& h, std::vector<char>& buf, long long count) {
@@ -168,7 +74,7 @@ static bool HashRange(std::ifstream& f, Sha256Hasher& h, std::vector<char>& buf,
 }
 
 std::string Sha256File(const std::wstring& path) {
-    std::ifstream f(FilePath(path), std::ios::binary);
+    std::ifstream f(std::filesystem::path(path), std::ios::binary);
 
     if (!f) {
         return "";
@@ -195,7 +101,7 @@ std::string Sha256File(const std::wstring& path) {
 }
 
 std::string QuickDigestFile(const std::wstring& path) {
-    std::ifstream f(FilePath(path), std::ios::binary | std::ios::ate);
+    std::ifstream f(std::filesystem::path(path), std::ios::binary | std::ios::ate);
 
     if (!f) {
         return "";

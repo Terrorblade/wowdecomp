@@ -15,13 +15,10 @@
 #include <msdfgen-ext.h>
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "HoT/MSDF/Cache.h"
+#include "HoT/MSDF/Console.h"
 #include "HoT/MSDF/Font.h"
 #include "HoT/MSDF/Utils.h"
 #include "HoT/MSDF/Validator.h"
-
-#if !defined(_WIN32)
-#define scanf_s scanf
-#endif
 
 namespace HoT::MSDF::Pregen {
 
@@ -57,63 +54,6 @@ class Throttle {
     std::chrono::milliseconds m_accumulatedWork{ 0 };
 };
 
-#if defined(_WIN32)
-struct ConsoleGuard {
-    FILE* m_out = nullptr;
-    FILE* m_in = nullptr;
-    bool m_allocated = false;
-    HWND m_window = nullptr;
-
-    ConsoleGuard() {
-        this->m_window = GetActiveWindow();
-        this->m_allocated = AllocConsole() || GetLastError() == ERROR_ACCESS_DENIED;
-
-        if (this->m_allocated) {
-            freopen_s(&this->m_out, "CONOUT$", "w", stdout);
-            freopen_s(&this->m_in, "CONIN$", "r", stdin);
-
-            if (this->m_window) {
-                ShowWindow(this->m_window, SW_MINIMIZE);
-            }
-
-            SetForegroundWindow(GetConsoleWindow());
-        }
-    }
-
-    ~ConsoleGuard() {
-        if (this->m_out) {
-            fclose(this->m_out);
-        }
-
-        if (this->m_in) {
-            fclose(this->m_in);
-        }
-
-        if (this->m_allocated) {
-            FreeConsole();
-        }
-
-        if (this->m_window) {
-            ShowWindow(this->m_window, SW_RESTORE);
-            SetForegroundWindow(this->m_window);
-        }
-    }
-
-    ConsoleGuard(const ConsoleGuard&) = delete;
-    ConsoleGuard& operator=(const ConsoleGuard&) = delete;
-};
-#else
-// The prompts use the terminal the client was started from, there is no console to allocate; without a terminal
-// on stdin this behaves like a failed AllocConsole and pre-generation is skipped.
-struct ConsoleGuard {
-    bool m_allocated = isatty(STDIN_FILENO) != 0;
-
-    ConsoleGuard() = default;
-    ConsoleGuard(const ConsoleGuard&) = delete;
-    ConsoleGuard& operator=(const ConsoleGuard&) = delete;
-};
-#endif
-
 struct PreGenRequest {
     FT_Face m_face = nullptr;
     const uint8_t* m_data = nullptr;
@@ -124,11 +64,6 @@ struct PreGenRequest {
 };
 
 static std::vector<PreGenRequest> s_pendingRequests;
-#if defined(_WIN32)
-static HANDLE s_lockFile = INVALID_HANDLE_VALUE;
-#else
-static int s_lockFile = -1;
-#endif
 
 static std::string GameLocale() {
     CVar* locale = CVar::Lookup("locale");
@@ -174,43 +109,11 @@ static bool AcquirePreGenLock() {
     std::filesystem::create_directories(Cache::CACHE_DIR, ec);
 
     std::string path = (std::filesystem::path(Cache::CACHE_DIR) / "pregen.lock").string();
-#if defined(_WIN32)
-    HANDLE handle = CreateFileA(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
-
-    if (handle == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-#else
-    // An flock() held for the session replaces the delete on close file, it is dropped even if the client crashes.
-    int handle = open(path.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
-
-    if (handle < 0) {
-        return false;
-    }
-
-    if (flock(handle, LOCK_EX | LOCK_NB) != 0) {
-        close(handle);
-        return false;
-    }
-#endif
-
-    s_lockFile = handle;
-
-    return true;
+    return Console::AcquireLock(path);
 }
 
 static void ReleasePreGenLock() {
-#if defined(_WIN32)
-    if (s_lockFile != INVALID_HANDLE_VALUE) {
-        CloseHandle(s_lockFile);
-        s_lockFile = INVALID_HANDLE_VALUE;
-    }
-#else
-    if (s_lockFile >= 0) {
-        close(s_lockFile);
-        s_lockFile = -1;
-    }
-#endif
+    Console::ReleaseLock();
 }
 
 static bool GenerateFont(const PreGenRequest& request) {
@@ -240,7 +143,7 @@ static bool GenerateFont(const PreGenRequest& request) {
 
     int choice = 1;
 
-    if (scanf_s("%d", &choice) != 1) {
+    if (!Console::ReadInt(choice)) {
         FlushStdin();
         printf("ERROR: %s\n", "Invalid input");
         return false;
@@ -255,7 +158,7 @@ static bool GenerateFont(const PreGenRequest& request) {
     if (choice == 2) {
         printf("Enter Start Hex (e.g. 4E00): ");
 
-        if (scanf_s("%x", &start) != 1) {
+        if (!Console::ReadHex(start)) {
             FlushStdin();
             printf("ERROR: %s\n", "Invalid input");
             return false;
@@ -264,7 +167,7 @@ static bool GenerateFont(const PreGenRequest& request) {
         FlushStdin();
         printf("Enter End Hex (e.g. 9FFF): ");
 
-        if (scanf_s("%x", &end) != 1) {
+        if (!Console::ReadHex(end)) {
             FlushStdin();
             printf("ERROR: %s\n", "Invalid input");
             return false;
@@ -291,7 +194,7 @@ static bool GenerateFont(const PreGenRequest& request) {
     printf("\nEnter CPU usage limit (1-100%%, 100 for unlimited):\n");
     printf("Choice (%%): ");
 
-    if (scanf_s("%lf", &cpuLimit) != 1) {
+    if (!Console::ReadDouble(cpuLimit)) {
         FlushStdin();
         printf("ERROR: Invalid input. Using 100%% (unlimited).\n");
         cpuLimit = 100.0;
@@ -501,9 +404,9 @@ static bool GenerateFont(const PreGenRequest& request) {
 }
 
 static void ExecutePreGeneration() {
-    ConsoleGuard console;
+    Console::Session console;
 
-    if (!console.m_allocated) {
+    if (!console.IsOpen()) {
         return;
     }
 
@@ -550,7 +453,7 @@ static void ExecutePreGeneration() {
 
         int choice = 0;
 
-        if (scanf_s("%d", &choice) != 1) {
+        if (!Console::ReadInt(choice)) {
             FlushStdin();
             printf("ERROR: %s\n", "Invalid input");
             continue;

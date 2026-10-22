@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
 #include <cstdint>
@@ -6,16 +6,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
-#include <link.h>
 #include <pwd.h>
 #include <spawn.h>
-#include <sys/sysinfo.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#if defined(__x86_64__) || defined(__i386__)
-#include <cpuid.h>
-#endif
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Os/Processor.h"
 #include "Engine/Source/Os/System.h"
@@ -98,34 +94,18 @@ void OsSetCommandLine(int argc, char** argv) {
     s_commandLine = commandLine;
 }
 
-// Without OsSetCommandLine (e.g. before main), the arguments come from /proc/self/cmdline.
+// Without OsSetCommandLine (e.g. before main), the arguments come from the process itself.
 const char* OsGetCommandLine() {
     if (s_commandLine) {
         return s_commandLine;
     }
 
-    int fd = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
-
-    if (fd < 0) {
-        return "";
-    }
-
-    char buffer[32768];
-    size_t length = 0;
-    ssize_t bytes;
-
-    while (length < sizeof(buffer) - 1 && (bytes = read(fd, buffer + length, sizeof(buffer) - 1 - length)) > 0) {
-        length += static_cast<size_t>(bytes);
-    }
-
-    close(fd);
-    buffer[length] = '\0';
-
+    static char buffer[32768];
     char* argv[1024];
-    int argc = 0;
+    int32_t argc = OsPosixProcessArguments(argv, 1024, buffer, sizeof(buffer));
 
-    for (size_t i = 0; i < length && argc < 1024; i += strlen(buffer + i) + 1) {
-        argv[argc++] = buffer + i;
+    if (!argc) {
+        return "";
     }
 
     OsSetCommandLine(argc, argv);
@@ -138,12 +118,10 @@ int32_t IOsGetProcessorFeatures(CpuIdInfo* info) {
 
     int32_t result = 0;
 
-#if defined(__x86_64__) || defined(__i386__)
-    // The EFLAGS.ID probe of the Windows code is unnecessary: every x86_64 processor has cpuid.
+    // The EFLAGS.ID probe of the Windows code is unnecessary, every x86_64 processor has cpuid and arm64 has a stand-in.
     uint32_t regs[4];
-    __cpuid(0, regs[0], regs[1], regs[2], regs[3]);
 
-    if (regs[0]) {
+    if (OsPosixCpuid(0, 0, regs) && regs[0]) {
         uint32_t maxStandard = regs[0];
         info->m_maxStandard = regs[0];
         memcpy(&info->m_vendor[0], &regs[1], 4);
@@ -152,15 +130,15 @@ int32_t IOsGetProcessorFeatures(CpuIdInfo* info) {
         result = 1;
 
         if (maxStandard >= 4) {
-            __cpuid_count(4, 0, regs[0], regs[1], regs[2], regs[3]);
+            OsPosixCpuid(4, 0, regs);
             info->m_standard4a = regs[0];
         }
 
-        __cpuid(1, regs[0], regs[1], regs[2], regs[3]);
+        OsPosixCpuid(1, 0, regs);
         info->m_standard1d = regs[3];
         info->m_standard1b = regs[1];
 
-        __cpuid(0x80000000, regs[0], regs[1], regs[2], regs[3]);
+        OsPosixCpuid(0x80000000, 0, regs);
 
         if (regs[0] > 0x80000000) {
             result = 2;
@@ -168,31 +146,30 @@ int32_t IOsGetProcessorFeatures(CpuIdInfo* info) {
             info->m_maxExtended = regs[0];
 
             if (maxExtended >= 0x80000008) {
-                __cpuid(0x80000008, regs[0], regs[1], regs[2], regs[3]);
+                OsPosixCpuid(0x80000008, 0, regs);
                 info->m_extended8c = regs[2];
             }
 
             if (maxExtended >= 0x80000002) {
-                __cpuid(0x80000002, regs[0], regs[1], regs[2], regs[3]);
+                OsPosixCpuid(0x80000002, 0, regs);
                 memcpy(&info->m_brand[0], regs, 16);
             }
 
             if (maxExtended >= 0x80000003) {
-                __cpuid(0x80000003, regs[0], regs[1], regs[2], regs[3]);
+                OsPosixCpuid(0x80000003, 0, regs);
                 memcpy(&info->m_brand[16], regs, 16);
             }
 
             if (maxExtended >= 0x80000004) {
-                __cpuid(0x80000004, regs[0], regs[1], regs[2], regs[3]);
+                OsPosixCpuid(0x80000004, 0, regs);
                 memcpy(&info->m_brand[32], regs, 16);
             }
 
-            __cpuid(0x80000001, regs[0], regs[1], regs[2], regs[3]);
+            OsPosixCpuid(0x80000001, 0, regs);
             info->m_extended1d = regs[3];
             info->m_extended1c = regs[2];
         }
     }
-#endif
 
     return result;
 }
@@ -268,7 +245,7 @@ void OsSetBackgroundSleepMs(uint32_t milliseconds) {
 }
 
 OsType OsGetVersion() {
-    return OsType_Linux;
+    return static_cast<OsType>(OsPosixOsType());
 }
 
 // The type name, as on Windows, followed by the kernel release and machine ("Linux 6.12.0 x86_64").
@@ -364,13 +341,11 @@ int32_t OsGetUserName(char* buffer, uint32_t* size) {
 }
 
 uint64_t OsGetPhysicalMemory() {
-    struct sysinfo info;
+    uint64_t total;
+    uint64_t available;
+    OsPosixMemoryStatus(&total, &available);
 
-    if (sysinfo(&info)) {
-        return 0;
-    }
-
-    return static_cast<uint64_t>(info.totalram) * info.mem_unit;
+    return total;
 }
 
 // Named kernel events have no Linux counterpart; the only caller creates one to mark the client as running and never
@@ -394,17 +369,21 @@ void* CreateNamedEventA(const char* name, int32_t manualReset) {
     return event;
 }
 
-static int FindTextSegment(struct dl_phdr_info* info, size_t size, void* data) {
-    // The first object is the main executable.
-    for (ElfW(Half) i = 0; i < info->dlpi_phnum; i++) {
-        const ElfW(Phdr)& header = info->dlpi_phdr[i];
+// The executable segment(s) of the main program play the part of the PE .text section.
+void OsFindTextSectionBounds() {
+    s_textStart = 0;
+    s_textEnd = 0;
 
-        if (header.p_type != PT_LOAD || !(header.p_flags & PF_X)) {
+    OsPosixSegment segments[32];
+    int32_t count = OsPosixModuleSegments(nullptr, segments, 32);
+
+    for (int32_t i = 0; i < count; i++) {
+        if (!segments[i].m_executable) {
             continue;
         }
 
-        uintptr_t start = info->dlpi_addr + header.p_vaddr;
-        uintptr_t end = start + header.p_memsz;
+        uintptr_t start = segments[i].m_start;
+        uintptr_t end = start + segments[i].m_size;
 
         if (!s_textStart || start < s_textStart) {
             s_textStart = start;
@@ -414,16 +393,6 @@ static int FindTextSegment(struct dl_phdr_info* info, size_t size, void* data) {
             s_textEnd = end;
         }
     }
-
-    return 1;
-}
-
-// The executable PT_LOAD segment(s) of the main program play the part of the PE .text section.
-void OsFindTextSectionBounds() {
-    s_textStart = 0;
-    s_textEnd = 0;
-
-    dl_iterate_phdr(FindTextSegment, nullptr);
 
     if (!s_textStart || !s_textEnd) {
         SErrDisplayAppFatal("Unable to find .text section");

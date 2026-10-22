@@ -1,19 +1,19 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <dlfcn.h>
-#include <link.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Os/OsVersionHash.h"
 #include "Engine/Source/Storm/H/storm.h"
 
 // On Windows the checksum of a loaded module hashes its PE image with relocations undone, import thunks replaced by
-// their original values and writable sections replaced by zeroes, so the result depends only on the file. The Linux
-// equivalent hashes the module's PT_LOAD segments in address order: read-only segments as they are mapped (a PIE has
+// their original values and writable sections replaced by zeroes, so the result depends only on the file. The POSIX
+// equivalent hashes the module's loaded segments in address order: read-only segments as they are mapped (a PIE has
 // no relocations in them, so the bytes do not depend on the load address) and writable ones as zeroes. The result is
-// deterministic for a given build; it cannot match any Windows value. Checksums of files on disk are unchanged.
+// deterministic for a given build but cannot match any Windows value. Checksums of files on disk are unchanged.
 
 OsVersionHash::~OsVersionHash() {
     if (this->m_entries) {
@@ -58,46 +58,28 @@ OsVersionHash::OsVersionHash() : m_entries(nullptr) {
     this->m_capacity = 256;
 }
 
-struct ModuleChecksum {
-    IOsVersionHashCallback* m_callback;
-    const struct link_map* m_module;
-    int32_t m_result;
-};
+static int32_t ChecksumSegments(IOsVersionHashCallback& callback, void* module) {
+    OsPosixSegment segments[64];
+    int32_t count = OsPosixModuleSegments(module, segments, 64);
 
-static int ChecksumSegments(struct dl_phdr_info* info, size_t size, void* data) {
-    ModuleChecksum* checksum = static_cast<ModuleChecksum*>(data);
-
-    // The first object reported is the main program; a library is identified by its load address.
-    if (checksum->m_module && (info->dlpi_addr != checksum->m_module->l_addr || !info->dlpi_name || strcmp(info->dlpi_name, checksum->m_module->l_name))) {
-        return 0;
-    }
-
-    for (ElfW(Half) i = 0; i < info->dlpi_phnum; i++) {
-        const ElfW(Phdr)& header = info->dlpi_phdr[i];
-
-        if (header.p_type != PT_LOAD || !header.p_memsz) {
+    for (int32_t i = 0; i < count; i++) {
+        if (segments[i].m_writable) {
+            HashZeroes(callback, static_cast<uint32_t>(segments[i].m_size));
             continue;
         }
 
-        if (header.p_flags & PF_W) {
-            HashZeroes(*checksum->m_callback, static_cast<uint32_t>(header.p_memsz));
-            continue;
-        }
-
-        const uint8_t* start = reinterpret_cast<const uint8_t*>(info->dlpi_addr + header.p_vaddr);
-        uint64_t remaining = header.p_memsz;
+        const uint8_t* start = reinterpret_cast<const uint8_t*>(segments[i].m_start);
+        uint64_t remaining = segments[i].m_size;
 
         while (remaining) {
             uint32_t chunk = remaining > 0x10000000 ? 0x10000000 : static_cast<uint32_t>(remaining);
-            checksum->m_callback->Process(start, chunk);
+            callback.Process(start, chunk);
             start += chunk;
             remaining -= chunk;
         }
     }
 
-    checksum->m_result = 1;
-
-    return 1;
+    return count > 0;
 }
 
 int32_t IOsVersionChecksum(IOsVersionHashCallback& callback, const char* path, int32_t loaded) {
@@ -106,11 +88,6 @@ int32_t IOsVersionChecksum(IOsVersionHashCallback& callback, const char* path, i
     }
 
     if (loaded) {
-        ModuleChecksum checksum;
-        checksum.m_callback = &callback;
-        checksum.m_module = nullptr;
-        checksum.m_result = 0;
-
         void* handle = nullptr;
 
         // Like GetModuleHandle, this only finds a module that is already loaded.
@@ -120,24 +97,15 @@ int32_t IOsVersionChecksum(IOsVersionHashCallback& callback, const char* path, i
             if (!handle) {
                 return 0;
             }
-
-            struct link_map* map = nullptr;
-
-            if (dlinfo(handle, RTLD_DI_LINKMAP, &map) || !map) {
-                dlclose(handle);
-                return 0;
-            }
-
-            checksum.m_module = map;
         }
 
-        dl_iterate_phdr(ChecksumSegments, &checksum);
+        int32_t result = ChecksumSegments(callback, handle);
 
         if (handle) {
             dlclose(handle);
         }
 
-        return checksum.m_result;
+        return result;
     }
 
     int32_t result = 0;

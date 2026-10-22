@@ -1,18 +1,10 @@
 #include "HoT/Streaming/MpqFile.h"
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <cerrno>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include "HoT/Streaming/TextConv.h"
-#endif
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <vector>
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SComp.h"
+#include "HoT/Platform/Files.h"
 #include "HoT/Streaming/ArchiveManifest.h"
 
 namespace HoT::Streaming::MpqFile {
@@ -140,25 +132,9 @@ static const char* PlainName(const char* name) {
 }
 
 struct Reader {
-#if defined(_WIN32)
-    HANDLE m_handle = INVALID_HANDLE_VALUE;
-#else
-    int32_t m_fd = -1;
-#endif
+    Platform::ReadOnlyFile m_file;
     long long m_size = 0;
     bool* m_unreadable = nullptr;
-
-    ~Reader() {
-#if defined(_WIN32)
-        if (this->m_handle != INVALID_HANDLE_VALUE) {
-            CloseHandle(this->m_handle);
-        }
-#else
-        if (this->m_fd >= 0) {
-            close(this->m_fd);
-        }
-#endif
-    }
 
     bool Broken() {
         if (this->m_unreadable) {
@@ -168,41 +144,14 @@ struct Reader {
         return false;
     }
 
-#if defined(_WIN32)
     bool Open(const std::wstring& path) {
-        this->m_handle = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-        if (this->m_handle == INVALID_HANDLE_VALUE) {
+        if (!this->m_file.Open(std::filesystem::path(path))) {
             return this->Broken();
         }
 
-        LARGE_INTEGER li{};
-
-        if (!GetFileSizeEx(this->m_handle, &li)) {
-            return this->Broken();
-        }
-
-        this->m_size = li.QuadPart;
+        this->m_size = this->m_file.Size();
         return true;
     }
-#else
-    bool Open(const std::wstring& path) {
-        this->m_fd = open(Text::NarrowUtf8(path).c_str(), O_RDONLY | O_CLOEXEC);
-
-        if (this->m_fd < 0) {
-            return this->Broken();
-        }
-
-        struct stat info;
-
-        if (fstat(this->m_fd, &info) != 0) {
-            return this->Broken();
-        }
-
-        this->m_size = static_cast<long long>(info.st_size);
-        return true;
-    }
-#endif
 
     bool ReadAt(long long offset, void* out, size_t n) {
         if (offset < 0 || n > 0x7FFFFFFF || offset + static_cast<long long>(n) > this->m_size) {
@@ -212,30 +161,15 @@ struct Reader {
         uint8_t* dst = static_cast<uint8_t*>(out);
 
         while (n > 0) {
-#if defined(_WIN32)
-            OVERLAPPED ov{};
-            ov.Offset = static_cast<DWORD>(offset & 0xFFFFFFFF);
-            ov.OffsetHigh = static_cast<DWORD>(offset >> 32);
-            DWORD got = 0;
-
-            if (!::ReadFile(this->m_handle, dst, static_cast<DWORD>(n), &got, &ov) || got == 0) {
-                return this->Broken();
-            }
-#else
-            ssize_t got = pread(this->m_fd, dst, n, static_cast<off_t>(offset));
-
-            if (got < 0 && errno == EINTR) {
-                continue;
-            }
+            int64_t got = this->m_file.ReadAt(offset, dst, n);
 
             if (got <= 0) {
                 return this->Broken();
             }
-#endif
 
             dst += got;
             offset += got;
-            n -= got;
+            n -= static_cast<size_t>(got);
         }
 
         return true;

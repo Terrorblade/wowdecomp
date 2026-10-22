@@ -1,4 +1,5 @@
 file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
 # The auth server only accepts builds it knows, set this to the commit it expects when the decomp HEAD is not one of them.
 set(HOT_COMMIT_OVERRIDE "" CACHE STRING "40 character commit hash sent to the server instead of the git HEAD")
@@ -27,7 +28,7 @@ add_library(HoT STATIC
 add_dependencies(HoT HoTBuildVersion)
 
 # The MSDF packer uses SSE4.1 intrinsics unconditionally, MSVC allows that without a flag but clang and gcc don't.
-if (NOT MSVC)
+if (NOT MSVC AND NOT WOWDECOMP_CPU_ARM64)
     set_source_files_properties(MSDF/Font.cpp PROPERTIES COMPILE_OPTIONS "-msse4.1")
 endif ()
 
@@ -89,14 +90,28 @@ if (WIN32)
     )
 endif ()
 
-# Off Windows the streaming client uses libcurl for HTTP and OpenSSL for SHA-256 and ECDSA in place of WinHTTP and BCrypt.
-if (NOT WIN32)
+# The streaming client's HTTP is libcurl everywhere, built from ThirdParty/curl on Windows. SHA-256 and ECDSA come
+# from OpenSSL on Linux and from CommonCrypto and Security.framework on macOS, in place of BCrypt.
+if (WOWDECOMP_PLATFORM_POSIX)
     find_package(CURL REQUIRED)
+endif ()
+
+target_link_libraries(HoT
+    PUBLIC
+        CURL::libcurl
+)
+
+if (WOWDECOMP_PLATFORM_LINUX)
     find_package(OpenSSL REQUIRED)
     target_link_libraries(HoT
         PUBLIC
-            CURL::libcurl
             OpenSSL::Crypto
+    )
+elseif (WOWDECOMP_PLATFORM_MAC)
+    target_link_libraries(HoT
+        PUBLIC
+            "-framework Security"
+            "-framework CoreFoundation"
     )
 endif ()
 

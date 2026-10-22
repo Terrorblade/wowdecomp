@@ -72,7 +72,7 @@ std::wstring KeyFor(const std::wstring& path) {
     fs::path p(path);
 
     if (p.is_relative()) {
-        p = Paths::ExeDir() / p;
+        p = Paths::GameDir() / p;
     }
 
     return Text::LowerPath(p.lexically_normal().wstring());

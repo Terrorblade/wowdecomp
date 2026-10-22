@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstring>
 #include <dlfcn.h>

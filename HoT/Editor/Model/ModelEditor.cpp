@@ -2,11 +2,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#if defined(_WIN32)
-#include <windows.h>
-#else
 #include <filesystem>
-#endif
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -35,6 +31,7 @@
 #include "HoT/Game/Session.h"
 #include "HoT/Lua/Script.h"
 #include "HoT/Models/FileDataId.h"
+#include "HoT/Platform/Files.h"
 #include "WoW/Source/WorldClient/World.h"
 
 namespace HoT::Editor::ModelEditor {
@@ -2960,40 +2957,21 @@ static int32_t Script_FileExists(lua_State* L) {
 }
 
 static std::wstring ImportDirectory() {
-#if defined(_WIN32)
-    return Files::GameDirectory() + L"\\Import";
-#else
     return Files::DiskPath("Import");
-#endif
 }
 
 // ModelEditor_ListImportFiles() -> { "name.png", ... } from the Import folder.
 static int32_t Script_ListImportFiles(lua_State* L) {
     std::vector<std::string> names;
-#if defined(_WIN32)
-    WIN32_FIND_DATAW data;
-    HANDLE find = FindFirstFileW((ImportDirectory() + L"\\*").c_str(), &data);
-
-    if (find != INVALID_HANDLE_VALUE) {
-        do {
-            if (!(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && TextureImport::IsImportExtension(data.cFileName)) {
-                names.push_back(Files::Narrow(data.cFileName));
-            }
-        } while (FindNextFileW(find, &data));
-
-        FindClose(find);
-    }
-#else
     std::error_code error;
 
-    for (std::filesystem::directory_iterator it(Files::Narrow(ImportDirectory()), error); !error && it != std::filesystem::directory_iterator(); it.increment(error)) {
-        std::wstring name = Files::Widen(it->path().filename().string());
+    for (std::filesystem::directory_iterator it(std::filesystem::path(ImportDirectory()), error); !error && it != std::filesystem::directory_iterator(); it.increment(error)) {
+        std::wstring name = it->path().filename().wstring();
 
         if (!it->is_directory(error) && TextureImport::IsImportExtension(name)) {
             names.push_back(Files::Narrow(name));
         }
     }
-#endif
 
     std::sort(names.begin(), names.end(), [](const std::string& a, const std::string& b) { return _stricmp(a.c_str(), b.c_str()) < 0; });
     lua_createtable(L, static_cast<int32_t>(names.size()), 0);
@@ -3017,20 +2995,12 @@ static int32_t Script_ImportTexture(lua_State* L) {
     std::string error;
     std::wstring source;
 
-#if defined(_WIN32)
-    if (sourceName.find(':') != std::string::npos || sourceName.rfind("\\\\", 0) == 0) {
-#else
-    if (!sourceName.empty() && sourceName[0] == '/') {
-#endif
+    if (Platform::IsAbsoluteHostPath(sourceName)) {
         source = Files::Widen(sourceName);
     } else if (sourceName.find_first_of("\\/") != std::string::npos || sourceName.find("..") != std::string::npos || sourceName.empty()) {
         return PushFalseError(L, "source must be a file name from the Import folder or an absolute path");
     } else {
-#if defined(_WIN32)
-        source = ImportDirectory() + L"\\" + Files::Widen(sourceName);
-#else
-        source = ImportDirectory() + L"/" + Files::Widen(sourceName);
-#endif
+        source = (std::filesystem::path(ImportDirectory()) / Files::Widen(sourceName)).wstring();
     }
 
     if (!TextureImport::IsImportExtension(source)) {

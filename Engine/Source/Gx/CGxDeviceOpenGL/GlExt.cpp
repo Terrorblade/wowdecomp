@@ -4,7 +4,7 @@
 #include "Engine/Source/Gx/CGxDeviceOpenGL/GlExt.h"
 #include "Engine/Source/Storm/H/storm.h"
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 #include <SDL.h>
 
 // Entry points come from the SDL GL context (GLX/EGL) instead of WGL.

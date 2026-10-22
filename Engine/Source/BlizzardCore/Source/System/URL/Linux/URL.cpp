@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
 #include <cstdint>
@@ -15,6 +15,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/URL/URL.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 // The Windows client downloads through WinInet in async mode: DownloadURL cracks the URL and sends the request, and
 // a pool thread (ReadResponseData) reads the response and feeds the callback, which gets Completed(status) once the
@@ -252,7 +253,7 @@ RequestError Connect(Connection& connection, const ParsedURL& url, int32_t timeo
     RequestError error = REQUEST_CANNOT_CONNECT;
 
     for (addrinfo* address = addresses; address; address = address->ai_next) {
-        int fd = socket(address->ai_family, address->ai_socktype | SOCK_CLOEXEC, address->ai_protocol);
+        int fd = OsPosixSocket(address->ai_family, address->ai_socktype, address->ai_protocol, false);
 
         if (fd < 0) {
             continue;

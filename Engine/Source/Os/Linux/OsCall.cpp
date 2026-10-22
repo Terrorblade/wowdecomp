@@ -1,8 +1,9 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstdint>
 #include <pthread.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Os/OsCall.h"
 #include "Engine/Source/Os/Tls.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -97,7 +98,7 @@ void OsCallInitialize(const char* name) {
 
     OsCallThread* thread = new (SMemAlloc(sizeof(OsCallThread), __FILE__, __LINE__, SMEM_FLAG_ZEROMEMORY)) OsCallThread;
     // The kernel thread id stands in for the Windows thread id, and the pthread handle needs no duplicate or close.
-    thread->m_threadId = static_cast<uint32_t>(gettid());
+    thread->m_threadId = OsPosixThreadId();
     thread->m_threadHandle = reinterpret_cast<void*>(pthread_self());
     SStrPrintf(thread->m_name, sizeof(thread->m_name), "%s [%u]", name, thread->m_threadId);
 

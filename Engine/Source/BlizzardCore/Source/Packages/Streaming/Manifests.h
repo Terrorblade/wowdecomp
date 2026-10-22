@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 #include "Engine/Source/BlizzardCore/Source/System/Time/Types.h"
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
 #endif
 #include "Engine/Source/BlizzardCore/Source/System/URL/URL.h"
@@ -199,7 +199,7 @@ class TransportHttpCallback : public Blizzard::URL::DownloadCallback {
     /* 0060 */ int64_t m_rangeStart;
     /* 0068 */ int64_t m_rangeEnd;
     /* 0070 */ uint32_t m_timeout;
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
     /* 0074 */ Blizzard::Lock::Event m_event;
 #else
     /* 0074 */ void* m_event;
@@ -268,7 +268,7 @@ class HttpCallback : public Blizzard::URL::DownloadCallback {
     /* 0020 */ uint32_t m_received;
     /* 0024 */ Blizzard::URL::DownloadCallback::Status m_status;
     /* 0028 */ uint32_t m_timeout;
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
     /* 002C */ Blizzard::Lock::Event m_event;
 #else
     /* 002C */ void* m_event;

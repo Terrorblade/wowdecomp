@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <cstring>
 #include "Engine/Source/ComSat/ComSatNetwork.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 // Address keeps a Windows sockaddr_in starting at m_family; glibc's sockaddr_in has the same 16-byte layout.
 static_assert(sizeof(sockaddr_in) == 16, "sockaddr_in layout");
@@ -13,7 +14,7 @@ static_assert(sizeof(sockaddr_in) == 16, "sockaddr_in layout");
 // The Windows constructor also turns off SIO_UDP_CONNRESET (ICMP port unreachable failing later recvfrom calls).
 // Unconnected Linux UDP sockets do not report ICMP errors, so there is nothing to disable.
 ComSat::Network::SocketPosix::SocketPosix() {
-    int fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    int fd = OsPosixSocket(AF_INET, SOCK_DGRAM, 0, false);
     this->m_socket = static_cast<uintptr_t>(static_cast<intptr_t>(fd));
 
     if (fd >= 0) {

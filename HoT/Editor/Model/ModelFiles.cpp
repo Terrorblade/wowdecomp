@@ -1,66 +1,14 @@
 #include "HoT/Editor/Model/ModelFiles.h"
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <filesystem>
-#include "Engine/Source/Os/Linux/OsPath.h"
-#include "HoT/Streaming/TextConv.h"
-#endif
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
+#include "HoT/Platform/Files.h"
 #include "HoT/Streaming/LooseFiles.h"
+#include "HoT/Streaming/TextConv.h"
 
 namespace HoT::Editor::Model::Files {
 
-#if defined(_WIN32)
-std::wstring Widen(const std::string& text) {
-    if (text.empty()) {
-        return std::wstring();
-    }
-
-    int32_t length = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int32_t>(text.size()), nullptr, 0);
-
-    if (length <= 0) {
-        return std::wstring();
-    }
-
-    std::wstring result(length, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int32_t>(text.size()), &result[0], length);
-    return result;
-}
-
-std::string Narrow(const std::wstring& text) {
-    if (text.empty()) {
-        return std::string();
-    }
-
-    int32_t length = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int32_t>(text.size()), nullptr, 0, nullptr, nullptr);
-
-    if (length <= 0) {
-        return std::string();
-    }
-
-    std::string result(length, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int32_t>(text.size()), &result[0], length, nullptr, nullptr);
-    return result;
-}
-
-std::wstring GameDirectory() {
-    wchar_t buffer[MAX_PATH];
-    DWORD length = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
-    std::wstring path(buffer, length);
-    size_t slash = path.find_last_of(L"\\/");
-    return slash == std::wstring::npos ? std::wstring() : path.substr(0, slash);
-}
-
-std::wstring DiskPath(const std::string& gamePath) {
-    return GameDirectory() + L"\\" + Widen(gamePath);
-}
-#else
 std::wstring Widen(const std::string& text) {
     return Streaming::Text::WidenUtf8(text);
 }
@@ -69,24 +17,9 @@ std::string Narrow(const std::wstring& text) {
     return Streaming::Text::NarrowUtf8(text);
 }
 
-// The game runs from its folder, and the Linux OsFile resolves game paths against the working directory.
-std::wstring GameDirectory() {
-    std::error_code error;
-    std::string path = std::filesystem::current_path(error).string();
-    return Widen(path);
-}
-
-// The on-disk spelling of the game path (case-insensitive match per component), under the game folder.
 std::wstring DiskPath(const std::string& gamePath) {
-    char resolved[1024];
-    OsLinuxResolvePath(gamePath.c_str(), resolved, sizeof(resolved), true);
-    return GameDirectory() + L"/" + Widen(resolved);
+    return Platform::GameFilePath(gamePath).wstring();
 }
-
-static std::filesystem::path HostPath(const std::wstring& path) {
-    return std::filesystem::path(Narrow(path));
-}
-#endif
 
 bool NormalizeGamePath(const std::string& input, std::string& output, std::string& error) {
     size_t first = input.find_first_not_of(" \t");
@@ -197,13 +130,8 @@ bool GameFileExists(const std::string& gamePath) {
 }
 
 bool IsLooseFile(const std::string& gamePath) {
-#if defined(_WIN32)
-    DWORD attributes = GetFileAttributesW(DiskPath(gamePath).c_str());
-    return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
-#else
     std::error_code error;
-    return std::filesystem::is_regular_file(HostPath(DiskPath(gamePath)), error);
-#endif
+    return std::filesystem::is_regular_file(std::filesystem::path(DiskPath(gamePath)), error);
 }
 
 bool ReadGameFile(const std::string& gamePath, std::vector<uint8_t>& data, uint32_t maxSize) {
@@ -231,61 +159,8 @@ bool ReadGameFile(const std::string& gamePath, std::vector<uint8_t>& data, uint3
     return ok;
 }
 
-#if defined(_WIN32)
-static void CreateDirectories(const std::wstring& path) {
-    for (size_t i = 3; i <= path.size(); i++) {
-        if (i == path.size() || path[i] == L'\\') {
-            CreateDirectoryW(path.substr(0, i).c_str(), nullptr);
-        }
-    }
-}
-
 bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std::string& error) {
-    std::wstring path = DiskPath(gamePath);
-    size_t slash = path.find_last_of(L'\\');
-
-    if (slash != std::wstring::npos) {
-        CreateDirectories(path.substr(0, slash));
-    }
-
-    DWORD attributes = GetFileAttributesW(path.c_str());
-
-    if (attributes != INVALID_FILE_ATTRIBUTES) {
-        if (attributes & FILE_ATTRIBUTE_DIRECTORY) {
-            error = gamePath + " is a folder";
-            return false;
-        }
-
-        std::wstring backup = path + L".bak";
-
-        if (GetFileAttributesW(backup.c_str()) == INVALID_FILE_ATTRIBUTES && !CopyFileW(path.c_str(), backup.c_str(), TRUE)) {
-            error = "could not back up " + gamePath;
-            return false;
-        }
-    }
-
-    std::wstring temp = path + L".tmp";
-    FILE* file = _wfopen(temp.c_str(), L"wb");
-
-    if (!file) {
-        error = "could not write " + gamePath;
-        return false;
-    }
-
-    bool ok = !size || fwrite(data, 1, size, file) == size;
-    ok = fclose(file) == 0 && ok;
-
-    if (!ok || !MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-        DeleteFileW(temp.c_str());
-        error = "could not write " + gamePath;
-        return false;
-    }
-
-    return true;
-}
-#else
-bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std::string& error) {
-    std::filesystem::path path = HostPath(DiskPath(gamePath));
+    std::filesystem::path path(DiskPath(gamePath));
     std::error_code code;
 
     if (path.has_parent_path()) {
@@ -309,7 +184,7 @@ bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std:
 
     std::filesystem::path temp = path;
     temp += ".tmp";
-    FILE* file = fopen(temp.c_str(), "wb");
+    FILE* file = Platform::OpenStdioFile(temp, "wb");
 
     if (!file) {
         error = "could not write " + gamePath;
@@ -319,20 +194,14 @@ bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std:
     bool ok = !size || fwrite(data, 1, size, file) == size;
     ok = fclose(file) == 0 && ok;
 
-    if (ok) {
-        std::filesystem::rename(temp, path, code);
-        ok = !code;
-    }
-
-    if (!ok) {
-        std::filesystem::remove(temp, code);
+    if (!ok || !Platform::RenameReplacing(temp, path)) {
+        Platform::RemoveFile(temp);
         error = "could not write " + gamePath;
         return false;
     }
 
     return true;
 }
-#endif
 
 void RefreshLooseIndex() {
     Streaming::LooseFiles::Invalidate();

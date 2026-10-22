@@ -127,7 +127,7 @@ CGxDevice* CreateCGxDeviceOpenGl() {
 // OFFSET: 0x0068BBC0
 CGxDeviceOpenGl::CGxDeviceOpenGl() {
     this->m_api = GxApi_OpenGl;
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
     this->m_window = nullptr;
     this->m_ownhwnd = 0;
     this->m_glContext = nullptr;
@@ -2360,7 +2360,7 @@ int32_t CGxDeviceOpenGl::DeviceWM(EGxWM wm, uintptr_t param1, uintptr_t param2) 
             this->m_windowFocus = 0;
 
             if (!this->m_format.m_window || this->m_format.m_maximize == 2) {
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
                 this->IDevRestoreDesktopMode();
 #else
                 ChangeDisplaySettingsExA(nullptr, nullptr, nullptr, 0, nullptr);
@@ -2382,7 +2382,7 @@ int32_t CGxDeviceOpenGl::DeviceWM(EGxWM wm, uintptr_t param1, uintptr_t param2) 
                 this->m_windowFocus = 0;
 
                 if (!this->m_format.m_window || this->m_format.m_maximize == 2) {
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
                     this->IDevRestoreDesktopMode();
 #else
                     ChangeDisplaySettingsExA(nullptr, nullptr, nullptr, 0, nullptr);
@@ -2506,7 +2506,7 @@ void CGxDeviceOpenGl::IDeviceSetRenderTargetCopy(EGxBuffer buffer, CGxTex* textu
 
     target.m_apiSpecific = texture;
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
     // No pbuffer on Linux: the copy path renders into the window's back buffer.
     SDL_GL_MakeCurrent(this->m_window, this->m_glContext);
 #else
@@ -2536,7 +2536,7 @@ void CGxDeviceOpenGl::CapsWindowSizeInScreenCoords(CRect& rect) {
         points[0].y = 0;
         points[1].x = static_cast<LONG>(window.maxX);
         points[1].y = static_cast<LONG>(window.maxY);
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
         int windowX = 0;
         int windowY = 0;
         SDL_GetWindowPosition(this->m_window, &windowX, &windowY);
@@ -3953,7 +3953,7 @@ void CGxDeviceOpenGl::ScenePresent() {
         HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::Swap);
 
         if (this->m_hwMasterEnables & 0x40) {
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
             SDL_GL_SwapWindow(this->m_window);
 #else
             wglSwapLayerBuffers(this->m_hdc, WGL_SWAP_MAIN_PLANE);

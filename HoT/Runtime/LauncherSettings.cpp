@@ -7,12 +7,8 @@
 #include <mutex>
 #include <sstream>
 #include <utility>
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include "HoT/Streaming/Paths.h"
-#endif
 #include "HoT/Core/Log.h"
+#include "HoT/Streaming/Paths.h"
 
 namespace fs = std::filesystem;
 
@@ -27,14 +23,7 @@ static std::string s_installDir;
 static std::string s_launcherPath;
 
 static fs::path SettingsPath() {
-#if defined(_WIN32)
-    char buffer[MAX_PATH];
-    GetModuleFileNameA(nullptr, buffer, MAX_PATH);
-
-    return fs::path(buffer).parent_path() / ".hotlauncher" / "settings.json";
-#else
     return Streaming::Paths::WorkDir() / "settings.json";
-#endif
 }
 
 static std::string ReadFile(const fs::path& path) {

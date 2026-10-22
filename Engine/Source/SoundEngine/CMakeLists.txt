@@ -5,10 +5,25 @@ set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "${SOUNDENGINE_DEFINITIO
 set(FMODEX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fmodex)
 set(FMODEX_FLAC_DIR ${FMODEX_DIR}/lib/flac-1.1.4)
 
-if (WOWDECOMP_PLATFORM_LINUX)
-    # FMOD OS layer + SDL2 output for Linux (fmodex/linux/src); the win32 one is not used.
+if (WOWDECOMP_PLATFORM_POSIX)
+    # FMOD OS layer + SDL2 output for Linux (fmodex/linux/src); the win32 one is not used. macOS builds the same
+    # sources, with a file in fmodex/mac/src replacing the linux/src one of the same name.
     set(FMODEX_PLATFORM_DIR ${FMODEX_DIR}/linux/src)
     set(FMODEX_PLATFORM_GLOBS "${FMODEX_DIR}/linux/src/*.cpp")
+
+    if (WOWDECOMP_PLATFORM_MAC)
+        file(GLOB FMODEX_MAC_SOURCES CONFIGURE_DEPENDS "${FMODEX_DIR}/mac/src/*.cpp")
+        file(GLOB FMODEX_LINUX_SOURCES CONFIGURE_DEPENDS "${FMODEX_DIR}/linux/src/*.cpp")
+        set(FMODEX_PLATFORM_GLOBS ${FMODEX_MAC_SOURCES})
+
+        foreach (source ${FMODEX_LINUX_SOURCES})
+            get_filename_component(name ${source} NAME)
+
+            if (NOT EXISTS "${FMODEX_DIR}/mac/src/${name}")
+                list(APPEND FMODEX_PLATFORM_GLOBS ${source})
+            endif ()
+        endforeach ()
+    endif ()
     set(FMODEX_WMSDK_INCLUDE_DIR)
 else ()
     set(FMODEX_PLATFORM_DIR ${FMODEX_DIR}/win32/src)
@@ -28,7 +43,7 @@ file(GLOB FMODEX_SOURCES CONFIGURE_DEPENDS
 )
 wowdecomp_filter_platform_sources(FMODEX_SOURCES)
 
-if (WOWDECOMP_PLATFORM_LINUX)
+if (WOWDECOMP_PLATFORM_POSIX)
     # OpenAL output is part of the Windows output set; Linux outputs live in fmodex/linux/src.
     list(FILTER FMODEX_SOURCES EXCLUDE REGEX "/lib/openal/")
 endif ()
@@ -57,10 +72,11 @@ target_compile_definitions(fmodex
         FLAC__HAS_OGG=1
 )
 
-if (WOWDECOMP_PLATFORM_LINUX)
+if (WOWDECOMP_PLATFORM_POSIX)
     target_link_libraries(fmodex
         PRIVATE
             SDL2::SDL2
+            Os
         INTERFACE
             ${CMAKE_DL_LIBS}
     )

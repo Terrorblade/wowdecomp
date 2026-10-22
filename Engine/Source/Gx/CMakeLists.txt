@@ -1,7 +1,7 @@
 file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
 wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
-if (WOWDECOMP_PLATFORM_LINUX)
+if (WOWDECOMP_PLATFORM_POSIX)
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDevice(D3d|D3d9Ex)/")
 elseif (NOT WIN32)
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDevice(D3d|D3d9Ex|OpenGL)/")
@@ -16,7 +16,7 @@ target_include_directories(Gx
         ${CMAKE_SOURCE_DIR}
 )
 
-if (WOWDECOMP_PLATFORM_LINUX)
+if (WOWDECOMP_PLATFORM_POSIX)
     find_package(OpenGL REQUIRED)
     target_link_libraries(Gx
         PUBLIC

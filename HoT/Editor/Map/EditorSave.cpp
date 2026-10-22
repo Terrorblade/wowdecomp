@@ -2,15 +2,10 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <filesystem>
-#include "Engine/Source/Os/Linux/OsPath.h"
-#endif
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/MapArea.h"
@@ -18,6 +13,7 @@
 #include "WoW/Source/WorldClient/Types.h"
 #include "HoT/Editor/Map/ChunkEdit.h"
 #include "HoT/Editor/Map/EditorUndo.h"
+#include "HoT/Platform/Files.h"
 #include "Engine/Source/Base/Handle.h"
 #include "WoW/Source/WorldClient/MapDoodadDef.h"
 #include "WoW/Source/WorldClient/MapObjDef.h"
@@ -561,79 +557,13 @@ bool ApplyObjectChanges(CMapArea* area, const ObjectChanges& changes) {
     return true;
 }
 
-#if defined(_WIN32)
-static std::wstring Widen(const std::string& text) {
-    if (text.empty()) {
-        return std::wstring();
-    }
-
-    int32_t length = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int32_t>(text.size()), nullptr, 0);
-    std::wstring result(length, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int32_t>(text.size()), &result[0], length);
-    return result;
-}
-
-static std::wstring ExeDirectory() {
-    wchar_t buffer[MAX_PATH];
-    DWORD length = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
-    std::wstring path(buffer, length);
-    size_t slash = path.find_last_of(L"\\/");
-    return slash == std::wstring::npos ? std::wstring() : path.substr(0, slash);
-}
-
-static void CreateDirectories(const std::wstring& path) {
-    for (size_t i = 3; i <= path.size(); i++) {
-        if (i == path.size() || path[i] == L'\\') {
-            CreateDirectoryW(path.substr(0, i).c_str(), nullptr);
-        }
-    }
-}
-
-static bool WriteBytes(const std::wstring& path, const void* data, size_t size) {
-    FILE* file = _wfopen(path.c_str(), L"wb");
-
-    if (!file) {
-        return false;
-    }
-
-    bool ok = fwrite(data, 1, size, file) == size;
-    fclose(file);
-    return ok;
-}
-
-static void BackupOriginal(const std::wstring& path, const char* gamePath) {
-    std::wstring backup = path + L".bak";
-
-    if (GetFileAttributesW(backup.c_str()) != INVALID_FILE_ATTRIBUTES) {
-        return;
-    }
-
-    void* data = nullptr;
-    uint32_t size = 0;
-
-    if (!SFile::LoadFile(gamePath, &data, &size, 0, nullptr) || !data) {
-        return;
-    }
-
-    WriteBytes(backup, data, size);
-    SFile::Unload(data);
-}
-#else
-// Game-relative paths resolve against the working directory (the game folder) with on-disk case, like the Linux
-// OsFile does, instead of against the exe directory.
-static std::filesystem::path GameFilePath(const std::string& relative) {
-    char resolved[1024];
-    OsLinuxResolvePath(relative.c_str(), resolved, sizeof(resolved), true);
-    return std::filesystem::path(resolved);
-}
-
 static void CreateDirectories(const std::filesystem::path& path) {
     std::error_code error;
     std::filesystem::create_directories(path, error);
 }
 
 static bool WriteBytes(const std::filesystem::path& path, const void* data, size_t size) {
-    FILE* file = fopen(path.c_str(), "wb");
+    FILE* file = Platform::OpenStdioFile(path, "wb");
 
     if (!file) {
         return false;
@@ -663,7 +593,6 @@ static void BackupOriginal(const std::filesystem::path& path, const char* gamePa
     WriteBytes(backup, data, size);
     SFile::Unload(data);
 }
-#endif
 
 static bool SaveArea(CMapArea* area) {
     std::vector<uint8_t> data;
@@ -677,13 +606,8 @@ static bool SaveArea(CMapArea* area) {
     std::string relative = gamePath;
     std::replace(relative.begin(), relative.end(), '/', '\\');
 
-#if defined(_WIN32)
-    std::wstring path = ExeDirectory() + L"\\" + Widen(relative);
-    CreateDirectories(path.substr(0, path.find_last_of(L'\\')));
-#else
-    std::filesystem::path path = GameFilePath(relative);
+    std::filesystem::path path = Platform::GameFilePath(relative);
     CreateDirectories(path.parent_path());
-#endif
     BackupOriginal(path, relative.c_str());
     return WriteBytes(path, data.data(), data.size());
 }

@@ -1,11 +1,11 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstdint>
 #include <cstring>
-#include <cpuid.h>
 #include <unistd.h>
 #include "Engine/Source/BlizzardCore/Source/System/Hardware/Hardware.h"
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 Blizzard::Hardware::ProcessorFeatures System_Hardware::s_processorFeatures;
 
@@ -13,9 +13,9 @@ bool System_Hardware::s_initialized;
 
 Blizzard::Lock::Atomic System_Hardware::s_initCount;
 
-// x86_64 always has CPUID, so the EFLAGS.ID probe of the Windows code is skipped.
+// x86_64 always has CPUID, so the EFLAGS.ID probe of the Windows code is skipped. arm64 gets the OsPosixCpuid stand-in.
 static void Cpuid(uint32_t regs[4], uint32_t leaf, uint32_t subleaf) {
-    __cpuid_count(leaf, subleaf, regs[0], regs[1], regs[2], regs[3]);
+    OsPosixCpuid(leaf, subleaf, regs);
 }
 
 bool System_Hardware::ReadCPUID(CPUIDInfo* info) {

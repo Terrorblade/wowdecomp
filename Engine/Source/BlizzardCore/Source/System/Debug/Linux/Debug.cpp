@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <csignal>
 #include <cstdint>
@@ -13,29 +13,12 @@
 #include "Engine/Source/BlizzardCore/Source/System/String/Path.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 static bool s_continueAfterAssert;
 
 static bool DebuggerAttached() {
-    FILE* stream = fopen("/proc/self/status", "r");
-
-    if (!stream) {
-        return false;
-    }
-
-    char line[256];
-    bool attached = false;
-
-    while (fgets(line, sizeof(line), stream)) {
-        if (!strncmp(line, "TracerPid:", 10)) {
-            attached = atoi(line + 10) != 0;
-            break;
-        }
-    }
-
-    fclose(stream);
-
-    return attached;
+    return OsPosixDebuggerAttached();
 }
 
 void Blizzard::Debug::Breakpoint() {

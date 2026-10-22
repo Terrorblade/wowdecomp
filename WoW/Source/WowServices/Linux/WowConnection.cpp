@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -15,6 +15,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/WowServices/WDataStore.h"
 #include "WoW/Source/WowServices/WowConnectionNet.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 static bool IsWouldBlock() {
     return errno == EAGAIN || errno == EWOULDBLOCK;
@@ -511,7 +512,7 @@ void WowConnection::CheckAccept() {
     for (int32_t i = 0; i < 1000; i++) {
         NETADDR addr;
         socklen_t addrLength = sizeof(addr);
-        int32_t sock = static_cast<int32_t>(accept4(this->m_sock, reinterpret_cast<sockaddr*>(&addr), &addrLength, SOCK_CLOEXEC));
+        int32_t sock = OsPosixAccept(this->m_sock, reinterpret_cast<sockaddr*>(&addr), &addrLength);
 
         if (sock < 0) {
             break;
@@ -671,7 +672,7 @@ void WowConnection::StartConnect() {
 
     this->m_lock.Enter();
 
-    int32_t sock = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    int32_t sock = OsPosixSocket(AF_INET, SOCK_STREAM, 0, false);
 
     if (sock < 0) {
         SErrDisplayErrorFmt(0x85100000, __FILE__, __LINE__, 0, 1, "socket() returned %d, reason: %s", sock, "can't create socket (No network connection available?)");

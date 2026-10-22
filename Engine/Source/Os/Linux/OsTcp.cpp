@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstdarg>
 #include <cstddef>
@@ -15,6 +15,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Os/Linux/OsTcpConn.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -192,7 +193,7 @@ void OsNet::TCPNET::LogWrite(const char* format, ...) {
     char line[1024];
 
     int error = errno;
-    uint32_t length = static_cast<uint32_t>(SStrPrintf(line, sizeof(line), "t[0x%08x] se[%u] we[%u] ", static_cast<uint32_t>(gettid()), error, error));
+    uint32_t length = static_cast<uint32_t>(SStrPrintf(line, sizeof(line), "t[0x%08x] se[%u] we[%u] ", OsPosixThreadId(), error, error));
 
     va_list arglist;
     va_start(arglist, format);
@@ -351,7 +352,7 @@ SOCKET OsNet::TCPACCEPT::Complete(NETCONNADDR* connAddr, int32_t makeSock) {
     SOCKET sock = this->m_sock;
 
     if (sock == INVALID_SOCKET) {
-        sock = accept4(this->m_listen->m_sock, nullptr, nullptr, SOCK_CLOEXEC);
+        sock = OsPosixAccept(this->m_listen->m_sock, nullptr, nullptr);
 
         if (sock == INVALID_SOCKET && !WouldBlock(errno)) {
             OsNet::TCPNET::LogWrite(OsNet::OSNETERR_ACCEPTFAILED);

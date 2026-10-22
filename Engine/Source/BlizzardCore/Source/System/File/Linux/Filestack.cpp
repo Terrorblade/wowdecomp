@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <algorithm>
 #include <cctype>
@@ -21,6 +21,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
 #include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Storm/H/storm.h"
 
 // StreamRecord::m_fileHandle holds the file descriptor itself, so a closed or failed stream (-1) compares equal to
@@ -94,20 +95,16 @@ int32_t NativeAttributes(const struct stat& st) {
     return attributes;
 }
 
-// Fills the parts of a FileInfo GetFileAttributesEx provides. The creation time is the birth time where the
-// filesystem records one, else the change time.
-void FillInfo(int32_t dirfd, const char* path, int32_t flags, const struct stat& st, Blizzard::File::FileInfo* info) {
-    timespec created = st.st_ctim;
-    struct statx stx;
-
-    if (statx(dirfd, path, flags, STATX_BTIME, &stx) == 0 && (stx.stx_mask & STATX_BTIME)) {
-        created.tv_sec = stx.stx_btime.tv_sec;
-        created.tv_nsec = stx.stx_btime.tv_nsec;
-    }
+// Fills the parts of a FileInfo GetFileAttributesEx provides. An empty path means dirfd itself.
+void FillInfo(int32_t dirfd, const char* path, const struct stat& st, Blizzard::File::FileInfo* info) {
+    timespec created;
+    timespec modified;
+    timespec accessed;
+    OsPosixFileTimes(dirfd, path, st, &created, &modified, &accessed);
 
     info->m_createTime = Blizzard::Time::FromFileTime(ToFileTime(created));
-    info->m_modTime = Blizzard::Time::FromFileTime(ToFileTime(st.st_mtim));
-    info->m_accessTime = Blizzard::Time::FromFileTime(ToFileTime(st.st_atim));
+    info->m_modTime = Blizzard::Time::FromFileTime(ToFileTime(modified));
+    info->m_accessTime = Blizzard::Time::FromFileTime(ToFileTime(accessed));
     int32_t attributes = System_File::FromNativeAttributes(NativeAttributes(st));
     info->m_attributes = attributes;
     info->m_regularFile = (attributes & 0x20) != 0;
@@ -331,7 +328,7 @@ void System_File::GetFileInfoByFile(Blizzard::File::StreamRecord* file) {
         file->m_info.m_size = st.st_size;
     }
 
-    FillInfo(ToFd(file->m_fileHandle), "", AT_EMPTY_PATH, st, &file->m_info);
+    FillInfo(ToFd(file->m_fileHandle), "", st, &file->m_info);
     file->m_infoValid = true;
 }
 
@@ -676,7 +673,7 @@ bool System_File::GetFileInfo(Blizzard::File::Filesystem* fs, System_File::Stack
 
         parms->m_info->m_size = st.st_size;
         parms->m_info->m_path = nullptr;
-        FillInfo(AT_FDCWD, path, 0, st, parms->m_info);
+        FillInfo(AT_FDCWD, path, st, parms->m_info);
 
         return true;
     }

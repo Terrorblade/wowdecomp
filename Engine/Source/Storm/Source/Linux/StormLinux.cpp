@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
 #include <cstdint>
@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Storm/Source/Linux/StormLinux.h"
 
 namespace StormLinux {
@@ -43,11 +44,7 @@ static pthread_once_t s_syncOnce = PTHREAD_ONCE_INIT;
 static thread_local void* t_threadObject;
 
 static void InitSyncCond() {
-    pthread_condattr_t attr;
-    pthread_condattr_init(&attr);
-    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_cond_init(&s_syncCond, &attr);
-    pthread_condattr_destroy(&attr);
+    OsPosixCondInit(&s_syncCond);
 }
 
 static void LockSync() {
@@ -77,7 +74,7 @@ pid_t CurrentThreadId() {
     static thread_local pid_t tid;
 
     if (!tid) {
-        tid = static_cast<pid_t>(syscall(SYS_gettid));
+        tid = static_cast<pid_t>(OsPosixThreadId());
     }
 
     return tid;
@@ -363,7 +360,7 @@ uint32_t SyncWait(uint32_t count, void* const* handles, int32_t waitAll, uint32_
 
         if (timeout == INFINITE) {
             pthread_cond_wait(&s_syncCond, &s_syncLock);
-        } else if (pthread_cond_timedwait(&s_syncCond, &s_syncLock, &deadline) == ETIMEDOUT) {
+        } else if (OsPosixCondTimedWait(&s_syncCond, &s_syncLock, &deadline) == ETIMEDOUT) {
             // One last check so an object signalled right at the deadline is not missed.
             timeout = 0;
         }
@@ -410,13 +407,7 @@ void GetExePath(char* buffer, size_t buffersize) {
         return;
     }
 
-    ssize_t length = readlink("/proc/self/exe", buffer, buffersize - 1);
-
-    if (length < 0) {
-        length = 0;
-    }
-
-    buffer[length] = 0;
+    OsPosixExecutablePath(buffer, buffersize);
 }
 
 static bool AppendComponent(char* out, size_t outSize, size_t* length, const char* component, size_t componentLength) {
@@ -572,8 +563,9 @@ void ApplyThreadPriority(pid_t tid, int32_t priority) {
         nice = -10;
     }
 
+    // The pthread is only known for the calling thread, which is enough where ids do not name threads.
     if (tid) {
-        setpriority(PRIO_PROCESS, static_cast<id_t>(tid), nice);
+        OsPosixSetThreadNice(tid == CurrentThreadId() ? pthread_self() : pthread_t(), static_cast<uint32_t>(tid), nice);
     }
 }
 

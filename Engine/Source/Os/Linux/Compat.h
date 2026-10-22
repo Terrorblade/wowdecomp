@@ -4,13 +4,13 @@
 // Force-included into every Linux translation unit, C and C++ (see the top-level CMakeLists.txt). The decompiled
 // code is written against MSVC and the Windows headers; this supplies the handful of their names that the portable
 // code uses, with the sizes they have on Windows (LONG and DWORD stay 32-bit under LP64), so that code compiles
-// unchanged. Platform code lives under Linux/ directories instead.
+// unchanged. Platform code lives under Linux/ directories instead. CompatOs.h, force-included after this, holds the
+// few names whose spelling differs between Linux and macOS.
 
 #include <alloca.h>
 #include <ctype.h>
 #include <float.h>
 #include <math.h>
-#include <malloc.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -219,7 +219,6 @@ static inline long InterlockedCompareExchange(volatile long* p, long exchange, l
 #define _snprintf snprintf
 #define _vsnprintf vsnprintf
 #define _alloca alloca
-#define _msize malloc_usable_size
 #define _finite isfinite
 #define _isnan isnan
 #define _strtoi64 strtoll

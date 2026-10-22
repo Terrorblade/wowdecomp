@@ -1,25 +1,25 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <ctime>
 #include <pthread.h>
-#include <sys/random.h>
 #include <sys/statvfs.h>
-#include <sys/sysinfo.h>
 #include <unistd.h>
 #include "Engine/Source/BlizzardCore/Source/Packages/Util/SHA1.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Os/OsSecureRandom.h"
 #include "Engine/Source/Storm/H/storm.h"
 
-// The Linux counterparts of the values the Windows fallback hashes (tick count, performance counter, system time,
+// The POSIX counterparts of the values the Windows fallback hashes (tick count, performance counter, system time,
 // memory status, disk space, process and thread ids, a fresh heap pointer, a counter).
 struct OsSecureRandomEntropy {
     timespec m_monotonic;
     timespec m_realtime;
     timespec m_processTime;
-    struct sysinfo m_memoryStatus;
+    uint64_t m_totalMemory;
+    uint64_t m_availableMemory;
     struct statvfs m_diskStatus;
     pid_t m_processId;
     pthread_t m_threadId;
@@ -36,7 +36,7 @@ void IOsSecureRandom(uint8_t* buffer, uint32_t size) {
     clock_gettime(CLOCK_MONOTONIC, &entropy.m_monotonic);
     clock_gettime(CLOCK_REALTIME, &entropy.m_realtime);
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &entropy.m_processTime);
-    sysinfo(&entropy.m_memoryStatus);
+    OsPosixMemoryStatus(&entropy.m_totalMemory, &entropy.m_availableMemory);
     statvfs(".", &entropy.m_diskStatus);
 
     entropy.m_processId = getpid();
@@ -74,25 +74,9 @@ void IOsSecureRandom(uint8_t* buffer, uint32_t size) {
     }
 }
 
-// getrandom takes the place of CryptGenRandom; the hash-based fallback is kept for when it fails.
+// The system generator takes the place of CryptGenRandom, the hash-based fallback is kept for when it fails.
 void OsSecureRandom(uint8_t* buffer, uint32_t size) {
-    uint32_t filled = 0;
-
-    while (filled < size) {
-        ssize_t result = getrandom(buffer + filled, size - filled, 0);
-
-        if (result < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-
-            break;
-        }
-
-        filled += static_cast<uint32_t>(result);
-    }
-
-    if (filled == size) {
+    if (OsPosixRandomBytes(buffer, size)) {
         return;
     }
 

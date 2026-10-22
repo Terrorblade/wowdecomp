@@ -1,6 +1,7 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
+#include <climits>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -13,6 +14,7 @@
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Storm/Source/Linux/StormLinux.h"
 #include "Engine/Source/Storm/Source/SThread.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -84,36 +86,7 @@ int32_t STORMAPI SSetCurrentProcessAffinityMask(size_t mask) {
         return 0;
     }
 
-    cpu_set_t set;
-    CPU_ZERO(&set);
-
-    for (uint32_t cpu = 0; cpu < sizeof(mask) * 8 && cpu < CPU_SETSIZE; cpu++) {
-        if (mask & (static_cast<size_t>(1) << cpu)) {
-            CPU_SET(cpu, &set);
-        }
-    }
-
-    // sched_setaffinity(0) only covers the calling thread; SetProcessAffinityMask covers every thread of the
-    // process, so apply it to each of /proc/self/task.
-    int32_t result = sched_setaffinity(0, sizeof(set), &set) == 0;
-
-    char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/task", static_cast<int>(getpid()));
-    DIR* dir = opendir(path);
-
-    if (dir) {
-        while (dirent* entry = readdir(dir)) {
-            pid_t tid = static_cast<pid_t>(atoi(entry->d_name));
-
-            if (tid > 0) {
-                sched_setaffinity(tid, sizeof(set), &set);
-            }
-        }
-
-        closedir(dir);
-    }
-
-    return result;
+    return OsPosixSetProcessAffinity(mask);
 }
 
 static void SetThreadName(uint32_t threadId, const char* threadName) {
@@ -124,7 +97,7 @@ static void SetThreadName(uint32_t threadId, const char* threadName) {
     // pthread names are limited to 15 characters plus the terminator.
     char name[16];
     SStrCopy(name, threadName, sizeof(name));
-    pthread_setname_np(pthread_self(), name);
+    OsPosixSetThreadName(name);
 }
 
 int32_t CInitCritSect::Enter() {

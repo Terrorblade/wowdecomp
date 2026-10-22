@@ -19,16 +19,37 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
     # Native Linux port: the Win32/Win64 platform sources are swapped for Linux/ ones (POSIX + SDL2), and the
     # client renders through the OpenGL device.
     set(WOWDECOMP_PLATFORM_LINUX 1)
+    set(WOWDECOMP_PLATFORM_POSIX 1)
+elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    # Native macOS port: builds the Linux/ sources too, and a Mac/ file replaces the Linux/ file of the same name.
+    # Rendering goes through the OpenGL device on the legacy (2.1) context, which has the ARB programs it uses.
+    set(WOWDECOMP_PLATFORM_MAC 1)
+    set(WOWDECOMP_PLATFORM_POSIX 1)
 else ()
-    message(FATAL_ERROR "wowdecomp targets Windows and Linux only.")
+    message(FATAL_ERROR "wowdecomp targets Windows, Linux and macOS only.")
 endif ()
 
 # Each module globs its sources; this drops the ones that belong to another platform.
 function(wowdecomp_filter_platform_sources var)
     if (WOWDECOMP_PLATFORM_LINUX)
+        list(FILTER ${var} EXCLUDE REGEX "/[Ww]in(32|64)/|/Mac/")
+    elseif (WOWDECOMP_PLATFORM_MAC)
         list(FILTER ${var} EXCLUDE REGEX "/[Ww]in(32|64)/")
+        set(sources)
+
+        foreach (source ${${var}})
+            if (source MATCHES "^(.*)/Linux/(.*)$")
+                if (EXISTS "${CMAKE_MATCH_1}/Mac/${CMAKE_MATCH_2}")
+                    continue ()
+                endif ()
+            endif ()
+
+            list(APPEND sources ${source})
+        endforeach ()
+
+        set(${var} ${sources})
     else ()
-        list(FILTER ${var} EXCLUDE REGEX "/Linux/")
+        list(FILTER ${var} EXCLUDE REGEX "/Linux/|/Mac/")
     endif ()
     set(${var} ${${var}} PARENT_SCOPE)
 endfunction()
@@ -65,25 +86,17 @@ if (WOWDECOMP_PLATFORM_WIN)
     )
 else ()
     if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        message(FATAL_ERROR "The Linux build needs clang (-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++).")
+        message(FATAL_ERROR "The Linux and macOS builds need clang (-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++).")
     endif ()
-    add_compile_definitions(WOWDECOMP_PLATFORM_LINUX=1)
+    add_compile_definitions(WOWDECOMP_PLATFORM_POSIX=1)
+    if (WOWDECOMP_PLATFORM_LINUX)
+        add_compile_definitions(WOWDECOMP_PLATFORM_LINUX=1)
+    else ()
+        # OpenGL is deprecated on macOS but still there, and is what the client renders with.
+        add_compile_definitions(WOWDECOMP_PLATFORM_MAC=1 GL_SILENCE_DEPRECATION)
+    endif ()
     find_package(SDL2 REQUIRED CONFIG)
     find_package(Threads REQUIRED)
-    # The decompiled code is written against MSVC: keep its extensions (__int64, __declspec, ...) and the
-    # semantics MSVC gives it (no strict aliasing, wrapping signed arithmetic). Compat.h fills in the rest of the
-    # Windows names the portable code uses.
-    add_compile_options(
-        -fms-extensions
-        -fno-strict-aliasing
-        -fwrapv
-        -fno-delete-null-pointer-checks
-        -include ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Linux/Compat.h
-        $<$<COMPILE_LANGUAGE:CXX>:-Wno-c++11-narrowing>
-        $<$<COMPILE_LANGUAGE:CXX>:-Wno-register>
-        -Wno-microsoft
-        -Wno-ignored-attributes
-    )
     # The modules are static libraries that reference each other in cycles, as MSVC's linker allows; lld resolves
     # archive members regardless of order.
     add_link_options(-fuse-ld=lld)
@@ -100,6 +113,41 @@ endif ()
 # Third-party code is linked, not decompiled, for now.
 if (EXISTS ${CMAKE_SOURCE_DIR}/ThirdParty/CMakeLists.txt)
     add_subdirectory(ThirdParty)
+endif ()
+
+if (WOWDECOMP_PLATFORM_MAC)
+    set(WOWDECOMP_COMPAT_OS_HEADER ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Mac/CompatOs.h)
+else ()
+    set(WOWDECOMP_COMPAT_OS_HEADER ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Linux/CompatOs.h)
+endif ()
+
+if (NOT WOWDECOMP_PLATFORM_WIN)
+    # The decompiled code is written against MSVC: keep its extensions (__int64, __declspec, ...) and the
+    # semantics MSVC gives it (no strict aliasing, wrapping signed arithmetic). Compat.h fills in the rest of the
+    # Windows names the portable code uses. ThirdParty is added before this so its libraries build as upstream wrote them.
+    add_compile_options(
+        -fms-extensions
+        -fno-strict-aliasing
+        -fwrapv
+        -fno-delete-null-pointer-checks
+        "SHELL:-include ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Linux/Compat.h"
+        "SHELL:-include ${WOWDECOMP_COMPAT_OS_HEADER}"
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-c++11-narrowing>
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-register>
+        -Wno-microsoft
+        -Wno-ignored-attributes
+    )
+endif ()
+
+# Headers the code includes by their Linux names (malloc.h, GL/gl.h) that macOS keeps elsewhere.
+if (WOWDECOMP_PLATFORM_MAC)
+    include_directories(BEFORE ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Mac/include)
+endif ()
+
+# arm64 (Apple Silicon): the SSE code builds through sse2neon, found under the usual x86 header names.
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+    set(WOWDECOMP_CPU_ARM64 1)
+    include_directories(BEFORE ${CMAKE_SOURCE_DIR}/ThirdParty/sse2neon-shim ${CMAKE_SOURCE_DIR}/ThirdParty/sse2neon)
 endif ()
 
 add_subdirectory(Engine/Source/BLPFile)
@@ -153,7 +201,7 @@ add_subdirectory(Controller)
 if (WIN32)
     add_subdirectory(Tools/WowClient)
 endif ()
-if (WOWDECOMP_ARCH_64 AND (WOWDECOMP_PLATFORM_WIN OR WOWDECOMP_PLATFORM_LINUX))
+if (WOWDECOMP_ARCH_64)
     add_subdirectory(Tools/XvidDecoder)
 endif ()
 

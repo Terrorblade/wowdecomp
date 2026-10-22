@@ -1,15 +1,4 @@
 #include "HoT/Streaming/BackgroundDownloader.h"
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <cerrno>
-#include <fcntl.h>
-#include <sys/file.h>
-#include <sys/resource.h>
-#include <sys/syscall.h>
-#include <unistd.h>
-#include "Engine/Source/Os/Linux/OsPath.h"
-#endif
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -46,12 +35,16 @@
 #include "HoT/Net/Handlers.h"
 #include "HoT/Net/Opcodes.h"
 #include "HoT/Net/Packet.h"
+#include "HoT/Platform/Files.h"
+#include "HoT/Platform/Process.h"
+#include "HoT/Platform/Time.h"
 #include "HoT/Runtime/LauncherSettings.h"
 #include "HoT/Streaming/ArchiveManifest.h"
 #include "HoT/Streaming/ArchivePatcher.h"
 #include "HoT/Streaming/ArchiveRegistry.h"
 #include "HoT/Streaming/BlobContainer.h"
 #include "HoT/Streaming/HttpClient.h"
+#include "HoT/Streaming/InstallFiles.h"
 #include "HoT/Streaming/LauncherManifest.h"
 #include "HoT/Streaming/LocalDigests.h"
 #include "HoT/Streaming/ManifestSignature.h"
@@ -98,72 +91,17 @@ static std::atomic<unsigned long long> s_lastProgressMs{ 0 };
 static std::vector<StreamListener> s_artListeners;
 static std::vector<StreamListener> s_batchListeners;
 
-#if !defined(_WIN32)
-static constexpr uint32_t MOVEFILE_REPLACE_EXISTING = 0x1;
-static constexpr uint32_t MOVEFILE_COPY_ALLOWED = 0x2;
-static constexpr uint32_t MOVEFILE_WRITE_THROUGH = 0x8;
+// A move over the running exe means a restart is needed.
+static bool MoveInstallFile(const std::wstring& src, const std::wstring& dst, uint32_t flags) {
+    bool replacedRunningExe = false;
+    bool ok = InstallFiles::Move(src, dst, flags, replacedRunningExe);
 
-static unsigned long long GetTickCount64() {
-    timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<unsigned long long>(ts.tv_sec) * 1000ULL + static_cast<unsigned long long>(ts.tv_nsec / 1000000);
-}
-
-static void LowerThreadPriority() {
-    // Linux nice values are per thread when given the thread id.
-    setpriority(PRIO_PROCESS, static_cast<id_t>(syscall(SYS_gettid)), 19);
-}
-
-// /proc/self/exe stats the running image even after it was renamed over, so this holds only before a replace.
-static bool IsRunningExe(const std::wstring& path) {
-    std::error_code ec;
-    return fs::equivalent(fs::path(path), fs::path("/proc/self/exe"), ec);
-}
-
-// Linux renames over files that are open or running, so nothing here fails for being in use. A replaced running
-// binary only takes effect on the next launch, which is what a staged exe means on Windows.
-static bool MoveFileExW(const wchar_t* src, const wchar_t* dst, uint32_t flags) {
-    std::error_code ec;
-    const fs::path from(src);
-    const fs::path to(dst);
-
-    if (!(flags & MOVEFILE_REPLACE_EXISTING) && fs::exists(to, ec)) {
-        return false;
-    }
-
-    const bool runningExe = IsRunningExe(dst);
-    fs::rename(from, to, ec);
-
-    if (ec == std::errc::cross_device_link && (flags & MOVEFILE_COPY_ALLOWED)) {
-        const fs::path tmp = to.wstring() + L".copy";
-        ec.clear();
-        fs::copy_file(from, tmp, fs::copy_options::overwrite_existing, ec);
-
-        if (!ec) {
-            fs::rename(tmp, to, ec);
-        }
-
-        if (ec) {
-            std::error_code ignored;
-            fs::remove(tmp, ignored);
-            return false;
-        }
-
-        fs::remove(from, ec);
-        ec.clear();
-    }
-
-    if (ec) {
-        return false;
-    }
-
-    if (runningExe) {
+    if (replacedRunningExe) {
         s_restartNeeded = true;
     }
 
-    return true;
+    return ok;
 }
-#endif
 
 static void ResetProgress() {
     s_filesDone = 0;
@@ -208,65 +146,6 @@ static std::wstring Widen(const std::string& s) {
     return std::wstring(s.begin(), s.end());
 }
 
-static std::string NarrowOem(const std::wstring& s, bool* lossy) {
-    if (s.empty()) {
-        return "";
-    }
-
-#if defined(_WIN32)
-    const bool utf8 = GetOEMCP() == CP_UTF8;
-    const DWORD flags = utf8 ? 0 : WC_NO_BEST_FIT_CHARS;
-    BOOL usedDefault = FALSE;
-    BOOL* used = utf8 ? nullptr : &usedDefault;
-    int32_t n = WideCharToMultiByte(CP_OEMCP, flags, s.c_str(), static_cast<int32_t>(s.size()), nullptr, 0, nullptr, nullptr);
-    std::string out(n, '\0');
-    WideCharToMultiByte(CP_OEMCP, flags, s.c_str(), static_cast<int32_t>(s.size()), out.data(), n, nullptr, used);
-
-    if (lossy && usedDefault) {
-        *lossy = true;
-    }
-
-    return out;
-#else
-    (void)lossy;
-    return Text::NarrowUtf8(s);
-#endif
-}
-
-#ifdef AUTO_UPDATER_IGNORES_EXE
-static bool IsDiscordDll(const std::string& path) {
-    size_t slash = path.find_last_of("/\\");
-    std::string name = (slash == std::string::npos) ? path : path.substr(slash + 1);
-#if defined(_WIN32)
-    return Text::LowerAscii(name) == "discord_game_sdk_64.dll";
-#else
-    return Text::LowerAscii(name) == "discord_game_sdk_64.dll" || Text::LowerAscii(name) == "discord_game_sdk.so";
-#endif
-}
-#endif
-
-#if !defined(_WIN32)
-// The manifest describes the Windows install; its PE executables and DLLs have no use next to bin/Linux/Wow64.
-static bool IsWindowsBinary(const std::string& path) {
-    size_t dot = path.find_last_of('.');
-    size_t slash = path.find_last_of("/\\");
-
-    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) {
-        return false;
-    }
-
-    const std::string ext = Text::LowerAscii(path.substr(dot));
-    return ext == ".exe" || ext == ".dll";
-}
-
-// Manifest paths may use either separator, and the files on disk keep whatever case the player's copy has.
-static fs::path HostRelPath(const std::string& relPath) {
-    std::string p = relPath;
-    std::replace(p.begin(), p.end(), '\\', '/');
-    return fs::path(p);
-}
-#endif
-
 static bool IsMpq(const std::string& path) {
     size_t dot = path.find_last_of('.');
 
@@ -284,19 +163,11 @@ static bool PathEqual(const std::wstring& a, const std::wstring& b) {
 static std::wstring StagedPath(const ManifestFile& mf, const std::wstring& local) {
     fs::path lp(local);
     std::wstring name = lp.stem().wstring() + L".new-" + Widen(mf.m_sha256.substr(0, 8)) + lp.extension().wstring();
-#if defined(_WIN32)
-    return (Paths::StagedDir() / fs::path(mf.m_path).parent_path() / name).wstring();
-#else
-    return (Paths::StagedDir() / HostRelPath(mf.m_path).parent_path() / name).wstring();
-#endif
+    return (Paths::StagedDir() / Platform::HostPath(mf.m_path).parent_path() / name).wstring();
 }
 
 static std::wstring PartPath(const ManifestFile& mf) {
-#if defined(_WIN32)
-    return (Paths::DownloadsDir() / fs::path(mf.m_path)).wstring() + L".part";
-#else
-    return (Paths::DownloadsDir() / HostRelPath(mf.m_path)).wstring() + L".part";
-#endif
+    return (Paths::DownloadsDir() / Platform::HostPath(mf.m_path)).wstring() + L".part";
 }
 
 // The other half of StagedPath, does the name end in the .new-<8 hex> tag it appends.
@@ -436,18 +307,7 @@ static std::set<std::wstring> s_plannedUpdates;
 static std::atomic<unsigned> s_updateGeneration{ 0 };
 
 static std::wstring LocalPath(const std::string& relPath) {
-#if defined(_WIN32)
-    return (fs::path(s_installDir) / fs::path(relPath)).wstring();
-#else
-    const std::string joined = (fs::path(s_installDir) / HostRelPath(relPath)).string();
-    char resolved[4096];
-
-    if (!OsLinuxResolvePath(joined.c_str(), resolved, sizeof(resolved), true)) {
-        return fs::path(joined).wstring();
-    }
-
-    return fs::path(resolved).wstring();
-#endif
+    return Platform::ResolveHostPath(fs::path(s_installDir) / Platform::HostPath(relPath)).wstring();
 }
 
 static std::string s_launcherExe = "HoTLauncher.exe";
@@ -474,20 +334,6 @@ static std::wstring TargetPath(const ManifestFile& mf) {
     return fs::exists(recorded, ec) ? recorded : LocalPath(mf.m_path);
 }
 
-#if defined(AUTO_UPDATER_IGNORES_EXE) && defined(_WIN32)
-static bool IsRunningExe(const std::wstring& path) {
-    std::vector<wchar_t> buffer(MAX_PATH * 4);
-    DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-
-    if (length == 0 || length >= buffer.size()) {
-        return false;
-    }
-
-    std::error_code ec;
-    return fs::equivalent(fs::path(path), fs::path(std::wstring(buffer.data(), length)), ec);
-}
-#endif
-
 static void WritePendingLocked() {
     std::error_code ec;
     fs::create_directories(PendingFile().parent_path(), ec);
@@ -500,149 +346,17 @@ static void WritePendingLocked() {
     bool lossy = false;
 
     for (const PendingMove& m : s_pendingMoves) {
-        f << "M|" << NarrowOem(ToBackslashes(m.m_src), &lossy) << "|" << NarrowOem(ToBackslashes(m.m_dst), &lossy) << "\r\n";
+        f << "M|" << InstallFiles::NarrowPendingPath(ToBackslashes(m.m_src), &lossy) << "|" << InstallFiles::NarrowPendingPath(ToBackslashes(m.m_dst), &lossy) << "\r\n";
     }
 
     for (const std::wstring& d : s_pendingDeletes) {
-        f << "D|" << NarrowOem(ToBackslashes(d), &lossy) << "\r\n";
+        f << "D|" << InstallFiles::NarrowPendingPath(ToBackslashes(d), &lossy) << "\r\n";
     }
 
-#if defined(_WIN32)
     if (lossy) {
-        StreamLog("stream: pending path not representable in OEM code page %u, exit swap may fail", GetOEMCP());
-    }
-#else
-    (void)lossy;
-#endif
-}
-
-#if defined(_WIN32)
-static HANDLE s_swapHold = INVALID_HANDLE_VALUE;
-static constexpr const char* s_swapHoldName = "hotstream-swap.hold";
-
-static bool WriteSwapScript(const fs::path& cmdPath, const std::string& hold, const std::string& pend, bool spinFirst) {
-    std::ofstream b(cmdPath, std::ios::trunc | std::ios::binary);
-
-    if (!b) {
-        return false;
-    }
-
-    b << "@echo off\r\n";
-    b << "set tries=0\r\n";
-
-    if (spinFirst) {
-        b << "set spin=0\r\n";
-        b << ":spin\r\n";
-        b << "2>nul type nul >>\"" << hold << "\" && goto apply\r\n";
-        b << "set /a spin+=1\r\n";
-        b << "if %spin% lss 4000 goto spin\r\n";
-    }
-
-    b << ":wait\r\n";
-    b << "2>nul type nul >>\"" << hold << "\" || (ping -n 2 127.0.0.1 >nul & goto wait)\r\n";
-    b << ":apply\r\n";
-    b << "if not exist \"" << pend << "\" goto done\r\n";
-    b << "set failed=0\r\n";
-    b << "for /f \"usebackq tokens=1,2,3 delims=|\" %%a in (\"" << pend << "\") do (\r\n";
-    b << "  if \"%%a\"==\"M\" if exist \"%%b\" (move /y \"%%b\" \"%%c\" >nul 2>&1 || set failed=1)\r\n";
-    b << "  if \"%%a\"==\"D\" if exist \"%%b\" (del /q \"%%b\" >nul 2>&1 || set failed=1)\r\n";
-    b << ")\r\n";
-    b << "if \"%failed%\"==\"1\" if %tries% lss 10 (set /a tries+=1 & ping -n 2 127.0.0.1 >nul & goto apply)\r\n";
-    b << ":done\r\n";
-    b << "del /q \"" << pend << "\" >nul 2>&1\r\n";
-    b << "del /q \"" << hold << "\" >nul 2>&1\r\n";
-    b << "del /q \"%~f0\" >nul 2>&1\r\n";
-    return true;
-}
-
-static bool SpawnSwapScript(const fs::path& cmdPath) {
-    std::wstring cmdline = L"cmd.exe /c \"" + cmdPath.wstring() + L"\"";
-    std::vector<wchar_t> cl(cmdline.begin(), cmdline.end());
-    cl.push_back(0);
-    STARTUPINFOW si{};
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;
-    PROCESS_INFORMATION pi{};
-
-    if (!CreateProcessW(nullptr, cl.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
-        return false;
-    }
-
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    return true;
-}
-
-static std::string HoldRef() {
-    return std::string("%~dp0") + s_swapHoldName;
-}
-
-static std::string PendRef() {
-    return std::string("%~dp0") + PendingFile().filename().string();
-}
-
-static void SpawnCloseSwapHelper() {
-    static std::atomic<bool> s_spawned{ false };
-
-    if (s_spawned.exchange(true)) {
-        return;
-    }
-
-    const fs::path cacheDir = PendingFile().parent_path();
-    fs::path cmdPath = cacheDir / "hotstream-swap.cmd";
-    fs::path holdPath = cacheDir / s_swapHoldName;
-
-    s_swapHold = CreateFileW(holdPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-    if (s_swapHold == INVALID_HANDLE_VALUE) {
-        StreamLog("stream: swap hold create FAILED (err %lu), relying on in-process swap at exit", GetLastError());
-        return;
-    }
-
-    if (!WriteSwapScript(cmdPath, HoldRef(), PendRef(), false)) {
-        return;
-    }
-
-    if (SpawnSwapScript(cmdPath)) {
-        StreamLog("stream: spawned close-swap helper");
-    } else {
-        StreamLog("stream: close-swap helper spawn FAILED (err %lu)", GetLastError());
+        StreamLog("stream: pending path not representable in OEM code page %u, exit swap may fail", InstallFiles::PendingCodePage());
     }
 }
-
-static void SpawnExitSwapHelper() {
-    static std::atomic<bool> s_spawned{ false };
-
-    if (s_spawned.exchange(true)) {
-        return;
-    }
-
-    if (s_swapHold == INVALID_HANDLE_VALUE) {
-        return;
-    }
-
-    fs::path cmdPath = PendingFile().parent_path() / "hotstream-swap-now.cmd";
-
-    if (!WriteSwapScript(cmdPath, HoldRef(), PendRef(), true)) {
-        return;
-    }
-
-    if (SpawnSwapScript(cmdPath)) {
-        StreamLog("stream: spawned exit swap helper");
-    } else {
-        StreamLog("stream: exit swap helper spawn FAILED (err %lu)", GetLastError());
-    }
-}
-#else
-// Nothing the client holds open blocks a rename on Linux, so whatever is still pending is retried in process by
-// SwapOnClose and no helper has to outlive the client.
-static void SpawnCloseSwapHelper() {
-}
-
-static void SpawnExitSwapHelper() {
-}
-#endif
 
 static void RecordPending(const std::wstring& newPath, const std::wstring& target, bool needsRestart) {
     {
@@ -670,7 +384,7 @@ static void RecordPending(const std::wstring& newPath, const std::wstring& targe
         s_restartNeeded = true;
     }
 
-    SpawnCloseSwapHelper();
+    InstallFiles::SpawnCloseSwapHelper(PendingFile());
 }
 
 static bool HasPendingMove(const std::wstring& src, const std::wstring& dst) {
@@ -735,7 +449,7 @@ static void DropStaged(const std::wstring& path) {
 
     if (queued) {
         StreamLog("stream: stale staged %s in use, deleting on exit", Text::NarrowAcp(path).c_str());
-        SpawnCloseSwapHelper();
+        InstallFiles::SpawnCloseSwapHelper(PendingFile());
     }
 }
 
@@ -781,7 +495,7 @@ static void ApplyPending() {
     for (auto it = s_pendingMoves.begin(); it != s_pendingMoves.end();) {
         std::error_code ec;
 
-        if (!fs::exists(it->m_src, ec) || MoveFileExW(it->m_src.c_str(), it->m_dst.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH | MOVEFILE_COPY_ALLOWED)) {
+        if (!fs::exists(it->m_src, ec) || MoveInstallFile(it->m_src.c_str(), it->m_dst.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED)) {
             it = s_pendingMoves.erase(it);
         } else {
             it++;
@@ -820,7 +534,7 @@ void SwapOnClose() {
     }
 
     if (remaining) {
-        SpawnExitSwapHelper();
+        InstallFiles::SpawnExitSwapHelper(PendingFile());
     }
 }
 
@@ -929,8 +643,8 @@ static bool DownloadWhole(const std::string& baseUrl, const ManifestFile& mf, co
     fs::create_directories(fs::path(part).parent_path(), ec);
 
     if (FileSize(part) < 0) {
-        MoveFileExW((local + L".part").c_str(), part.c_str(), 0);
-        MoveFileExW((local + L".part.meta").c_str(), meta.c_str(), 0);
+        MoveInstallFile((local + L".part").c_str(), part.c_str(), 0);
+        MoveInstallFile((local + L".part.meta").c_str(), meta.c_str(), 0);
     }
 
     // A leftover .part resumes with a Range request only when the sidecar ties it to this same manifest entry.
@@ -1014,7 +728,7 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
     }
 
     // Swap now when unlocked, else stage a hash named copy, mount it and swap later.
-    if (MoveFileExW(part.c_str(), local.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH | MOVEFILE_COPY_ALLOWED)) {
+    if (MoveInstallFile(part.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED)) {
         RememberPlaced(local, mf, arc);
 
         if (isMpq) {
@@ -1028,7 +742,7 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
     std::wstring np = StagedPath(mf, local);
     fs::create_directories(fs::path(np).parent_path(), ec);
 
-    if (!MoveFileExW(part.c_str(), np.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+    if (!MoveInstallFile(part.c_str(), np.c_str(), InstallFiles::MOVE_REPLACE_EXISTING)) {
         fs::remove(part, ec);
         StreamLog("stream: could not stage %s", mf.m_path.c_str());
         return mount;
@@ -1047,7 +761,7 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
 static void SwapOrStage(const std::wstring& np, const std::wstring& local, const ManifestFile& mf, const ManifestArchive* arc) {
     const bool isMpq = IsMpq(mf.m_path);
 
-    if (MoveFileExW(np.c_str(), local.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH | MOVEFILE_COPY_ALLOWED)) {
+    if (MoveInstallFile(np.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED)) {
         RememberPlaced(local, mf, arc);
 
         if (isMpq) {
@@ -1075,7 +789,7 @@ static bool ReconcileHdFile(const std::wstring& local, bool hdPatch, bool& resto
             return false;
         }
 
-        if (MoveFileExW(local.c_str(), disabled.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        if (MoveInstallFile(local.c_str(), disabled.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH)) {
             StreamLog("stream: hd off, disabled %s", Text::NarrowAcp(local).c_str());
         } else if (!HasPendingMove(local, disabled)) {
             // Loaded by the client, park it on exit.
@@ -1093,7 +807,7 @@ static bool ReconcileHdFile(const std::wstring& local, bool hdPatch, bool& resto
     }
 
     // When it cannot be brought back the caller falls through and downloads it again.
-    if (!MoveFileExW(disabled.c_str(), local.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    if (!MoveInstallFile(disabled.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH)) {
         return true;
     }
 
@@ -1115,7 +829,7 @@ static void RetireSupersededArchives() {
 
         std::wstring disabled = local + L".disabled";
 
-        if (MoveFileExW(local.c_str(), disabled.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        if (MoveInstallFile(local.c_str(), disabled.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH)) {
             StreamLog("stream: retired %s, patch-5 replaces it", rel);
         } else if (!HasPendingMove(local, disabled)) {
             RecordPending(local, disabled, false);
@@ -1161,7 +875,7 @@ static bool WriteBinaryFileAtomic(const std::wstring& path, const std::string& d
         }
     }
 
-    return MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+    return MoveInstallFile(tmp.c_str(), path.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH) != 0;
 }
 
 static void MarkPlaced(const std::wstring& absPath) {
@@ -1681,9 +1395,9 @@ static void ProcessBatch() {
 
     if (bp.m_nextJob < batch->m_jobs.size()) {
         const ArchivePatchJob& job = batch->m_jobs[bp.m_nextJob++];
-        unsigned long long t0 = GetTickCount64();
+        unsigned long long t0 = Platform::MonotonicMs();
         ArchivePatchResult r = ArchivePatcher::Apply(job);
-        StreamLog("stream: in-place %s %s: %d/%d file(s) written in %llu ms%s%s", job.m_relPath.c_str(), r.m_ok ? "OK" : "FAILED", static_cast<int32_t>(r.m_writtenNames.size()), static_cast<int32_t>(job.m_writes.size()), GetTickCount64() - t0, r.m_error.empty() ? "" : ", ", r.m_error.c_str());
+        StreamLog("stream: in-place %s %s: %d/%d file(s) written in %llu ms%s%s", job.m_relPath.c_str(), r.m_ok ? "OK" : "FAILED", static_cast<int32_t>(r.m_writtenNames.size()), static_cast<int32_t>(job.m_writes.size()), static_cast<unsigned long long>(Platform::MonotonicMs() - t0), r.m_error.empty() ? "" : ", ", r.m_error.c_str());
 
         for (const std::string& n : r.m_writtenNames) {
             AddRefreshName(bp, n);
@@ -1742,71 +1456,6 @@ struct ActiveScope {
     }
 };
 
-#if defined(_WIN32)
-static HANDLE s_patchLock = nullptr;
-
-static bool AcquirePatchLock() {
-    if (s_patchLock) {
-        return true;
-    }
-
-    // FNV-1a over the lowercased install path.
-    uint64_t h = 1469598103934665603ULL;
-
-    for (wchar_t c : s_installDir) {
-        if (c >= L'A' && c <= L'Z') {
-            c = static_cast<wchar_t>(c + 32);
-        }
-
-        h = (h ^ static_cast<uint32_t>(c)) * 1099511628211ULL;
-    }
-
-    wchar_t name[64];
-    swprintf(name, 64, L"Local\\HoTStreamPatcher_%016llx", static_cast<unsigned long long>(h));
-
-    HANDLE handle = CreateMutexW(nullptr, TRUE, name);
-
-    if (!handle) {
-        return true;
-    }
-
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        CloseHandle(handle);
-        return false;
-    }
-
-    s_patchLock = handle;
-    return true;
-}
-#else
-static int32_t s_patchLock = -1;
-
-// An flock on a file inside the install stands in for the install-path named mutex, held for the process lifetime.
-static bool AcquirePatchLock() {
-    if (s_patchLock >= 0) {
-        return true;
-    }
-
-    std::error_code ec;
-    fs::create_directories(Paths::WorkDir(), ec);
-    const std::string path = (Paths::WorkDir() / "hotstream-patcher.lock").string();
-    int32_t fd = open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
-
-    if (fd < 0) {
-        return true;
-    }
-
-    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
-        const bool held = errno == EWOULDBLOCK;
-        close(fd);
-        return !held;
-    }
-
-    s_patchLock = fd;
-    return true;
-}
-#endif
-
 struct FirstPassScope {
     ~FirstPassScope() {
         s_firstPassDone = true;
@@ -1847,9 +1496,9 @@ struct WorkPool {
 static void Run() {
     // Login stays gated until it is known what needs patching.
     FirstPassScope firstPassScope;
-    s_installDir = Paths::ExeDir().wstring();
+    s_installDir = Paths::GameDir().wstring();
 
-    if (!AcquirePatchLock()) {
+    if (!InstallFiles::AcquirePatchLock(s_installDir)) {
         StreamLog("stream: another instance is patching this install, skipping pass");
         return;
     }
@@ -1921,17 +1570,15 @@ static void Run() {
         std::wstring local = TargetPath(mf);
 
 #ifdef AUTO_UPDATER_IGNORES_EXE
-        if (IsRunningExe(local) || IsDiscordDll(mf.m_path)) {
+        if (Platform::IsRunningExecutable(local) || InstallFiles::IsDiscordLibrary(mf.m_path)) {
             StreamLog("stream: AUTO_UPDATER_IGNORES_EXE set, ignoring %s", mf.m_path.c_str());
             continue;
         }
 #endif
 
-#if !defined(_WIN32)
-        if (IsWindowsBinary(mf.m_path)) {
+        if (InstallFiles::IsForeignBinary(mf.m_path)) {
             continue;
         }
-#endif
 
         bool restored = false;
 
@@ -2081,7 +1728,7 @@ static void Run() {
         total += t.m_size;
     }
 
-    unsigned long long nowMs = GetTickCount64();
+    unsigned long long nowMs = Platform::MonotonicMs();
     unsigned long long lastMs = s_lastProgressMs.load();
 
     if (lastMs == 0 || nowMs - lastMs > s_progressJoinMs) {
@@ -2097,7 +1744,7 @@ static void Run() {
 
     auto finishItem = [](const ManifestFile& mf) {
         s_filesDone = s_filesDone.load() + 1;
-        s_lastProgressMs = GetTickCount64();
+        s_lastProgressMs = Platform::MonotonicMs();
         StreamLog("stream: finished %d/%d %s", s_filesDone.load(), s_filesTotal.load(), mf.m_path.c_str());
     };
 
@@ -2123,11 +1770,7 @@ static void Run() {
 
     for (size_t w = 0; w < workerCount; w++) {
         workers.emplace_back([&] {
-#if defined(_WIN32)
-            SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
-#else
-            LowerThreadPriority();
-#endif
+            Platform::SetBackgroundThreadPriority();
 
             for (;;) {
                 size_t t = pool.m_next.fetch_add(1);
@@ -2286,11 +1929,7 @@ void Trigger() {
     }
 
     std::thread([] {
-#if defined(_WIN32)
-        SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
-#else
-        LowerThreadPriority();
-#endif
+        Platform::SetBackgroundThreadPriority();
         Run();
         s_running = false;
     }).detach();

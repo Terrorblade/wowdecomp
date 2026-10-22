@@ -1,13 +1,11 @@
 #include "HoT/Streaming/ArchivePatcher.h"
-#if defined(_WIN32)
-#include <windows.h>
-#endif
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFile.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFileArchives.h"
+#include "HoT/Platform/Files.h"
 #include "HoT/Streaming/ArchiveManifest.h"
 #include "HoT/Streaming/ArchiveRegistry.h"
 #include "HoT/Streaming/TextConv.h"
@@ -120,12 +118,7 @@ ArchivePatchResult Apply(const ArchivePatchJob& job) {
 
     if (ok) {
         for (const ArchiveWrite& w : job.m_writes) {
-#if defined(_WIN32)
-            DeleteFileW(w.m_blobPath.c_str());
-#else
-            std::error_code ec;
-            std::filesystem::remove(w.m_blobPath, ec);
-#endif
+            Platform::RemoveFile(w.m_blobPath);
         }
     }
 

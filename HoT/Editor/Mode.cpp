@@ -1,22 +1,4 @@
 #include "HoT/Editor/Mode.h"
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <ctime>
-
-// QueryPerformance* on CLOCK_MONOTONIC in nanoseconds, as the Linux TimeManager does.
-static int32_t QueryPerformanceFrequency(LARGE_INTEGER* frequency) {
-    frequency->QuadPart = 1000000000;
-    return 1;
-}
-
-static int32_t QueryPerformanceCounter(LARGE_INTEGER* count) {
-    timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    count->QuadPart = static_cast<int64_t>(now.tv_sec) * 1000000000 + now.tv_nsec;
-    return 1;
-}
-#endif
 #include <cstring>
 #include <string>
 #include <vector>
@@ -40,6 +22,7 @@ static int32_t QueryPerformanceCounter(LARGE_INTEGER* count) {
 #include "HoT/Editor/Selection.h"
 #include "HoT/Game/Session.h"
 #include "HoT/Lua/Script.h"
+#include "HoT/Platform/Time.h"
 #include "WoW/Source/Glue/CWOWClientStatus.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/GameUI.h"
@@ -80,7 +63,7 @@ struct ModeState {
     Handler* m_buttonOwner[16] = {};
 
     bool m_haveLastTick = false;
-    LARGE_INTEGER m_lastTick{};
+    int64_t m_lastTick = 0;
 };
 
 static ModeState s_state;
@@ -513,14 +496,7 @@ static int32_t OnRawMouseUp(const void* data, void* param) {
 }
 
 static float StepSeconds() {
-    static LARGE_INTEGER s_frequency = {};
-
-    if (s_frequency.QuadPart == 0) {
-        QueryPerformanceFrequency(&s_frequency);
-    }
-
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
+    int64_t now = Platform::Ticks();
 
     if (!s_state.m_haveLastTick) {
         s_state.m_lastTick = now;
@@ -528,7 +504,7 @@ static float StepSeconds() {
         return 0.0f;
     }
 
-    float seconds = static_cast<float>(now.QuadPart - s_state.m_lastTick.QuadPart) / static_cast<float>(s_frequency.QuadPart);
+    float seconds = static_cast<float>(now - s_state.m_lastTick) / static_cast<float>(Platform::TicksPerSecond());
     s_state.m_lastTick = now;
 
     return seconds < 0.0f ? 0.0f : (seconds > 0.25f ? 0.25f : seconds);

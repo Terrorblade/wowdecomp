@@ -25,6 +25,7 @@ x64/
 x86/
 [Ww][Ii][Nn]32/
 !Engine/**/[Ww]in32/
+!HoT/**/[Ww]in32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
@@ -422,3 +423,6 @@ CMakeSettings.json
 /HoT/Editor/DataGen/miscvalue_effects.json
 /HoT/Editor/DataGen/recparse.py
 /HoT/Editor/DataGen/spell_world_tables.json
+
+# Cross compile sysroots and caches (Tools/Cross/cross.py)
+/.cross/

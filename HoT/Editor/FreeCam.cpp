@@ -1,23 +1,4 @@
 #include "HoT/Editor/FreeCam.h"
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <ctime>
-#include "Engine/Source/Os/Gui.h"
-
-// QueryPerformance* on CLOCK_MONOTONIC in nanoseconds, as the Linux TimeManager does.
-static int32_t QueryPerformanceFrequency(LARGE_INTEGER* frequency) {
-    frequency->QuadPart = 1000000000;
-    return 1;
-}
-
-static int32_t QueryPerformanceCounter(LARGE_INTEGER* count) {
-    timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    count->QuadPart = static_cast<int64_t>(now.tv_sec) * 1000000000 + now.tv_nsec;
-    return 1;
-}
-#endif
 #include <cmath>
 #include <cstdint>
 #include "Engine/Source/Event/Event.h"
@@ -28,6 +9,8 @@ static int32_t QueryPerformanceCounter(LARGE_INTEGER* count) {
 #include "HoT/Editor/VectorMath.h"
 #include "HoT/Game/Session.h"
 #include "HoT/Lua/Script.h"
+#include "HoT/Platform/Input.h"
+#include "HoT/Platform/Time.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Object/Movement.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
@@ -63,7 +46,7 @@ struct FreeCamState {
     bool m_down = false;
 
     bool m_haveLastTick = false;
-    LARGE_INTEGER m_lastTick{};
+    int64_t m_lastTick = 0;
 
     bool m_characterHidden = false;
     bool m_gravityForced = false;
@@ -195,14 +178,7 @@ static int32_t OnKeyRepeat(const void* data, void* param) {
 }
 
 static float StepSeconds() {
-    static LARGE_INTEGER s_frequency = {};
-
-    if (s_frequency.QuadPart == 0) {
-        QueryPerformanceFrequency(&s_frequency);
-    }
-
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
+    int64_t now = Platform::Ticks();
 
     if (!s_state.m_haveLastTick) {
         s_state.m_lastTick = now;
@@ -211,7 +187,7 @@ static float StepSeconds() {
         return 0.0f;
     }
 
-    float seconds = static_cast<float>(now.QuadPart - s_state.m_lastTick.QuadPart) / static_cast<float>(s_frequency.QuadPart);
+    float seconds = static_cast<float>(now - s_state.m_lastTick) / static_cast<float>(Platform::TicksPerSecond());
     s_state.m_lastTick = now;
 
     if (seconds < 0.0f) {
@@ -360,24 +336,13 @@ static void Fly(CGCamera* camera, float seconds) {
     if (length > 0.0f && seconds > 0.0f) {
         float speed = s_state.m_speed;
 
-#if defined(_WIN32)
-        if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+        if (Platform::ModifierHeld(Platform::Modifier::Shift)) {
             speed *= 4.0f;
         }
 
-        if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+        if (Platform::ModifierHeld(Platform::Modifier::Control)) {
             speed *= 0.25f;
         }
-#else
-        // SDL modifier state (1 = shift, 0 = control) stands in for GetAsyncKeyState.
-        if (OsGuiIsModifierKeyDown(1)) {
-            speed *= 4.0f;
-        }
-
-        if (OsGuiIsModifierKeyDown(0)) {
-            speed *= 0.25f;
-        }
-#endif
 
         s_state.m_position = VectorMath::Add(s_state.m_position, VectorMath::Scale(move, speed * seconds / length));
     }

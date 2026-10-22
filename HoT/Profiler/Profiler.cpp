@@ -5,22 +5,10 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#if defined(_WIN32)
-#include <windows.h>
-#include <psapi.h>
-#endif
+#include <cstring>
+#include <filesystem>
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/CGxDevice/CGxShader.h"
-#if defined(_WIN32)
-#include "Engine/Source/Gx/CGxDeviceD3d/CGxDeviceD3d.h"
-#include "Engine/Source/Gx/CGxDeviceD3d9Ex/CGxDeviceD3d9Ex.h"
-#else
-#include <cstring>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include "Engine/Source/Os/Path.h"
-#endif
 #include "Engine/Source/Gx/CGxTex.h"
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Model2/M2Shared.h"
@@ -30,6 +18,9 @@
 #include "HoT/Core/Log.h"
 #include "HoT/Core/Modules.h"
 #include "HoT/Lua/Script.h"
+#include "HoT/Platform/Process.h"
+#include "HoT/Platform/Time.h"
+#include "HoT/Profiler/GpuTiming.h"
 #include "HoT/Profiler/ProfilerUI.h"
 #include "HoT/Runtime/LuaRuntime.h"
 
@@ -39,8 +30,6 @@ static const size_t ZONE_COUNT = static_cast<size_t>(Zone::Count);
 static const size_t COUNTER_COUNT = static_cast<size_t>(Counter::Count);
 static const size_t STACK_DEPTH = 64;
 static const size_t HISTORY_SIZE = 240;
-static const size_t GPU_RING = 5;
-static const size_t GPU_MARKS = 40;
 static const size_t TOP_COUNT = 15;
 static const size_t HITCH_KEEP = 8;
 
@@ -236,27 +225,6 @@ struct ShaderStat {
     uint64_t m_prims = 0;
 };
 
-#if defined(_WIN32)
-struct GpuMark {
-    Zone m_zone;
-    IDirect3DQuery9* m_begin;
-    IDirect3DQuery9* m_end;
-};
-
-struct GpuFrame {
-    IDirect3DQuery9* m_disjoint = nullptr;
-    IDirect3DQuery9* m_frequency = nullptr;
-    IDirect3DQuery9* m_frameBegin = nullptr;
-    IDirect3DQuery9* m_frameEnd = nullptr;
-    IDirect3DQuery9* m_begin[GPU_MARKS] = {};
-    IDirect3DQuery9* m_end[GPU_MARKS] = {};
-    Zone m_zones[GPU_MARKS] = {};
-    uint32_t m_markCount = 0;
-    bool m_open = false;
-    bool m_pending = false;
-};
-#endif
-
 struct Published {
     double m_seconds = 0;
     uint32_t m_frames = 0;
@@ -303,13 +271,7 @@ static bool s_shaderTop = true;
 static float s_intervalSec = 0.5f;
 static float s_hitchMs = 50.0f;
 static bool s_luaStatsWasOn = false;
-static DWORD s_mainThread = 0;
-
-#if !defined(_WIN32)
-static DWORD GetCurrentThreadId() {
-    return static_cast<DWORD>(gettid());
-}
-#endif
+static uint64_t s_mainThread = 0;
 
 static FrameData s_frame;
 static StackEntry s_stack[STACK_DEPTH];
@@ -342,59 +304,20 @@ static float s_historyGpu[HISTORY_SIZE];
 static uint32_t s_historyIndex = 0;
 static uint32_t s_historyGpuIndex = 0;
 
-#if defined(_WIN32)
-static GpuFrame s_gpu[GPU_RING];
-static uint32_t s_gpuSlot = 0;
-static bool s_gpuCreated = false;
-#endif
 static bool s_gpuUnsupported = false;
-#if defined(_WIN32)
-static IDirect3DDevice9* s_gpuDevice = nullptr;
-static GpuFrame* s_gpuCurrent = nullptr;
-#endif
 
-#if defined(_WIN32)
 static int64_t Now() {
-    LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter);
-    return counter.QuadPart;
+    return Platform::Ticks();
 }
 
 static double ToMs(int64_t ticks) {
-    static const double ticksPerMs = [] {
-        LARGE_INTEGER frequency;
-        QueryPerformanceFrequency(&frequency);
-        return frequency.QuadPart / 1000.0;
-    }();
-
-    return ticks / ticksPerMs;
+    return Platform::TicksToMs(ticks);
 }
 
 static void FormatClock(char* buffer, size_t size) {
-    SYSTEMTIME st;
-    GetLocalTime(&st);
-    snprintf(buffer, size, "%02u:%02u:%02u.%03u", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+    Platform::LocalTime t = Platform::LocalNow();
+    snprintf(buffer, size, "%02d:%02d:%02d.%03d", t.m_hour, t.m_minute, t.m_second, t.m_millisecond);
 }
-#else
-// Ticks are CLOCK_MONOTONIC nanoseconds.
-static int64_t Now() {
-    timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<int64_t>(ts.tv_sec) * 1000000000 + ts.tv_nsec;
-}
-
-static double ToMs(int64_t ticks) {
-    return ticks / 1000000.0;
-}
-
-static void FormatClock(char* buffer, size_t size) {
-    timeval tv;
-    gettimeofday(&tv, nullptr);
-    tm local;
-    localtime_r(&tv.tv_sec, &local);
-    snprintf(buffer, size, "%02d:%02d:%02d.%03d", local.tm_hour, local.tm_min, local.tm_sec, static_cast<int>(tv.tv_usec / 1000));
-}
-#endif
 
 static size_t Index(Zone zone) {
     return static_cast<size_t>(zone);
@@ -411,124 +334,14 @@ static uint32_t Depth(Zone zone) {
     return depth;
 }
 
-// GPU timestamps, D3D9 and D3D9Ex only, read back a few frames later without stalling.
-
-#if defined(_WIN32)
-
-static IDirect3DDevice9* CurrentD3dDevice() {
-    CGxDevice* device = g_theGxDevicePtr;
-
-    if (!device || !device->m_context) {
-        return nullptr;
-    }
-
-    switch (device->DeviceApi()) {
-        case GxApi_D3d9:
-            return static_cast<CGxDeviceD3d*>(device)->m_d3dDevice;
-        case GxApi_D3d9Ex:
-            return static_cast<CGxDeviceD3d9Ex*>(device)->m_d3dDevice;
-        default:
-            return nullptr;
-    }
-}
-
-static void ReleaseQuery(IDirect3DQuery9*& query) {
-    if (query) {
-        query->Release();
-        query = nullptr;
-    }
-}
-
-static void ReleaseGpu() {
-    for (GpuFrame& frame : s_gpu) {
-        ReleaseQuery(frame.m_disjoint);
-        ReleaseQuery(frame.m_frequency);
-        ReleaseQuery(frame.m_frameBegin);
-        ReleaseQuery(frame.m_frameEnd);
-
-        for (size_t i = 0; i < GPU_MARKS; i++) {
-            ReleaseQuery(frame.m_begin[i]);
-            ReleaseQuery(frame.m_end[i]);
-        }
-
-        frame.m_markCount = 0;
-        frame.m_open = false;
-        frame.m_pending = false;
-    }
-
-    s_gpuCreated = false;
-    s_gpuDevice = nullptr;
-    s_gpuCurrent = nullptr;
-}
-
-static bool CreateGpu(IDirect3DDevice9* device) {
-    for (GpuFrame& frame : s_gpu) {
-        if (FAILED(device->CreateQuery(D3DQUERYTYPE_TIMESTAMPDISJOINT, &frame.m_disjoint)) || FAILED(device->CreateQuery(D3DQUERYTYPE_TIMESTAMPFREQ, &frame.m_frequency)) || FAILED(device->CreateQuery(D3DQUERYTYPE_TIMESTAMP, &frame.m_frameBegin)) || FAILED(device->CreateQuery(D3DQUERYTYPE_TIMESTAMP, &frame.m_frameEnd))) {
-            ReleaseGpu();
-            return false;
-        }
-
-        for (size_t i = 0; i < GPU_MARKS; i++) {
-            if (FAILED(device->CreateQuery(D3DQUERYTYPE_TIMESTAMP, &frame.m_begin[i])) || FAILED(device->CreateQuery(D3DQUERYTYPE_TIMESTAMP, &frame.m_end[i]))) {
-                ReleaseGpu();
-                return false;
-            }
-        }
-    }
-
-    s_gpuCreated = true;
-    s_gpuDevice = device;
-
-    return true;
-}
+// GPU timestamps, see GpuTiming.h.
 
 static void PushGpuHistory(float ms) {
     s_historyGpu[s_historyGpuIndex] = ms;
     s_historyGpuIndex = (s_historyGpuIndex + 1) % HISTORY_SIZE;
 }
 
-// Returns false while the results are not ready yet.
-static bool CollectGpu(GpuFrame& frame) {
-    BOOL disjoint = TRUE;
-    UINT64 frequency = 0;
-    UINT64 begin = 0;
-    UINT64 end = 0;
-
-    if (frame.m_disjoint->GetData(&disjoint, sizeof(disjoint), 0) != S_OK || frame.m_frequency->GetData(&frequency, sizeof(frequency), 0) != S_OK || frame.m_frameEnd->GetData(&end, sizeof(end), 0) != S_OK || frame.m_frameBegin->GetData(&begin, sizeof(begin), 0) != S_OK) {
-        return false;
-    }
-
-    for (uint32_t i = 0; i < frame.m_markCount; i++) {
-        UINT64 value = 0;
-
-        if (frame.m_end[i]->GetData(&value, sizeof(value), 0) != S_OK || frame.m_begin[i]->GetData(&value, sizeof(value), 0) != S_OK) {
-            return false;
-        }
-    }
-
-    frame.m_pending = false;
-
-    if (disjoint || !frequency) {
-        s_windowGpuDropped++;
-        return true;
-    }
-
-    double toMs = 1000.0 / static_cast<double>(frequency);
-    double frameMs = end > begin ? (end - begin) * toMs : 0.0;
-
-    double zoneMs[ZONE_COUNT] = {};
-
-    for (uint32_t i = 0; i < frame.m_markCount; i++) {
-        UINT64 markBegin = 0;
-        UINT64 markEnd = 0;
-        frame.m_begin[i]->GetData(&markBegin, sizeof(markBegin), 0);
-        frame.m_end[i]->GetData(&markEnd, sizeof(markEnd), 0);
-
-        if (markEnd > markBegin) {
-            zoneMs[Index(frame.m_zones[i])] += (markEnd - markBegin) * toMs;
-        }
-    }
-
+void GpuTiming::OnFrameTimed(double frameMs, const double* zoneMs) {
     for (size_t i = 0; i < ZONE_COUNT; i++) {
         s_window[i].m_gpu += zoneMs[i];
         s_window[i].m_gpuPeak = (std::max)(s_window[i].m_gpuPeak, zoneMs[i]);
@@ -539,118 +352,39 @@ static bool CollectGpu(GpuFrame& frame) {
     s_windowGpu += frameMs;
     s_windowGpuFrames++;
     PushGpuHistory(static_cast<float>(frameMs));
+}
 
-    return true;
+void GpuTiming::OnFrameDropped() {
+    s_windowGpuDropped++;
 }
 
 static void BeginGpuFrame() {
-    s_gpuCurrent = nullptr;
-
-    if (!s_gpuTiming || s_gpuUnsupported) {
-        return;
-    }
-
-    IDirect3DDevice9* device = CurrentD3dDevice();
-
-    if (!device) {
-        return;
-    }
-
-    if (s_gpuCreated && s_gpuDevice != device) {
-        ReleaseGpu();
-    }
-
-    if (!s_gpuCreated && !CreateGpu(device)) {
+    if (!GpuTiming::BeginFrame(s_gpuTiming && !s_gpuUnsupported)) {
         s_gpuUnsupported = true;
         LOG_INFO << "graphics profiler: the device has no timestamp queries, GPU timing is off";
-        return;
     }
-
-    s_gpuSlot = (s_gpuSlot + 1) % GPU_RING;
-    GpuFrame& frame = s_gpu[s_gpuSlot];
-
-    // The ring came all the way around without the GPU finishing, drop that frame.
-    if (frame.m_pending && !CollectGpu(frame)) {
-        s_windowGpuDropped++;
-        frame.m_pending = false;
-    }
-
-    frame.m_markCount = 0;
-    frame.m_disjoint->Issue(D3DISSUE_BEGIN);
-    frame.m_frameBegin->Issue(D3DISSUE_END);
-    frame.m_open = true;
-    s_gpuCurrent = &frame;
 }
 
 static void EndGpuFrame() {
-    GpuFrame* frame = s_gpuCurrent;
-    s_gpuCurrent = nullptr;
-
-    if (!frame || !frame->m_open || !CurrentD3dDevice()) {
-        return;
-    }
-
-    frame->m_frameEnd->Issue(D3DISSUE_END);
-    frame->m_frequency->Issue(D3DISSUE_END);
-    frame->m_disjoint->Issue(D3DISSUE_END);
-    frame->m_open = false;
-    frame->m_pending = true;
-
-    for (GpuFrame& other : s_gpu) {
-        if (other.m_pending && &other != frame) {
-            CollectGpu(other);
-        }
-    }
+    GpuTiming::EndFrame();
 }
 
 static int32_t BeginGpuMark(Zone zone) {
-    GpuFrame* frame = s_gpuCurrent;
-
-    if (!frame || frame->m_markCount >= GPU_MARKS) {
-        return -1;
-    }
-
-    uint32_t mark = frame->m_markCount++;
-    frame->m_zones[mark] = zone;
-    frame->m_begin[mark]->Issue(D3DISSUE_END);
-
-    return static_cast<int32_t>(mark);
+    return GpuTiming::BeginMark(zone);
 }
 
 static void EndGpuMark(int32_t mark) {
-    GpuFrame* frame = s_gpuCurrent;
-
-    if (frame && mark >= 0 && static_cast<uint32_t>(mark) < frame->m_markCount) {
-        frame->m_end[mark]->Issue(D3DISSUE_END);
-    }
-}
-#else
-// There is no D3D9 device on Linux, so GPU timing reports as unavailable like a device without timestamp queries.
-static void* CurrentD3dDevice() {
-    return nullptr;
+    GpuTiming::EndMark(mark);
 }
 
 static void ReleaseGpu() {
+    GpuTiming::Release();
 }
-
-static void BeginGpuFrame() {
-}
-
-static void EndGpuFrame() {
-}
-
-static int32_t BeginGpuMark(Zone zone) {
-    return -1;
-}
-
-static void EndGpuMark(int32_t mark) {
-}
-#endif
 
 // CPU zones.
 
 int64_t Enter(Zone zone) {
-    if (GetCurrentThreadId() != s_mainThread) {
+    if (Platform::CurrentThreadId() != s_mainThread) {
         return 0;
     }
 
@@ -756,7 +490,7 @@ void OnDraw(uint32_t prims, uint32_t verts, bool indexed, const CGxShader* verte
 }
 
 int64_t EnterModel(const CM2Model* model) {
-    if (!s_modelTop || !model || !model->m_shared || GetCurrentThreadId() != s_mainThread) {
+    if (!s_modelTop || !model || !model->m_shared || Platform::CurrentThreadId() != s_mainThread) {
         return 0;
     }
 
@@ -783,7 +517,7 @@ void LeaveModel(int64_t start) {
 }
 
 int64_t EnterMessage() {
-    if (GetCurrentThreadId() != s_mainThread) {
+    if (Platform::CurrentThreadId() != s_mainThread) {
         return 0;
     }
 
@@ -831,50 +565,16 @@ static void SampleMemory(Published& out) {
         out.m_textureMB = bytes / (1024.0 * 1024.0);
         out.m_renderTargetMB = targetBytes / (1024.0 * 1024.0);
 
-#if defined(_WIN32)
-        if (IDirect3DDevice9* d3d = CurrentD3dDevice()) {
-            out.m_availableTexMB = d3d->GetAvailableTextureMem() / (1024.0 * 1024.0);
-        }
-
-        if (device->DeviceApi() == GxApi_D3d9Ex) {
-            CGxDeviceD3d9Ex* ex = static_cast<CGxDeviceD3d9Ex*>(device);
-            out.m_texCacheMB = ex->m_texCacheUsed / (1024.0 * 1024.0);
-            out.m_texCacheLimitMB = ex->m_texCacheSize / (1024.0 * 1024.0);
-        }
-#endif
+        GpuTiming::DeviceMemory(out.m_availableTexMB, out.m_texCacheMB, out.m_texCacheLimitMB);
     }
 
-#if defined(_WIN32)
-    PROCESS_MEMORY_COUNTERS_EX memory = {};
-    memory.cb = sizeof(memory);
+    uint64_t workingSet = 0;
+    uint64_t privateBytes = 0;
 
-    if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory), sizeof(memory))) {
-        out.m_workingSetMB = memory.WorkingSetSize / (1024.0 * 1024.0);
-        out.m_privateMB = memory.PrivateUsage / (1024.0 * 1024.0);
+    if (Platform::ProcessMemory(workingSet, privateBytes)) {
+        out.m_workingSetMB = workingSet / (1024.0 * 1024.0);
+        out.m_privateMB = privateBytes / (1024.0 * 1024.0);
     }
-#else
-    // Working set is VmRSS; private bytes is approximated by anonymous resident memory plus swap.
-    if (FILE* status = fopen("/proc/self/status", "r")) {
-        char line[256];
-        unsigned long long rssKB = 0;
-        unsigned long long anonKB = 0;
-        unsigned long long swapKB = 0;
-
-        while (fgets(line, sizeof(line), status)) {
-            if (strncmp(line, "VmRSS:", 6) == 0) {
-                rssKB = strtoull(line + 6, nullptr, 10);
-            } else if (strncmp(line, "RssAnon:", 8) == 0) {
-                anonKB = strtoull(line + 8, nullptr, 10);
-            } else if (strncmp(line, "VmSwap:", 7) == 0) {
-                swapKB = strtoull(line + 7, nullptr, 10);
-            }
-        }
-
-        fclose(status);
-        out.m_workingSetMB = rssKB / 1024.0;
-        out.m_privateMB = (anonKB + swapKB) / 1024.0;
-    }
-#endif
 }
 
 template <class Map, class Fill>
@@ -1080,7 +780,7 @@ static void EndFrame(int64_t now) {
 }
 
 void OnSchedulerTick() {
-    if (!g_enabled || GetCurrentThreadId() != s_mainThread) {
+    if (!g_enabled || Platform::CurrentThreadId() != s_mainThread) {
         return;
     }
 
@@ -1151,7 +851,7 @@ static void SetEnabled(bool enabled) {
 
     if (enabled) {
         ResetAll();
-        s_mainThread = GetCurrentThreadId();
+        s_mainThread = Platform::CurrentThreadId();
         s_luaStatsWasOn = LuaRuntime::g_statsEnabled;
         LuaRuntime::g_statsEnabled = true;
         g_enabled = true;
@@ -1186,36 +886,16 @@ static void Toggle() {
 // Report file.
 
 static std::string ReportPath() {
-#if defined(_WIN32)
-    char module[MAX_PATH];
-    GetModuleFileNameA(nullptr, module, MAX_PATH);
-    std::string directory = module;
-    size_t slash = directory.find_last_of("\\/");
-    directory = (slash == std::string::npos ? std::string(".") : directory.substr(0, slash)) + "\\Logs";
-    CreateDirectoryA(directory.c_str(), nullptr);
+    std::filesystem::path directory = Platform::GameDirectory() / "Logs";
+    std::error_code ec;
+    std::filesystem::create_directory(directory, ec);
 
     time_t now = time(nullptr);
     tm local = *localtime(&now);
     char name[64];
-    strftime(name, sizeof(name), "\\gfxprofile_%Y-%m-%d_%H-%M-%S.txt", &local);
+    strftime(name, sizeof(name), "gfxprofile_%Y-%m-%d_%H-%M-%S.txt", &local);
 
-    return directory + name;
-#else
-    char module[MAX_PATH] = {};
-    GetModuleFileNameUTF8(nullptr, module, MAX_PATH);
-    std::string directory = module;
-    size_t slash = directory.find_last_of('/');
-    directory = (slash == std::string::npos ? std::string(".") : directory.substr(0, slash)) + "/Logs";
-    mkdir(directory.c_str(), 0755);
-
-    time_t now = time(nullptr);
-    tm local;
-    localtime_r(&now, &local);
-    char name[64];
-    strftime(name, sizeof(name), "/gfxprofile_%Y-%m-%d_%H-%M-%S.txt", &local);
-
-    return directory + name;
-#endif
+    return (directory / name).string();
 }
 
 static void WriteZoneTree(FILE* file, const Published& data) {
@@ -1419,7 +1099,7 @@ static int32_t Script_GetSummary(lua_State* L) {
     SetNumber(L, "gpuMs", data.m_gpuMs);
     SetNumber(L, "gpuFrames", data.m_gpuFrames);
     SetNumber(L, "gpuDropped", data.m_gpuDropped);
-    SetBool(L, "gpuTiming", s_gpuTiming && !s_gpuUnsupported && CurrentD3dDevice() != nullptr);
+    SetBool(L, "gpuTiming", s_gpuTiming && !s_gpuUnsupported && GpuTiming::Available());
     SetNumber(L, "hitches", data.m_hitches);
     SetNumber(L, "hitchMs", s_hitchMs);
     SetNumber(L, "waitMs", data.m_zones[Index(Zone::Wait)].m_inclusive);
@@ -1679,7 +1359,7 @@ class ProfilerModule : public Module {
     }
 
     void OnInitializeGlobal() override {
-        s_mainThread = GetCurrentThreadId();
+        s_mainThread = Platform::CurrentThreadId();
 
         Hotkeys::Register("profilerToggleKey", "Key that opens and closes the graphics profiler, NONE turns it off", "F11", Toggle);
         CVars::Register("profilerGpuTiming", "Time the main render passes on the GPU with D3D9 timestamp queries while the graphics profiler is open", "1", OnGpuTimingChanged);

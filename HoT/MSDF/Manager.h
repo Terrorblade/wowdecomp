@@ -25,12 +25,8 @@ class Manager {
         uint32_t m_slotIndex = 0xFFFFFFFF;
         BlockKey m_key;
 
-#if defined(_WIN32)
-        MappedBlock() = default;
-#else
         // clang rejects a defaulted constructor here because s_mappedBlocks below needs it before the class is complete.
         MappedBlock() {}
-#endif
         MappedBlock(const MappedBlock&) = delete;
         MappedBlock& operator=(const MappedBlock&) = delete;
 

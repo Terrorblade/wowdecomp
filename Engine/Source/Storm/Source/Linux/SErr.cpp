@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
 #include <csignal>
@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Storm/Source/Linux/StormLinux.h"
 #include "Engine/Source/Storm/Source/MachineState.h"
 #include "Engine/Source/Storm/Source/SOption.h"
@@ -111,24 +112,7 @@ static char s_logLastFile[MAX_PATH * 4];
 static volatile sig_atomic_t s_inExceptionFilter;
 
 static int32_t CanBreakToDebugger() {
-    int32_t fd = open("/proc/self/status", O_RDONLY | O_CLOEXEC);
-
-    if (fd < 0) {
-        return 0;
-    }
-
-    char buffer[4096];
-    ssize_t length = read(fd, buffer, sizeof(buffer) - 1);
-    close(fd);
-
-    if (length <= 0) {
-        return 0;
-    }
-
-    buffer[length] = 0;
-    const char* tracer = strstr(buffer, "TracerPid:");
-
-    return tracer && atoi(tracer + 10) != 0;
+    return OsPosixDebuggerAttached();
 }
 
 static void Breakpoint() {
@@ -858,14 +842,16 @@ static void ExceptionFilterLinux(int32_t signo, siginfo_t* info, void* ucontext)
     s_exceptionBuffer[0] = 0;
     s_exceptionMessage[0] = 0;
 
-    const greg_t* gregs = exception.context->uc_mcontext.gregs;
-    void* address = reinterpret_cast<void*>(gregs[REG_RIP]);
+    uintptr_t pc;
+    uintptr_t fp;
+    uintptr_t sp;
+    OsPosixContextFrame(exception.context, &pc, &fp, &sp);
+    void* address = reinterpret_cast<void*>(pc);
     uint32_t code = GetExceptionNameLinux(info, exceptionname, sizeof(exceptionname));
-    SStrPrintf(s_exceptionBuffer, sizeof(s_exceptionBuffer), "0x%08X (%s) at %04X:%p", code, exceptionname, static_cast<uint32_t>(gregs[REG_CSGSFS] & 0xFFFF), address);
+    SStrPrintf(s_exceptionBuffer, sizeof(s_exceptionBuffer), "0x%08X (%s) at %04X:%p", code, exceptionname, OsPosixContextCodeSegment(exception.context), address);
 
     if (signo == SIGSEGV) {
-        // Page-fault error code bit 1 is set for writes.
-        int32_t written = (gregs[REG_ERR] & 2) != 0;
+        int32_t written = OsPosixContextWriteFault(exception.context);
         char format[256];
         SStrCopy(format, GetErrorString(SERR_STR_ACCESS_VIOLATION), sizeof(format));
         SStrPrintf(s_exceptionMessage, sizeof(s_exceptionMessage), format, address, info->si_addr, GetErrorString(written ? SERR_STR_WRITTEN : SERR_STR_READ));

@@ -1,7 +1,7 @@
 #ifndef ENGINE_SOURCE_OS_LINUX_OSPATH_H
 #define ENGINE_SOURCE_OS_LINUX_OSPATH_H
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstddef>
 #include <cstring>

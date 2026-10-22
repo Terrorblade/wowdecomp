@@ -1,15 +1,10 @@
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <sys/resource.h>
-#include <unistd.h>
-#endif
 #include <algorithm>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <thread>
 #include "HoT/Character/HD/HDSheetPool.h"
+#include "HoT/Platform/Process.h"
 
 namespace HoT::HD::Pool {
 
@@ -39,13 +34,7 @@ static void Run(Task& task) {
 }
 
 static void Worker() {
-#if defined(_WIN32)
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-#else
-    // Linux nice values are per thread, one step up is the closest match to BELOW_NORMAL.
-    id_t tid = static_cast<id_t>(gettid());
-    setpriority(PRIO_PROCESS, tid, getpriority(PRIO_PROCESS, tid) + 1);
-#endif
+    Platform::LowerThreadPriority();
 
     for (;;) {
         Task task;

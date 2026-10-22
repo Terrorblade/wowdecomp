@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstdint>
 #include <cstdio>
@@ -6,10 +6,11 @@
 #include <set>
 #include <sys/mman.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Os/OsMemory.h"
 
-// VirtualQuery/VirtualAlloc become a walk over the gaps between the mappings in /proc/self/maps and
-// mmap(MAP_FIXED_NOREPLACE). munmap needs the size VirtualFree does not take, so each block starts with a page that
+// VirtualQuery/VirtualAlloc become a walk over the gaps between the process mappings and an mmap at an exact
+// address. munmap needs the size VirtualFree does not take, so each block starts with a page that
 // records its mapping size; the returned pointer is the byte after that page.
 
 static const uintptr_t s_nearRange = 0x60000000;
@@ -18,16 +19,38 @@ static const uintptr_t s_granularity = 0x10000;
 static std::mutex s_blockLock;
 static std::set<uintptr_t> s_blocks;
 
-static void* MapAt(uintptr_t address, uintptr_t bytes, uintptr_t header) {
-    void* ptr = mmap(reinterpret_cast<void*>(address), bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+// Free gaps between consecutive mappings that intersect [minimum, maximum).
+struct Gap {
+    uintptr_t base;
+    uintptr_t end;
+};
 
-    if (ptr == MAP_FAILED) {
-        return nullptr;
+struct GapSearch {
+    Gap gaps[512];
+    uint32_t count;
+    uintptr_t previousEnd;
+    uintptr_t minimum;
+    uintptr_t maximum;
+};
+
+static bool CollectGap(void* param, uintptr_t start, uintptr_t end) {
+    GapSearch* search = static_cast<GapSearch*>(param);
+
+    if (start > search->previousEnd && start > search->minimum && search->previousEnd < search->maximum) {
+        search->gaps[search->count].base = search->previousEnd > search->minimum ? search->previousEnd : search->minimum;
+        search->gaps[search->count].end = start < search->maximum ? start : search->maximum;
+        search->count++;
     }
 
-    if (reinterpret_cast<uintptr_t>(ptr) != address) {
-        // Kernels before 4.17 treat the flag as a hint.
-        munmap(ptr, bytes);
+    search->previousEnd = end;
+
+    return search->count < sizeof(search->gaps) / sizeof(search->gaps[0]);
+}
+
+static void* MapAt(uintptr_t address, uintptr_t bytes, uintptr_t header) {
+    void* ptr = OsPosixMapAt(address, bytes);
+
+    if (!ptr) {
         return nullptr;
     }
 
@@ -67,43 +90,18 @@ void* OsAllocNear(const void* anchor, size_t size) {
         maximum = center + s_nearRange;
     }
 
-    FILE* maps = fopen("/proc/self/maps", "r");
+    GapSearch search;
+    search.count = 0;
+    search.previousEnd = 0;
+    search.minimum = minimum;
+    search.maximum = maximum;
+    OsPosixEnumerateMappings(CollectGap, &search);
 
-    if (!maps) {
-        return nullptr;
-    }
+    Gap* gaps = search.gaps;
+    uint32_t count = search.count;
+    uintptr_t previousEnd = search.previousEnd;
 
-    // Free gaps between consecutive mappings that intersect [minimum, maximum).
-    struct Gap {
-        uintptr_t base;
-        uintptr_t end;
-    };
-
-    Gap gaps[512];
-    uint32_t count = 0;
-    uintptr_t previousEnd = 0;
-    char line[512];
-
-    while (count < sizeof(gaps) / sizeof(gaps[0]) && fgets(line, sizeof(line), maps)) {
-        unsigned long long start;
-        unsigned long long end;
-
-        if (sscanf(line, "%llx-%llx", &start, &end) != 2) {
-            continue;
-        }
-
-        if (start > previousEnd && start > minimum && previousEnd < maximum) {
-            gaps[count].base = previousEnd > minimum ? previousEnd : minimum;
-            gaps[count].end = start < maximum ? start : maximum;
-            count++;
-        }
-
-        previousEnd = end;
-    }
-
-    fclose(maps);
-
-    if (count < sizeof(gaps) / sizeof(gaps[0]) && previousEnd < maximum) {
+    if (count < sizeof(search.gaps) / sizeof(search.gaps[0]) && previousEnd < maximum) {
         gaps[count].base = previousEnd > minimum ? previousEnd : minimum;
         gaps[count].end = maximum;
         count++;

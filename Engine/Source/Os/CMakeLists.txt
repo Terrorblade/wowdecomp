@@ -22,7 +22,7 @@ if(WIN32)
     )
 endif()
 
-if (WOWDECOMP_PLATFORM_LINUX)
+if (WOWDECOMP_PLATFORM_POSIX)
     target_link_libraries(Os
         PUBLIC
             SDL2::SDL2

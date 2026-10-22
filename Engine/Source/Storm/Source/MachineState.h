@@ -5,9 +5,9 @@
 #if defined(_WIN32)
 #include <windows.h>
 #endif
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 #include <signal.h>
-#include <ucontext.h>
+#include <sys/ucontext.h>
 #endif
 
 #define LOG_OPTION_DEFAULT 0x1
@@ -25,7 +25,7 @@
 #define LOG_OPTION_MODULES 0x400000
 #define LOG_OPTION_VERBOSE 0x80000000
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 // Linux stand-ins for SYSTEMTIME, CONTEXT and EXCEPTION_POINTERS: a broken-down local time, the ucontext_t a signal
 // handler receives, and the signal's siginfo_t/ucontext_t pair.
 struct MACHINESTATETIME {

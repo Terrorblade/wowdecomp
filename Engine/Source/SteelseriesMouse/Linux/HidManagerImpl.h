@@ -1,7 +1,7 @@
 #ifndef ENGINE_SOURCE_STEELSERIESMOUSE_LINUX_HIDMANAGERIMPL_H
 #define ENGINE_SOURCE_STEELSERIESMOUSE_LINUX_HIDMANAGERIMPL_H
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstdint>
 #include "Engine/Source/SteelseriesMouse/HidManager.h"

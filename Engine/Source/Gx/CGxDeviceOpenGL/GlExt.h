@@ -8,7 +8,7 @@
 #endif
 #include <GL/gl.h>
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 // Mesa's GL/gl.h declares some of these entry points (glActiveTextureARB, ...) as functions and libGL exports all of
 // them, so the extension pointers get their own symbol names; the code keeps calling them by their GL names.
 #define glActiveTextureARB GlExt_glActiveTextureARB

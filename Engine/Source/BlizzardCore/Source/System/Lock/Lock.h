@@ -11,7 +11,7 @@
 namespace Blizzard {
 namespace Lock {
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 // Auto-reset event (see Lock/Linux/Event.cpp). A pointer, like the HANDLE it replaces.
 struct EventRecord;
 typedef EventRecord* Event;

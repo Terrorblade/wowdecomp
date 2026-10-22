@@ -1,7 +1,4 @@
 #include "HoT/Streaming/LocalDigests.h"
-#if defined(_WIN32)
-#include <windows.h>
-#endif
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -9,6 +6,7 @@
 #include <mutex>
 #include <utility>
 #include <vector>
+#include "HoT/Platform/Files.h"
 #include "HoT/Streaming/MpqFile.h"
 #include "HoT/Streaming/Paths.h"
 #include "HoT/Streaming/Sha256.h"
@@ -293,19 +291,9 @@ void Save() {
         out.close();
     }
 
-#if defined(_WIN32)
-    if (out && MoveFileExW(tmp.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+    if (out && Platform::RenameReplacing(tmp, file)) {
         return;
     }
-#else
-    if (out) {
-        fs::rename(tmp, file, ec);
-
-        if (!ec) {
-            return;
-        }
-    }
-#endif
 
     fs::remove(tmp, ec);
     std::lock_guard<std::mutex> lock(s_mutex);

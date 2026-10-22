@@ -6,13 +6,7 @@
 
 #include <cstring>
 #include <memory>
-#if defined(_WIN32)
-#include <Windows.h>
-#else
-#include <dlfcn.h>
-#include <filesystem>
-#include <system_error>
-#endif
+#include "HoT/Discord/Host.h"
 
 namespace {
 
@@ -20,36 +14,12 @@ typedef enum EDiscordResult(DISCORD_API* DiscordCreateProc)(DiscordVersion versi
     struct DiscordCreateParams* params,
     struct IDiscordCore** result);
 
-#if defined(_WIN32)
-static HMODULE s_discordModule = nullptr;
-#else
-static void* s_discordModule = nullptr;
-#endif
 static DiscordCreateProc s_DiscordCreate = nullptr;
 
 static bool LoadDiscordSDK()
 {
-    if (s_discordModule)
-        return s_DiscordCreate != nullptr;
-#if defined(_WIN32)
-    s_discordModule = LoadLibraryA("discord_game_sdk_64.dll");
-    if (!s_discordModule)
-        return false;
-    s_DiscordCreate = reinterpret_cast<DiscordCreateProc>(
-        GetProcAddress(s_discordModule, "DiscordCreate"));
-#else
-    // LoadLibrary looks next to the exe first, dlopen does not, so try that directory before the default search.
-    std::error_code ec;
-    std::filesystem::path exe = std::filesystem::read_symlink("/proc/self/exe", ec);
-    if (!ec)
-        s_discordModule = dlopen((exe.parent_path() / "discord_game_sdk.so").c_str(), RTLD_NOW | RTLD_LOCAL);
-    if (!s_discordModule)
-        s_discordModule = dlopen("discord_game_sdk.so", RTLD_NOW | RTLD_LOCAL);
-    if (!s_discordModule)
-        return false;
-    s_DiscordCreate = reinterpret_cast<DiscordCreateProc>(
-        dlsym(s_discordModule, "DiscordCreate"));
-#endif
+    if (!s_DiscordCreate)
+        s_DiscordCreate = reinterpret_cast<DiscordCreateProc>(HoT::Discord::Host::LoadCreateFunction());
     return s_DiscordCreate != nullptr;
 }
 

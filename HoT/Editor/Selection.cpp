@@ -1,9 +1,4 @@
 #include "HoT/Editor/Selection.h"
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include "Engine/Source/Os/Gui.h"
-#endif
 #include <cfloat>
 #include <cmath>
 #include <cstdlib>
@@ -27,6 +22,7 @@
 #include "HoT/Lua/Script.h"
 #include "HoT/Net/Opcodes.h"
 #include "HoT/Net/Packet.h"
+#include "HoT/Platform/Input.h"
 #include "WoW/Source/Object/Movement.h"
 #include "WoW/Source/Object/ObjectClient/GameObject_C.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
@@ -111,19 +107,6 @@ struct SelectionState {
 };
 
 static SelectionState s_state;
-
-#if defined(_WIN32)
-static bool KeyHeld(int key) {
-    return (GetAsyncKeyState(key) & 0x8000) != 0;
-}
-#else
-// Only the modifiers are polled; map them onto OsGuiIsModifierKeyDown (SDL modifier state).
-enum { VK_SHIFT = 1, VK_CONTROL = 0, VK_MENU = 2 };
-
-static bool KeyHeld(int key) {
-    return OsGuiIsModifierKeyDown(key) != 0;
-}
-#endif
 
 static const char* KindName(Kind kind) {
     switch (kind) {
@@ -766,7 +749,7 @@ static void AnchorFreeDrag() {
     C3Vector end{};
     const C3Vector& position = drag.m_current.m_position;
 
-    if (KeyHeld(VK_SHIFT)) {
+    if (Platform::ModifierHeld(Platform::Modifier::Shift)) {
         drag.m_type = Drag::Vertical;
         C3Vector toCamera = Subtract(CameraPosition(), position);
         toCamera.z = 0.0f;
@@ -782,7 +765,7 @@ static void AnchorFreeDrag() {
     }
 
     Drag previous = drag.m_type;
-    drag.m_type = KeyHeld(VK_MENU) ? Drag::Plane : Drag::Ground;
+    drag.m_type = Platform::ModifierHeld(Platform::Modifier::Alt) ? Drag::Plane : Drag::Ground;
     drag.m_planeZ = position.z;
     drag.m_offset = {};
 
@@ -822,11 +805,11 @@ static bool GroundCursor(const C3Vector& start, const C3Vector& end, C3Vector& c
 }
 
 static Drag WantedFreeMode() {
-    if (KeyHeld(VK_SHIFT)) {
+    if (Platform::ModifierHeld(Platform::Modifier::Shift)) {
         return Drag::Vertical;
     }
 
-    return KeyHeld(VK_MENU) ? Drag::Plane : Drag::Ground;
+    return Platform::ModifierHeld(Platform::Modifier::Alt) ? Drag::Plane : Drag::Ground;
 }
 
 static void ApplyDragPreview() {
@@ -925,7 +908,7 @@ static void UpdateGizmoDrag() {
 
     float delta = NormalizeSignedAngleDelta(angle - drag.m_anchorAngle);
 
-    if (KeyHeld(VK_CONTROL)) {
+    if (Platform::ModifierHeld(Platform::Modifier::Control)) {
         float step = 15.0f * kPi / 180.0f;
         delta = roundf(delta / step) * step;
     }
@@ -1151,7 +1134,7 @@ class SelectionHandler : public Mode::Handler {
 
         uint64_t picked = PickObject(x, y);
 
-        if (KeyHeld(VK_CONTROL)) {
+        if (Platform::ModifierHeld(Platform::Modifier::Control)) {
             if (!picked) {
                 SetGizmo(Gizmo::Off);
             } else if (picked == s_state.m_guid) {
@@ -1200,7 +1183,7 @@ class SelectionHandler : public Mode::Handler {
 
     bool OnMouseWheel(int32_t delta, uint32_t metaKeys) override {
         DragState& drag = s_state.m_drag;
-        float step = KeyHeld(VK_CONTROL) ? 0.05f : 0.25f;
+        float step = Platform::ModifierHeld(Platform::Modifier::Control) ? 0.05f : 0.25f;
 
         if (drag.m_type == Drag::Ground) {
             drag.m_height += delta * step;
@@ -1213,8 +1196,8 @@ class SelectionHandler : public Mode::Handler {
             return true;
         }
 
-        if (drag.m_type == Drag::None && s_state.m_guid && KeyHeld(VK_CONTROL) && !Mode::ToolIs("waypoint")) {
-            float degrees = KeyHeld(VK_SHIFT) ? 1.0f : 5.0f;
+        if (drag.m_type == Drag::None && s_state.m_guid && Platform::ModifierHeld(Platform::Modifier::Control) && !Mode::ToolIs("waypoint")) {
+            float degrees = Platform::ModifierHeld(Platform::Modifier::Shift) ? 1.0f : 5.0f;
             Nudge({}, delta * degrees * kPi / 180.0f);
             return true;
         }
@@ -1468,7 +1451,7 @@ class SelectionHandler : public Mode::Handler {
             return true;
         }
 
-        if (!KeyHeld(VK_SHIFT) || !CreatureEditor::SnapshotGuid()) {
+        if (!Platform::ModifierHeld(Platform::Modifier::Shift) || !CreatureEditor::SnapshotGuid()) {
             return false;
         }
 

@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cctype>
 #include <cstdint>
@@ -10,10 +10,10 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <execinfo.h>
-#include <link.h>
 #include <pwd.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/Source/Linux/StormLinux.h"
 #include "Engine/Source/Storm/Source/MachineState.h"
@@ -53,11 +53,9 @@ static inline unsigned long long LogPtr(uintptr_t value) {
     return static_cast<unsigned long long>(value);
 }
 
-// IsBadReadPtr: process_vm_readv on our own pid fails with EFAULT instead of faulting.
+// IsBadReadPtr
 static bool sReadMemory(const void* address, void* out, size_t size) {
-    iovec local = { out, size };
-    iovec remote = { const_cast<void*>(address), size };
-    return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
+    return OsPosixReadMemory(address, out, size);
 }
 
 void GetMachineStateLocalTime(MACHINESTATETIME* time) {
@@ -284,20 +282,7 @@ void SMemGenerateReport(SMEMREPORTTYPE type, void (STORMAPI* callback)(void*, co
 }
 
 static uint32_t sCountThreads() {
-    uint32_t count = 0;
-    DIR* dir = opendir("/proc/self/task");
-
-    if (dir) {
-        while (dirent* entry = readdir(dir)) {
-            if (entry->d_name[0] != '.') {
-                ++count;
-            }
-        }
-
-        closedir(dir);
-    }
-
-    return count ? count : 1;
+    return OsPosixThreadCount();
 }
 
 // Other threads' registers are not reachable without ptrace, so the walks cover the current thread only (the
@@ -410,16 +395,8 @@ static void sLogBacktraceStackTrace(uint32_t logOptions, void (*logLineProc)(voi
 }
 
 static void sLogX86ContextRegisters(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, const ucontext_t* context) {
-    const greg_t* gregs = context->uc_mcontext.gregs;
-    uint64_t csgsfs = static_cast<uint64_t>(gregs[REG_CSGSFS]);
-
-    sLogHeader(logLineProc, logLineProcParam, "x64 Registers");
-    logLineProc(logLineProcParam, "RAX=%016llX  RBX=%016llX  RCX=%016llX  RDX=%016llX", LogPtr(gregs[REG_RAX]), LogPtr(gregs[REG_RBX]), LogPtr(gregs[REG_RCX]), LogPtr(gregs[REG_RDX]));
-    logLineProc(logLineProcParam, "RSI=%016llX  RDI=%016llX  RBP=%016llX  RSP=%016llX", LogPtr(gregs[REG_RSI]), LogPtr(gregs[REG_RDI]), LogPtr(gregs[REG_RBP]), LogPtr(gregs[REG_RSP]));
-    logLineProc(logLineProcParam, "R8 =%016llX  R9 =%016llX  R10=%016llX  R11=%016llX", LogPtr(gregs[REG_R8]), LogPtr(gregs[REG_R9]), LogPtr(gregs[REG_R10]), LogPtr(gregs[REG_R11]));
-    logLineProc(logLineProcParam, "R12=%016llX  R13=%016llX  R14=%016llX  R15=%016llX", LogPtr(gregs[REG_R12]), LogPtr(gregs[REG_R13]), LogPtr(gregs[REG_R14]), LogPtr(gregs[REG_R15]));
-    logLineProc(logLineProcParam, "RIP=%016llX  FLG=%08X", LogPtr(gregs[REG_RIP]), static_cast<uint32_t>(gregs[REG_EFL]));
-    logLineProc(logLineProcParam, "CS =%04X      GS =%04X      FS =%04X      ERR=%08X  TRP=%08X", static_cast<uint32_t>(csgsfs & 0xFFFF), static_cast<uint32_t>((csgsfs >> 16) & 0xFFFF), static_cast<uint32_t>((csgsfs >> 32) & 0xFFFF), static_cast<uint32_t>(gregs[REG_ERR]), static_cast<uint32_t>(gregs[REG_TRAPNO]));
+    sLogHeader(logLineProc, logLineProcParam, OsPosixContextRegistersTitle());
+    OsPosixLogContextRegisters(logLineProc, logLineProcParam, context);
     logLineProc(logLineProcParam, "");
 }
 
@@ -485,37 +462,19 @@ int32_t LogMiniDumpIsAvailable() {
     return 0;
 }
 
-static int sCollectModule(dl_phdr_info* info, size_t size, void* data) {
+static void sCollectModule(void* data, const char* path, uintptr_t low, uintptr_t high) {
     MODULEENUM* modules = static_cast<MODULEENUM*>(data);
 
     if (modules->count == modules->max) {
-        return 1;
-    }
-
-    uintptr_t low = UINTPTR_MAX;
-    uintptr_t high = 0;
-
-    for (uint32_t i = 0; i < info->dlpi_phnum; i++) {
-        const ElfW(Phdr)* phdr = &info->dlpi_phdr[i];
-
-        if (phdr->p_type == PT_LOAD) {
-            uintptr_t start = info->dlpi_addr + phdr->p_vaddr;
-            uintptr_t end = start + phdr->p_memsz;
-            low = start < low ? start : low;
-            high = end > high ? end : high;
-        }
-    }
-
-    if (high <= low) {
-        return 0;
+        return;
     }
 
     LOADEDMODULE* module = &modules->modules[modules->count];
     module->base = reinterpret_cast<void*>(low);
     module->size = static_cast<uint32_t>(high - low);
 
-    if (info->dlpi_name && *info->dlpi_name) {
-        SStrCopy(module->name, sGetPathLeaf(info->dlpi_name), sizeof(module->name));
+    if (*path) {
+        SStrCopy(module->name, sGetPathLeaf(path), sizeof(module->name));
     } else {
         char exePath[MAX_PATH * 4];
         StormLinux::GetExePath(exePath, sizeof(exePath));
@@ -523,11 +482,10 @@ static int sCollectModule(dl_phdr_info* info, size_t size, void* data) {
     }
 
     if (!module->name[0]) {
-        return 0;
+        return;
     }
 
     modules->count++;
-    return 0;
 }
 
 // The Windows line carries the PDB name/GUID/age from the CodeView record; ELF modules have none of those, so
@@ -546,7 +504,7 @@ static void sLogLoadedModules(void (*logLineProc)(void*, const char*, ...), void
     enumeration.modules = modules;
     enumeration.count = 0;
     enumeration.max = 256;
-    dl_iterate_phdr(sCollectModule, &enumeration);
+    OsPosixEnumerateModules(sCollectModule, &enumeration);
 
     qsort(modules, enumeration.count, sizeof(LOADEDMODULE), sModuleCompareProc);
 
@@ -555,7 +513,7 @@ static void sLogLoadedModules(void (*logLineProc)(void*, const char*, ...), void
     }
 
     if (!enumeration.count) {
-        logLineProc(logLineProcParam, "****  dl_iterate_phdr couldn't enumerate modules");
+        logLineProc(logLineProcParam, "****  couldn't enumerate modules");
     }
 }
 
@@ -574,9 +532,7 @@ void LogMachineState(uint32_t logOptions, void (*logLineProc)(void*, const char*
         uintptr_t registerEsp;
 
         if (context) {
-            registerEip = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_RIP]);
-            registerEbp = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_RBP]);
-            registerEsp = static_cast<uintptr_t>(context->uc_mcontext.gregs[REG_RSP]);
+            OsPosixContextFrame(context, &registerEip, &registerEbp, &registerEsp);
             stackFramesToSkip = 0;
         } else {
             // Windows captures its own context and skips one more frame; starting at the caller's frame skips

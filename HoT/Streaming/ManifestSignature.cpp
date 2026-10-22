@@ -1,23 +1,8 @@
 #include "HoT/Streaming/ManifestSignature.h"
-#if defined(_WIN32)
-#include <windows.h>
-#include <bcrypt.h>
-#else
-#include <openssl/bn.h>
-#include <openssl/core_names.h>
-#include <openssl/ec.h>
-#include <openssl/evp.h>
-#include <openssl/params.h>
-#endif
 #include <cstdint>
-#include <cstring>
 #include <vector>
-#include "HoT/Core/Log.h"
+#include "HoT/Platform/Crypto.h"
 #include "HoT/Streaming/Sha256.h"
-
-#if defined(_WIN32)
-#pragma comment(lib, "bcrypt.lib")
-#endif
 
 namespace HoT::Streaming {
 
@@ -103,88 +88,7 @@ bool VerifyManifestSignature(const std::string& manifestBytes, const std::string
         return false;
     }
 
-#if defined(_WIN32)
-    BCRYPT_ALG_HANDLE alg = nullptr;
-
-    if (BCryptOpenAlgorithmProvider(&alg, BCRYPT_ECDSA_P256_ALGORITHM, nullptr, 0) != 0) {
-        LOG_WARN << "ECDSA P-256 provider unavailable, cannot verify manifest signature";
-        return false;
-    }
-
-    // BCRYPT_ECCKEY_BLOB is the magic and key size, then X and Y back to back.
-    std::vector<unsigned char> blob(sizeof(BCRYPT_ECCKEY_BLOB) + sizeof(s_publicKey));
-    BCRYPT_ECCKEY_BLOB* header = reinterpret_cast<BCRYPT_ECCKEY_BLOB*>(blob.data());
-    header->dwMagic = BCRYPT_ECDSA_PUBLIC_P256_MAGIC;
-    header->cbKey = s_keyBytes;
-    memcpy(blob.data() + sizeof(BCRYPT_ECCKEY_BLOB), s_publicKey, sizeof(s_publicKey));
-
-    BCRYPT_KEY_HANDLE key = nullptr;
-    NTSTATUS st = BCryptImportKeyPair(alg, nullptr, BCRYPT_ECCPUBLIC_BLOB, &key, blob.data(), static_cast<ULONG>(blob.size()), 0);
-
-    if (st != 0) {
-        BCryptCloseAlgorithmProvider(alg, 0);
-        return false;
-    }
-
-    st = BCryptVerifySignature(key, nullptr, digest, sizeof(digest), signature.data(), static_cast<ULONG>(signature.size()), 0);
-
-    BCryptDestroyKey(key);
-    BCryptCloseAlgorithmProvider(alg, 0);
-    return st == 0;
-#else
-    // OpenSSL wants the key as an uncompressed SEC1 point (0x04, X, Y) and a DER signature, BCrypt uses raw r || s.
-    unsigned char point[1 + sizeof(s_publicKey)];
-    point[0] = 0x04;
-    memcpy(point + 1, s_publicKey, sizeof(s_publicKey));
-
-    char group[] = "prime256v1";
-    OSSL_PARAM params[] = {
-        OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, group, 0),
-        OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY, point, sizeof(point)),
-        OSSL_PARAM_construct_end(),
-    };
-
-    EVP_PKEY_CTX* importCtx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
-    EVP_PKEY* key = nullptr;
-
-    if (!importCtx || EVP_PKEY_fromdata_init(importCtx) != 1 || EVP_PKEY_fromdata(importCtx, &key, EVP_PKEY_PUBLIC_KEY, params) != 1) {
-        LOG_WARN << "ECDSA P-256 provider unavailable, cannot verify manifest signature";
-        EVP_PKEY_CTX_free(importCtx);
-        return false;
-    }
-
-    EVP_PKEY_CTX_free(importCtx);
-
-    ECDSA_SIG* sig = ECDSA_SIG_new();
-    BIGNUM* r = BN_bin2bn(signature.data(), static_cast<int>(s_keyBytes), nullptr);
-    BIGNUM* s = BN_bin2bn(signature.data() + s_keyBytes, static_cast<int>(s_keyBytes), nullptr);
-
-    if (!sig || !r || !s || ECDSA_SIG_set0(sig, r, s) != 1) {
-        BN_free(r);
-        BN_free(s);
-        ECDSA_SIG_free(sig);
-        EVP_PKEY_free(key);
-        return false;
-    }
-
-    unsigned char* der = nullptr;
-    int derLen = i2d_ECDSA_SIG(sig, &der);
-    ECDSA_SIG_free(sig);
-
-    if (derLen <= 0) {
-        EVP_PKEY_free(key);
-        return false;
-    }
-
-    // No digest is set on the context, so it verifies the SHA-256 computed above as is, like BCryptVerifySignature.
-    EVP_PKEY_CTX* verifyCtx = EVP_PKEY_CTX_new(key, nullptr);
-    bool ok = verifyCtx && EVP_PKEY_verify_init(verifyCtx) == 1 && EVP_PKEY_verify(verifyCtx, der, static_cast<size_t>(derLen), digest, sizeof(digest)) == 1;
-
-    EVP_PKEY_CTX_free(verifyCtx);
-    OPENSSL_free(der);
-    EVP_PKEY_free(key);
-    return ok;
-#endif
+    return Platform::VerifyEcdsaP256(s_publicKey, digest, signature.data());
 }
 
 }

@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include "fmod_settings.h"
 
@@ -21,6 +21,8 @@
 #include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 int gSizeofCriticalSection = sizeof(pthread_mutex_t);
 int gSizeofSemaphore       = sizeof(sem_t);
@@ -476,7 +478,7 @@ static void *FMOD_OS_Thread_Start(void *data)
 
     if (start.name[0])
     {
-        pthread_setname_np(pthread_self(), start.name);
+        OsPosixSetThreadName(start.name);
     }
 
 	switch (start.priority)
@@ -491,7 +493,7 @@ static void *FMOD_OS_Thread_Start(void *data)
 
     if (nicevalue)
     {
-        setpriority(PRIO_PROCESS, (id_t)syscall(SYS_gettid), nicevalue);
+        OsPosixSetThreadNice(pthread_self(), OsPosixThreadId(), nicevalue);
     }
 
     if (start.priority == FMOD_THREAD_PRIORITY_CRITICAL)
@@ -986,11 +988,8 @@ FMOD_RESULT FMOD_OS_CheckDriverList(bool *devicelistchanged)
 */
 extern "C" int FMOD_OS_SupportsSSE()
 {
-#if defined(__x86_64__) || defined(__i386__)
-    return __builtin_cpu_supports("sse") ? 1 : 0;
-#else
-    return 0;
-#endif
+    uint32_t regs[4];
+    return OsPosixCpuid(1, 0, regs) && (regs[3] & 0x2000000) ? 1 : 0;
 }
 
 #endif

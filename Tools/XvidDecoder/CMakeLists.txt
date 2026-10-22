@@ -1,4 +1,4 @@
-if (WOWDECOMP_PLATFORM_LINUX)
+if (WOWDECOMP_PLATFORM_POSIX)
     # Linked straight into the client against the system xvidcore (Debian: libxvidcore-dev); no DLL on Linux.
     find_path(XVIDCORE_INCLUDE_DIR xvid.h)
     find_library(XVIDCORE_LIBRARY NAMES xvidcore)

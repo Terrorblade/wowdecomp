@@ -1,10 +1,4 @@
 #include "HoT/Streaming/StreamLog.h"
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <ctime>
-#include <unistd.h>
-#endif
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -13,6 +7,8 @@
 #include <mutex>
 #include <string>
 #include "HoT/Core/Log.h"
+#include "HoT/Platform/Process.h"
+#include "HoT/Platform/Time.h"
 #include "HoT/Streaming/Paths.h"
 
 namespace HoT::Streaming {
@@ -24,21 +20,10 @@ static std::ofstream s_file;
 static bool s_opened = false;
 
 static std::string Stamp() {
-#if defined(_WIN32)
-    SYSTEMTIME st;
-    GetLocalTime(&st);
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%03u", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-    return buf;
-#else
-    timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    tm local;
-    localtime_r(&ts.tv_sec, &local);
+    Platform::LocalTime t = Platform::LocalNow();
     char buf[48];
-    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d.%03d", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec, static_cast<int32_t>(ts.tv_nsec / 1000000));
+    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d.%03d", t.m_year, t.m_month, t.m_day, t.m_hour, t.m_minute, t.m_second, t.m_millisecond);
     return buf;
-#endif
 }
 
 static void EnsureOpen() {
@@ -55,13 +40,7 @@ static void EnsureOpen() {
     s_file.open(path, mode);
 
     if (s_file) {
-        s_file << Stamp() << " === client start, pid "
-#if defined(_WIN32)
-               << GetCurrentProcessId()
-#else
-               << getpid()
-#endif
-               << "\n";
+        s_file << Stamp() << " === client start, pid " << Platform::CurrentProcessId() << "\n";
     }
 }
 

@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "Engine/Source/Gx/CGxDeviceOpenGL/GlExt.h"
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 #include <SDL.h>
 #endif
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
@@ -56,7 +56,7 @@ class CGxDeviceOpenGl : public CGxDevice {
     /* 3AE0 */ const GLubyte* m_glVendor;
     /* 3AE4 */ const GLubyte* m_glRenderer;
     /* 3AE8 */ const GLubyte* m_glVersion;
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
     SDL_Window* m_window;
     int32_t m_ownhwnd;
     SDL_GLContext m_glContext;
@@ -144,7 +144,7 @@ class CGxDeviceOpenGl : public CGxDevice {
     virtual void DeviceUnk82();
     virtual void DeviceUnk83(uint32_t a, uint32_t b);
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
     static intptr_t WindowProcGl(void* window, uint32_t message, uintptr_t wparam, intptr_t lparam);
 #else
     static LRESULT CALLBACK WindowProcGl(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
@@ -164,7 +164,7 @@ class CGxDeviceOpenGl : public CGxDevice {
     int32_t IDevAttachGlContext(const CGxFormat& format);
     void IDevRemoveGlContext();
     void IDevSetFocus(int32_t focus, const CGxFormat& format);
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
     void IDevDestroyWindow();
     void IDevRestoreDesktopMode();
 #endif

@@ -1,6 +1,7 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstring>
+#include <emmintrin.h>
 #include <sched.h>
 #include <unistd.h>
 #include "Engine/Source/Storm/Source/Linux/StormLinux.h"
@@ -8,7 +9,7 @@
 #include "Engine/Source/Storm/Source/SThread.h"
 #include "Engine/Source/Storm/H/storm.h"
 
-#define SLOCK_SPIN_NOPS() __builtin_ia32_pause();
+#define SLOCK_SPIN_NOPS() _mm_pause();
 
 static uint32_t s_spinCount = 1;
 

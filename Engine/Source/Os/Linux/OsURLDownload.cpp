@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
 #include <cstdint>
@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Os/OsURLDownload.h"
 #include "Engine/Source/Storm/H/storm.h"
 
@@ -108,7 +109,7 @@ static int ConnectHost(const char* host, const char* port, int32_t timeout, bool
     int sock = -1;
 
     for (addrinfo* ai = list; ai && sock < 0; ai = ai->ai_next) {
-        sock = socket(ai->ai_family, ai->ai_socktype | SOCK_CLOEXEC | SOCK_NONBLOCK, ai->ai_protocol);
+        sock = OsPosixSocket(ai->ai_family, ai->ai_socktype, ai->ai_protocol, true);
 
         if (sock < 0) {
             continue;

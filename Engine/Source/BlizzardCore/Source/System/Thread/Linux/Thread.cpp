@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
 #include <climits>
@@ -17,6 +17,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/ThreadLocalStorage.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Linux/ThreadLinux.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 bool System_Thread::s_initialized;
 
@@ -92,16 +93,7 @@ bool System_Thread::SetLinuxAffinity(LinuxThreadHandle* handle, uint64_t mask) {
         return false;
     }
 
-    cpu_set_t set;
-    CPU_ZERO(&set);
-
-    for (int32_t i = 0; i < 64; i++) {
-        if (mask & (uint64_t(1) << i)) {
-            CPU_SET(i, &set);
-        }
-    }
-
-    return pthread_setaffinity_np(handle->m_thread, sizeof(set), &set) == 0;
+    return OsPosixSetThreadAffinity(handle->m_thread, mask);
 }
 
 bool Blizzard::Thread::Sleep(uint32_t milliseconds) {
@@ -130,19 +122,19 @@ bool System_Thread::SetPriorityLevel(Blizzard::Thread::ThreadRecord* thread, int
     }
 
     LinuxThreadHandle* handle = GetLinuxHandle(thread->m_handle);
-    pid_t tid = handle ? handle->m_tid : gettid();
+    pthread_t self = handle ? handle->m_thread : pthread_self();
+    uint32_t tid = handle ? handle->m_tid : OsPosixThreadId();
 
-    return setpriority(PRIO_PROCESS, static_cast<id_t>(tid), s_niceLevels[level]) == 0;
+    return OsPosixSetThreadNice(self, tid, s_niceLevels[level]);
 }
 
 bool System_Thread::GetPriorityLevel(Blizzard::Thread::ThreadRecord* thread, int32_t* level) {
     LinuxThreadHandle* handle = GetLinuxHandle(thread->m_handle);
-    pid_t tid = handle ? handle->m_tid : gettid();
+    pthread_t self = handle ? handle->m_thread : pthread_self();
+    uint32_t tid = handle ? handle->m_tid : OsPosixThreadId();
+    int32_t nice;
 
-    errno = 0;
-    int32_t nice = getpriority(PRIO_PROCESS, static_cast<id_t>(tid));
-
-    if (nice == -1 && errno != 0) {
+    if (!OsPosixGetThreadNice(self, tid, &nice)) {
         return false;
     }
 
@@ -240,7 +232,7 @@ void System_Thread::InitMainThread() {
     InternalSetLocalStorage(&s_threadRecordTLS, s_mainThread);
     s_mainThread->m_state = 1;
     s_mainThread->m_refCount.m_value = 1;
-    s_mainThread->m_threadId = static_cast<uint32_t>(gettid());
+    s_mainThread->m_threadId = OsPosixThreadId();
 }
 
 void System_Thread::InitThreadSystem() {
@@ -293,14 +285,14 @@ uint32_t System_Thread::ExternalTLSWatcher(void* param) {
 uint32_t __stdcall System_Thread::ThreadStarter(void* param) {
     Blizzard::Thread::ThreadRecord* thread = static_cast<Blizzard::Thread::ThreadRecord*>(param);
     LinuxThreadHandle* handle = GetLinuxHandle(thread->m_handle);
-    __atomic_store_n(&handle->m_tid, gettid(), __ATOMIC_RELEASE);
+    __atomic_store_n(&handle->m_tid, OsPosixThreadId(), __ATOMIC_RELEASE);
 
     InternalSetLocalStorage(&s_threadRecordTLS, thread);
     InitStackTraceEntryPoint();
 
     char name[16];
     Blizzard::String::Copy(name, thread->m_name, sizeof(name));
-    pthread_setname_np(pthread_self(), name);
+    OsPosixSetThreadName(name);
 
     while (!thread->m_state) {
         Blizzard::Thread::Sleep(1);
@@ -370,7 +362,7 @@ bool Blizzard::Thread::Create(uint32_t (*function)(void*), void* param, ThreadRe
 }
 
 void System_Thread::RegisterExternalTLSDestructor(void* value, Blizzard::Thread::TLSDestructor destructor) {
-    uint32_t threadId = static_cast<uint32_t>(gettid());
+    uint32_t threadId = OsPosixThreadId();
     Blizzard::Lock::ScopedMutex lock(s_mutex);
 
     if (s_externalTLSCount >= 32) {

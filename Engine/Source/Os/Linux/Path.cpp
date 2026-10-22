@@ -1,42 +1,25 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstdint>
 #include <cstring>
-#include <dlfcn.h>
-#include <link.h>
 #include <unistd.h>
+#include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Os/Path.h"
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Storm/H/storm.h"
 
 static CommandLineUTF8 s_commandLineUTF8;
 
-// A null module is the executable (/proc/self/exe); any other module is a dlopen handle, whose path the dynamic
-// linker records. Paths are already UTF-8. Returns the length written, without the terminator.
+// A null module is the executable, any other module is a dlopen handle. Paths are already UTF-8. Returns the
+// length written, without the terminator.
 uint32_t GetModuleFileNameUTF8(void* module, char* path, uint32_t size) {
     if (!size) {
         return 0;
     }
 
-    char buffer[4096];
-    const char* name = nullptr;
+    char name[4096];
 
-    if (!module) {
-        ssize_t length = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
-
-        if (length > 0) {
-            buffer[length] = '\0';
-            name = buffer;
-        }
-    } else {
-        struct link_map* map = nullptr;
-
-        if (!dlinfo(module, RTLD_DI_LINKMAP, &map) && map && map->l_name) {
-            name = map->l_name;
-        }
-    }
-
-    if (!name) {
+    if (!OsPosixModulePath(module, name, sizeof(name))) {
         path[0] = '\0';
         return 0;
     }

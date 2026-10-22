@@ -1,7 +1,7 @@
 #ifndef _FMOD_OUTPUT_SDL_H
 #define _FMOD_OUTPUT_SDL_H
 
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include "fmod_settings.h"
 

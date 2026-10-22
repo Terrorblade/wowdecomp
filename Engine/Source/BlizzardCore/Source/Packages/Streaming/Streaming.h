@@ -196,7 +196,7 @@ namespace Blizzard {
 namespace Storage {
 
 extern Blizzard::Lock::Mutex s_storageLock;
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 extern Blizzard::Lock::Event s_storageEvent;
 #else
 extern void* s_storageEvent;

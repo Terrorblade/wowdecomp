@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Storm/H/storm.h"

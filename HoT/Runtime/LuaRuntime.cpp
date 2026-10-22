@@ -12,14 +12,10 @@
 #include "HoT/Core/Log.h"
 #include "HoT/Core/Modules.h"
 #include "HoT/Lua/Script.h"
+#include "HoT/Platform/Process.h"
+#include "HoT/Platform/Time.h"
 #include "HoT/Profiler/Profiler.h"
 #include "HoT/Runtime/LuaPool.h"
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <sys/time.h>
-#include "Engine/Source/Os/Path.h"
-#endif
 #include "Engine/Source/lua-5.1/src/lgc.h"
 #include "Engine/Source/lua-5.1/src/lobject.h"
 #include "Engine/Source/lua-5.1/src/lstate.h"
@@ -111,48 +107,18 @@ static lua_State* s_profileState = nullptr;
 static std::unordered_map<const void*, ProfileEntry> s_profile;
 static std::vector<ProfileFrame> s_profileStack;
 
-#if defined(_WIN32)
 static int64_t Now() {
-    LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter);
-    return counter.QuadPart;
+    return Platform::Ticks();
 }
 
 static double ToMs(int64_t ticks) {
-    static const double ticksPerMs = [] {
-        LARGE_INTEGER frequency;
-        QueryPerformanceFrequency(&frequency);
-        return frequency.QuadPart / 1000.0;
-    }();
-
-    return ticks / ticksPerMs;
+    return Platform::TicksToMs(ticks);
 }
 
 static void FormatClock(char* buffer, size_t size) {
-    SYSTEMTIME st;
-    GetLocalTime(&st);
-    snprintf(buffer, size, "%02u:%02u:%02u.%03u", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+    Platform::LocalTime t = Platform::LocalNow();
+    snprintf(buffer, size, "%02d:%02d:%02d.%03d", t.m_hour, t.m_minute, t.m_second, t.m_millisecond);
 }
-#else
-// Ticks are CLOCK_MONOTONIC nanoseconds.
-static int64_t Now() {
-    timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<int64_t>(ts.tv_sec) * 1000000000 + ts.tv_nsec;
-}
-
-static double ToMs(int64_t ticks) {
-    return ticks / 1000000.0;
-}
-
-static void FormatClock(char* buffer, size_t size) {
-    timeval tv;
-    gettimeofday(&tv, nullptr);
-    tm local;
-    localtime_r(&tv.tv_sec, &local);
-    snprintf(buffer, size, "%02d:%02d:%02d.%03d", local.tm_hour, local.tm_min, local.tm_sec, static_cast<int>(tv.tv_usec / 1000));
-}
-#endif
 
 static uint32_t NextSlot(uint32_t& index) {
     return index < STRATA_COUNT ? index++ : STRATA_COUNT - 1;
@@ -666,18 +632,11 @@ static void OnProfileChanged(const char* value) {
 }
 
 static void SetPerfLogPath() {
-    char module[MAX_PATH];
-#if defined(_WIN32)
-    GetModuleFileNameA(nullptr, module, MAX_PATH);
-#else
-    module[0] = '\0';
-    GetModuleFileNameUTF8(nullptr, module, MAX_PATH);
-#endif
     time_t now = time(nullptr);
     tm local = *localtime(&now);
     char name[64];
     strftime(name, sizeof(name), "uiperf_%Y-%m-%d_%H-%M-%S.log", &local);
-    s_perfLogPath = (std::filesystem::path(module).parent_path() / "Logs" / name).string();
+    s_perfLogPath = (Platform::GameDirectory() / "Logs" / name).string();
 }
 
 class LuaRuntimeModule : public Module {

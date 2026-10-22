@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cerrno>
 #include <cstdint>
@@ -6,6 +6,7 @@
 #include <new>
 #include <pthread.h>
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 // Auto-reset event with the semantics of CreateEvent(nullptr, FALSE, FALSE, nullptr): a successful wait consumes the
 // signal, and setting an already signalled event has no further effect.
@@ -25,11 +26,7 @@ Blizzard::Lock::EventRecord* NewEvent() {
     }
 
     pthread_mutex_init(&record->m_mutex, nullptr);
-    pthread_condattr_t attr;
-    pthread_condattr_init(&attr);
-    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_cond_init(&record->m_cond, &attr);
-    pthread_condattr_destroy(&attr);
+    OsPosixCondInit(&record->m_cond);
     record->m_signalled = false;
 
     return record;
@@ -101,7 +98,7 @@ Blizzard::Lock::Event* Blizzard::Lock::EventWait(uint32_t timeout, Event& event)
     pthread_mutex_lock(&event->m_mutex);
 
     while (!event->m_signalled) {
-        if (pthread_cond_timedwait(&event->m_cond, &event->m_mutex, &deadline) == ETIMEDOUT) {
+        if (OsPosixCondTimedWait(&event->m_cond, &event->m_mutex, &deadline) == ETIMEDOUT) {
             break;
         }
     }

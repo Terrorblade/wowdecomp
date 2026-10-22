@@ -12,9 +12,7 @@ namespace HoT::Editor::Model::Files {
 std::wstring Widen(const std::string& text);
 std::string Narrow(const std::wstring& text);
 
-// The folder of the exe, without a trailing backslash.
-std::wstring GameDirectory();
-
+// Where the loose file for a game path lives on disk.
 std::wstring DiskPath(const std::string& gamePath);
 
 // Backslashes, no drive, no leading slash, no . or .. parts, false with error otherwise.

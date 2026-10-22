@@ -1,12 +1,4 @@
 #include "HoT/Streaming/MpqScanner.h"
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <sys/resource.h>
-#include <sys/syscall.h>
-#include <unistd.h>
-#include "Engine/Source/Os/Linux/OsPath.h"
-#endif
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -17,6 +9,8 @@
 #include "HoT/Core/Chat.h"
 #include "HoT/Game/Session.h"
 #include "HoT/Lua/Script.h"
+#include "HoT/Platform/Files.h"
+#include "HoT/Platform/Process.h"
 #include "HoT/Streaming/BackgroundDownloader.h"
 #include "HoT/Streaming/LocalDigests.h"
 #include "HoT/Streaming/Paths.h"
@@ -45,20 +39,8 @@ static std::string ToLower(const std::string& s) {
     return out;
 }
 
-#if defined(_WIN32)
-static fs::path HostFolder(const fs::path& folder) {
-    return folder;
-}
-#else
-// The player's copy of Data keeps whatever case it has, match the folder names like the rest of the client does.
-static fs::path HostFolder(const fs::path& folder) {
-    char resolved[4096];
-    return OsLinuxResolvePath(folder.string().c_str(), resolved, sizeof(resolved), true) ? fs::path(resolved) : folder;
-}
-#endif
-
 static fs::path GetDataFolder() {
-    return HostFolder(Paths::ExeDir() / "Data");
+    return Platform::ResolveHostPath(Paths::GameDir() / "Data");
 }
 
 // An archive with a (hotmanifest) is identified by its contents, anything else by the sampled digest.
@@ -117,8 +99,8 @@ static void Rescan() {
     };
 
     scanFolder(dataFolder);
-    scanFolder(HostFolder(dataFolder / "enUS"));
-    scanFolder(HostFolder(dataFolder / "enGB"));
+    scanFolder(Platform::ResolveHostPath(dataFolder / "enUS"));
+    scanFolder(Platform::ResolveHostPath(dataFolder / "enGB"));
     LocalDigests::Save();
 }
 
@@ -154,12 +136,7 @@ void ScanAsync(Callback onDone) {
     s_asyncReady = false;
 
     std::thread([] {
-#if defined(_WIN32)
-        SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
-#else
-        // Linux nice values are per thread when given the thread id.
-        setpriority(PRIO_PROCESS, static_cast<id_t>(syscall(SYS_gettid)), 19);
-#endif
+        Platform::SetBackgroundThreadPriority();
         std::vector<MpqInfo> scanned;
 
         try {

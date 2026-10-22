@@ -690,13 +690,16 @@
 
 #elif defined(PLATFORM_MAC)
 
-    #define FMOD_SUPPORT_COREAUDIO
-    #define FMOD_SUPPORT_VSTPLUGIN   
+    /* Native port: the linux/src OS layer and SDL2 output are shared with Linux, as on PLATFORM_LINUX64. */
+    #define FMOD_SUPPORT_SDL
     #define FMOD_SUPPORT_PRAGMAPACK
     #define FMOD_SUPPORT_NEURAL
 
     #undef FMOD_SUPPORT_ASF
-	#undef FMOD_SUPPORT_VAG
+    #undef FMOD_SUPPORT_CDDA
+    #undef FMOD_SUPPORT_VAG
+
+    #undef FMOD_SUPPORT_MYEARS
       
 #elif defined(PLATFORM_GC)
 

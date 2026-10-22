@@ -5,7 +5,7 @@
 
 namespace HoT::Streaming::Paths {
 
-std::filesystem::path ExeDir();
+std::filesystem::path GameDir();
 std::filesystem::path LogsDir();
 std::filesystem::path WorkDir();
 std::filesystem::path DownloadsDir();

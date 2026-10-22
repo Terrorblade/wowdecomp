@@ -91,6 +91,28 @@ The client is written to `bin/Linux/Wow64`. Copy the `Data` folder of your 3.3.5
 matched case-insensitively, so the folder can be copied as-is. Registry settings are kept in
 `~/.config/wowdecomp/registry.ini`.
 
+### Cross compiling (Linux and macOS from any host)
+
+`Tools/Cross/cross.py` builds the Linux and macOS clients with clang, lld and Ninja from Windows (or any other host).
+It needs Python 3, Git, CMake, LLVM (clang, lld, llvm-ar) and 7-Zip on the PATH. Ninja is taken from the PATH or
+from a Visual Studio install.
+
+```sh
+python Tools/Cross/cross.py sysroot linux    # Debian bookworm headers and libraries into .cross/linux-x86_64
+python Tools/Cross/cross.py sysroot macos    # SDK submodule (sparse), SDL2.framework and xvidcore into .cross/macos
+
+python Tools/Cross/cross.py build linux
+python Tools/Cross/cross.py build macos-arm64
+python Tools/Cross/cross.py build macos-x86_64
+
+python Tools/Cross/cross.py package macos    # both Mac builds merged into a universal app, bin/Wow64-mac.tar.gz
+```
+
+The macOS SDK is the `ThirdParty/macos-sdk` submodule. It is marked `update = none` because the repo holds every SDK
+since 10.1, so `git submodule update --init` skips it and `sysroot macos` checks out only `MacOSX26.5.sdk`. On
+Windows that checkout needs symlink support (Developer Mode). Build trees go to `build/cross-<name>/`. The toolchain
+files are in `cmake/toolchains/`. Mac bundles go to `bin/Mac-arm64/` and `bin/Mac-x86_64/`.
+
 ### Options
 
 | CMake option | Default | Effect |

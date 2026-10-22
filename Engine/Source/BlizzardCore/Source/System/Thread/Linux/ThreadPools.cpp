@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <cstdint>
 #include <cstdlib>
@@ -8,6 +8,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/ThreadLocalStorage.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Linux/ThreadLinux.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 System_Thread::ThreadWorker::~ThreadWorker() {
     Blizzard::Lock::EventSet(this->m_wakeEvent.m_event);
@@ -81,19 +82,7 @@ bool System_Thread::ThreadWorker::Start(Blizzard::Thread::ThreadPoolRecord* pool
 
     if (this->m_thread) {
         // GetProcessAffinityMask's system mask: every online CPU, one bit each.
-        uint64_t systemMask = 0;
-        cpu_set_t set;
-        CPU_ZERO(&set);
-
-        if (sched_getaffinity(0, sizeof(set), &set) == 0) {
-            for (int32_t i = 0; i < 64; i++) {
-                if (CPU_ISSET(i, &set)) {
-                    systemMask |= uint64_t(1) << i;
-                }
-            }
-        }
-
-        this->m_affinity = static_cast<int32_t>(systemMask);
+        this->m_affinity = static_cast<int32_t>(OsPosixProcessAffinity());
     }
 
     this->m_pool = pool;

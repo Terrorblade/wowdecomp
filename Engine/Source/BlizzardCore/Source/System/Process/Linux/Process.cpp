@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_PLATFORM_LINUX)
+#if defined(WOWDECOMP_PLATFORM_POSIX)
 
 #include <algorithm>
 #include <cerrno>
@@ -19,6 +19,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/Process/Process.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/Path.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
+#include "Engine/Source/Os/Linux/OsPosix.h"
 
 extern char** environ;
 
@@ -50,8 +51,7 @@ bool Blizzard::Process::GetProcessPath(char* buffer, int32_t buffersize) {
     }
 
     char filename[4096];
-    ssize_t length = readlink("/proc/self/exe", filename, sizeof(filename) - 1);
-    filename[length > 0 ? length : 0] = '\0';
+    OsPosixExecutablePath(filename, sizeof(filename));
     System_File::FromNativeName(buffer, buffersize, filename);
 
     return true;

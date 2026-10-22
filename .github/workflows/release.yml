@@ -1,4 +1,4 @@
-name: Build HoTClient64
+name: Build HoTClient64 (Windows, Linux, macOS)
 on:
   push:
     branches: [main]
@@ -20,6 +20,8 @@ jobs:
       MANIFESTDIR: ${{ vars.MANIFESTDIR }}
       SOAPDIR: ${{ vars.SOAPDIR }}
       PERSIST_DIR: ${{ vars.PERSIST_DIR }}
+      # Outside the checkout so the checkout's clean does not throw the sysroots away.
+      WOWDECOMP_CROSS_DIR: ${{ vars.PERSIST_DIR }}\cross
     steps:
       - name: Link persistent source directory
         run: |
@@ -68,16 +70,49 @@ jobs:
           cmake --build "$env:PERSIST_DIR\build" --config Release --target WowClient --parallel
           if ($LASTEXITCODE -ne 0) { throw "cmake build failed with exit code $LASTEXITCODE" }
 
-      - name: Copy binaries
+      - name: Prepare cross sysroots
         run: |
-          foreach ($f in "HoTClient64.exe", "discord_game_sdk_64.dll", "XvidDecoder.dll") {
-            Copy-Item -Path "source\bin\Win\$f" -Destination "$env:CLIENTDIR\_DO_NOT_PACKAGE\Assets\Binaries\$f" -Force
+          if (-Not (Test-Path "$env:WOWDECOMP_CROSS_DIR\linux-x86_64\usr\include\stdio.h")) {
+            python source\Tools\Cross\cross.py sysroot linux
+            if ($LASTEXITCODE -ne 0) { throw "linux sysroot failed with exit code $LASTEXITCODE" }
+          }
+          $macos = @(
+            "$env:WOWDECOMP_CROSS_DIR\macos\Frameworks\SDL2.framework",
+            "$env:WOWDECOMP_CROSS_DIR\macos\deps-arm64\lib",
+            "$env:WOWDECOMP_CROSS_DIR\macos\deps-x86_64\lib"
+          )
+          $sdk = Get-ChildItem "source\ThirdParty\macos-sdk\*.sdk\usr\include\stdio.h" -ErrorAction SilentlyContinue
+          if (-Not $sdk -or ($macos | Where-Object { -Not (Test-Path $_) })) {
+            python source\Tools\Cross\cross.py sysroot macos
+            if ($LASTEXITCODE -ne 0) { throw "macos sysroot failed with exit code $LASTEXITCODE" }
           }
 
-      - name: Copy binaries to patch directory
+      - name: Build Linux
         run: |
-          foreach ($f in "HoTClient64.exe", "discord_game_sdk_64.dll", "XvidDecoder.dll") {
-            Copy-Item -Path "source\bin\Win\$f" -Destination "$env:PATCHDIR\$f" -Force
+          $fresh = @()
+          if ('${{ github.event.inputs.fresh }}' -eq 'true') { $fresh = @('--fresh') }
+          python source\Tools\Cross\cross.py build linux --config Release --build-dir "$env:PERSIST_DIR\build-linux" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
+          if ($LASTEXITCODE -ne 0) { throw "linux build failed with exit code $LASTEXITCODE" }
+
+      - name: Build macOS
+        run: |
+          $fresh = @()
+          if ('${{ github.event.inputs.fresh }}' -eq 'true') { $fresh = @('--fresh') }
+          foreach ($arch in "arm64", "x86_64") {
+            python source\Tools\Cross\cross.py build "macos-$arch" --config Release --build-dir "$env:PERSIST_DIR\build-macos-$arch" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
+            if ($LASTEXITCODE -ne 0) { throw "macos-$arch build failed with exit code $LASTEXITCODE" }
+          }
+          python source\Tools\Cross\cross.py package macos --no-build
+          if ($LASTEXITCODE -ne 0) { throw "macos package failed with exit code $LASTEXITCODE" }
+
+      - name: Copy binaries
+        run: |
+          foreach ($dest in "$env:CLIENTDIR\_DO_NOT_PACKAGE\Assets\Binaries", "$env:PATCHDIR") {
+            foreach ($f in "HoTClient64.exe", "discord_game_sdk_64.dll", "XvidDecoder.dll") {
+              Copy-Item -Path "source\bin\Win\$f" -Destination "$dest\$f" -Force
+            }
+            Copy-Item -Path "source\bin\Linux\Wow64" -Destination "$dest\HoTClient64" -Force
+            Copy-Item -Path "source\bin\Wow64-mac.tar.gz" -Destination "$dest\HoTClient64-mac.tar.gz" -Force
           }
 
       - name: Run manifest tool
@@ -90,23 +125,26 @@ jobs:
         continue-on-error: true
         run: |
           Push-Location "$env:SOAPDIR"
-          cmd.exe /c "SoapCommand.exe dev streamall"
+          cmd.exe /c "SoapCommand.exe streamall"
           Pop-Location
 
-      - name: Publish executable build
+      - name: Publish executable builds
         continue-on-error: true
         run: |
           $sha = (git -C source rev-parse HEAD).Trim().ToLower()
-          Write-Host "Publishing Wn64 build $sha"
           Push-Location "$env:SOAPDIR"
-          & ".\SoapCommand.exe" dev "publishexe Wn64 $sha"
-          if ($LASTEXITCODE -ne 0) { throw "SoapCommand.exe failed with exit code $LASTEXITCODE" }
+          # The Mac binary is universal, both of its slices carry this commit.
+          foreach ($platform in "Wn64", "Lx64", "Mc64", "MacA") {
+            Write-Host "Publishing $platform build $sha"
+            & ".\SoapCommand.exe" "publishexe $platform $sha"
+            if ($LASTEXITCODE -ne 0) { throw "SoapCommand.exe failed for $platform with exit code $LASTEXITCODE" }
+          }
           Pop-Location
 
       - name: Commit and push
         run: |
           Push-Location "$env:CLIENTDIR"
-          git add _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64.exe _DO_NOT_PACKAGE\Assets\Binaries\discord_game_sdk_64.dll _DO_NOT_PACKAGE\Assets\Binaries\XvidDecoder.dll
-          git commit -m "Update HoTClient64.exe"
+          git add _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64.exe _DO_NOT_PACKAGE\Assets\Binaries\discord_game_sdk_64.dll _DO_NOT_PACKAGE\Assets\Binaries\XvidDecoder.dll _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64 _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64-mac.tar.gz
+          git commit -m "Update HoTClient64 (Windows, Linux, macOS)"
           git push
           Pop-Location

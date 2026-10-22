@@ -10,7 +10,7 @@
 
 The Linux sysroot and the macOS dependencies live in .cross/, the macOS SDK is the ThirdParty/macos-sdk submodule,
 build trees go to build/cross-<name>/. package builds both Mac architectures and writes a universal Wow64.app to
-bin/Wow64-mac.tar.gz.
+bin/Wow64-mac.tar.gz. WOWDECOMP_CROSS_DIR moves .cross/ somewhere else, CI keeps it out of the checkout.
 """
 
 import argparse
@@ -30,7 +30,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CROSS = ROOT / ".cross"
+CROSS = Path(os.environ.get("WOWDECOMP_CROSS_DIR", ROOT / ".cross"))
 CACHE = CROSS / "cache"
 
 DEBIAN_MIRROR = "https://deb.debian.org/debian"
@@ -451,9 +451,9 @@ def find_ninja():
 
 
 TARGETS = {
-    "linux": ("linux-x86_64.cmake", []),
-    "macos-arm64": ("macos.cmake", ["-DWOWDECOMP_MACOS_ARCH=arm64"]),
-    "macos-x86_64": ("macos.cmake", ["-DWOWDECOMP_MACOS_ARCH=x86_64"]),
+    "linux": ("linux-x86_64.cmake", [f"-DWOWDECOMP_SYSROOT={(CROSS / 'linux-x86_64').as_posix()}"]),
+    "macos-arm64": ("macos.cmake", ["-DWOWDECOMP_MACOS_ARCH=arm64", f"-DWOWDECOMP_CROSS_ROOT={(CROSS / 'macos').as_posix()}"]),
+    "macos-x86_64": ("macos.cmake", ["-DWOWDECOMP_MACOS_ARCH=x86_64", f"-DWOWDECOMP_CROSS_ROOT={(CROSS / 'macos').as_posix()}"]),
 }
 
 

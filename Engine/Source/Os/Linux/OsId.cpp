@@ -4,18 +4,18 @@
 // HoT: the server picks the required client build by the platform sent at login.
 #if defined(__aarch64__)
 uint32_t OsGetProcessorId() {
-    return 'A64';
+    return 0x413634; // A64
 }
 
 uint32_t OsGetOsId() {
-    return 'LxA';
+    return 0x4C7841; // LxA
 }
 #else
 uint32_t OsGetProcessorId() {
-    return 'x64';
+    return 0x783634; // x64
 }
 
 uint32_t OsGetOsId() {
-    return 'Lx64';
+    return 0x4C783634; // Lx64
 }
 #endif

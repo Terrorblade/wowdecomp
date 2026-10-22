@@ -298,12 +298,12 @@ void OsGetVersionString(char* buffer, int32_t size) {
 // HoT: the server picks the required client build by the platform sent at login.
 // OFFSET: 0x0086B460
 uint32_t OsGetProcessorId() {
-    return 'x64';
+    return 0x783634; // x64
 }
 
 // OFFSET: 0x0086B470
 uint32_t OsGetOsId() {
-    return 'Wn64';
+    return 0x576E3634; // Wn64
 }
 
 // OFFSET: 0x0086B480

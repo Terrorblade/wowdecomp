@@ -93,6 +93,16 @@ jobs:
           cmd.exe /c "SoapCommand.exe dev streamall"
           Pop-Location
 
+      - name: Publish executable build
+        continue-on-error: true
+        run: |
+          $sha = (git -C source rev-parse HEAD).Trim().ToLower()
+          Write-Host "Publishing Wn64 build $sha"
+          Push-Location "$env:SOAPDIR"
+          & ".\SoapCommand.exe" dev "publishexe Wn64 $sha"
+          if ($LASTEXITCODE -ne 0) { throw "SoapCommand.exe failed with exit code $LASTEXITCODE" }
+          Pop-Location
+
       - name: Commit and push
         run: |
           Push-Location "$env:CLIENTDIR"

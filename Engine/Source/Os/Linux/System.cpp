@@ -266,16 +266,6 @@ void OsGetVersionString(char* buffer, int32_t size) {
     SStrPrintf(buffer, size, "%s %s %s", name, info.release, info.machine);
 }
 
-// The login protocol tags the client as "x86" / "Win"; the Linux build keeps them so servers treat it as the Windows
-// client it is ported from.
-uint32_t OsGetProcessorId() {
-    return 0x783836;
-}
-
-uint32_t OsGetOsId() {
-    return 0x57696E;
-}
-
 // GetComputerNameA: on success *size is the length without the terminator; on a short buffer it fails with the
 // required size (including the terminator) in *size.
 int32_t OsGetComputerName(char* buffer, uint32_t* size) {

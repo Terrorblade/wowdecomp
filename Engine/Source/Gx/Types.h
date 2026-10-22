@@ -17,7 +17,10 @@ enum EGxApi {
     GxApi_D3d10 = 3,
     GxApi_D3d11 = 4,
     GxApi_GLL = 5,
-    GxApis_Last = 6,
+    // macOS: the native Metal device. It runs the Direct3D 9 shaders and behaves as GxApi_D3d9 wherever the client
+    // tells the APIs apart.
+    GxApi_Metal = 6,
+    GxApis_Last = 7,
 };
 
 enum EGxBlend {

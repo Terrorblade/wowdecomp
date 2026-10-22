@@ -53,7 +53,7 @@ static int32_t Script_GetNumTalents(lua_State* L) {
         return 0;
     }
 
-    uint32_t tabIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t tabIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t inspect = StringToBOOL(L, 2, 0);
     int32_t pet = StringToBOOL(L, 3, 0);
     TalentTabInfo* tab = CGTalentInfo::GetTab(tabIndex, inspect, pet);
@@ -88,7 +88,7 @@ static int32_t Script_SetActiveTalentGroup(lua_State* L) {
         return 0;
     }
 
-    uint32_t group = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t group = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (group != CGTalentInfo::m_activeTalentGroup && group < CGTalentInfo::m_numTalentGroups && group < 2) {
         Spell_C_ClickSpell(s_activateTalentGroupSpells[group], nullptr, ClntObjMgrGetActivePlayer());
@@ -105,7 +105,7 @@ static int32_t Script_GetTalentTabInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t tabIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t tabIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t pet = StringToBOOL(L, 3, 0);
     int32_t inspect = StringToBOOL(L, 2, 0);
     TalentTabInfo* info = CGTalentInfo::GetTab(tabIndex, inspect, pet);
@@ -276,8 +276,8 @@ static int32_t Script_GetTalentInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t tabIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t talentIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t tabIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t talentIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     int32_t inspect = StringToBOOL(L, 3, 0);
     int32_t pet = StringToBOOL(L, 4, 0);
     TalentTabInfo* tab = CGTalentInfo::GetTab(tabIndex, inspect, pet);
@@ -402,8 +402,8 @@ static int32_t Script_GetTalentPrereqs(lua_State* L) {
     }
 
     int32_t count = 0;
-    uint32_t tabIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t talentIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t tabIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t talentIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     int32_t inspect = StringToBOOL(L, 3, 0);
     int32_t pet = StringToBOOL(L, 4, 0);
     uint32_t group = TalentInfoGetScriptGroupIndex(L, 5);
@@ -464,8 +464,8 @@ static int32_t Script_GetTalentLink(lua_State* L) {
         return 0;
     }
 
-    uint32_t tabIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t talentIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t tabIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t talentIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     int32_t inspect = StringToBOOL(L, 3, 0);
     int32_t pet = StringToBOOL(L, 4, 0);
     TalentTabInfo* tab = CGTalentInfo::GetTab(tabIndex, inspect, pet);
@@ -503,8 +503,8 @@ static int32_t Script_LearnTalent(lua_State* L) {
         return 0;
     }
 
-    uint32_t tabIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t talentIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t tabIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t talentIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     int32_t pet = StringToBOOL(L, 3, 0);
     CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
     TalentTabInfo* tab = CGTalentInfo::GetTab(tabIndex, 0, pet);

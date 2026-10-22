@@ -539,7 +539,7 @@ void CGxDevice::ICursorDraw() {
     float top = 1.0f - static_cast<float>(y - this->m_cursorHotspotY) * invHeight;
     float bottom = 1.0f - static_cast<float>(y - this->m_cursorHotspotY + 32) * invHeight;
 
-    if (this->m_api == GxApi_D3d9 || this->m_api == GxApi_D3d9Ex) {
+    if (this->m_api == GxApi_D3d9 || this->m_api == GxApi_D3d9Ex || this->m_api == GxApi_Metal) {
         left -= invWidth * 0.5f;
         right -= invWidth * 0.5f;
         top += invHeight * 0.5f;
@@ -958,8 +958,8 @@ void CGxDevice::DeviceGamma(CGxGammaRamp& ramp) {
 // VERIFY: 17f58e3d manual
 // OFFSET: 0x006841D0
 void CGxDevice::DeviceScreenShot() {
-    this->m_scrShotWidth = static_cast<uint32_t>(this->m_curWindowRect.maxX);
-    this->m_scrShotHeight = static_cast<uint32_t>(this->m_curWindowRect.maxY);
+    this->m_scrShotWidth = static_cast<uint32_t>(static_cast<int64_t>(this->m_curWindowRect.maxX));
+    this->m_scrShotHeight = static_cast<uint32_t>(static_cast<int64_t>(this->m_curWindowRect.maxY));
 
     CiRect rect;
     rect.minY = 0;

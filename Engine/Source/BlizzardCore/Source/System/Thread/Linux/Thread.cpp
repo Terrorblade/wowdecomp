@@ -333,9 +333,7 @@ bool Blizzard::Thread::Create(uint32_t (*function)(void*), void* param, ThreadRe
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-    if (stackSize > 0) {
-        pthread_attr_setstacksize(&attr, stackSize < PTHREAD_STACK_MIN ? PTHREAD_STACK_MIN : static_cast<size_t>(stackSize));
-    }
+    OsPosixSetThreadStackSize(&attr, stackSize > 0 ? static_cast<size_t>(stackSize) : 0);
 
     // CREATE_SUSPENDED (flags & 1) needs no counterpart: ThreadStarter spins until m_state is set, which is how a
     // suspended thread is released.

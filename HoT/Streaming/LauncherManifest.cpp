@@ -210,6 +210,8 @@ bool ParseManifest(const std::string& json, Manifest& out) {
             mf.m_size = std::strtoll(json.c_str() + v, nullptr, 10);
         } else if (key == "hd") {
             mf.m_hd = (json.compare(v, 4, "true") == 0);
+        } else if (key == "platform") {
+            ParseStr(json, v, mf.m_platform);
         } else {
             return false;
         }

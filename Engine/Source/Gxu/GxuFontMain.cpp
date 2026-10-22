@@ -936,8 +936,8 @@ void GxuFontWindowSizeChanged() {
     if (s_currentRect.minY != rect.minY || s_currentRect.minX != rect.minX || s_currentRect.maxY != rect.maxY || s_currentRect.maxX != rect.maxX) {
         s_currentRect = rect;
 
-        g_widthPixels = static_cast<uint32_t>(rect.maxX - rect.minX);
-        g_heightPixels = static_cast<uint32_t>(rect.maxY - rect.minY);
+        g_widthPixels = static_cast<uint32_t>(static_cast<int64_t>(rect.maxX - rect.minX));
+        g_heightPixels = static_cast<uint32_t>(static_cast<int64_t>(rect.maxY - rect.minY));
         g_indentPixelWidth = 15.0f;
         g_indentNormWidth = 15.0f / static_cast<float>(g_widthPixels);
 

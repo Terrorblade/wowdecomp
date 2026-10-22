@@ -256,7 +256,6 @@ class CGPlayer_C : public CGUnit_C, public CGPlayer {
 
     ~CGPlayer_C() override;
     void Disable() override;
-    void OnSpellEffectClear(CEffect* effect) override;
     void PlayUnitSound(UNITSOUNDTYPE soundType, int32_t force) override;
     void PlayFoleySound() override;
     const CGUnitVirtualItem* GetVirtualItem(uint32_t slot, bool ignoreDisarm) const override;

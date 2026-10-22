@@ -871,12 +871,12 @@ static int str_format (lua_State *L) {
         }
         case 'd':  case 'i': {
           addintlen(form);
-          sprintf(buff, form, (LUA_INTFRM_T)luaL_checknumber(L, arg));
+          sprintf(buff, form, (LUA_INTFRM_T)(long long)luaL_checknumber(L, arg));
           break;
         }
         case 'o':  case 'u':  case 'x':  case 'X': {
           addintlen(form);
-          sprintf(buff, form, (unsigned LUA_INTFRM_T)luaL_checknumber(L, arg));
+          sprintf(buff, form, (unsigned LUA_INTFRM_T)(long long)luaL_checknumber(L, arg));
           break;
         }
         case 'e':  case 'E': case 'f':

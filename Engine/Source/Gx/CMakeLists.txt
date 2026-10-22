@@ -1,4 +1,4 @@
-file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp" "*.mm")
 wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
 if (WOWDECOMP_PLATFORM_POSIX)
@@ -16,12 +16,20 @@ target_include_directories(Gx
         ${CMAKE_SOURCE_DIR}
 )
 
-if (WOWDECOMP_PLATFORM_POSIX)
+if (WOWDECOMP_PLATFORM_LINUX)
     find_package(OpenGL REQUIRED)
     target_link_libraries(Gx
         PUBLIC
             SDL2::SDL2
             OpenGL::GL
+    )
+elseif (WOWDECOMP_PLATFORM_MAC)
+    target_link_libraries(Gx
+        PUBLIC
+            "-framework AppKit"
+            "-framework CoreGraphics"
+            "-framework Metal"
+            "-framework QuartzCore"
     )
 else ()
     target_link_libraries(Gx

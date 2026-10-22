@@ -7,6 +7,7 @@
 #include <cstring>
 #include <SDL.h>
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Engine/Source/Gx/Gx.h"
 #include "HoT/Runtime/Display.h"
 
 static bool InitVideo() {
@@ -298,6 +299,23 @@ int32_t CGxDevice::AdapterMonitorModes(TSGrowableArray<CGxMonitorMode>& modes) {
     HoT::Display::CacheMonitorModes(modes);
 
     return modes.Count() != 0;
+}
+
+int32_t CGxDevice::DeviceRenderAspect(float& aspect) {
+    return 0;
+}
+
+// The OpenGL device stands in for every graphics API.
+EGxApi GxPosixDefaultApi() {
+    return GxApi_OpenGl;
+}
+
+int32_t GxPosixApiSupported(EGxApi api) {
+    return api == GxApi_OpenGl;
+}
+
+CGxDevice* GxPosixCreateDevice(EGxApi api) {
+    return CreateCGxDeviceOpenGl();
 }
 
 #endif

@@ -690,8 +690,8 @@
 
 #elif defined(PLATFORM_MAC)
 
-    /* Native port: the linux/src OS layer and SDL2 output are shared with Linux, as on PLATFORM_LINUX64. */
-    #define FMOD_SUPPORT_SDL
+    /* Native port: the linux/src OS layer is shared with Linux, output goes to CoreAudio (mac/src/fmod_output_coreaudio.cpp). */
+    #define FMOD_SUPPORT_COREAUDIO
     #define FMOD_SUPPORT_PRAGMAPACK
     #define FMOD_SUPPORT_NEURAL
 

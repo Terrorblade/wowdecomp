@@ -132,7 +132,7 @@ static int32_t Script_BNGetNumFriendToons(lua_State* L) {
         return 1;
     }
 
-    uint32_t presenceId = BattlenetUI::m_friends[static_cast<uint32_t>(index - 1)].m_presenceID;
+    uint32_t presenceId = BattlenetUI::m_friends[static_cast<uint32_t>(static_cast<int64_t>(index - 1))].m_presenceID;
     uint32_t numToons = BattlenetAPI::GetNumToons(presenceId);
     uint32_t online = 0;
 
@@ -160,7 +160,7 @@ static int32_t Script_BNRemoveFriend(lua_State* L) {
         }
 
         if (BattlenetUI::m_friendListLoaded) {
-            BattlenetAPI::RemoveFriend(static_cast<uint32_t>(lua_tonumber(L, 1)));
+            BattlenetAPI::RemoveFriend(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))));
         }
     }
 
@@ -189,7 +189,7 @@ static int32_t Script_BNSetFriendNote(lua_State* L) {
                 luaL_error(L, "Friend note text too long, maximum length %d chars", 255);
             }
 
-            BattlenetAPI::SetFriendNote(static_cast<uint32_t>(presenceId), note);
+            BattlenetAPI::SetFriendNote(static_cast<uint32_t>(static_cast<int64_t>(presenceId)), note);
         }
     }
 
@@ -232,14 +232,14 @@ static int32_t Script_BNGetFriendInviteInfo(lua_State* L) {
     }
 
     double number = lua_tonumber(L, 1);
-    uint32_t index = static_cast<uint32_t>(number - 1);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(number - 1));
     BSN::Array<Battlenet::Friends::FriendInvite, 100>& invites = BattlenetUI::m_friendInvites->m_data.m_invites;
 
     if (index >= invites.m_count) {
         return 0;
     }
 
-    uint32_t presenceId = invites[static_cast<uint32_t>(number - 1)].m_presenceId;
+    uint32_t presenceId = invites[static_cast<uint32_t>(static_cast<int64_t>(number - 1))].m_presenceId;
 
     if (!presenceId) {
         luaL_error(L, "No Friend at index");
@@ -339,7 +339,7 @@ static int32_t Script_BNSendFriendInviteByID(lua_State* L) {
             note[0] = '\0';
         }
 
-        BattlenetAPI::SendRIDFriendInviteByPresenceId(static_cast<uint32_t>(presenceId), note, &BattlenetUI::s_friendInviteSentCB);
+        BattlenetAPI::SendRIDFriendInviteByPresenceId(static_cast<uint32_t>(static_cast<int64_t>(presenceId)), note, &BattlenetUI::s_friendInviteSentCB);
     }
 
     return 0;
@@ -355,7 +355,7 @@ static int32_t Script_BNAcceptFriendInvite(lua_State* L) {
             luaL_error(L, "Usage: BNAcceptFriendInvite(ID)");
         }
 
-        BattlenetAPI::AcceptFriendInvite(static_cast<uint32_t>(lua_tonumber(L, 1)));
+        BattlenetAPI::AcceptFriendInvite(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))));
     }
 
     return 0;
@@ -371,7 +371,7 @@ static int32_t Script_BNDeclineFriendInvite(lua_State* L) {
             luaL_error(L, "Usage: BNDeclineFriendInvite(ID)");
         }
 
-        BattlenetAPI::DeclineFriendInvite(static_cast<uint32_t>(lua_tonumber(L, 1)));
+        BattlenetAPI::DeclineFriendInvite(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))));
     }
 
     return 0;
@@ -387,7 +387,7 @@ static int32_t Script_BNReportFriendInvite(lua_State* L) {
             luaL_error(L, "Usage: BNReportFriendInvite(ID)");
         }
 
-        BattlenetAPI::ReportFriendInvite(static_cast<uint32_t>(lua_tonumber(L, 1)));
+        BattlenetAPI::ReportFriendInvite(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))));
     }
 
     return 0;
@@ -559,7 +559,7 @@ static int32_t Script_BNCreateConversation(lua_State* L) {
         luaL_error(L, "Usage: BNCreateConversation(id,id)");
     }
 
-    Battlenet::Presence::FieldVal toon = BattlenetAPI::GetPresenceValue(static_cast<uint32_t>(lua_tonumber(L, 1)), BattlenetUI::s_presenceCallbacks[BN_PRESENCE_TOON_NAME].m_field);
+    Battlenet::Presence::FieldVal toon = BattlenetAPI::GetPresenceValue(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))), BattlenetUI::s_presenceCallbacks[BN_PRESENCE_TOON_NAME].m_field);
 
     if (toon.m_tag != 17) {
         return 0;
@@ -571,7 +571,7 @@ static int32_t Script_BNCreateConversation(lua_State* L) {
         luaL_error(L, "Usage: BNCreateConversation(id,id)");
     }
 
-    toon = BattlenetAPI::GetPresenceValue(static_cast<uint32_t>(lua_tonumber(L, 2)), BattlenetUI::s_presenceCallbacks[BN_PRESENCE_TOON_NAME].m_field);
+    toon = BattlenetAPI::GetPresenceValue(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))), BattlenetUI::s_presenceCallbacks[BN_PRESENCE_TOON_NAME].m_field);
 
     if (toon.m_tag != 17) {
         return 0;
@@ -603,7 +603,7 @@ static int32_t Script_BNInviteToConversation(lua_State* L) {
         luaL_error(L, "Usage: BNInviteToConversation(channel,id)");
     }
 
-    uint8_t channel = static_cast<uint8_t>(lua_tonumber(L, 1) - 1.0);
+    uint8_t channel = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
 
     if (channel >= 6) {
         luaL_error(L, "Invalid Channel");
@@ -613,7 +613,7 @@ static int32_t Script_BNInviteToConversation(lua_State* L) {
         luaL_error(L, "Usage: BNInviteToConversation(channel,id)");
     }
 
-    Battlenet::Presence::FieldVal value = BattlenetAPI::GetPresenceValue(static_cast<uint32_t>(lua_tonumber(L, 2)), BattlenetUI::s_presenceCallbacks[BN_PRESENCE_TOON_NAME].m_field);
+    Battlenet::Presence::FieldVal value = BattlenetAPI::GetPresenceValue(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))), BattlenetUI::s_presenceCallbacks[BN_PRESENCE_TOON_NAME].m_field);
 
     if (value.m_tag != 17) {
         return 0;
@@ -648,7 +648,7 @@ static int32_t Script_BNLeaveConversation(lua_State* L) {
         luaL_error(L, "Invalid Channel");
     }
 
-    BattlenetAPI::LeaveChatConversation(static_cast<uint8_t>(channel));
+    BattlenetAPI::LeaveChatConversation(static_cast<uint8_t>(static_cast<int64_t>(channel)));
     return 0;
 }
 
@@ -727,7 +727,7 @@ static int32_t Script_BNGetConversationInfo(lua_State* L) {
 
     double channel = lua_tonumber(L, 1) - 1.0;
 
-    if (BattlenetAPI::GetChatChannelType(static_cast<uint8_t>(channel)) == 2) {
+    if (BattlenetAPI::GetChatChannelType(static_cast<uint8_t>(static_cast<int64_t>(channel))) == 2) {
         lua_pushstring(L, "conversation");
     } else {
         lua_pushnil(L);
@@ -771,7 +771,7 @@ static int32_t Script_BNIsBlocked(lua_State* L) {
         luaL_error(L, "Usage: BNIsBlocked(ID)");
     }
 
-    uint32_t presenceId = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t presenceId = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     bool blocked = BattlenetAPI::IsRIDBlock(presenceId);
     lua_pushboolean(L, blocked);
     DebugLog("BNUI: Is Blocked for ID %u %s", presenceId, blocked ? "true" : "false");
@@ -789,7 +789,7 @@ static int32_t Script_BNSetBlocked(lua_State* L) {
             luaL_error(L, "Usage: BNSetBlocked(ID, true/false)");
         }
 
-        uint32_t presenceId = static_cast<uint32_t>(lua_tonumber(L, 1));
+        uint32_t presenceId = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
         if (lua_toboolean(L, 2)) {
             BattlenetAPI::AddRIDBlock(presenceId);
@@ -817,7 +817,7 @@ static int32_t Script_BNSetSelectedBlock(lua_State* L) {
         luaL_error(L, "Usage: BNSetSelectedBlock(index)");
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     Battlenet::Presence::BlockList blockList = BattlenetAPI::GetBlockList();
 
     if (index >= blockList.m_accounts.m_count) {
@@ -895,7 +895,7 @@ static int32_t Script_BNGetBlockedToonInfo(lua_State* L) {
     }
 
     Battlenet::Presence::BlockList blockList = BattlenetAPI::GetBlockList();
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1) - 1.0);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
 
     if (index >= blockList.m_toons.m_count) {
         luaL_error(L, "Invalid Index");
@@ -924,7 +924,7 @@ static int32_t Script_BNIsToonBlocked(lua_State* L) {
         luaL_error(L, "Usage: BNIsToonBlocked(ID)");
     }
 
-    uint32_t presenceId = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t presenceId = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     bool blocked = BattlenetAPI::IsCIDBlock(presenceId);
     lua_pushboolean(L, blocked);
     DebugLog("BNUI: Is Toon Blocked for ID %u %s", presenceId, blocked ? "true" : "false");
@@ -942,7 +942,7 @@ static int32_t Script_BNSetToonBlocked(lua_State* L) {
             luaL_error(L, "Usage: BNSetToonBlocked(ID, true/false)");
         }
 
-        uint32_t presenceId = static_cast<uint32_t>(lua_tonumber(L, 1));
+        uint32_t presenceId = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
         if (lua_toboolean(L, 2)) {
             BattlenetAPI::AddCIDBlock(presenceId);
@@ -970,7 +970,7 @@ static int32_t Script_BNSetSelectedToonBlock(lua_State* L) {
         luaL_error(L, "Usage: BNSetSelectedToonBlock(index)");
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     Battlenet::Presence::BlockList blockList = BattlenetAPI::GetBlockList();
 
     if (index >= blockList.m_toons.m_count) {
@@ -1049,7 +1049,7 @@ static int32_t Script_BNReportPlayer(lua_State* L) {
             reason = 3;
         }
 
-        if (!BattlenetAPI::ReportPlayer(static_cast<uint32_t>(lua_tonumber(L, 1)), reason, note)) {
+        if (!BattlenetAPI::ReportPlayer(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))), reason, note)) {
             CGChat::AddChatMessage(FrameScript_GetText("BNET_REPORT_SENT", -1, GENDER_NOT_APPLICABLE), 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
         }
     }
@@ -1127,7 +1127,7 @@ static int32_t Script_BNGetFOFInfo(lua_State* L) {
         luaL_error(L, "Usage: BNGetFOFInfo(ID, mutual, non, index)");
     }
 
-    uint32_t presenceId = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t presenceId = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     Battlenet::Friends::FriendsOfFriendList& list = BattlenetUI::s_friendsOfFriend->m_data;
 
     if (presenceId != list.m_presenceId) {
@@ -1136,7 +1136,7 @@ static int32_t Script_BNGetFOFInfo(lua_State* L) {
 
     int32_t mutual = lua_toboolean(L, 2);
     int32_t nonMutual = lua_toboolean(L, 3);
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 4)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 4))) - 1;
 
     if (!mutual && !nonMutual) {
         luaL_error(L, "Must select mutual and/or non.");
@@ -1219,7 +1219,7 @@ static int32_t Script_BNSetSelectedFriend(lua_State* L) {
         luaL_error(L, "Friend index %d too large, only %d friends.", index, BattlenetUI::m_friends.m_count);
     }
 
-    uint32_t presenceId = BattlenetUI::m_friends[static_cast<uint32_t>(index - 1)].m_presenceID;
+    uint32_t presenceId = BattlenetUI::m_friends[static_cast<uint32_t>(static_cast<int64_t>(index - 1))].m_presenceID;
 
     if (!presenceId) {
         SErrDisplayAppFatalMessage("", "", 0);
@@ -1308,7 +1308,7 @@ static int32_t Script_BNIsSelf(lua_State* L) {
         luaL_error(L, "Usage: BNIsSelf(presenceID)");
     }
 
-    lua_pushboolean(L, BattlenetAPI::IsSelf(static_cast<uint32_t>(lua_tonumber(L, 1))));
+    lua_pushboolean(L, BattlenetAPI::IsSelf(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)))));
     return 1;
 }
 
@@ -1325,7 +1325,7 @@ static int32_t Script_BNIsFriend(lua_State* L) {
         luaL_error(L, "Usage: BNIsFriend(presenceID)");
     }
 
-    lua_pushboolean(L, BattlenetAPI::HasRIDFriendship(static_cast<uint32_t>(lua_tonumber(L, 1))));
+    lua_pushboolean(L, BattlenetAPI::HasRIDFriendship(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)))));
     return 1;
 }
 
@@ -1365,7 +1365,7 @@ static int32_t Script_BNGetFriendInfo(lua_State* L) {
         luaL_error(L, "Friend index %d too large, only %d friends.", index, BattlenetUI::m_friends.m_count);
     }
 
-    return BattlenetUI::BNGetFriendInfoHelper(L, static_cast<uint32_t>(index - 1));
+    return BattlenetUI::BNGetFriendInfoHelper(L, static_cast<uint32_t>(static_cast<int64_t>(index - 1)));
 }
 
 // VERIFY: 9d2f21a7 auto
@@ -1383,7 +1383,7 @@ static int32_t Script_BNGetFriendInfoByID(lua_State* L) {
 
     int32_t index;
 
-    if (BattlenetUI::m_friendListLoaded && (index = BattlenetUI::FindFriendIndex(static_cast<uint32_t>(lua_tonumber(L, 1)))) >= 0) {
+    if (BattlenetUI::m_friendListLoaded && (index = BattlenetUI::FindFriendIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))))) >= 0) {
         return BattlenetUI::BNGetFriendInfoHelper(L, index);
     }
 
@@ -1407,9 +1407,9 @@ static int32_t Script_BNGetFriendToonInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t friendIndex = static_cast<uint32_t>(lua_tonumber(L, 1) - 1);
+    uint32_t friendIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1));
     double toonNumber = lua_tonumber(L, 2);
-    uint32_t toonIndex = static_cast<uint32_t>(toonNumber - 1);
+    uint32_t toonIndex = static_cast<uint32_t>(static_cast<int64_t>(toonNumber - 1));
 
     if (friendIndex >= BattlenetUI::m_friends.m_count) {
         luaL_error(L, "Friend index %d too large, only %d friends.", friendIndex + 1, BattlenetUI::m_friends.m_count);
@@ -1463,7 +1463,7 @@ static int32_t Script_BNGetToonInfo(lua_State* L) {
         luaL_error(L, "Usage: BNGetToonInfo(ID)");
     }
 
-    return BattlenetUI::BNGetToonInfoHelper(L, static_cast<uint32_t>(lua_tonumber(L, 1)));
+    return BattlenetUI::BNGetToonInfoHelper(L, static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))));
 }
 
 // VERIFY: 06b242a0 auto
@@ -1482,14 +1482,14 @@ static int32_t Script_BNSendWhisper(lua_State* L) {
             char message[1024];
             FilterChatLinks(text, message, 1021);
 
-            Battlenet::Presence::FieldVal toon = BattlenetAPI::GetPresenceValue(static_cast<uint32_t>(presenceId), BattlenetUI::s_presenceCallbacks[BN_PRESENCE_TOON_NAME].m_field);
+            Battlenet::Presence::FieldVal toon = BattlenetAPI::GetPresenceValue(static_cast<uint32_t>(static_cast<int64_t>(presenceId)), BattlenetUI::s_presenceCallbacks[BN_PRESENCE_TOON_NAME].m_field);
 
             if (toon.m_tag == 17) {
-                BattlenetAPI::SendChatWhisper(static_cast<uint32_t>(presenceId), message);
+                BattlenetAPI::SendChatWhisper(static_cast<uint32_t>(static_cast<int64_t>(presenceId)), message);
                 return 0;
             }
 
-            BattlenetUI::DisplayError(318, static_cast<uint32_t>(presenceId));
+            BattlenetUI::DisplayError(318, static_cast<uint32_t>(static_cast<int64_t>(presenceId)));
         }
     }
 
@@ -1513,9 +1513,9 @@ static int32_t Script_BNGetConversationMemberInfo(lua_State* L) {
         return 0;
     }
 
-    uint8_t channel = static_cast<uint8_t>(lua_tonumber(L, 1) - 1.0);
+    uint8_t channel = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
     double indexNumber = lua_tonumber(L, 2);
-    uint32_t index = static_cast<uint32_t>(indexNumber - 1);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(indexNumber - 1));
 
     if (channel >= 6) {
         luaL_error(L, "Invalid Channel");
@@ -1527,7 +1527,7 @@ static int32_t Script_BNGetConversationMemberInfo(lua_State* L) {
         luaL_error(L, "Invalid Index");
     }
 
-    lua_pushnumber(L, BattlenetAPI::GetAccountPresenceId(members.m_members[static_cast<uint32_t>(indexNumber - 1)]));
+    lua_pushnumber(L, BattlenetAPI::GetAccountPresenceId(members.m_members[static_cast<uint32_t>(static_cast<int64_t>(indexNumber - 1))]));
     lua_pushnumber(L, members.m_members[index]);
 
     const char* name = BattlenetUI::GetNameForPresenceIdHelper(members.m_members[index]);
@@ -1548,10 +1548,10 @@ static int32_t Script_BNListConversation(lua_State* L) {
         }
 
         double channelNumber = lua_tonumber(L, 1) - 1.0;
-        uint8_t channel = static_cast<uint8_t>(channelNumber);
+        uint8_t channel = static_cast<uint8_t>(static_cast<int64_t>(channelNumber));
 
         if (BattlenetAPI::GetChatChannelType(channel) == 2) {
-            Battlenet::Chat::MemberList members = BattlenetAPI::GetChatMemberList(static_cast<uint8_t>(channelNumber));
+            Battlenet::Chat::MemberList members = BattlenetAPI::GetChatMemberList(static_cast<uint8_t>(static_cast<int64_t>(channelNumber)));
 
             ChatConversation conversation;
             conversation.m_presenceID = BattlenetAPI::GetPresenceIDForCurrentAccount();
@@ -1603,7 +1603,7 @@ static int32_t Script_BNGetBlockedInfo(lua_State* L) {
     }
 
     Battlenet::Presence::BlockList blockList = BattlenetAPI::GetBlockList();
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1) - 1.0);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
 
     if (index >= blockList.m_accounts.m_count) {
         luaL_error(L, "Invalid Index");
@@ -1633,10 +1633,10 @@ static int32_t Script_BNRequestFOFInfo(lua_State* L) {
     }
 
     double presenceId = lua_tonumber(L, 1);
-    uint16_t error = BattlenetAPI::GetFriendsOfFriend(static_cast<uint32_t>(presenceId), BattlenetUI::s_friendsOfFriendCB);
+    uint16_t error = BattlenetAPI::GetFriendsOfFriend(static_cast<uint32_t>(static_cast<int64_t>(presenceId)), BattlenetUI::s_friendsOfFriendCB);
     lua_pushboolean(L, error == 0);
-    BattlenetUI::DisplayError(error, static_cast<uint32_t>(presenceId));
-    DebugLog("BNUI: Sending Request for FOF for ID %d %s", static_cast<uint32_t>(presenceId), error ? "failed" : "succeeded");
+    BattlenetUI::DisplayError(error, static_cast<uint32_t>(static_cast<int64_t>(presenceId)));
+    DebugLog("BNUI: Sending Request for FOF for ID %d %s", static_cast<uint32_t>(static_cast<int64_t>(presenceId)), error ? "failed" : "succeeded");
 
     return 1;
 }

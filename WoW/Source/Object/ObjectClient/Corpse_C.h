@@ -29,6 +29,10 @@ class CGCorpse_C : public CGObject_C, public CGCorpse {
     int32_t ShouldFadeout() override;
     float GetTrueScale() const override;
     int32_t CanHighlight() const override;
+    C3Vector GetPosition() const override;
+    C3Vector GetRawPosition() const override;
+    float GetRawFacing() const override;
+    uint64_t GetTransportGUID() const override;
     float GetFacing() const override;
     void ModelLoaded(CM2Model* model) override;
     void Disable() override;

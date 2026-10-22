@@ -22,4 +22,8 @@ bool IsForeignBinary(const std::string& path) {
     return ext == ".exe" || ext == ".dll";
 }
 
+const char* ManifestPlatform() {
+    return "linux";
+}
+
 }

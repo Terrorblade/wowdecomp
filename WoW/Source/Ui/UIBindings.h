@@ -36,7 +36,14 @@ struct KEYCOMMAND : public TSHashObject<KEYCOMMAND, HASHKEY_STRI> {
     /* 0020 */ int32_t m_runOnUp;
     /* 0024 */ int32_t m_pressure;
     /* 0028 */ int32_t m_angle;
+
+    KEYCOMMAND();
 };
+
+// INLINED
+// m_function is a FrameScript function reference, -1 when the command has no script.
+inline KEYCOMMAND::KEYCOMMAND() : m_index(0), m_function(-1), m_runOnUp(0), m_pressure(0), m_angle(0) {
+}
 
 struct OVERRIDEKEYBINDINGENTRY : public TSLinkedNode<OVERRIDEKEYBINDINGENTRY> {
     /* 0008 */ void* m_owner;

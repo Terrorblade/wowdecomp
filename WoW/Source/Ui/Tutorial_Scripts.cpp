@@ -14,7 +14,7 @@ static int32_t Script_FlagTutorial(lua_State* L) {
         return 0;
     }
 
-    uint32_t tutorial = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t tutorial = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (tutorial <= 59) {
         CGTutorial::FlagTutorial(tutorial);
@@ -31,7 +31,7 @@ static int32_t Script_TriggerTutorial(lua_State* L) {
         return 0;
     }
 
-    uint32_t tutorial = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t tutorial = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (tutorial <= 59) {
         CGTutorial::TriggerTutorial(tutorial);
@@ -48,7 +48,7 @@ static int32_t Script_IsTutorialFlagged(lua_State* L) {
         return 0;
     }
 
-    uint32_t tutorial = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t tutorial = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (tutorial > 59) {
         return 0;

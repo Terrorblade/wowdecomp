@@ -132,7 +132,7 @@ void CBarrier::AddBarrierConvexPoly(C3Vector* verts, uint32_t count, float radiu
         CGxVertexPCT0T1& vert = s_polyVerts[i];
         vert.m_pos = points[i];
         float alpha = fade < 0.0f ? 0.0f : (fade >= 1.0f ? 1.0f : fade);
-        vert.m_color.a = static_cast<uint8_t>((1.0f - alpha) * 255.0f);
+        vert.m_color.a = static_cast<uint8_t>(static_cast<int64_t>((1.0f - alpha) * 255.0f));
 
         C3Vector maskPos = points[i] * lookAt;
         vert.m_t0x = maskPos.x * scale + 0.5f;

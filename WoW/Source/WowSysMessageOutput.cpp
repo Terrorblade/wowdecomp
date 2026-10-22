@@ -90,9 +90,9 @@ void WowSysMessageOutput::Output(const char* text, STATUS_TYPE severity) {
 
     message.m_color.a = 0xFF;
     s_moved = true;
-    message.m_color.r = static_cast<uint8_t>(red * 255.0f);
-    message.m_color.g = static_cast<uint8_t>(green * 255.0f);
-    message.m_color.b = static_cast<uint8_t>(blue * 255.0f);
+    message.m_color.r = static_cast<uint8_t>(static_cast<int64_t>(red * 255.0f));
+    message.m_color.g = static_cast<uint8_t>(static_cast<int64_t>(green * 255.0f));
+    message.m_color.b = static_cast<uint8_t>(static_cast<int64_t>(blue * 255.0f));
 
     s_first = (s_first + 1) % (sizeof(s_messages) / sizeof(s_messages[0]));
 

@@ -162,7 +162,7 @@ static int32_t Script_SelectTradeSkill(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < CGTradeSkillInfo::m_numDisplayEntries) {
         CGTradeSkillInfo::m_selectedSkill = CGTradeSkillInfo::m_displayList.m_data[index]->m_spellId;
@@ -191,7 +191,7 @@ static int32_t Script_GetTradeSkillCooldown(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TradeSkillInfo* info;
     uint32_t duration;
     uint32_t start;
@@ -269,11 +269,11 @@ static int32_t Script_DoTradeSkill(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     uint32_t times = 1;
 
     if (lua_isnumber(L, 2)) {
-        times = static_cast<uint32_t>(lua_tonumber(L, 2));
+        times = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
     }
 
     if (index < CGTradeSkillInfo::m_numDisplayEntries) {
@@ -303,7 +303,7 @@ static int32_t Script_GetTradeSkillInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TradeSkillInfo* info;
 
     if (index < CGTradeSkillInfo::m_numDisplayEntries && (info = CGTradeSkillInfo::m_displayList.m_data[index])) {
@@ -385,7 +385,7 @@ static int32_t Script_GetTradeSkillIcon(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TradeSkillInfo* info;
 
     if (index < CGTradeSkillInfo::m_numDisplayEntries && (info = CGTradeSkillInfo::m_displayList.m_data[index])) {
@@ -426,7 +426,7 @@ static int32_t Script_GetTradeSkillNumMade(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TradeSkillInfo* info;
 
     if (index < CGTradeSkillInfo::m_numDisplayEntries && (info = CGTradeSkillInfo::m_displayList.m_data[index])) {
@@ -491,7 +491,7 @@ static int32_t Script_GetTradeSkillRecipeLink(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= CGTradeSkillInfo::m_numDisplayEntries) {
         return 0;
@@ -531,7 +531,7 @@ static int32_t Script_GetTradeSkillItemLink(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= CGTradeSkillInfo::m_numDisplayEntries) {
         return 0;
@@ -578,7 +578,7 @@ static int32_t Script_GetTradeSkillNumReagents(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t count = 0;
 
     if (index < CGTradeSkillInfo::m_numDisplayEntries) {
@@ -609,7 +609,7 @@ static int32_t Script_GetTradeSkillReagentItemLink(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t reagentIndex = static_cast<int32_t>(lua_tonumber(L, 2));
     TradeSkillInfo* info;
 
@@ -649,7 +649,7 @@ static int32_t Script_GetTradeSkillDescription(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < CGTradeSkillInfo::m_numDisplayEntries) {
         TradeSkillInfo* info = CGTradeSkillInfo::m_displayList.m_data[index];
@@ -987,7 +987,7 @@ static int32_t Script_GetTradeSkillReagentInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t reagentIndex = static_cast<int32_t>(lua_tonumber(L, 2));
     TradeSkillInfo* info;
 
@@ -1043,7 +1043,7 @@ static int32_t Script_GetTradeSkillTools(lua_State* L) {
     }
 
     int32_t count = 0;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TradeSkillInfo* info = index < CGTradeSkillInfo::m_numDisplayEntries ? CGTradeSkillInfo::m_displayList.m_data[index] : nullptr;
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 

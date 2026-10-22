@@ -30,7 +30,7 @@ static int32_t Script_GetBarberShopStyleInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index > 3) {
         return 0;
@@ -103,7 +103,7 @@ static int32_t Script_SetNextBarberShopStyle(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index <= 3 && (index != 3 || CGBarberShop::m_currentSkinColor)) {
         bool backward = StringToBOOL(L, 2, 0) != 0;

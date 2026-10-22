@@ -64,7 +64,7 @@ static int32_t Script_GetRunningMacro(lua_State* L) {
 // OFFSET: 0x00566DF0
 static MACRONODE* GetMacroFromLua(lua_State* L) {
     if (lua_isnumber(L, 1)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
         if (index < 72) {
             return CGUIMacros::GetMacroByID(CGUIMacros::m_sortedMacros[index]);
@@ -178,7 +178,7 @@ static int32_t Script_GetMacroIconInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     const char* icon;
 
     if (index < s_macroIcons.m_count && (icon = s_macroIcons.m_data[index]) && *icon) {
@@ -200,7 +200,7 @@ static int32_t Script_GetMacroItemIconInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     const char* icon;
 
     if (index < s_macroItemIcons.m_count && (icon = s_macroItemIcons.m_data[index]) && *icon) {
@@ -353,8 +353,8 @@ static int32_t Script_EditMacro(lua_State* L) {
                     CGUIMacros::LoadIcons();
                 }
 
-                if (static_cast<uint32_t>(index - 1.0) < s_macroIcons.m_count) {
-                    icon = GetMacroIcon(static_cast<uint32_t>(index - 1.0));
+                if (static_cast<uint32_t>(static_cast<int64_t>(index - 1.0)) < s_macroIcons.m_count) {
+                    icon = GetMacroIcon(static_cast<uint32_t>(static_cast<int64_t>(index - 1.0)));
                 }
             }
 
@@ -488,7 +488,7 @@ static int32_t Script_CreateMacro(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (index < GetNumMacroIcons()) {
         icon = GetMacroIcon(index);

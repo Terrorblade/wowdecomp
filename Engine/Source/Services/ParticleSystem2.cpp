@@ -2544,11 +2544,11 @@ void CParticleEmitter2::Update(float deltaTime, const C44Matrix& transform, cons
 // OFFSET: 0x0097EDF0
 void CParticleEmitter2::Sync() {
     float count = (this->m_params.m_lifeVariation + this->m_params.m_life) * (this->m_params.m_emissionRateVariation + this->m_params.m_emissionRate) * 1.15f;
-    this->SyncAllocation(static_cast<uint32_t>(count));
+    this->SyncAllocation(static_cast<uint32_t>(static_cast<int64_t>(count)));
 
     for (uint32_t i = 0; i < this->m_childEmitterCount; i++) {
         CParticleEmitter2* child = this->m_childEmitters[i];
-        uint32_t childCount = static_cast<uint32_t>(count * ((child->m_params.m_lifeVariation + child->m_params.m_life) * (child->m_params.m_emissionRateVariation + child->m_params.m_emissionRate) * 1.15f));
+        uint32_t childCount = static_cast<uint32_t>(static_cast<int64_t>(count * ((child->m_params.m_lifeVariation + child->m_params.m_life) * (child->m_params.m_emissionRateVariation + child->m_params.m_emissionRate) * 1.15f)));
 
         if (childCount > 0x1000) {
             childCount = 0x1000;

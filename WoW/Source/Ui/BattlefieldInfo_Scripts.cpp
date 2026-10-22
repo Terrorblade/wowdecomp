@@ -134,7 +134,7 @@ static int32_t Script_GetBattlefieldTeamInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t team = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t team = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     lua_pushstring(L, team >= 2 ? nullptr : CGBattlefieldInfo::m_teamNames[team]);
     lua_pushnumber(L, team >= 2 ? 0 : CGBattlefieldInfo::m_teamRatings[team]);
     lua_pushnumber(L, team >= 2 ? 0 : CGBattlefieldInfo::m_newTeamRatings[team]);
@@ -171,7 +171,7 @@ static int32_t Script_GetBattlefieldPortExpiration(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     BattlefieldStatus* status = index < 2 ? &CGBattlefieldInfo::m_status[index] : nullptr;
     double seconds = 0.0;
 
@@ -195,7 +195,7 @@ static int32_t Script_GetBattlefieldEstimatedWaitTime(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     BattlefieldStatus* status = index < 2 ? &CGBattlefieldInfo::m_status[index] : nullptr;
     lua_pushnumber(L, status ? status->m_estimatedWaitTime : 0.0);
     return 1;
@@ -209,7 +209,7 @@ static int32_t Script_GetBattlefieldTimeWaited(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     BattlefieldStatus* status = index < 2 ? &CGBattlefieldInfo::m_status[index] : nullptr;
 
     if (status && status->m_queueStartTime) {
@@ -241,7 +241,7 @@ static int32_t Script_GetBattlefieldStatus(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     BattlefieldStatus* status = index < 2 ? &CGBattlefieldInfo::m_status[index] : nullptr;
 
     if (!status) {
@@ -393,7 +393,7 @@ static int32_t Script_SetSelectedBattlefield(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= CGBattlefieldInfo::m_instances.Count()) {
         CGBattlefieldInfo::m_selectedInstance = 0;
@@ -416,7 +416,7 @@ static int32_t Script_GetBattlefieldInstanceInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= CGBattlefieldInfo::m_instances.Count()) {
         return 0;
@@ -489,12 +489,12 @@ static int32_t Script_GetBattlefieldStatData(lua_State* L) {
         return 0;
     }
 
-    uint32_t player = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t player = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     BattlefieldScore* score;
     uint32_t stat;
     double value;
 
-    if (player < CGBattlefieldInfo::m_numScoreEntries && (score = CGBattlefieldInfo::m_scores[player]) && (stat = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1) <= 8) {
+    if (player < CGBattlefieldInfo::m_numScoreEntries && (score = CGBattlefieldInfo::m_scores[player]) && (stat = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1) <= 8) {
         value = score->m_stats[stat];
     } else {
         value = 0.0;
@@ -512,7 +512,7 @@ static int32_t Script_GetBattlefieldStatInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t id = index < CGBattlefieldInfo::m_numWorldStateStats ? CGBattlefieldInfo::m_worldStateStats[index] : 0;
     WorldStateUIRec* rec = g_worldStateUIDB.GetRecord(id);
 
@@ -537,7 +537,7 @@ static int32_t Script_GetWorldPVPQueueStatus(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     WorldPvPQueueStatus* queue = index < 1 ? &CGBattlefieldInfo::m_worldPvPQueues[index] : nullptr;
 
     if (!queue) {
@@ -600,7 +600,7 @@ static int32_t Script_JoinBattlefield(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t asGroup = StringToBOOL(L, 2, 0);
     int32_t isRated = StringToBOOL(L, 3, 0);
     CGBattlefieldInfo::JoinBattlefield(index, asGroup, isRated);
@@ -731,7 +731,7 @@ int32_t Script_RequestBattlegroundInstanceInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     CGBattlefieldInfo::RequestBattlegroundInstanceInfo(index - 1);
 
     return 0;

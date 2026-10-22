@@ -1576,7 +1576,7 @@ static void Run() {
         }
 #endif
 
-        if (InstallFiles::IsForeignBinary(mf.m_path)) {
+        if (InstallFiles::IsForeignBinary(mf.m_path) || (!mf.m_platform.empty() && mf.m_platform != InstallFiles::ManifestPlatform())) {
             continue;
         }
 

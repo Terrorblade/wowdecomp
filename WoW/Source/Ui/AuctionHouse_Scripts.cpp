@@ -111,7 +111,7 @@ static int32_t Script_GetAuctionItemSubClasses(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 12 || !s_auctionClasses[index].m_hasSubClasses) {
         return 0;
@@ -140,7 +140,7 @@ static int32_t Script_GetAuctionInvTypes(lua_State* L) {
         return 0;
     }
 
-    uint32_t classIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t classIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t subClass = static_cast<int32_t>(lua_tonumber(L, 2)) - 1;
 
     if (classIndex >= 12 || !s_auctionClasses[classIndex].m_hasSubClasses) {
@@ -202,7 +202,7 @@ static int32_t Script_CanCancelAuction(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     AuctionItemInfo* auction;
 
     if (index >= CGAuctionHouse::m_ownerList.Count() || !(auction = &CGAuctionHouse::m_ownerList.m_data[index]) || auction->m_sold) {
@@ -232,7 +232,7 @@ static int32_t Script_CancelAuction(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= CGAuctionHouse::m_ownerList.Count()) {
         return 0;
@@ -247,7 +247,7 @@ static int32_t Script_CancelAuction(lua_State* L) {
     if (auction->m_bid) {
         CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-        if (!player || player->GetCoinage() < static_cast<uint32_t>(auction->m_bid * 0.05f)) {
+        if (!player || player->GetCoinage() < static_cast<uint32_t>(static_cast<int64_t>(auction->m_bid * 0.05f))) {
             CGGameUI::DisplayError(ERR_NOT_ENOUGH_MONEY);
             return 0;
         }
@@ -458,17 +458,17 @@ static int32_t Script_QueryAuctionItems(lua_State* L) {
     uint8_t maxLevel = 0;
 
     if (lua_isnumber(L, 2)) {
-        minLevel = static_cast<uint8_t>(lua_tonumber(L, 2));
+        minLevel = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
     }
 
     if (lua_isnumber(L, 3)) {
-        maxLevel = static_cast<uint8_t>(lua_tonumber(L, 3));
+        maxLevel = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 3)));
     }
 
     int32_t invType = -1;
 
     if (lua_isnumber(L, 4)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 4)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 4))) - 1;
 
         if (index < 14) {
             invType = s_auctionInvTypes[index].m_invType;
@@ -478,7 +478,7 @@ static int32_t Script_QueryAuctionItems(lua_State* L) {
     int32_t classID = -1;
 
     if (lua_isnumber(L, 5)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 5)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 5))) - 1;
 
         if (index < 12) {
             classID = s_auctionClasses[index].m_classID;
@@ -513,7 +513,7 @@ static int32_t Script_QueryAuctionItems(lua_State* L) {
     uint8_t usable = 0;
 
     if (lua_isnumber(L, 8)) {
-        usable = static_cast<uint8_t>(lua_tonumber(L, 8));
+        usable = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 8)));
     }
 
     int32_t quality = -1;
@@ -582,7 +582,7 @@ static int32_t Script_GetAuctionItemLink(lua_State* L) {
     }
 
     const char* type = lua_tolstring(L, 1, nullptr);
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     AuctionItemInfo* auction;
 
     if (!SStrCmpI(type, "owner", STORM_MAX_STR)) {
@@ -647,7 +647,7 @@ static int32_t Script_SetSelectedAuctionItem(lua_State* L) {
     }
 
     const char* type = lua_tolstring(L, 1, nullptr);
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (!SStrCmpI(type, "owner", STORM_MAX_STR)) {
         CGAuctionHouse::SetSelectedOwnedItem(index);
@@ -723,7 +723,7 @@ static int32_t Script_CalculateAuctionDeposit(lua_State* L) {
         return 1;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1) - 1.0);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
     uint32_t runTime = index >= 3 ? 1440 : AUCTION_RUN_TIMES[index];
     int32_t count;
 
@@ -806,7 +806,7 @@ static int32_t Script_GetAuctionItemInfo(lua_State* L) {
 
     const char* type = lua_tolstring(L, 1, nullptr);
     bool owned = false;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     AuctionItemInfo* auction = nullptr;
     void (*callback)(int32_t, const WOWGUID&, void*, bool) = nullptr;
 
@@ -913,9 +913,9 @@ static int32_t Script_PlaceAuctionBid(lua_State* L) {
     }
 
     const char* type = lua_tolstring(L, 1, nullptr);
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     AuctionItemInfo* auction = nullptr;
-    uint32_t bid = static_cast<uint32_t>(lua_tonumber(L, 3));
+    uint32_t bid = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3)));
 
     if (!SStrCmpI(type, "owner", STORM_MAX_STR)) {
         auction = GetOwnerAuction(index);
@@ -1109,25 +1109,25 @@ static int32_t Script_StartAuction(lua_State* L) {
         return 0;
     }
 
-    uint32_t minBid = static_cast<uint32_t>(lua_tonumber(L, 1));
-    uint32_t buyout = static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t minBid = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
+    uint32_t buyout = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
     if (buyout && buyout < minBid) {
         buyout = minBid;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3) - 1.0);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3) - 1.0));
     uint32_t runTime = index >= 3 ? 1440 : AUCTION_RUN_TIMES[index];
     uint32_t stackSize = 0;
 
     if (lua_isnumber(L, 4)) {
-        stackSize = static_cast<uint32_t>(lua_tonumber(L, 4));
+        stackSize = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 4)));
     }
 
     uint32_t numStacks = 1;
 
     if (lua_isnumber(L, 5)) {
-        numStacks = static_cast<uint32_t>(lua_tonumber(L, 5));
+        numStacks = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 5)));
     }
 
     if (static_cast<uint32_t>(item->m_item->m_itemFieldStackCount) >= stackSize && numStacks <= 1) {
@@ -1185,7 +1185,7 @@ static int32_t Script_GetAuctionItemTimeLeft(lua_State* L) {
     }
 
     const char* type = lua_tolstring(L, 1, nullptr);
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     AuctionItemInfo* auction;
 
     if (!SStrCmpI(type, "owner", STORM_MAX_STR)) {

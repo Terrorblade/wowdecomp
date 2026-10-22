@@ -310,7 +310,7 @@ void FFX::SetupVB_PCT(uint32_t count, const C3Vector* pos, const C2Vector* tex, 
     for (uint32_t i = 0; i < count; i++) {
         vertex->p = pos[i];
 
-        uint8_t value = static_cast<uint8_t>((shade[i] + 1.0f) * 127.5f);
+        uint8_t value = static_cast<uint8_t>(static_cast<int64_t>((shade[i] + 1.0f) * 127.5f));
         vertex->c.a = value;
         vertex->c.b = value;
         vertex->c.g = value;

@@ -600,4 +600,8 @@ int32_t CGxDevice::AdapterMonitorModes(TSGrowableArray<CGxMonitorMode>& modes) {
     return modes.Count() != 0;
 }
 
+int32_t CGxDevice::DeviceRenderAspect(float& aspect) {
+    return 0;
+}
+
 #endif

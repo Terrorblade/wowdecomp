@@ -1964,7 +1964,7 @@ void CSimpleFontString::LoadXML(XMLNode* node, CStatus* status) {
             alpha = 1.0f;
         }
 
-        this->SetVertexAlpha(static_cast<uint8_t>(alpha * 255.0f));
+        this->SetVertexAlpha(static_cast<uint8_t>(static_cast<int64_t>(alpha * 255.0f)));
     }
 
     for (XMLNode* child = node->m_child; child; child = child->m_next) {
@@ -2799,7 +2799,7 @@ void CSimpleTexture::LoadXML(XMLNode* node, CStatus* status) {
 
         CImVector vertexColor;
         this->GetVertexColor(vertexColor);
-        vertexColor.a = static_cast<uint8_t>(value * 255.0f);
+        vertexColor.a = static_cast<uint8_t>(static_cast<int64_t>(value * 255.0f));
         this->SetVertexColor(vertexColor);
     }
 

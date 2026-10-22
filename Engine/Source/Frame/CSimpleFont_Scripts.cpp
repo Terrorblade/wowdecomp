@@ -56,7 +56,7 @@ static int32_t CSimpleFont_SetAlpha(const char* name, CSimpleFont* font, lua_Sta
         return 0;
     }
 
-    uint8_t alpha = static_cast<uint8_t>(lua_tonumber(L, 2) * 255.0);
+    uint8_t alpha = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 2) * 255.0));
 
     if (alpha != font->m_attributes.m_color.a || !(font->m_attributes.m_flags & 0x400)) {
         font->m_attributes.m_flags |= 0x404;

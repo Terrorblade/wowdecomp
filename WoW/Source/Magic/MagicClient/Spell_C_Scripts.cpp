@@ -205,7 +205,7 @@ static int32_t Script_CancelItemTempEnchantment(lua_State* L) {
 
     uint32_t slot;
 
-    if (!lua_isnumber(L, 1) || (slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1, slot > 1)) {
+    if (!lua_isnumber(L, 1) || (slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1, slot > 1)) {
         luaL_error(L, "Usage: CancelItemTempEnchantment(slot)");
         return 0;
     }

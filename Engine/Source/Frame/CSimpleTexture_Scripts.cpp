@@ -192,7 +192,7 @@ static int32_t Script_SetAlpha(lua_State* L) {
 
     CImVector color;
     texture->GetVertexColor(color);
-    color.a = static_cast<uint8_t>(alpha * 255.0f);
+    color.a = static_cast<uint8_t>(static_cast<int64_t>(alpha * 255.0f));
     texture->SetVertexColor(color);
 
     return 0;

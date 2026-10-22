@@ -434,7 +434,7 @@ static int32_t Script_GetMapLandmarkInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     WorldMapLandmarkInfo* landmark = index < CGWorldMap::m_numLandmarks ? &CGWorldMap::m_landmarks.m_data[index] : nullptr;
 
     if (landmark) {
@@ -719,7 +719,7 @@ static int32_t Script_GetMapZones(lua_State* L) {
         return 0;
     }
 
-    uint32_t continent = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t continent = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     uint32_t count = continent < CGWorldMap::m_continents.m_count ? CGWorldMap::m_continents.m_data[continent].m_zones.m_count : 0;
     lua_checkstack(L, count);
 
@@ -795,7 +795,7 @@ static int32_t Script_SetMapZoom(lua_State* L) {
     uint32_t zone = -1;
 
     if (lua_isnumber(L, 2)) {
-        zone = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+        zone = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     }
 
     CGWorldMap::SetMap(continent, zone, -1);

@@ -2039,7 +2039,7 @@ int32_t CGGameUI::Idle(const void* data, void* param) {
     if (CGGameUI::m_billingExpireTime) {
         uint32_t now = OsGetAsyncTimeMs();
         uint32_t remaining = CGGameUI::m_billingExpireTime - now;
-        uint32_t minutes = static_cast<uint32_t>(ceil(remaining * (1.0f / 60000.0f)));
+        uint32_t minutes = static_cast<uint32_t>(static_cast<int64_t>(ceil(remaining * (1.0f / 60000.0f))));
         int32_t igr = (ClientServices::Connection()->m_billingFlags >> 3) & 1;
 
         if (!CGGameUI::m_billingNagCheckTime) {

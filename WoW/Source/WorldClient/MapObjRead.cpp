@@ -271,10 +271,10 @@ CMapObjGroup* CMapObj::AttenTransVerts(CMapObjGroup* group) {
             }
         }
 
-        color.r = static_cast<uint8_t>(atten * (127.0f - color.r) + color.r);
-        color.g = static_cast<uint8_t>(color.g + (127.0f - color.g) * atten);
-        color.b = static_cast<uint8_t>(color.b + (127.0f - color.b) * atten);
-        color.a = static_cast<uint8_t>(atten * 255.0f);
+        color.r = static_cast<uint8_t>(static_cast<int64_t>(atten * (127.0f - color.r) + color.r));
+        color.g = static_cast<uint8_t>(static_cast<int64_t>(color.g + (127.0f - color.g) * atten));
+        color.b = static_cast<uint8_t>(static_cast<int64_t>(color.b + (127.0f - color.b) * atten));
+        color.a = static_cast<uint8_t>(static_cast<int64_t>(atten * 255.0f));
     }
 
     return group;

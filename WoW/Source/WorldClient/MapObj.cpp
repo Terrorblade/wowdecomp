@@ -461,8 +461,8 @@ static void* PolyClipVtxLerpTexCoords(const void* a, const void* b, float t) {
     const uint16_t* from = static_cast<const uint16_t*>(a);
     const uint16_t* to = static_cast<const uint16_t*>(b);
     uint16_t* vert = reinterpret_cast<uint16_t*>(&s_smolVertCache[s_smolVertCacheSize++]);
-    vert[0] = static_cast<uint16_t>(from[0] + (to[0] - from[0]) * t);
-    vert[1] = static_cast<uint16_t>(t * (to[1] - from[1]) + from[1]);
+    vert[0] = static_cast<uint16_t>(static_cast<int64_t>(from[0] + (to[0] - from[0]) * t));
+    vert[1] = static_cast<uint16_t>(static_cast<int64_t>(t * (to[1] - from[1]) + from[1]));
 
     return vert;
 }
@@ -473,7 +473,7 @@ static void* PolyClipVtxLerpDepth(const void* a, const void* b, float t) {
     const uint8_t* from = static_cast<const uint8_t*>(a);
     const uint8_t* to = static_cast<const uint8_t*>(b);
     uint8_t* vert = reinterpret_cast<uint8_t*>(&s_smolVertCache[s_smolVertCacheSize++]);
-    vert[0] = static_cast<uint8_t>(from[0] + (to[0] - from[0]) * t);
+    vert[0] = static_cast<uint8_t>(static_cast<int64_t>(from[0] + (to[0] - from[0]) * t));
 
     return vert;
 }

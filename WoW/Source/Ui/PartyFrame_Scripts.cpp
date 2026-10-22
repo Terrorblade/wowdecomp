@@ -113,7 +113,7 @@ static int32_t Script_IsRealPartyLeader(lua_State* L) {
 static int32_t Script_GetPartyMember(lua_State* L) {
     uint32_t index;
 
-    if (!lua_isnumber(L, 1) || (index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1) >= 4) {
+    if (!lua_isnumber(L, 1) || (index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1) >= 4) {
         luaL_error(L, "Usage: GetPartyMember(1-4)");
         return 0;
     }
@@ -145,7 +145,7 @@ static int32_t Script_SetLootThreshold(lua_State* L) {
         return 0;
     }
 
-    uint32_t threshold = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t threshold = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
     if (threshold - 2 > 4) {
         luaL_error(L, "SetLootThreshold(): threshold must be between %d and %d", 2, 6);

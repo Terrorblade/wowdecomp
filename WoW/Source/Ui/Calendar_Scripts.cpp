@@ -300,7 +300,7 @@ static int32_t Script_CalendarGetNumDayEvents(lua_State* L) {
     }
 
     uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     lua_pushnumber(L, CGCalendar::GetNumDayEvents(offset, day));
     return 1;
 }
@@ -314,7 +314,7 @@ static int32_t Script_CalendarGetFirstPendingInvite(lua_State* L) {
     }
 
     uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     lua_pushinteger(L, CGCalendar::GetFirstPendingInviteIndex(offset, day) + 1);
     return 1;
 }
@@ -510,8 +510,8 @@ static int32_t Script_CalendarEventSetStatus(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t status = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t status = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     CGCalendar::SetInviteStatus(index, status);
     return 0;
 }
@@ -524,7 +524,7 @@ static int32_t Script_CalendarEventSetModerator(lua_State* L) {
         return 0;
     }
 
-    CGCalendar::SetModeratorStatus(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1, 1);
+    CGCalendar::SetModeratorStatus(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1, 1);
     return 0;
 }
 
@@ -536,7 +536,7 @@ static int32_t Script_CalendarEventClearModerator(lua_State* L) {
         return 0;
     }
 
-    CGCalendar::SetModeratorStatus(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1, 0);
+    CGCalendar::SetModeratorStatus(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1, 0);
     return 0;
 }
 
@@ -556,7 +556,7 @@ static int32_t Script_CalendarEventCanModerate(lua_State* L) {
     }
 
     double index = lua_tonumber(L, 1);
-    lua_pushboolean(L, CGCalendar::m_curEvent ? CGCalendar::m_curEvent->CanModerate(static_cast<uint32_t>(index - 1)) : false);
+    lua_pushboolean(L, CGCalendar::m_curEvent ? CGCalendar::m_curEvent->CanModerate(static_cast<uint32_t>(static_cast<int64_t>(index - 1))) : false);
     return 1;
 }
 
@@ -675,8 +675,8 @@ static int32_t Script_CalendarGetDayEventSequenceInfo(lua_State* L) {
     }
 
     uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     CalendarDayEvent* event = CGCalendar::GetDayEvent(offset, day, index);
 
     if (event) {
@@ -701,8 +701,8 @@ static int32_t Script_CalendarOpenEvent(lua_State* L) {
     }
 
     uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     CGCalendar::GetEvent(offset, day, index);
     return 0;
 }
@@ -716,8 +716,8 @@ static int32_t Script_CalendarGetRaidInfo(lua_State* L) {
     }
 
     uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     CalendarDayEvent* event = CGCalendar::GetDayEvent(offset, day, index);
 
     if (!event) {
@@ -759,7 +759,7 @@ static int32_t Script_CalendarEventGetInvite(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGCalendarEvent* event = CGCalendar::m_curEvent;
     EventInviteInfo* invite;
 
@@ -818,7 +818,7 @@ static int32_t Script_CalendarEventGetInviteResponseTime(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     EventInviteInfo* invite;
 
     if (CGCalendar::m_curEvent && index < CGCalendar::m_curEvent->m_numInvites && (invite = CGCalendar::m_curEvent->m_invites.m_data[index]) && invite->m_responseTime) {
@@ -858,8 +858,8 @@ static int32_t Script_CalendarContextSelectEvent(lua_State* L) {
     }
 
     uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     CGCalendar::SelectContextEvent(offset, day, index);
     return 0;
 }
@@ -871,8 +871,8 @@ static int32_t Script_CalendarContextInviteIsPending(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         CalendarDayEvent* event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (event && (event->m_flags & 0x1)) {
@@ -891,8 +891,8 @@ static int32_t Script_CalendarContextInviteIsPending(lua_State* L) {
 static int32_t Script_CalendarContextInviteModeratorStatus(lua_State* L) {
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         CalendarDayEvent* event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (event) {
@@ -921,8 +921,8 @@ static int32_t Script_CalendarContextInviteStatus(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -949,8 +949,8 @@ static int32_t Script_CalendarContextInviteType(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -982,8 +982,8 @@ static int32_t Script_CalendarContextInviteAvailable(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1020,8 +1020,8 @@ static int32_t Script_CalendarContextInviteDecline(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1058,8 +1058,8 @@ static int32_t Script_CalendarContextEventCanEdit(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1086,8 +1086,8 @@ static int32_t Script_CalendarContextEventGetCalendarType(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1114,7 +1114,7 @@ static int32_t Script_CalendarEventRemoveInvite(lua_State* L) {
         return 0;
     }
 
-    CGCalendar::RemoveInvite(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+    CGCalendar::RemoveInvite(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
     return 0;
 }
 
@@ -1141,7 +1141,7 @@ static int32_t Script_CalendarEventGetStatusOptions(lua_State* L) {
     int32_t count = 0;
 
     for (uint32_t i = 0; i < 9; i++) {
-        if (event->CanSetInviteStatus(static_cast<uint32_t>(index - 1), i)) {
+        if (event->CanSetInviteStatus(static_cast<uint32_t>(static_cast<int64_t>(index - 1)), i)) {
             lua_pushinteger(L, i + 1);
             lua_pushstring(L, FrameScript_GetText(GetEventStatusString(i), -1, GENDER_NOT_APPLICABLE));
             count += 2;
@@ -1222,7 +1222,7 @@ static int32_t Script_CalendarEventSetType(lua_State* L) {
         return 0;
     }
 
-    CGCalendar::m_curEvent->SetType(static_cast<uint32_t>(type - 1));
+    CGCalendar::m_curEvent->SetType(static_cast<uint32_t>(static_cast<int64_t>(type - 1)));
     return 0;
 }
 
@@ -1247,7 +1247,7 @@ static int32_t Script_CalendarEventSetRepeatOption(lua_State* L) {
         return 0;
     }
 
-    CGCalendar::m_curEvent->SetRepeatOption(static_cast<uint32_t>(repeatOption - 1));
+    CGCalendar::m_curEvent->SetRepeatOption(static_cast<uint32_t>(static_cast<int64_t>(repeatOption - 1)));
     return 0;
 }
 
@@ -1272,7 +1272,7 @@ static int32_t Script_CalendarEventSetSize(lua_State* L) {
         return 0;
     }
 
-    CGCalendar::m_curEvent->SetSize(static_cast<uint32_t>(size));
+    CGCalendar::m_curEvent->SetSize(static_cast<uint32_t>(static_cast<int64_t>(size)));
     return 0;
 }
 
@@ -1284,9 +1284,9 @@ static int32_t Script_CalendarEventSetDate(lua_State* L) {
         return 0;
     }
 
-    uint32_t month = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t monthDay = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t year = static_cast<uint32_t>(lua_tonumber(L, 3)) - 2000;
+    uint32_t month = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t monthDay = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t year = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 2000;
 
     if (!CGCalendar::SetEventDate(month, monthDay, year)) {
         CGCalendar::CalendarError("CALENDAR_ERROR_INVALID_DATE", 0);
@@ -1303,8 +1303,8 @@ static int32_t Script_CalendarEventSetTime(lua_State* L) {
         return 0;
     }
 
-    uint32_t hour = static_cast<uint32_t>(lua_tonumber(L, 1));
-    uint32_t minute = static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t hour = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
+    uint32_t minute = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
     if (!CGCalendar::SetEventTime(hour, minute)) {
         CGCalendar::CalendarError("CALENDAR_ERROR_INVALID_TIME", 0);
@@ -1321,9 +1321,9 @@ static int32_t Script_CalendarEventSetLockoutDate(lua_State* L) {
         return 0;
     }
 
-    uint32_t month = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t monthDay = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t year = static_cast<uint32_t>(lua_tonumber(L, 3)) - 2000;
+    uint32_t month = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t monthDay = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t year = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 2000;
 
     if (!CGCalendar::SetEventLockoutDate(month, monthDay, year)) {
         CGCalendar::CalendarError("CALENDAR_ERROR_INVALID_DATE", 0);
@@ -1340,8 +1340,8 @@ static int32_t Script_CalendarEventSetLockoutTime(lua_State* L) {
         return 0;
     }
 
-    uint32_t hour = static_cast<uint32_t>(lua_tonumber(L, 1));
-    uint32_t minute = static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t hour = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
+    uint32_t minute = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
     if (!CGCalendar::SetEventLockoutTime(hour, minute)) {
         CGCalendar::CalendarError("CALENDAR_ERROR_INVALID_TIME", 0);
@@ -1358,7 +1358,7 @@ static int32_t Script_CalendarEventSetTextureID(lua_State* L) {
         return 0;
     }
 
-    CGCalendar::SetEventTextureID(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+    CGCalendar::SetEventTextureID(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
     return 0;
 }
 
@@ -1530,7 +1530,7 @@ static int32_t Script_CalendarMassInviteGuild(lua_State* L) {
 
     uint32_t minLevel = static_cast<int32_t>(lua_tonumber(L, 1));
     uint32_t maxLevel = static_cast<int32_t>(lua_tonumber(L, 2));
-    uint32_t minRank = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+    uint32_t minRank = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     CGCalendar::GuildFilter(minLevel, maxLevel, minRank);
     return 0;
 }
@@ -1557,7 +1557,7 @@ static int32_t Script_CalendarMassInviteArenaTeam(lua_State* L) {
         return 0;
     }
 
-    CGCalendar::ArenaTeam(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+    CGCalendar::ArenaTeam(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
     return 0;
 }
 
@@ -1590,8 +1590,8 @@ static int32_t Script_CalendarContextInviteTentative(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1622,8 +1622,8 @@ static int32_t Script_CalendarContextInviteRemove(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1652,8 +1652,8 @@ static int32_t Script_CalendarContextEventSignUp(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1682,8 +1682,8 @@ static int32_t Script_CalendarContextEventRemove(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1716,8 +1716,8 @@ static int32_t Script_CalendarContextEventCopy(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
 
         if (!event) {
@@ -1752,7 +1752,7 @@ static int32_t Script_CalendarContextEventPaste(lua_State* L) {
     }
 
     int32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     CGCalendar::ContextMenuEventPaste(offset, day);
     return 0;
 }
@@ -1764,8 +1764,8 @@ static int32_t Script_CalendarContextEventCanComplain(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
     } else {
         event = CGCalendar::m_contextEventInfo;
@@ -1792,8 +1792,8 @@ static int32_t Script_CalendarContextEventComplain(lua_State* L) {
 
     if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-        uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
         event = CGCalendar::GetDayEvent(offset, day, index);
     } else {
         event = CGCalendar::m_contextEventInfo;
@@ -1999,8 +1999,8 @@ static int32_t Script_CalendarGetDayEvent(lua_State* L) {
     }
 
     uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     CalendarDayEvent* event = CGCalendar::GetDayEvent(offset, day, index);
 
     if (!event) {
@@ -2077,8 +2077,8 @@ static int32_t Script_CalendarGetHolidayInfo(lua_State* L) {
     }
 
     uint32_t offset = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t day = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+    uint32_t day = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     CalendarDayEvent* event = CGCalendar::GetDayEvent(offset, day, index);
     const char* name;
     const char* description;

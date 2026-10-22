@@ -458,10 +458,10 @@ void CShaderEffect::SetDiffuse(const C4Vector& color) {
     float a = color.w < 0.0f ? 0.0f : (color.w >= 1.0f ? 1.0f : color.w);
 
     CImVector diffuse;
-    diffuse.r = static_cast<uint8_t>(r * 255.0f);
-    diffuse.g = static_cast<uint8_t>(g * 255.0f);
-    diffuse.b = static_cast<uint8_t>(b * 255.0f);
-    diffuse.a = static_cast<uint8_t>(a * 255.0f);
+    diffuse.r = static_cast<uint8_t>(static_cast<int64_t>(r * 255.0f));
+    diffuse.g = static_cast<uint8_t>(static_cast<int64_t>(g * 255.0f));
+    diffuse.b = static_cast<uint8_t>(static_cast<int64_t>(b * 255.0f));
+    diffuse.a = static_cast<uint8_t>(static_cast<int64_t>(a * 255.0f));
 
     GxRsSet(GxRs_MatDiffuse, *reinterpret_cast<int32_t*>(&diffuse));
 }
@@ -480,10 +480,10 @@ void CShaderEffect::SetEmissive(const C4Vector& color) {
     float a = color.w < 0.0f ? 0.0f : (color.w >= 1.0f ? 1.0f : color.w);
 
     CImVector emissive;
-    emissive.r = static_cast<uint8_t>(r * 255.0f);
-    emissive.g = static_cast<uint8_t>(g * 255.0f);
-    emissive.b = static_cast<uint8_t>(b * 255.0f);
-    emissive.a = static_cast<uint8_t>(a * 255.0f);
+    emissive.r = static_cast<uint8_t>(static_cast<int64_t>(r * 255.0f));
+    emissive.g = static_cast<uint8_t>(static_cast<int64_t>(g * 255.0f));
+    emissive.b = static_cast<uint8_t>(static_cast<int64_t>(b * 255.0f));
+    emissive.a = static_cast<uint8_t>(static_cast<int64_t>(a * 255.0f));
 
     GxRsSet(GxRs_MatEmissive, *reinterpret_cast<int32_t*>(&emissive));
 }

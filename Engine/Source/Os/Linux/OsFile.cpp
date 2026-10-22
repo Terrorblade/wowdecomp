@@ -38,6 +38,11 @@ bool OsCloseFile(HOSFILE file) {
     return Blizzard::File::Close(reinterpret_cast<Blizzard::File::StreamRecord*>(file));
 }
 
+FILE* OsFileOpenStdio(const char* fileName, const char* mode) {
+    OS_RESOLVE(path, fileName, strchr(mode, 'w') || strchr(mode, 'a'));
+    return fopen(path, mode);
+}
+
 int32_t OsFileExists(const char* fileName) {
     OS_RESOLVE(path, fileName, false);
     return Blizzard::File::IsFile(path);

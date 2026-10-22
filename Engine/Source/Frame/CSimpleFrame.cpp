@@ -2304,7 +2304,7 @@ void CSimpleFrame::LoadXML(XMLNode* node, CStatus* status) {
             value = SStrToFloat(alpha);
         }
 
-        this->SetFrameAlpha(static_cast<uint8_t>(value * 255.0f));
+        this->SetFrameAlpha(static_cast<uint8_t>(static_cast<int64_t>(value * 255.0f)));
     }
 
     const char* enableMouse = node->GetAttributeByName("enableMouse");

@@ -399,7 +399,7 @@ static int32_t Script_SetSelectedDisplayChannel(lua_State* L) {
 // OFFSET: 0x005052E0
 static int32_t Script_CollapseChannelHeader(lua_State* L) {
     if (lua_isnumber(L, 1)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
         if (index < s_numDisplayChannels) {
             uint32_t header = CGChat::s_displayChannels[index].m_headerIndex;
@@ -418,7 +418,7 @@ static int32_t Script_CollapseChannelHeader(lua_State* L) {
 // OFFSET: 0x00505360
 static int32_t Script_ExpandChannelHeader(lua_State* L) {
     if (lua_isnumber(L, 1)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
         if (index < s_numDisplayChannels) {
             uint32_t header = CGChat::s_displayChannels[index].m_headerIndex;
@@ -441,7 +441,7 @@ static int32_t Script_SetChatWindowLocked(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < 10) {
         s_chatWindows[index].m_unkD8 = StringToBOOL(L, 2, 0);
@@ -458,7 +458,7 @@ static int32_t Script_SetChatWindowUninteractable(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < 10) {
         s_chatWindows[index].m_unkE4 = StringToBOOL(L, 2, 0);
@@ -475,7 +475,7 @@ static int32_t Script_SetChatWindowShown(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < 10) {
         s_chatWindows[index].m_shown = StringToBOOL(L, 2, 1);
@@ -492,7 +492,7 @@ static int32_t Script_GetChatWindowSavedDimensions(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -511,7 +511,7 @@ static int32_t Script_SetChatWindowName(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < 10) {
         const char* name = "";
@@ -534,7 +534,7 @@ static int32_t Script_SetChatWindowSize(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < 10) {
         int32_t size = static_cast<int32_t>(lua_tonumber(L, 2));
@@ -565,10 +565,10 @@ static int32_t Script_SetChatWindowAlpha(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < 10) {
-        s_chatWindows[index].m_color.a = static_cast<uint8_t>(lua_tonumber(L, 2) * 255.0);
+        s_chatWindows[index].m_color.a = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 2) * 255.0));
     }
 
     return 0;
@@ -582,13 +582,13 @@ static int32_t Script_SetChatWindowDocked(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < 10) {
         uint32_t docked = 0;
 
         if (lua_isnumber(L, 2)) {
-            docked = static_cast<uint32_t>(lua_tonumber(L, 2));
+            docked = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
         }
 
         s_chatWindows[index].m_docked = docked;
@@ -605,7 +605,7 @@ static int32_t Script_SetChatWindowSavedDimensions(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -627,7 +627,7 @@ static int32_t Script_GetChatWindowSavedPosition(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10 || !s_chatWindows[index].m_unkF4) {
         return 0;
@@ -703,7 +703,7 @@ static int32_t Script_SetChatWindowSavedPosition(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -760,16 +760,16 @@ static int32_t Script_SetChatWindowColor(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
     }
 
     ChatWindowInfo* window = &s_chatWindows[index];
-    window->m_color.r = static_cast<uint8_t>(lua_tonumber(L, 2) * 255.0);
-    window->m_color.g = static_cast<uint8_t>(lua_tonumber(L, 3) * 255.0);
-    window->m_color.b = static_cast<uint8_t>(lua_tonumber(L, 4) * 255.0);
+    window->m_color.r = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 2) * 255.0));
+    window->m_color.g = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 3) * 255.0));
+    window->m_color.b = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 4) * 255.0));
     return 0;
 }
 
@@ -781,7 +781,7 @@ static int32_t Script_GetChatWindowInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -927,9 +927,9 @@ static int32_t Script_ChangeChatColor(lua_State* L) {
     }
 
     const char* type = lua_tolstring(L, 1, nullptr);
-    uint8_t r = static_cast<uint8_t>(lua_tonumber(L, 2) * 255.0);
-    uint8_t g = static_cast<uint8_t>(lua_tonumber(L, 3) * 255.0);
-    uint8_t b = static_cast<uint8_t>(lua_tonumber(L, 4) * 255.0);
+    uint8_t r = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 2) * 255.0));
+    uint8_t g = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 3) * 255.0));
+    uint8_t b = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 4) * 255.0));
     int32_t found = 0;
 
     for (uint32_t i = 0; i < CHAT_MSG_MAX; i++) {
@@ -1114,7 +1114,7 @@ static int32_t Script_GetChatWindowMessages(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -1141,7 +1141,7 @@ static int32_t Script_AddChatWindowMessages(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -1167,7 +1167,7 @@ static int32_t Script_RemoveChatWindowMessages(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -1193,7 +1193,7 @@ static int32_t Script_GetChannelDisplayInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= s_numDisplayChannels) {
         return 0;
@@ -1329,7 +1329,7 @@ static int32_t Script_GetChatWindowChannels(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -1414,7 +1414,7 @@ static int32_t Script_GetChannelRosterInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (index >= s_pendingUsers.Count()) {
         return 0;
@@ -1737,7 +1737,7 @@ static int32_t Script_RemoveChatWindowChannel(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -1807,7 +1807,7 @@ static int32_t Script_GetSavedInstanceInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     MapRec* map;
 
     if (index >= s_numSavedInstances || !(map = g_mapDB.GetRecord(s_savedInstances.m_data[index].m_mapID))) {
@@ -2008,7 +2008,7 @@ static int32_t Script_CanComplainChat(lua_State* L) {
     ChatRecord* record;
 
     if (lua_isnumber(L, 1)) {
-        record = GetChatRecordEx(nullptr, nullptr, static_cast<uint32_t>(lua_tonumber(L, 1)));
+        record = GetChatRecordEx(nullptr, nullptr, static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))));
     } else {
         if (!lua_isstring(L, 1)) {
             luaL_error(L, "Usage: CanComplainChat(lineID) or CanComplainChat(name) or CanComplainChat(name, text)");
@@ -2113,7 +2113,7 @@ static int32_t Script_AddChatWindowChannel(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 10) {
         return 0;
@@ -2320,7 +2320,7 @@ static int32_t JoinChannelFromScript(lua_State* L, int32_t permanent) {
     uint32_t window = 0xFFFFFFFF;
 
     if (lua_isnumber(L, 3)) {
-        window = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        window = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     }
 
     int32_t voice = StringToBOOL(L, 4, 0);
@@ -2368,7 +2368,7 @@ static int32_t Script_SetSavedInstanceExtend(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t extend = lua_toboolean(L, 2);
 
     if (index >= s_numSavedInstances) {
@@ -2406,7 +2406,7 @@ static int32_t Script_ComplainChat(lua_State* L) {
     const char* text = nullptr;
 
     if (lua_isnumber(L, 1)) {
-        ComplainChat(nullptr, nullptr, static_cast<uint32_t>(lua_tonumber(L, 1)));
+        ComplainChat(nullptr, nullptr, static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))));
         return 0;
     }
 

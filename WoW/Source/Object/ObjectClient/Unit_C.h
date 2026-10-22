@@ -433,7 +433,10 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     C3Vector GetNamePosition() const override;
     float GetFacing() const override;
     float GetRenderFacing() const override;
+    int32_t IsCollidable(int32_t flags) const override;
+    void OnSpellEffectClear(CEffect* effect) override;
     bool IsTransport() const override;
+    int32_t IsPointInside(const C3Vector& point) const override;
     int32_t AddPassenger(CPassenger* passenger, int32_t a2) override;
     C3Vector GetPosition() const override;
     void Disable() override;

@@ -2,7 +2,7 @@ file(GLOB PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
 wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
 if (WOWDECOMP_PLATFORM_POSIX)
-    file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Linux/*.cpp" "Mac/*.cpp")
+    file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Linux/*.cpp" "Mac/*.cpp" "Mac/*.mm")
     wowdecomp_filter_platform_sources(PLATFORM_SOURCES)
 elseif (WOWDECOMP_ARCH_64)
     file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Win64/*.cpp")
@@ -95,8 +95,8 @@ target_link_libraries(Wow
 )
 
 if (WOWDECOMP_PLATFORM_MAC)
-    # bin/Mac-<arch>/Wow64.app, the game data sits next to the bundle like the original Mac client's. SDL2.framework
-    # is embedded so the bundle runs without anything installed. cross.py package merges the two into one.
+    # bin/Mac-<arch>/Wow64.app, the game data sits next to the bundle like the original Mac client's. The bundle only
+    # uses system frameworks. cross.py package merges the two architectures into one.
     set_target_properties(Wow PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "World of Warcraft"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.houroftwilight.wow"
@@ -104,18 +104,4 @@ if (WOWDECOMP_PLATFORM_MAC)
         BUILD_RPATH "@executable_path/../Frameworks"
         INSTALL_RPATH "@executable_path/../Frameworks"
     )
-
-    get_target_property(SDL2_LOCATION SDL2::SDL2 IMPORTED_LOCATION)
-    if (NOT SDL2_LOCATION)
-        get_target_property(SDL2_LOCATION SDL2::SDL2 LOCATION)
-    endif ()
-    string(REGEX REPLACE "/SDL2\.framework/.*$" "/SDL2.framework" SDL2_FRAMEWORK "${SDL2_LOCATION}")
-
-    if (EXISTS "${SDL2_FRAMEWORK}")
-        add_custom_command(TARGET Wow POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:Wow>/Frameworks"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${SDL2_FRAMEWORK}" "$<TARGET_BUNDLE_CONTENT_DIR:Wow>/Frameworks/SDL2.framework"
-            VERBATIM
-        )
-    endif ()
 endif ()

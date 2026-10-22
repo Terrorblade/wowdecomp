@@ -9,6 +9,7 @@
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
+#include "Engine/Source/Os/OsCacheLimits.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Os/Processor.h"
 #include "Engine/Source/Os/TimeManager.h"
@@ -2496,7 +2497,10 @@ static void ProcessFadeList() {
         changed = false;
 
         for (uint32_t i = 0; i < s_channelGroups.Count(); i++) {
-            if (!dirty[i] && dirty[s_channelGroups[i].m_parent]) {
+            // The root group's parent is -1, which the original reads past the array for.
+            uint32_t parent = static_cast<uint32_t>(s_channelGroups[i].m_parent);
+
+            if (!dirty[i] && parent < groupCount && dirty[parent]) {
                 dirty[i] = 1;
                 changed = true;
             }
@@ -2633,7 +2637,7 @@ static void ProcessWaveDataDeleteList(int32_t force) {
 
         if (maxCacheSize < 0x400000) {
             maxCacheSize = 0x400000;
-        } else if (maxCacheSize > 100 * 1024 * 1024) {
+        } else if (maxCacheSize > 100 * 1024 * 1024 && OsGetCacheLimits().m_soundCacheClamped) {
             maxCacheSize = 0x8000000;
         }
     }
@@ -3192,7 +3196,7 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
 
         if (openAL) {
 #if defined(WOWDECOMP_PLATFORM_POSIX)
-            // FMOD's OpenAL output is Windows-only; Linux always uses the default (SDL) output.
+            // FMOD's OpenAL output is Windows-only. Linux and macOS always use the default output (SDL, CoreAudio).
             SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " - OpenAL is not available on this platform. NOT using OpenAL.");
 #else
             if (hardware) {

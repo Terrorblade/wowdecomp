@@ -162,7 +162,7 @@ uint32_t CGBag_C::GetAvgEquippedDurability() const {
         return 0;
     }
 
-    return static_cast<float>(durability) / maxDurability * 100.0f;
+    return static_cast<uint32_t>(static_cast<int64_t>(static_cast<float>(durability) / maxDurability * 100.0f));
 }
 
 // VERIFY: c1b9cf4f auto

@@ -2,6 +2,7 @@
 #define ENGINE_SOURCE_OS_OSFILE_H
 
 #include <cstdint>
+#include <cstdio>
 #include "Engine/Source/BlizzardCore/Source/System/File/Types.h"
 
 struct HOSFILE__;
@@ -52,5 +53,7 @@ int32_t OsRemoveDirectoryRecurse(const char* pathName, uint32_t flags);
 bool OsSetCurrentDirectory(const char* path);
 int32_t OsSetFileAttributes(const char* fileName, uint32_t attributes);
 int32_t OsWriteFile(HOSFILE file, const void* buffer, uint32_t bytesToWrite, uint32_t* bytesWritten);
+// fopen for a game path ("Screenshots\\x.jpg"), mapped to the host path where the OS needs it.
+FILE* OsFileOpenStdio(const char* fileName, const char* mode);
 
 #endif

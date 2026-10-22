@@ -29,7 +29,7 @@ Liquid::VSWaveConstants Liquid::s_vsWaveConstants;
 // VERIFY: 241af1fe manual
 // OFFSET: 0x008A3620
 void Liquid::SetDirectionalWave(uint32_t index, const C2Vector& direction, float a3, float a4, float a5, float speed) {
-    Liquid::s_vsWaveConstants.m_directionalPhase[index] = static_cast<float>(static_cast<uint32_t>(OsGetAsyncTimeMs() * speed) & 0x1FFF) / 1024.0f * 6.2831855f;
+    Liquid::s_vsWaveConstants.m_directionalPhase[index] = static_cast<float>(static_cast<uint32_t>(static_cast<int64_t>(OsGetAsyncTimeMs() * speed)) & 0x1FFF) / 1024.0f * 6.2831855f;
 
     float clampedA3 = a3 < 0.001f ? 0.001f : a3;
     C4Vector& wave = Liquid::s_vsWaveConstants.m_directionalWaves[index];
@@ -44,7 +44,7 @@ void Liquid::SetDirectionalWave(uint32_t index, const C2Vector& direction, float
 // VERIFY: ffbfd269 manual
 // OFFSET: 0x008A3710
 void Liquid::SetCircularWave(uint32_t index, const C2Vector& a2, const C2Vector& a3, float a4, float a5, float a6, float speed) {
-    Liquid::s_vsWaveConstants.m_circularPhase[index] = static_cast<float>(static_cast<uint32_t>(OsGetAsyncTimeMs() * speed) & 0x1FFF) / 1024.0f * 6.2831855f;
+    Liquid::s_vsWaveConstants.m_circularPhase[index] = static_cast<float>(static_cast<uint32_t>(static_cast<int64_t>(OsGetAsyncTimeMs() * speed)) & 0x1FFF) / 1024.0f * 6.2831855f;
 
     float invA4 = 1.0f / (a4 < 0.001f ? 0.001f : a4);
     Liquid::s_vsWaveConstants.unk_0060[index] = 1.0f / (a5 < 0.001f ? 0.001f : a5);

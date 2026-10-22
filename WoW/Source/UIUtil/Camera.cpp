@@ -2245,10 +2245,10 @@ void CGCamera::ZoomIn(float distance, uint32_t time, float duration) {
     uint32_t motionTime;
 
     if (duration > 0.0f) {
-        motionTime = static_cast<uint32_t>(duration * 1000.0f);
-        speed = static_cast<float>(static_cast<uint32_t>(distance * 1000.0f)) / (1000.0f * (duration * s_cvCameraDistanceMoveSpeed->m_floatValue));
+        motionTime = static_cast<uint32_t>(static_cast<int64_t>(duration * 1000.0f));
+        speed = static_cast<float>(static_cast<uint32_t>(static_cast<int64_t>(distance * 1000.0f))) / (1000.0f * (duration * s_cvCameraDistanceMoveSpeed->m_floatValue));
     } else {
-        motionTime = static_cast<uint32_t>(distance / s_cvCameraDistanceMoveSpeed->m_floatValue * 1000.0f);
+        motionTime = static_cast<uint32_t>(static_cast<int64_t>(distance / s_cvCameraDistanceMoveSpeed->m_floatValue * 1000.0f));
     }
 
     if (this->m_motionFlags & 0x4) {
@@ -2274,10 +2274,10 @@ void CGCamera::ZoomOut(float distance, uint32_t time, float duration) {
     uint32_t motionTime;
 
     if (duration > 0.0f) {
-        motionTime = static_cast<uint32_t>(duration * 1000.0f);
-        speed = static_cast<float>(static_cast<uint32_t>(distance * 1000.0f)) / (1000.0f * (duration * s_cvCameraDistanceMoveSpeed->m_floatValue));
+        motionTime = static_cast<uint32_t>(static_cast<int64_t>(duration * 1000.0f));
+        speed = static_cast<float>(static_cast<uint32_t>(static_cast<int64_t>(distance * 1000.0f))) / (1000.0f * (duration * s_cvCameraDistanceMoveSpeed->m_floatValue));
     } else {
-        motionTime = static_cast<uint32_t>(distance / s_cvCameraDistanceMoveSpeed->m_floatValue * 1000.0f);
+        motionTime = static_cast<uint32_t>(static_cast<int64_t>(distance / s_cvCameraDistanceMoveSpeed->m_floatValue * 1000.0f));
     }
 
     if (this->m_motionFlags & 0x1) {

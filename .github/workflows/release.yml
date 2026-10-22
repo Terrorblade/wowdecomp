@@ -77,7 +77,6 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "linux sysroot failed with exit code $LASTEXITCODE" }
           }
           $macos = @(
-            "$env:WOWDECOMP_CROSS_DIR\macos\Frameworks\SDL2.framework",
             "$env:WOWDECOMP_CROSS_DIR\macos\deps-arm64\lib",
             "$env:WOWDECOMP_CROSS_DIR\macos\deps-x86_64\lib"
           )

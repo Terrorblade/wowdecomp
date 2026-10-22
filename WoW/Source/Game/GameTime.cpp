@@ -159,7 +159,7 @@ void CGameTime::GameTimeUpdate(float elapsed) {
     this->m_fracMinutes = this->m_minutesPerSecond * elapsed + this->m_fracMinutes;
 
     if (this->m_elapsedMinutes && this->m_fracMinutes >= 1.0f) {
-        uint32_t minutes = static_cast<uint32_t>(this->m_fracMinutes);
+        uint32_t minutes = static_cast<uint32_t>(static_cast<int64_t>(this->m_fracMinutes));
 
         if (this->m_elapsedMinutes < minutes) {
             minutes = this->m_elapsedMinutes;

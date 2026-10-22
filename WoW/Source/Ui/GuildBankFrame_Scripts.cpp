@@ -69,7 +69,7 @@ static int32_t Script_SetCurrentGuildBankTab(lua_State* L) {
         return 0;
     }
 
-    uint32_t tab = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t tab = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (tab < 6) {
         CGGuildBankInfo::m_currentTab = tab;
@@ -131,7 +131,7 @@ static int32_t Script_PickupGuildBankMoney(lua_State* L) {
         return 0;
     }
 
-    uint32_t amount = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t amount = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
     if (amount && amount <= CGGuildBankInfo::m_money) {
         CGGameUI::SetCursorMoney(amount, UICURSOR_GUILDBANK_MONEY, SCRIPT_EVENT_GUILDBANK_UPDATE_MONEY);
@@ -192,7 +192,7 @@ static int32_t Script_GetGuildBankItemLink(lua_State* L) {
     }
 
     uint8_t tab = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (tab >= 6 || slot >= CGGuildBankInfo::m_tabSlots[tab].m_count) {
         return 0;
@@ -271,8 +271,8 @@ static int32_t Script_QueryGuildBankTab(lua_State* L) {
 
     double tab = lua_tonumber(L, 1);
 
-    if (static_cast<uint32_t>(tab - 1.0) < 6) {
-        SendGuildBankQueryTabOpcode(static_cast<uint8_t>(tab - 1.0));
+    if (static_cast<uint32_t>(static_cast<int64_t>(tab - 1.0)) < 6) {
+        SendGuildBankQueryTabOpcode(static_cast<uint8_t>(static_cast<int64_t>(tab - 1.0)));
     }
 
     return 0;
@@ -308,7 +308,7 @@ static int32_t Script_DepositGuildBankMoney(lua_State* L) {
     }
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    uint32_t amount = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t amount = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
     if (player->GetCoinage() >= amount) {
         CGGuildBankInfo::DepositMoney(amount);
@@ -327,7 +327,7 @@ static int32_t Script_WithdrawGuildBankMoney(lua_State* L) {
         return 0;
     }
 
-    CGGuildBankInfo::WithdrawMoney(static_cast<uint32_t>(lua_tonumber(L, 1)));
+    CGGuildBankInfo::WithdrawMoney(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))));
     return 0;
 }
 
@@ -643,8 +643,8 @@ static int32_t Script_SetGuildBankTabInfo(lua_State* L) {
         CGUIMacros::LoadIcons();
     }
 
-    if (static_cast<uint32_t>(index - 1.0) < s_macroItemIcons.m_count) {
-        const char* icon = GetMacroItemIcon(static_cast<uint32_t>(index - 1.0));
+    if (static_cast<uint32_t>(static_cast<int64_t>(index - 1.0)) < s_macroItemIcons.m_count) {
+        const char* icon = GetMacroItemIcon(static_cast<uint32_t>(static_cast<int64_t>(index - 1.0)));
 
         if (icon) {
             CGGuildBankInfo::SetTabInfo(tab, name, icon);

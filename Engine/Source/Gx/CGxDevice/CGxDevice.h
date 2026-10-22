@@ -265,6 +265,8 @@ class CGxDevice {
     static int32_t D3dAdapterFormats(TSGrowableArray<CGxFormat>& formats);
     static int32_t DeviceAdapterID(uint16_t& vendorID, uint16_t& deviceID, uint32_t& driverVersionHi, uint32_t& driverVersionLo);
     static int32_t DeviceAdapterInfer(uint16_t& deviceID);
+    // The aspect ratio the device renders at when it is not gxResolution's, 0 when it is.
+    static int32_t DeviceRenderAspect(float& aspect);
     static int32_t FormatExists(TSGrowableArray<CGxFormat>& formats, const CGxFormat& format);
     static int32_t OpenGlAdapterFormats(TSGrowableArray<CGxFormat>& formats);
     static void ClampRectBottom(CiRect& windowRect);

@@ -89,7 +89,7 @@ static int32_t Script_GetWhoInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index > FriendList::s_numWhoResults) {
         lua_pushnil(L);
@@ -172,7 +172,7 @@ static int32_t Script_GetFriendInfo(lua_State* L) {
     FriendInfo* info;
 
     if (lua_isnumber(L, 1)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
         info = index <= 100 ? &FriendList::s_friendList->m_friends[index] : nullptr;
     } else {
         info = FriendList::s_friendList->GetFriendInfoByName(lua_tolstring(L, 1, nullptr));
@@ -258,7 +258,7 @@ static int32_t Script_SetSelectedFriend(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     FriendList* list = FriendList::s_friendList;
 
     if (index <= 100) {
@@ -297,7 +297,7 @@ static int32_t Script_GetIgnoreName(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     NameCache* record;
 
     if (index <= 50 && FriendList::s_friendList->m_ignores[index].m_guid) {
@@ -329,7 +329,7 @@ static int32_t Script_GetMuteName(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     NameCache* record;
 
     if (index <= 50 && FriendList::s_friendList->m_mutes[index].m_guid) {
@@ -361,7 +361,7 @@ static int32_t Script_SetSelectedIgnore(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     FriendList* list = FriendList::s_friendList;
 
     if (index <= 50) {
@@ -381,7 +381,7 @@ static int32_t Script_SetSelectedMute(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     FriendList* list = FriendList::s_friendList;
 
     if (index <= 50) {
@@ -584,7 +584,7 @@ static int32_t Script_AddOrRemoveFriend(lua_State* L) {
 // OFFSET: 0x006B7BD0
 static int32_t Script_RemoveFriend(lua_State* L) {
     if (lua_isnumber(L, 1)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
         if (index < 100) {
             WOWGUID guid = FriendList::s_friendList->m_friends[index].m_guid;
@@ -621,7 +621,7 @@ static int32_t Script_SetFriendNotes(lua_State* L) {
     const char* notes = lua_tolstring(L, 2, nullptr);
 
     if (lua_isnumber(L, 1)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
         if (index < 100) {
             WOWGUID guid = FriendList::s_friendList->m_friends[index].m_guid;

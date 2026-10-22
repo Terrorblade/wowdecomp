@@ -59,7 +59,7 @@ static int32_t Script_GetPetitionItemInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     GuildPetitionInfo* petition;
     WOWGUID none;
 
@@ -123,7 +123,7 @@ static int32_t Script_BuyPetition(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     const char* name = lua_tolstring(L, 2, nullptr);
     VALIDATE_NAME_RESULT error = ValidateGuildName(s_locale, name);
 
@@ -155,7 +155,7 @@ static int32_t Script_TurnInArenaPetition(lua_State* L) {
     uint32_t borderStyle = 0xFFFFFFFF;
     uint32_t emblemStyle;
     uint32_t borderColor;
-    uint32_t teamSize = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t teamSize = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     uint32_t i = 2;
 
     while (lua_isnumber(L, i)) {

@@ -1,4 +1,4 @@
-file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp" "*.mm")
 wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
 add_library(Os STATIC
@@ -22,9 +22,20 @@ if(WIN32)
     )
 endif()
 
-if (WOWDECOMP_PLATFORM_POSIX)
+if (WOWDECOMP_PLATFORM_LINUX)
     target_link_libraries(Os
         PUBLIC
             SDL2::SDL2
+    )
+elseif (WOWDECOMP_PLATFORM_MAC)
+    target_link_libraries(Os
+        PUBLIC
+            "-framework AppKit"
+            "-framework Carbon"
+            "-framework CoreFoundation"
+            "-framework Foundation"
+            "-framework GameController"
+            "-framework QuartzCore"
+            "-framework Security"
     )
 endif ()

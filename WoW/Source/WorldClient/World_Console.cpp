@@ -164,9 +164,9 @@ int32_t CWorld::ConsoleCommand_SetShadow(const char* command, const char* argume
     }
 
     CImVector shadow;
-    shadow.b = static_cast<uint8_t>(color[3] * 255.0f);
-    shadow.g = static_cast<uint8_t>(color[2] * 255.0f);
-    shadow.r = static_cast<uint8_t>(color[1] * 255.0f);
+    shadow.b = static_cast<uint8_t>(static_cast<int64_t>(color[3] * 255.0f));
+    shadow.g = static_cast<uint8_t>(static_cast<int64_t>(color[2] * 255.0f));
+    shadow.r = static_cast<uint8_t>(static_cast<int64_t>(color[1] * 255.0f));
     shadow.a = static_cast<uint8_t>(static_cast<int32_t>(255.0f * color[0]));
     CWorld::SetShadowColor(shadow);
     return 1;

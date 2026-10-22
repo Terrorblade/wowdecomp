@@ -71,7 +71,7 @@ static int32_t Script_SetRaidRosterSelection(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= CGRaidInfo::m_numMembers) {
         CGRaidInfo::m_selectedMember = WOWGUID();
@@ -396,8 +396,8 @@ static int32_t Script_SetRaidSubgroup(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t subgroup = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t subgroup = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (subgroup >= 8) {
         luaL_error(L, "Usage: SetRaidSubgroup(index, subgroup)");
@@ -438,8 +438,8 @@ static int32_t Script_SwapRaidSubgroup(lua_State* L) {
         return 0;
     }
 
-    uint32_t index1 = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t index2 = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index1 = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t index2 = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     CGRaidMember* member1 = index1 < CGRaidInfo::m_numMembers ? CGRaidInfo::m_members[index1] : nullptr;
     CGRaidMember* member2 = index2 < CGRaidInfo::m_numMembers ? CGRaidInfo::m_members[index2] : nullptr;
 
@@ -553,7 +553,7 @@ static int32_t Script_SetRaidTarget(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint8_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (index < 8) {
         if (guid && !CGRaidInfo::IsPlayerOrPetInRaid(guid) && !CGPartyInfo::IsPlayerOrPetInParty(guid)) {

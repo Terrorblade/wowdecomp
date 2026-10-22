@@ -574,6 +574,16 @@ union luai_Cast { double l_d; long l_l; };
 #endif
 
 
+/* The 12340 client converts with x87 fistp: round to nearest even, and the integer indefinite
+   0x80000000 for NaN and values outside int. A C cast truncates and, on ARM, saturates, so
+   string.sub(s, 2.5) or string.rep with a fractional count would behave differently. */
+#elif defined(WOWDECOMP_PLATFORM_MAC)
+#include <math.h>
+#define lua_number2int(i,d) \
+  { double l_d = (d); \
+    (i) = (l_d >= -2147483648.5 && l_d < 2147483647.5) ? (int)lrint(l_d) : (int)0x80000000; }
+#define lua_number2integer(i,n)		lua_number2int(i, n)
+
 /* this option always works, but may be slow */
 #else
 #define lua_number2int(i,d)	((i)=(int)(d))
@@ -732,6 +742,13 @@ union luai_Cast { double l_d; long l_l; };
 
 #define LUA_INTFRMLEN		"ll"
 #define LUA_INTFRM_T		long long
+
+/* The 12340 client formats with the 32-bit long of Win32; LP64 long would print
+   string.format("%x", -1) with 16 digits. */
+#elif defined(WOWDECOMP_PLATFORM_POSIX)
+
+#define LUA_INTFRMLEN		""
+#define LUA_INTFRM_T		int
 
 #else
 

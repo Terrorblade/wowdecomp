@@ -202,7 +202,7 @@ uint32_t ShipPath::LegTimeAccel(float distance) {
         time = 2.0f * accelTime + (distance - accelDistance * 2.0f) / this->m_moveSpeed;
     }
 
-    return static_cast<uint32_t>(time * 1000.0f);
+    return static_cast<uint32_t>(static_cast<int64_t>(time * 1000.0f));
 }
 
 // VERIFY: db975c72 manual
@@ -256,7 +256,7 @@ void ShipPath::BuildLeg(ShipPathArray<C3Vector>* points, ShipPathArray<ShipPathP
                 }
             }
 
-            uint32_t eventTime = static_cast<uint32_t>(time * 1000.0f);
+            uint32_t eventTime = static_cast<uint32_t>(static_cast<int64_t>(time * 1000.0f));
             uint32_t delay = event->m_point == pauses->m_data[i].m_point ? pauses->m_data[i].m_delay : 0;
             uint32_t base = accumDelay + eventTime + this->m_legs.m_data[legIndex].m_duration;
 
@@ -284,7 +284,7 @@ void ShipPath::BuildLeg(ShipPathArray<C3Vector>* points, ShipPathArray<ShipPathP
             float accelTime = this->m_moveSpeed * invAccel;
             float accelDistance = this->m_moveSpeed * 0.5f * accelTime;
             float time = accelDistance >= distance ? sqrtf(distance * invAccel + distance * invAccel) : accelTime + (distance - accelDistance) / this->m_moveSpeed;
-            segmentTime = static_cast<uint32_t>(time * 1000.0f);
+            segmentTime = static_cast<uint32_t>(static_cast<int64_t>(time * 1000.0f));
         }
 
         this->m_legs.m_data[legIndex].m_duration += segmentTime;
@@ -306,9 +306,9 @@ void ShipPath::BuildLeg(ShipPathArray<C3Vector>* points, ShipPathArray<ShipPathP
             float accelTime = this->m_moveSpeed * invAccel;
             float accelDistance = this->m_moveSpeed * 0.5f * accelTime;
             float time = accelDistance >= distance ? sqrtf(distance * invAccel + distance * invAccel) : accelTime + (distance - accelDistance) / this->m_moveSpeed;
-            eventTime = static_cast<uint32_t>(time * 1000.0f);
+            eventTime = static_cast<uint32_t>(static_cast<int64_t>(time * 1000.0f));
         } else {
-            eventTime = static_cast<uint32_t>(distance / this->m_moveSpeed * 1000.0f);
+            eventTime = static_cast<uint32_t>(static_cast<int64_t>(distance / this->m_moveSpeed * 1000.0f));
         }
 
         uint32_t base = accumDelay + eventTime + this->m_legs.m_data[legIndex].m_duration;
@@ -336,9 +336,9 @@ void ShipPath::BuildLeg(ShipPathArray<C3Vector>* points, ShipPathArray<ShipPathP
         float accelTime = this->m_moveSpeed * invAccel;
         float accelDistance = this->m_moveSpeed * 0.5f * accelTime;
         float time = accelDistance >= distance ? sqrtf(distance * invAccel + distance * invAccel) : accelTime + (distance - accelDistance) / this->m_moveSpeed;
-        lastTime = static_cast<uint32_t>(time * 1000.0f);
+        lastTime = static_cast<uint32_t>(static_cast<int64_t>(time * 1000.0f));
     } else {
-        lastTime = static_cast<uint32_t>(distance / this->m_moveSpeed * 1000.0f);
+        lastTime = static_cast<uint32_t>(static_cast<int64_t>(distance / this->m_moveSpeed * 1000.0f));
     }
 
     leg = &this->m_legs.m_data[legIndex];
@@ -488,7 +488,7 @@ void ShipPath::GetRollAndPitch(uint32_t time, float speed, float turn, C3Vector*
     }
 
     if (fabsf(physics->m_waveTimeScale) >= 0.00000023841858f) {
-        uint32_t period = static_cast<uint32_t>(6283.1855f / physics->m_waveTimeScale);
+        uint32_t period = static_cast<uint32_t>(static_cast<int64_t>(6283.1855f / physics->m_waveTimeScale));
         position->z = sinf(static_cast<float>(time % period) * 6.2831855f / static_cast<float>(period)) * physics->m_waveAmp * damp + position->z;
     }
 
@@ -505,14 +505,14 @@ void ShipPath::GetRollAndPitch(uint32_t time, float speed, float turn, C3Vector*
     if (fabsf(physics->m_rollTimeScale) < 0.00000023841858f) {
         *roll = 0.0f;
     } else {
-        uint32_t period = static_cast<uint32_t>(6283.1855f / physics->m_rollTimeScale);
+        uint32_t period = static_cast<uint32_t>(static_cast<int64_t>(6283.1855f / physics->m_rollTimeScale));
         *roll = (bank + sinf(static_cast<float>(time % period) * 6.2831855f / static_cast<float>(period) + 0.5f) * physics->m_rollAmp) * damp;
     }
 
     if (fabsf(physics->m_pitchTimeScale) < 0.00000023841858f) {
         *pitch = 0.0f;
     } else {
-        uint32_t period = static_cast<uint32_t>(6283.1855f / physics->m_pitchTimeScale);
+        uint32_t period = static_cast<uint32_t>(static_cast<int64_t>(6283.1855f / physics->m_pitchTimeScale));
         *pitch = damp * (sinf(6.2831855f * static_cast<float>(time % period) / static_cast<float>(period) + 0.2f) * physics->m_pitchAmp);
     }
 }

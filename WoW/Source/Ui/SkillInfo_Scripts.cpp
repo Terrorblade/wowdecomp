@@ -44,7 +44,7 @@ static int32_t Script_SetSelectedSkill(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGSkillInfo::m_selectedSkill = index >= CGSkillInfo::m_numLines ? 0 : CGSkillInfo::m_lines.m_data[index]->m_skillLineID;
     return 0;
 }
@@ -83,7 +83,7 @@ static int32_t Script_GetSkillLineInfo(lua_State* L) {
     }
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     SkillLineInfo* line = index < CGSkillInfo::m_numLines ? CGSkillInfo::m_lines.m_data[index] : nullptr;
 
     if (player && line) {
@@ -213,7 +213,7 @@ static int32_t Script_AbandonSkill(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < CGSkillInfo::m_numLines) {
         SkillLineInfo* line = CGSkillInfo::m_lines.m_data[index];
@@ -278,7 +278,7 @@ static int32_t Script_AddSkillUp(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGSkillInfo::AddSkillUp(index);
     return 0;
 }
@@ -291,7 +291,7 @@ static int32_t Script_RemoveSkillUp(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGSkillInfo::RemoveSkillUp(index);
     return 0;
 }
@@ -340,7 +340,7 @@ static int32_t Script_BuySkillTier(lua_State* L) {
     }
 
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     SkillLineInfo* line = index < CGSkillInfo::m_numLines ? CGSkillInfo::m_lines.m_data[index] : nullptr;
 
     if (!player || !line) {

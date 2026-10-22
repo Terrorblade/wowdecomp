@@ -54,12 +54,12 @@ C44Matrix* Liquid::GetTexScrollMtx(const C2Vector& speed) {
     uint32_t time = OsGetAsyncTimeMs();
 
     if (speed.x != 0.0f) {
-        uint32_t period = static_cast<uint32_t>(1000.0f / speed.x);
+        uint32_t period = static_cast<uint32_t>(static_cast<int64_t>(1000.0f / speed.x));
         u = static_cast<float>(time % period) / static_cast<float>(period);
     }
 
     if (speed.y != 0.0f) {
-        uint32_t period = static_cast<uint32_t>(1000.0f / speed.y);
+        uint32_t period = static_cast<uint32_t>(static_cast<int64_t>(1000.0f / speed.y));
         v = static_cast<float>(time % period) / static_cast<float>(period);
     }
 

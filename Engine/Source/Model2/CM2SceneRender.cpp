@@ -225,9 +225,9 @@ void CM2SceneRender::SetupLighting() {
         switch (fogMode) {
             case 1: {
                 const C3Vector& fogColor = this->m_curLighting->m_fogColor;
-                uint8_t b = fogColor.z > 0.0f ? static_cast<uint8_t>(fogColor.z < 1.0f ? fogColor.z * 255.0f + 0.5f : 255.0f) : 0;
-                uint8_t g = fogColor.y > 0.0f ? static_cast<uint8_t>(1.0f > fogColor.y ? fogColor.y * 255.0f + 0.5f : 255.0f) : 0;
-                uint8_t r = 0.0f < fogColor.x ? static_cast<uint8_t>(1.0f > fogColor.x ? 255.0f * fogColor.x + 0.5f : 255.0f) : 0;
+                uint8_t b = fogColor.z > 0.0f ? static_cast<uint8_t>(static_cast<int64_t>(fogColor.z < 1.0f ? fogColor.z * 255.0f + 0.5f : 255.0f)) : 0;
+                uint8_t g = fogColor.y > 0.0f ? static_cast<uint8_t>(static_cast<int64_t>(1.0f > fogColor.y ? fogColor.y * 255.0f + 0.5f : 255.0f)) : 0;
+                uint8_t r = 0.0f < fogColor.x ? static_cast<uint8_t>(static_cast<int64_t>(1.0f > fogColor.x ? 255.0f * fogColor.x + 0.5f : 255.0f)) : 0;
                 color = 0xFF000000 | (r << 16) | (g << 8) | b;
                 break;
             }

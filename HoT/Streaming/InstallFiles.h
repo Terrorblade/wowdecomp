@@ -34,6 +34,9 @@ bool IsDiscordLibrary(const std::string& path);
 // Manifest binaries built for another OS, which are never downloaded here.
 bool IsForeignBinary(const std::string& path);
 
+// The manifest platform tag of this OS, files tagged for any other OS are skipped.
+const char* ManifestPlatform();
+
 }
 
 #endif

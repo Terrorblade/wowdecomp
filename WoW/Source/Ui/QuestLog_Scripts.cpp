@@ -175,7 +175,7 @@ static int32_t Script_GetQuestIndexForWatch(lua_State* L) {
         return 0;
     }
 
-    uint32_t watch = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t watch = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t questId;
 
     if (watch < 25 && (questId = CGQuestLog::m_questWatches[watch].m_questId) && CGQuestLog::m_numQuest) {
@@ -458,7 +458,7 @@ static int32_t Script_GetQuestLogRewardFactionInfo(lua_State* L) {
         return luaL_error(L, "Usage: Script_GetQuestLogRewardFactionInfo(index)");
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1) - 1.0);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
     lua_pushnumber(L, index > 9 ? 0 : CGQuestInfo::m_rewardFactionList[index]);
     lua_pushnumber(L, index > 9 ? 0 : CGQuestInfo::m_rewardFactionAmounts[index]);
     return 2;
@@ -717,7 +717,7 @@ static int32_t Script_GetQuestLogRewardInfo(lua_State* L) {
         return luaL_error(L, "Usage: GetQuestLogRewardInfo(index)");
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::m_selectedQuest, none, nullptr, nullptr, false);
     ItemStats_C* stats;
@@ -760,7 +760,7 @@ static int32_t Script_GetQuestLogChoiceInfo(lua_State* L) {
         return luaL_error(L, "Usage: GetQuestLogRewardInfo(index)");
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::m_selectedQuest, none, nullptr, nullptr, false);
     ItemStats_C* stats;
@@ -1070,7 +1070,7 @@ static int32_t Script_QuestPOIGetQuestIDByIndex(lua_State* L) {
         return luaL_error(L, "Usage: QuestPOIGetQuestIDByIndex(index)");
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= HoT::QuestLog::NUM_POIS) {
         return 0;
@@ -1093,7 +1093,7 @@ static int32_t Script_ShiftQuestWatches(lua_State* L) {
         return luaL_error(L, "Usage: ShiftQuestWatches(indexFrom, indexTo)");
     }
 
-    uint32_t to = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t to = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     uint32_t from = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)) - 1);
     CGQuestLog::ShiftQuestWatches(from, to);
     return 0;

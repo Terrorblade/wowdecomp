@@ -310,11 +310,11 @@ void CGNamePlateFrame::OnLayerUpdate(float elapsedSec) {
             return;
         }
 
-        this->m_castBarBorder->SetVertexAlpha(static_cast<uint8_t>(this->m_castBarBorder->GetVertexAlpha() * this->m_castFadeTime));
-        this->m_castBarShield->SetVertexAlpha(static_cast<uint8_t>(this->m_castBarBorder->GetVertexAlpha() * this->m_castFadeTime));
-        this->m_castBarIcon->SetVertexAlpha(static_cast<uint8_t>(this->m_castBarIcon->GetVertexAlpha() * this->m_castFadeTime));
+        this->m_castBarBorder->SetVertexAlpha(static_cast<uint8_t>(static_cast<int64_t>(this->m_castBarBorder->GetVertexAlpha() * this->m_castFadeTime)));
+        this->m_castBarShield->SetVertexAlpha(static_cast<uint8_t>(static_cast<int64_t>(this->m_castBarBorder->GetVertexAlpha() * this->m_castFadeTime)));
+        this->m_castBarIcon->SetVertexAlpha(static_cast<uint8_t>(static_cast<int64_t>(this->m_castBarIcon->GetVertexAlpha() * this->m_castFadeTime)));
         this->m_castBar->GetStatusBarColor(color);
-        color.a = static_cast<uint8_t>(color.a * this->m_castFadeTime);
+        color.a = static_cast<uint8_t>(static_cast<int64_t>(color.a * this->m_castFadeTime));
         this->m_castBar->SetStatusBarColor(color);
         return;
     }

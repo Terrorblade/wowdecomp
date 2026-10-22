@@ -315,7 +315,7 @@ static void SeedTextureCallback(EGxTexCommand command, uint32_t width, uint32_t 
                 texel[2] = 0xFF;
                 texel[1] = 0xFF;
                 texel[0] = 0xFF;
-                texel[3] = static_cast<uint8_t>((noise + 3.0f) * 0.25f * 255.0f + 0.5f);
+                texel[3] = static_cast<uint8_t>(static_cast<int64_t>((noise + 3.0f) * 0.25f * 255.0f + 0.5f));
                 texel += 4;
             }
         }

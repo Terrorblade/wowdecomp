@@ -128,7 +128,7 @@ static void ShadowAddCallback(EGxTexCommand command, uint32_t width, uint32_t he
                         }
                     }
 
-                    color.a = static_cast<uint8_t>(alpha * 255.0f);
+                    color.a = static_cast<uint8_t>(static_cast<int64_t>(alpha * 255.0f));
                     row[x] = color;
                 }
 

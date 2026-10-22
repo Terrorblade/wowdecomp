@@ -21,7 +21,7 @@
 // VERIFY: 53148363 manual
 // OFFSET: 0x005AD770
 static int32_t Script_EquipmentManagerIgnoreSlotForSave(lua_State* L) {
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (slot > 18) {
         luaL_error(L, "Usage: EquipmentManagerIgnoreSlotForSave(slot)");
@@ -35,7 +35,7 @@ static int32_t Script_EquipmentManagerIgnoreSlotForSave(lua_State* L) {
 // VERIFY: 7ab2e1ba manual
 // OFFSET: 0x005AD830
 static int32_t Script_EquipmentManagerUnignoreSlotForSave(lua_State* L) {
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (slot > 18) {
         luaL_error(L, "Usage: UpdatePendingEquipmentSetSlot(slot)");
@@ -49,7 +49,7 @@ static int32_t Script_EquipmentManagerUnignoreSlotForSave(lua_State* L) {
 // VERIFY: 8b0d091f manual
 // OFFSET: 0x005AD7C0
 static int32_t Script_EquipmentManagerIsSlotIgnoredForSave(lua_State* L) {
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (slot > 18) {
         luaL_error(L, "Usage: EquipmentSetIsSlotIgnoredForSave(slot)");

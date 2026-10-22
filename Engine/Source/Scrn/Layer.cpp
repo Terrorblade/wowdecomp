@@ -82,7 +82,7 @@ void ScrnSetScreenshotQuality(uint32_t quality) {
         quality = 1;
     }
 
-    s_screenshotQuality = static_cast<uint32_t>(quality * 5.5f + 45.0f);
+    s_screenshotQuality = static_cast<uint32_t>(static_cast<int64_t>(quality * 5.5f + 45.0f));
 }
 
 // VERIFY: 8f3185ff auto

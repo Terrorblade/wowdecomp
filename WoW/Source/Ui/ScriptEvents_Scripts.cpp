@@ -1547,7 +1547,7 @@ static int32_t Script_GetShieldBlock(lua_State* L) {
 // VERIFY: f607142d manual
 // OFFSET: 0x0060E290
 static int32_t Script_GetSpellCritChance(lua_State* L) {
-    uint32_t school = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t school = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (school > 6) {
         luaL_error(L, "Usage: GetSpellCritChance(school)");
@@ -1922,7 +1922,7 @@ static int32_t Script_GetMaxCombatRatingBonus(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 25) {
         luaL_error(L, "ratingIndex is in the range 1 .. %d", 25);
@@ -1994,7 +1994,7 @@ static int32_t Script_GetCombatRating(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= 25) {
         luaL_error(L, "ratingIndex is in the range 1 .. %d", 25);
@@ -2085,7 +2085,7 @@ static int32_t Script_IsArenaTeamCaptain(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
     uint32_t* info = player && index < 3 ? &player->m_player->m_playerFieldArenaTeamInfo11[index * 7] : nullptr;
 
@@ -2342,7 +2342,7 @@ static int32_t Script_UnitStat(lua_State* L) {
     }
 
     CGUnit_C* unit = GetUnitFromName(lua_tolstring(L, 1, nullptr));
-    uint32_t stat = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t stat = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (stat > 4) {
         luaL_error(L, "Invalid stat index in UnitStat");
@@ -2373,7 +2373,7 @@ static int32_t Script_UnitResistance(lua_State* L) {
     }
 
     CGUnit_C* unit = GetUnitFromName(lua_tolstring(L, 1, nullptr));
-    uint32_t school = static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t school = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
     if (school > 6) {
         luaL_error(L, "Invalid resistance index in UnitResistance");
@@ -2558,7 +2558,7 @@ static int32_t Script_GetRuneCount(lua_State* L) {
         return 0;
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (slot > 7) {
         return 0;
@@ -3072,7 +3072,7 @@ static int32_t Script_GetSpellCritChanceFromIntellect(lua_State* L) {
 // VERIFY: 29f73b82 manual
 // OFFSET: 0x0060E310
 static int32_t Script_GetSpellBonusDamage(lua_State* L) {
-    uint32_t school = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t school = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (school > 6) {
         luaL_error(L, "Usage: GetSpellBonusDamage(school)");
@@ -3099,7 +3099,7 @@ static int32_t Script_GetRuneCooldown(lua_State* L) {
         return 0;
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (slot > 7) {
         luaL_error(L, "Invalid slot");

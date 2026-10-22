@@ -155,7 +155,7 @@ void CGlueMgr::AttachCharacterSelectVisuals(CM2Model* model) {
         switch (kitRec->m_charProc[i]) {
             case 1: {
                 CImVector color;
-                *reinterpret_cast<uint32_t*>(&color) = static_cast<uint32_t>(kitRec->m_charParamZero[i]) | 0xFF000000;
+                *reinterpret_cast<uint32_t*>(&color) = static_cast<uint32_t>(static_cast<int64_t>(kitRec->m_charParamZero[i])) | 0xFF000000;
                 model->m_diffuseTintR = color.r * (1.0f / 255.0f);
                 model->m_diffuseTintG = color.g * (1.0f / 255.0f);
                 model->m_diffuseTintB = color.b * (1.0f / 255.0f);

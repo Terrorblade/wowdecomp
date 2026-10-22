@@ -30,8 +30,12 @@
 #define CALLBACK
 #define STDMETHODCALLTYPE
 
-// Basic Windows types.
+// Basic Windows types. Objective-C (the macOS .mm files) has its own BOOL, and no shared header uses the Windows one.
+#ifdef __OBJC__
+#include <objc/objc.h>
+#else
 typedef int32_t BOOL;
+#endif
 typedef uint8_t BYTE;
 typedef uint8_t BOOLEAN;
 typedef uint16_t WORD;
@@ -216,8 +220,6 @@ static inline long InterlockedCompareExchange(volatile long* p, long exchange, l
 #define _strnicmp strncasecmp
 #define stricmp strcasecmp
 #define strnicmp strncasecmp
-#define _snprintf snprintf
-#define _vsnprintf vsnprintf
 #define _alloca alloca
 #define _finite isfinite
 #define _isnan isnan
@@ -244,6 +246,130 @@ static inline char* _strlwr(char* s) {
     }
     return s;
 }
+
+#ifdef __cplusplus
+// MSVC's rand() is a per-thread LCG returning 15 bits. The client scales and compares its results against that range
+// (cloud noise, animation variations, sequence repeats), so libc's 31-bit rand() must not reach it.
+inline uint32_t& MsvcRandState() {
+    thread_local uint32_t state = 1;
+    return state;
+}
+
+inline int MsvcRand() {
+    uint32_t& state = MsvcRandState();
+    state = state * 214013u + 2531011u;
+    return static_cast<int>((state >> 16) & 0x7FFF);
+}
+
+inline void MsvcSrand(unsigned int seed) {
+    MsvcRandState() = seed;
+}
+
+#define rand MsvcRand
+#define srand MsvcSrand
+#undef RAND_MAX
+#define RAND_MAX 0x7FFF
+
+// MSVC's printf and scanf families take the I64 and I32 length modifiers, and Storm rewrites "%lld" to "%I64d". libc
+// prints them literally and leaves the argument unread, so they become the libc spelling. A format longer than the
+// buffer is passed through unchanged.
+inline const char* MsvcTranslateFormat(const char* format, char* buffer, size_t size) {
+    if (!strstr(format, "I64") && !strstr(format, "I32")) {
+        return format;
+    }
+
+    size_t out = 0;
+
+    for (const char* c = format; *c; c++) {
+        if (out + 3 >= size) {
+            return format;
+        }
+
+        buffer[out++] = *c;
+
+        if (*c != '%') {
+            continue;
+        }
+
+        if (c[1] == '%') {
+            buffer[out++] = *++c;
+            continue;
+        }
+
+        while (c[1] && strchr("-+ #0123456789.*$'", c[1])) {
+            if (out + 3 >= size) {
+                return format;
+            }
+            buffer[out++] = *++c;
+        }
+
+        if (c[1] == 'I' && c[2] == '6' && c[3] == '4') {
+            buffer[out++] = 'l';
+            buffer[out++] = 'l';
+            c += 3;
+        } else if (c[1] == 'I' && c[2] == '3' && c[3] == '2') {
+            c += 3;
+        }
+    }
+
+    buffer[out] = '\0';
+    return buffer;
+}
+
+// MSVC's _vsnprintf fills all count characters without a terminator when the output does not fit, returning count on
+// an exact fit and -1 when it truncates. Storm relies on both.
+inline int MsvcVsnprintf(char* dest, size_t count, const char* format, va_list args) {
+    char translated[512];
+    format = MsvcTranslateFormat(format, translated, sizeof(translated));
+
+    va_list copy;
+    va_copy(copy, args);
+    int length = vsnprintf(dest, count, format, copy);
+    va_end(copy);
+
+    if (length < 0 || static_cast<size_t>(length) < count) {
+        return length;
+    }
+
+    char* full = static_cast<char*>(malloc(static_cast<size_t>(length) + 1));
+    vsnprintf(full, static_cast<size_t>(length) + 1, format, args);
+    memcpy(dest, full, count);
+    free(full);
+
+    return static_cast<size_t>(length) == count ? length : -1;
+}
+
+inline int MsvcSnprintf(char* dest, size_t count, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int result = MsvcVsnprintf(dest, count, format, args);
+    va_end(args);
+    return result;
+}
+
+inline int MsvcSscanf(const char* string, const char* format, ...) {
+    char translated[512];
+    va_list args;
+    va_start(args, format);
+    int result = vsscanf(string, MsvcTranslateFormat(format, translated, sizeof(translated)), args);
+    va_end(args);
+    return result;
+}
+
+// The macros also rewrite std::rand and std::sscanf in the standard library headers, so std needs the replacements too.
+namespace std {
+using ::MsvcRand;
+using ::MsvcSrand;
+using ::MsvcSscanf;
+}
+
+#define _snprintf MsvcSnprintf
+#define _vsnprintf MsvcVsnprintf
+#define sscanf MsvcSscanf
+#else
+#define _snprintf snprintf
+#define _vsnprintf vsnprintf
+#endif
 
 // _rotl/_rotr are clang builtins under -fms-extensions.
 

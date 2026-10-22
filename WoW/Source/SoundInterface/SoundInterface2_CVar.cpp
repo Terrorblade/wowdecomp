@@ -5,6 +5,7 @@
 #include "Engine/Source/Base/CmdLine.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
+#include "Engine/Source/Os/OsCacheLimits.h"
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/SoundEngine/SoundEngine.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -267,7 +268,7 @@ void SI2::RegisterCVars() {
         CVar::Lookup("Sound_ChaosMode")->Set("0", true, false, false, true);
     }
 
-    CVar::Register("Sound_MaxCacheSizeInBytes", "Max cache size in bytes", 0, "16777216", nullptr, 7, false, nullptr, false);
+    CVar::Register("Sound_MaxCacheSizeInBytes", "Max cache size in bytes", 0, OsGetCacheLimits().m_soundCacheDefault, nullptr, 7, false, nullptr, false);
     CVar::Register("Sound_MaxCacheableSizeInBytes", "Max sound size that will be cached, larger files will be streamed instead", 0, "1048576", nullptr, 7, false, nullptr, false);
 
     static CVar* s_enableAllSound = CVar::Lookup("Sound_EnableAllSound");

@@ -57,7 +57,7 @@ static int32_t Script_SelectTrainerService(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= CGClassTrainer::m_numServices || (CGClassTrainer::m_currentSelection = CGClassTrainer::m_services.m_data[index]->m_spellID) < 0) {
         CGClassTrainer::m_currentSelection = 0;
@@ -74,7 +74,7 @@ static int32_t Script_GetTrainerServiceCost(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TrainerServiceInfo* service = index < CGClassTrainer::m_numServices ? CGClassTrainer::m_services.m_data[index] : nullptr;
     int32_t moneyCost = 0;
     int32_t talentCost;
@@ -103,7 +103,7 @@ static int32_t Script_GetTrainerServiceLevelReq(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t levelReq = 0;
 
     if (index < CGClassTrainer::m_numServices) {
@@ -126,7 +126,7 @@ static int32_t Script_GetTrainerServiceNumAbilityReq(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TrainerServiceInfo* service = index < CGClassTrainer::m_numServices ? CGClassTrainer::m_services.m_data[index] : nullptr;
     uint32_t count = 0;
 
@@ -156,7 +156,7 @@ static int32_t Script_IsTrainerServiceSkillStep(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index < CGClassTrainer::m_numServices) {
         TrainerServiceInfo* service = CGClassTrainer::m_services.m_data[index];
@@ -239,7 +239,7 @@ static int32_t Script_GetTrainerServiceSkillLine(lua_State* L) {
     }
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TrainerServiceInfo* service = index < CGClassTrainer::m_numServices ? CGClassTrainer::m_services.m_data[index] : nullptr;
 
     if (player && service) {
@@ -363,7 +363,7 @@ static int32_t Script_GetTrainerServiceInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     lua_pushstring(L, CGClassTrainer::GetServiceName(index));
     lua_pushstring(L, CGClassTrainer::GetServiceSubtext(index));
     lua_pushstring(L, CGClassTrainer::GetServiceType(index));
@@ -385,7 +385,7 @@ static int32_t Script_GetTrainerServiceIcon(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TrainerServiceInfo* service;
 
     if (index >= CGClassTrainer::m_numServices || !(service = CGClassTrainer::m_services.m_data[index])) {
@@ -429,7 +429,7 @@ static int32_t Script_GetTrainerServiceSkillReq(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t met = 1;
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
     TrainerServiceInfo* service = index < CGClassTrainer::m_numServices ? CGClassTrainer::m_services.m_data[index] : nullptr;
@@ -482,9 +482,9 @@ static int32_t Script_GetTrainerServiceAbilityReq(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     char text[256] = { 0 };
-    uint32_t ability = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t ability = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     int32_t met = 1;
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
     TrainerServiceInfo* service = index < CGClassTrainer::m_numServices ? CGClassTrainer::m_services.m_data[index] : nullptr;
@@ -528,7 +528,7 @@ static int32_t Script_GetTrainerServiceStepReq(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     const char* name = nullptr;
     int32_t met = 1;
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
@@ -592,7 +592,7 @@ static int32_t Script_GetTrainerServiceDescription(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TrainerServiceInfo* service;
 
     if (index < CGClassTrainer::m_numServices && (service = CGClassTrainer::m_services.m_data[index])) {
@@ -631,7 +631,7 @@ static int32_t Script_GetTrainerServiceStepIncrease(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TrainerServiceInfo* service;
 
     if (index < CGClassTrainer::m_numServices && (service = CGClassTrainer::m_services.m_data[index])) {
@@ -858,7 +858,7 @@ static int32_t Script_GetTrainerServiceItemLink(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     TrainerServiceInfo* service;
 
     if (index < CGClassTrainer::m_numServices && (service = CGClassTrainer::m_services.m_data[index])) {

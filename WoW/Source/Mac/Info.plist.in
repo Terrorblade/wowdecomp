@@ -24,5 +24,20 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.role-playing-games</string>
+    <!-- macOS Game Mode while full screen: CPU and GPU priority, low-latency input -->
+    <key>LSSupportsGameMode</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <false/>
+    <key>GCSupportsControllerUserInteraction</key>
+    <true/>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- The client fetches patch and news data over plain HTTP -->
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
 </dict>
 </plist>

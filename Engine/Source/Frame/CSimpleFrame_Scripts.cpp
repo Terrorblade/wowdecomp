@@ -914,7 +914,7 @@ static int32_t Script_SetAlpha(lua_State* L) {
         alpha = 1.0f;
     }
 
-    frame->SetFrameAlpha(static_cast<uint8_t>(alpha * 255.0f));
+    frame->SetFrameAlpha(static_cast<uint8_t>(static_cast<int64_t>(alpha * 255.0f)));
     return 0;
 }
 

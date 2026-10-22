@@ -317,7 +317,7 @@ static uint8_t PlayerNameIconAlpha(const C3Vector& position) {
     }
 
     if (distance > 4.0f) {
-        return static_cast<uint8_t>((distance - 4.0f) * 55.25f + 34.0f);
+        return static_cast<uint8_t>(static_cast<int64_t>((distance - 4.0f) * 55.25f + 34.0f));
     }
 
     return 34;

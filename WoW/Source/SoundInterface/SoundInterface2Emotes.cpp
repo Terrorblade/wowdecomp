@@ -81,6 +81,9 @@ void SI2::InitEmoteSounds() {
 
     s_numTextEmotes = count;
 
+    // The lookup table keeps pointers into s_textEmoteLookups, so it must not reallocate while it fills.
+    s_textEmoteLookups.Reserve(g_emotesTextSoundDB.m_numRecords, 0);
+
     for (int32_t i = 0; i < g_emotesTextSoundDB.m_numRecords; i++) {
         EmotesTextSoundRec* rec = (i < 0 || i >= g_emotesTextSoundDB.m_numRecords) ? nullptr : &g_emotesTextSoundDB.m_records[i];
         uint32_t id = rec->m_emotesTextID;

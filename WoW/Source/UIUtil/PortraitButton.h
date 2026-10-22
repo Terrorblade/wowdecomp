@@ -23,6 +23,12 @@ struct PORTRAITCACHE {
 
 struct PLAYERPORTRAIT : public TSHashObject<PLAYERPORTRAIT, CHashKeyGUID> {
     /* 0020 */ PORTRAITCACHE m_cache;
+
+    // INLINED
+    // A new player or unit portrait starts dirty so it renders even if its first render fails
+    PLAYERPORTRAIT() {
+        this->m_cache.m_dirty = 1;
+    }
 };
 
 struct ITEMPORTRAIT : public TSHashObject<ITEMPORTRAIT, HASHKEY_STRI> {
@@ -37,6 +43,11 @@ struct PORTRAITREQUEST : public TSLinkedNode<PORTRAITREQUEST> {
 
 struct UNITPORTRAIT : public TSHashObject<UNITPORTRAIT, HASHKEY_DWORD> {
     /* 0018 */ PORTRAITCACHE m_cache;
+
+    // INLINED
+    UNITPORTRAIT() {
+        this->m_cache.m_dirty = 1;
+    }
 };
 
 int32_t RTAlphaSupported();

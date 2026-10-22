@@ -199,7 +199,7 @@ static int32_t Script_GetVoiceCurrentSessionID(lua_State* L) {
 static int32_t Script_GetVoiceSessionInfo(lua_State* L) {
     uint32_t id;
 
-    if (!lua_isnumber(L, 1) || (id = static_cast<uint32_t>(lua_tonumber(L, 1))) > 31) {
+    if (!lua_isnumber(L, 1) || (id = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)))) > 31) {
         lua_pushnil(L);
         return 1;
     }
@@ -249,7 +249,7 @@ static int32_t Script_GetNumVoiceSessionMembersBySessionID(lua_State* L) {
         return 0;
     }
 
-    uint32_t id = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t id = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
     if (id > 31) {
         return 0;
@@ -412,13 +412,13 @@ int32_t Script_GetVoiceSessionMemberInfoBySessionID(lua_State* L) {
         return 0;
     }
 
-    uint32_t sessionNumber = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t sessionNumber = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
     if (sessionNumber > 31) {
         return 0;
     }
 
-    uint32_t memberIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t memberIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (memberIndex > 39) {
         return 0;

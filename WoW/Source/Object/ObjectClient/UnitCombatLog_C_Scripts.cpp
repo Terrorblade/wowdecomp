@@ -56,8 +56,8 @@ static int32_t Script_CombatLogSetRetentionTime(lua_State* L) {
 // VERIFY: 7694814a manual
 // OFFSET: 0x0074D600
 static int32_t Script_CombatLog_Object_IsA(lua_State* L) {
-    uint32_t flags = static_cast<uint32_t>(lua_tonumber(L, 1));
-    flags &= static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t flags = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
+    flags &= static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
     if ((flags & 0xFFFF0000) || ((flags & 0xF) && (flags & 0xF0) && (flags & 0x300) && (flags & 0xFC00))) {
         lua_pushnumber(L, 1.0);

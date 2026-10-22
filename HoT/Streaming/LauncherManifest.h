@@ -14,6 +14,8 @@ struct ManifestFile {
     // "q1:<hex>" sampled digest for MPQs, empty means check m_sha256.
     std::string m_quick;
     bool m_hd = false;
+    // "linux" or "macos" for a native build only that OS takes, empty for every client.
+    std::string m_platform;
 };
 
 // An MPQ that carries a (hotmanifest), so it can be brought up to date file by file.

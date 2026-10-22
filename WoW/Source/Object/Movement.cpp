@@ -3488,7 +3488,7 @@ uint32_t CMovement_C::FallDown(uint32_t time, uint32_t elapsed, C3Vector move, i
             int32_t result = this->TryFallingDown(fallTime, &move, &distance, &push, &transport, &onSlope, &landed);
 
             if (result == 2) {
-                uint32_t skip = static_cast<uint32_t>((totalTime - timeFallen) * 1000.0f);
+                uint32_t skip = static_cast<uint32_t>(static_cast<int64_t>((totalTime - timeFallen) * 1000.0f));
                 this->m_anchorElapsedMs -= skip;
                 this->m_fallTimeMs -= skip;
                 this->SkipTime(skip);
@@ -3588,7 +3588,7 @@ stop:
     endTime = timeFallen;
 
 finish:
-    uint32_t used = static_cast<uint32_t>(endTime * 1000.0f);
+    uint32_t used = static_cast<uint32_t>(static_cast<int64_t>(endTime * 1000.0f));
 
     if (!landed) {
         this->m_fallTimeMs += used;
@@ -3678,7 +3678,7 @@ uint32_t CMovement_C::Fall(uint32_t time, uint32_t elapsed, float distance, cons
 // VERIFY: 1467b615 auto
 // OFFSET: 0x007619C0
 int32_t CMovement_C::WillPassObstacle(const C2Vector& direction, const C3Vector& position, float height) {
-    uint32_t time = static_cast<uint32_t>(sqrt((height + height) * 0.051837362f) * 1000.0f);
+    uint32_t time = static_cast<uint32_t>(static_cast<int64_t>(sqrt((height + height) * 0.051837362f) * 1000.0f));
     MoveState state;
     this->SaveMoveState(state);
     this->StartFalling(0.0f);
@@ -4696,7 +4696,7 @@ int32_t CMovement_C::InsertTurnToAngleStop(uint32_t time, float facing) {
         delta = CMath::normalizeAngleNegPiToPi_(facing - this->m_facing);
     }
 
-    uint32_t stopTime = fabs(delta) / this->m_turnRate * 1000.0f + time;
+    uint32_t stopTime = static_cast<uint32_t>(static_cast<int64_t>(fabs(delta) / this->m_turnRate * 1000.0f + time));
 
     if (!this->m_moveQueue.RequeueEntry(MOVEEVENT_STOP_TURN_AT_ANGLE, stopTime)) {
         this->AddPlayerMoveEvent(stopTime, MOVEEVENT_STOP_TURN_AT_ANGLE, true, 0, 0.0f, 0.0f, 0);
@@ -4709,7 +4709,7 @@ int32_t CMovement_C::InsertTurnToAngleStop(uint32_t time, float facing) {
 // OFFSET: 0x006EF7A0
 int32_t CMovement_C::InsertPitchToAngleStop(uint32_t time, float pitch) {
     float delta = CMath::normalizeAngleNegPiToPi_(pitch - this->m_pitch);
-    uint32_t stopTime = fabs(delta) / this->m_pitchRate * 1000.0f + time;
+    uint32_t stopTime = static_cast<uint32_t>(static_cast<int64_t>(fabs(delta) / this->m_pitchRate * 1000.0f + time));
 
     if (!this->m_moveQueue.RequeueEntry(MOVEEVENT_STOP_PITCH_AT_ANGLE, stopTime)) {
         this->AddPlayerMoveEvent(stopTime, MOVEEVENT_STOP_PITCH_AT_ANGLE, true, 0, 0.0f, 0.0f, 0);

@@ -13,4 +13,8 @@ bool IsForeignBinary(const std::string& path) {
     return false;
 }
 
+const char* ManifestPlatform() {
+    return "win";
+}
+
 }

@@ -96,7 +96,7 @@ void CSimpleModelFFX::Render(void* arg) {
 
     int32_t params[3];
     params[0] = 0;
-    params[1] = static_cast<uint8_t>(model->m_glow * 255.0f);
+    params[1] = static_cast<uint8_t>(static_cast<int64_t>(model->m_glow * 255.0f));
     params[2] = 0;
     CGlueMgr::m_glowEffect->SetParameters(3, params);
 

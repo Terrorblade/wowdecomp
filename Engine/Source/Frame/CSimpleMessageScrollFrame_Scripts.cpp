@@ -260,7 +260,7 @@ static int32_t Script_GetMessageInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     int32_t accessID = lua_tointeger(L, 3);
     CSimpleMessageScrollFrameLine* line = frame->GetMessageInfoByAccessID(index, accessID);
 

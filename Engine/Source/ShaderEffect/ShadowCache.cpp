@@ -204,6 +204,7 @@ int32_t CShadowCache::ValidateShadowMode(EShadowMode mode) {
             switch (g_theGxDevicePtr->DeviceApi()) {
                 case GxApi_D3d9:
                 case GxApi_D3d9Ex:
+                case GxApi_Metal:
                     if (vertexTarget != 1 && vertexTarget != 2 && vertexTarget != 3) {
                         return 0;
                     }
@@ -235,6 +236,7 @@ int32_t CShadowCache::ValidateShadowMode(EShadowMode mode) {
             switch (g_theGxDevicePtr->DeviceApi()) {
                 case GxApi_D3d9:
                 case GxApi_D3d9Ex:
+                case GxApi_Metal:
                     if (vertexTarget != 3 || pixelTarget != 4) {
                         return 0;
                     }

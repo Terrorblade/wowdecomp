@@ -21,25 +21,27 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
     set(WOWDECOMP_PLATFORM_LINUX 1)
     set(WOWDECOMP_PLATFORM_POSIX 1)
 elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-    # Native macOS port: builds the Linux/ sources too, and a Mac/ file replaces the Linux/ file of the same name.
-    # Rendering goes through the OpenGL device on the legacy (2.1) context, which has the ARB programs it uses.
+    # Native macOS port: builds the Linux/ sources too, and a Mac/ file (.cpp or Objective-C++ .mm) replaces the Linux/
+    # file of the same name. The window, input and audio are Cocoa and CoreAudio, and the client renders through the
+    # native Metal device (Gx/CGxDeviceMetal), which runs the game's Direct3D 9 shaders translated to MSL.
     set(WOWDECOMP_PLATFORM_MAC 1)
     set(WOWDECOMP_PLATFORM_POSIX 1)
 else ()
     message(FATAL_ERROR "wowdecomp targets Windows, Linux and macOS only.")
 endif ()
 
-# Each module globs its sources; this drops the ones that belong to another platform.
+# Each module globs its sources; this drops the ones that belong to another platform. On macOS a Mac/Name.cpp or
+# Mac/Name.mm replaces Linux/Name.cpp, and the Linux SDL and OpenGL code is left out.
 function(wowdecomp_filter_platform_sources var)
     if (WOWDECOMP_PLATFORM_LINUX)
-        list(FILTER ${var} EXCLUDE REGEX "/[Ww]in(32|64)/|/Mac/")
+        list(FILTER ${var} EXCLUDE REGEX "/[Ww]in(32|64)/|/Mac/|/CGxDeviceMetal/")
     elseif (WOWDECOMP_PLATFORM_MAC)
-        list(FILTER ${var} EXCLUDE REGEX "/[Ww]in(32|64)/")
+        list(FILTER ${var} EXCLUDE REGEX "/[Ww]in(32|64)/|/CGxDeviceOpenGL/|/Os/Linux/OsSdl\\.cpp$|/fmodex/linux/src/fmod_output_sdl\\.cpp$")
         set(sources)
 
         foreach (source ${${var}})
-            if (source MATCHES "^(.*)/Linux/(.*)$")
-                if (EXISTS "${CMAKE_MATCH_1}/Mac/${CMAKE_MATCH_2}")
+            if (source MATCHES "^(.*)/Linux/([^/.]*)\\.[^./]+$")
+                if (EXISTS "${CMAKE_MATCH_1}/Mac/${CMAKE_MATCH_2}.cpp" OR EXISTS "${CMAKE_MATCH_1}/Mac/${CMAKE_MATCH_2}.mm")
                     continue ()
                 endif ()
             endif ()
@@ -49,7 +51,7 @@ function(wowdecomp_filter_platform_sources var)
 
         set(${var} ${sources})
     else ()
-        list(FILTER ${var} EXCLUDE REGEX "/Linux/|/Mac/")
+        list(FILTER ${var} EXCLUDE REGEX "/Linux/|/Mac/|/CGxDeviceMetal/")
     endif ()
     set(${var} ${${var}} PARENT_SCOPE)
 endfunction()
@@ -91,11 +93,13 @@ else ()
     add_compile_definitions(WOWDECOMP_PLATFORM_POSIX=1)
     if (WOWDECOMP_PLATFORM_LINUX)
         add_compile_definitions(WOWDECOMP_PLATFORM_LINUX=1)
+        find_package(SDL2 REQUIRED CONFIG)
     else ()
-        # OpenGL is deprecated on macOS but still there, and is what the client renders with.
-        add_compile_definitions(WOWDECOMP_PLATFORM_MAC=1 GL_SILENCE_DEPRECATION)
+        add_compile_definitions(WOWDECOMP_PLATFORM_MAC=1)
+        enable_language(OBJC OBJCXX)
+        # The Cocoa and Metal code in the .mm files is written for ARC.
+        add_compile_options($<$<COMPILE_LANGUAGE:OBJC,OBJCXX>:-fobjc-arc>)
     endif ()
-    find_package(SDL2 REQUIRED CONFIG)
     find_package(Threads REQUIRED)
     # The modules are static libraries that reference each other in cycles, as MSVC's linker allows; lld resolves
     # archive members regardless of order.
@@ -132,8 +136,8 @@ if (NOT WOWDECOMP_PLATFORM_WIN)
         -fno-delete-null-pointer-checks
         "SHELL:-include ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Linux/Compat.h"
         "SHELL:-include ${WOWDECOMP_COMPAT_OS_HEADER}"
-        $<$<COMPILE_LANGUAGE:CXX>:-Wno-c++11-narrowing>
-        $<$<COMPILE_LANGUAGE:CXX>:-Wno-register>
+        $<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-Wno-c++11-narrowing>
+        $<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-Wno-register>
         -Wno-microsoft
         -Wno-ignored-attributes
     )

@@ -343,7 +343,7 @@ static int32_t Script_GetRefreshRates(lua_State* L) {
 
     if (lua_isnumber(L, 1)) {
         uint32_t count = s_resolutions.Count();
-        index = count < static_cast<uint32_t>(lua_tonumber(L, 1)) - 1 ? s_resolutions.Count() : static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        index = count < static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1 ? s_resolutions.Count() : static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     }
 
     if (index >= s_resolutions.Count()) {
@@ -475,7 +475,7 @@ static int32_t Script_SetScreenResolution(lua_State* L) {
 
     if (lua_isnumber(L, 1)) {
         uint32_t count = s_resolutions.Count();
-        index = count < static_cast<uint32_t>(lua_tonumber(L, 1)) - 1 ? s_resolutions.Count() : static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        index = count < static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1 ? s_resolutions.Count() : static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     }
 
     CVar* gxResolution = CVar::Lookup("gxResolution");
@@ -505,7 +505,7 @@ static int32_t Script_SetMultisampleFormat(lua_State* L) {
 
     if (lua_isnumber(L, 1)) {
         uint32_t count = s_multisampleFormats.Count();
-        index = count < static_cast<uint32_t>(lua_tonumber(L, 1)) - 1 ? s_multisampleFormats.Count() : static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+        index = count < static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1 ? s_multisampleFormats.Count() : static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     }
 
     CVar* colorBits = CVar::Lookup("gxColorBits");

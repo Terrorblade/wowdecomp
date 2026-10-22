@@ -130,7 +130,7 @@ static uint32_t SmartScreenRectGridPos(const CRect& rect) {
     float screenWidth = NDCToDDCWidth(1.0f);
     float screenHeight = NDCToDDCHeight(1.0f);
 
-    uint32_t columns = static_cast<uint32_t>(screenWidth / (rect.maxX - rect.minX)) + 1;
+    uint32_t columns = static_cast<uint32_t>(static_cast<int64_t>(screenWidth / (rect.maxX - rect.minX))) + 1;
     int32_t rows = static_cast<int32_t>(screenHeight / (rect.minY - rect.maxY)) + 1;
 
     return columns * rows;

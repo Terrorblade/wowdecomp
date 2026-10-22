@@ -243,7 +243,7 @@ double CMath::log2_(double x) {
 // OFFSET: 0x004C4F40
 double CMath::exp2_(double x) {
     double biased = x + 1023.0;
-    uint32_t exponent = static_cast<uint32_t>(biased) - 1;
+    uint32_t exponent = static_cast<uint32_t>(static_cast<int64_t>(biased)) - 1;
 
     double fraction = biased - exponent;
     uint32_t index = reinterpret_cast<uint32_t*>(&fraction)[1] & 0xFC000;
@@ -363,7 +363,7 @@ bool fnotequal(float a, float b) {
 // OFFSET: 0x00493B90
 uint32_t CMath::fuint_pi(float f) {
     if (f > 0.0f) {
-        return static_cast<uint32_t>(f + 0.99995f);
+        return static_cast<uint32_t>(static_cast<int64_t>(f + 0.99995f));
     }
 
     return static_cast<int32_t>(f);
@@ -379,7 +379,7 @@ int32_t CMath::ftrunc(float f) {
 // OFFSET: 0x005773B0
 int32_t CMath::fint_n(float f) {
     if (f > 0.0f) {
-        return static_cast<uint32_t>(f + 0.5f);
+        return static_cast<uint32_t>(static_cast<int64_t>(f + 0.5f));
     }
 
     return static_cast<int32_t>(f - 0.5f);

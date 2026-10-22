@@ -1549,7 +1549,7 @@ static void CompressBlock(const uint8_t* src, uint32_t stride, uint8_t* out) {
 
     for (uint32_t i = 0; i < 16; i++) {
         float proj = (colors[i][0] - mean[0]) * axis[0] + (colors[i][1] - mean[1]) * axis[1] + (colors[i][2] - mean[2]) * axis[2];
-        uint32_t index = static_cast<uint32_t>((proj - minProj) * indexScale + 0.5f);
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>((proj - minProj) * indexScale + 0.5f));
         indices |= map[index] << (2 * i);
     }
 

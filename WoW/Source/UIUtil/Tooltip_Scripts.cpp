@@ -415,7 +415,7 @@ static int32_t Script_SetSpell(lua_State* L) {
     CGTooltip* tooltip = static_cast<CGTooltip*>(FrameScript_GetObjectThis(L, CGTooltip::GetObjectType()));
     uint32_t slot;
 
-    if (!lua_isnumber(L, 2) || !lua_isstring(L, 3) || (slot = static_cast<uint32_t>(lua_tonumber(L, 2) - 1.0), slot > 1023)) {
+    if (!lua_isnumber(L, 2) || !lua_isstring(L, 3) || (slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2) - 1.0)), slot > 1023)) {
         const char* name = tooltip->GetName();
         luaL_error(L, "Invalid spell slot in %s:SetSpell", name ? name : "<unnamed>");
     }
@@ -455,7 +455,7 @@ static int32_t Script_SetShapeshift(lua_State* L) {
         luaL_error(L, "Usage: %s:SetShapeshift(slot)", name ? name : "<unnamed>");
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
     if (slot - 1 < s_shapeshiftSpells.m_count) {
         int32_t spellId = s_shapeshiftSpells.m_data[slot - 1].m_spellId;
@@ -932,7 +932,7 @@ static int32_t Script_SetGlyph(lua_State* L) {
     CGTalentGroup_C* group = TalentInfoGetTalentGroup(TalentInfoGetScriptGroupIndex(L, 3), 0, 0);
 
     if (player && group) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
         tooltip->SetGlyph(player->m_player->m_playerFieldGlyphSlots1[index], group->GetGlyph(index), (player->m_player->m_playerGlyphsEnabled & (1 << index)) != 0, 0, 0);
     }
 
@@ -953,8 +953,8 @@ static int32_t Script_SetTalent(lua_State* L) {
         return 0;
     }
 
-    uint32_t tabIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
-    uint32_t talentIndex = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+    uint32_t tabIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t talentIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
     int32_t inspect = StringToBOOL(L, 4, 0);
     int32_t pet = StringToBOOL(L, 5, 0);
     uint32_t group = TalentInfoGetScriptGroupIndex(L, 6);
@@ -978,7 +978,7 @@ static int32_t Script_SetAction(lua_State* L) {
         luaL_error(L, "Usage: %s:SetAction(slot)", name ? name : "<unnamed>");
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 2) - 1.0);
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2) - 1.0));
     uint32_t start;
     uint32_t duration;
     uint32_t enable;
@@ -1615,7 +1615,7 @@ static int32_t Script_SetTotem(lua_State* L) {
         luaL_error(L, "Usage: %s:SetTotem(slot)", name ? name : "<unnamed>");
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
     TotemInfo* totem = CGGameUI::GetTotemInfo(slot - 1);
 
     if (!totem || !totem->m_guid) {
@@ -1641,7 +1641,7 @@ static int32_t Script_SetPetAction(lua_State* L) {
         luaL_error(L, "Usage: %s:SetPetAction(slot)", name ? name : "<unnamed>");
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     PetAction* action = CGPetInfo::GetPet(0) && slot < 10 ? &CGPetInfo::m_actions[slot] : nullptr;
 
     if (!action || !action->m_data) {
@@ -1799,7 +1799,7 @@ static int32_t Script_SetQuestItem(lua_State* L) {
     uint32_t index;
     int32_t itemId;
 
-    if (!lua_isstring(L, 2) || !lua_isnumber(L, 3) || (type = lua_tolstring(L, 2, nullptr), index = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1, itemId = CGQuestInfo::GetQuestItemID(type, index), itemId <= 0)) {
+    if (!lua_isstring(L, 2) || !lua_isnumber(L, 3) || (type = lua_tolstring(L, 2, nullptr), index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1, itemId = CGQuestInfo::GetQuestItemID(type, index), itemId <= 0)) {
         luaL_error(L, "Invalid quest item in SetQuestItem(\"type\", index)");
         return 0;
     }
@@ -1898,7 +1898,7 @@ static int32_t Script_SetTradeSkillItem(lua_State* L) {
     uint32_t index;
     TradeSkillInfo* skill;
 
-    if (!lua_isnumber(L, 2) || (index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1, index >= CGTradeSkillInfo::m_numDisplayEntries) || (skill = CGTradeSkillInfo::m_displayList.m_data[index]) == nullptr) {
+    if (!lua_isnumber(L, 2) || (index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1, index >= CGTradeSkillInfo::m_numDisplayEntries) || (skill = CGTradeSkillInfo::m_displayList.m_data[index]) == nullptr) {
         luaL_error(L, "Invalid trade skill item in SetTradeSkillItem(index [,reagent])");
     }
 

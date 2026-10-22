@@ -8,6 +8,7 @@
 #include "Engine/Source/jpeg/jpeglib.h"
 #include "Engine/Source/jpeg/jmemnobs.h"
 #include "Engine/Source/jpeg/jmemsrc.h"
+#include "Engine/Source/Os/OsFile.h"
 
 // STATIC: 0x009EE118
 static const int32_t s_luminanceTables[11][64] = {
@@ -1365,8 +1366,8 @@ static int32_t WriteJpegFile(IWJpegParams* params) {
         float fraction = (quality % 10) * 0.1f;
 
         for (int32_t i = 0; i < 64; i++) {
-            luminance[i] = luminanceLow[i] + static_cast<uint32_t>((luminanceHigh[i] - luminanceLow[i]) * fraction);
-            chrominance[i] = chrominanceLow[i] + static_cast<uint32_t>((chrominanceHigh[i] - chrominanceLow[i]) * fraction);
+            luminance[i] = luminanceLow[i] + static_cast<uint32_t>(static_cast<int64_t>((luminanceHigh[i] - luminanceLow[i]) * fraction));
+            chrominance[i] = chrominanceLow[i] + static_cast<uint32_t>(static_cast<int64_t>((chrominanceHigh[i] - chrominanceLow[i]) * fraction));
         }
     } else {
         for (int32_t i = 0; i < 64; i++) {
@@ -1387,7 +1388,7 @@ static int32_t WriteJpegFile(IWJpegParams* params) {
         return 0;
     }
 
-    FILE* file = fopen(params->m_fileName, "wb");
+    FILE* file = OsFileOpenStdio(params->m_fileName, "wb");
 
     if (!file) {
         return 0;

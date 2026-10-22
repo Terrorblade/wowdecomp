@@ -22,7 +22,7 @@ static int32_t Script_GetBindingKey(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_ACTIVE;
 
     if (lua_isnumber(L, 2)) {
-        uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
         if (index <= BINDING_MODE_3) {
             mode = static_cast<BINDING_MODE>(index);
@@ -176,7 +176,7 @@ static int32_t Script_GetBindingAction(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_ACTIVE;
 
     if (lua_isnumber(L, 3)) {
-        uint32_t value = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t value = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
 
         if (value <= 3) {
             mode = static_cast<BINDING_MODE>(value);
@@ -226,7 +226,7 @@ static int32_t Script_GetBindingByKey(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_ACTIVE;
 
     if (lua_isnumber(L, 2)) {
-        uint32_t value = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+        uint32_t value = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
         if (value <= 3) {
             mode = static_cast<BINDING_MODE>(value);
@@ -280,7 +280,7 @@ static int32_t Script_SetBinding(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_0;
 
     if (lua_isnumber(L, 3)) {
-        uint32_t value = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t value = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
 
         if (value <= 3) {
             mode = static_cast<BINDING_MODE>(value);
@@ -314,7 +314,7 @@ static int32_t Script_GetBinding(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_0;
 
     if (lua_isnumber(L, 2)) {
-        uint32_t value = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+        uint32_t value = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
         if (value <= 3) {
             mode = static_cast<BINDING_MODE>(value);
@@ -372,7 +372,7 @@ static int32_t Script_SetBindingSpell(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_0;
 
     if (lua_isnumber(L, 3)) {
-        uint32_t value = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t value = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
 
         if (value <= 3) {
             mode = static_cast<BINDING_MODE>(value);
@@ -406,7 +406,7 @@ static int32_t Script_SetBindingItem(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_0;
 
     if (lua_isnumber(L, 3)) {
-        uint32_t value = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t value = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
 
         if (value <= 3) {
             mode = static_cast<BINDING_MODE>(value);
@@ -440,7 +440,7 @@ static int32_t Script_SetBindingMacro(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_0;
 
     if (lua_isnumber(L, 3)) {
-        uint32_t value = static_cast<uint32_t>(lua_tonumber(L, 3)) - 1;
+        uint32_t value = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1;
 
         if (value <= 3) {
             mode = static_cast<BINDING_MODE>(value);
@@ -474,7 +474,7 @@ static int32_t Script_SetBindingClick(lua_State* L) {
     BINDING_MODE mode = BINDING_MODE_0;
 
     if (lua_isnumber(L, 4)) {
-        uint32_t value = static_cast<uint32_t>(lua_tonumber(L, 4)) - 1;
+        uint32_t value = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 4))) - 1;
 
         if (value <= 3) {
             mode = static_cast<BINDING_MODE>(value);

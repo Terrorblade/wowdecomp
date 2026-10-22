@@ -6,8 +6,8 @@ set(FMODEX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fmodex)
 set(FMODEX_FLAC_DIR ${FMODEX_DIR}/lib/flac-1.1.4)
 
 if (WOWDECOMP_PLATFORM_POSIX)
-    # FMOD OS layer + SDL2 output for Linux (fmodex/linux/src); the win32 one is not used. macOS builds the same
-    # sources, with a file in fmodex/mac/src replacing the linux/src one of the same name.
+    # FMOD OS layer + SDL2 output for Linux (fmodex/linux/src). macOS builds the same OS layer, with a file in
+    # fmodex/mac/src replacing the linux/src one of the same name, and outputs to CoreAudio instead of SDL2.
     set(FMODEX_PLATFORM_DIR ${FMODEX_DIR}/linux/src)
     set(FMODEX_PLATFORM_GLOBS "${FMODEX_DIR}/linux/src/*.cpp")
 
@@ -72,12 +72,22 @@ target_compile_definitions(fmodex
         FLAC__HAS_OGG=1
 )
 
-if (WOWDECOMP_PLATFORM_POSIX)
+if (WOWDECOMP_PLATFORM_LINUX)
     target_link_libraries(fmodex
         PRIVATE
             SDL2::SDL2
             Os
         INTERFACE
+            ${CMAKE_DL_LIBS}
+    )
+elseif (WOWDECOMP_PLATFORM_MAC)
+    target_link_libraries(fmodex
+        PRIVATE
+            Os
+        INTERFACE
+            "-framework AudioToolbox"
+            "-framework AudioUnit"
+            "-framework CoreAudio"
             ${CMAKE_DL_LIBS}
     )
 else ()

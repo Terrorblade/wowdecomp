@@ -409,7 +409,7 @@ void CRibbonEmitter::Initialize(float edgesPerSecond, float edgeLifetime, const 
         edgeLifetime = 0.25f;
     }
 
-    uint32_t edgeCount = static_cast<uint32_t>(ceil(edgesPerSec * edgeLifetime) + 2.0f);
+    uint32_t edgeCount = static_cast<uint32_t>(static_cast<int64_t>(ceil(edgesPerSec * edgeLifetime) + 2.0f));
     this->m_edgeAges.SetCount(edgeCount);
 
     this->m_flags &= ~0x1;

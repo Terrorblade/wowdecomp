@@ -634,7 +634,7 @@ void CGUnit_C::RenderMissileTrajectoryTargetingTexture() {
             colors[2 * i + 2].b = 0xFF;
             colors[2 * i + 2].g = 0xFF;
             colors[2 * i + 2].r = 0xFF;
-            colors[2 * i + 2].a = static_cast<uint8_t>(pointAlpha + 0.5f);
+            colors[2 * i + 2].a = static_cast<uint8_t>(static_cast<int64_t>(pointAlpha + 0.5f));
             colors[2 * i + 3] = colors[2 * i + 2];
             pointAlpha += alphaStep;
             texCoords[2 * i + 2].x = texCoord;
@@ -693,7 +693,7 @@ void CGUnit_C::RenderMissileTrajectoryTargetingTexture() {
     color.b = 0xFF;
     color.g = 0xFF;
     color.r = 0xFF;
-    color.a = static_cast<uint8_t>(s_trajectoryAlpha * 255.0f + 0.5f);
+    color.a = static_cast<uint8_t>(static_cast<int64_t>(s_trajectoryAlpha * 255.0f + 0.5f));
     C44Matrix rotation;
     rotation.RotateAroundZ(-facing);
     ProjectTex::Render2d(box, color, &rotation, 0.5f, 0x200122, 5, 0.039999999f);
@@ -751,7 +751,7 @@ void CGUnit_C::RecordMissileTrajectoryUpdate(uint8_t castId, const C3Vector* imp
             missile->m_impactPos = *impact;
             missile->m_pitch = pitch;
             missile->m_trajectorySpeed = speed;
-            missile->m_arrivalTime = now + static_cast<uint32_t>(time * 1000.0f);
+            missile->m_arrivalTime = now + static_cast<uint32_t>(static_cast<int64_t>(time * 1000.0f));
         }
     }
 }

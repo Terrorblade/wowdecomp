@@ -10,7 +10,6 @@
 #include <new>
 #include <pthread.h>
 #include <sched.h>
-#include <semaphore.h>
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -33,7 +32,7 @@ struct THREADLAUNCH {
     HANDLE threadH;
     // The creator waits on started until the new thread has published its id, so SCreateThread can return it
     // the way CreateThread does.
-    sem_t started;
+    OsPosixSemaphore* started;
     pid_t threadId;
 };
 
@@ -148,7 +147,7 @@ uint32_t STORMAPI S_Thread::s_SLaunchThread(void* threadParam) {
     StormLinux::SyncSetCurrentThreadObject(threadH);
     StormLinux::SyncThreadStarted(threadH, static_cast<pid_t>(threadId));
     launch->threadId = static_cast<pid_t>(threadId);
-    sem_post(&launch->started);
+    OsPosixSemaphorePost(launch->started);
 
     s_threadCrit.Enter();
 
@@ -163,7 +162,7 @@ uint32_t STORMAPI S_Thread::s_SLaunchThread(void* threadParam) {
         }
     }
 
-    sem_destroy(&launch->started);
+    OsPosixSemaphoreDestroy(launch->started);
     SMemFree(launch, __FILE__, __LINE__, 0);
     SetThreadName(threadId, threadName);
     s_threadCrit.Leave();
@@ -221,7 +220,7 @@ HANDLE SCreateThread(uint32_t dwStackSize, uint32_t (STORMAPI* lpStartAddress)(v
     launch->threadProc = lpStartAddress;
     launch->param = lpParameter;
     launch->threadH = StormLinux::SyncCreateThreadObject();
-    sem_init(&launch->started, 0, 0);
+    launch->started = OsPosixSemaphoreCreate(0);
 
     S_Thread::s_threadCrit.Enter();
 
@@ -229,10 +228,7 @@ HANDLE SCreateThread(uint32_t dwStackSize, uint32_t (STORMAPI* lpStartAddress)(v
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-    if (dwStackSize) {
-        size_t stackSize = dwStackSize < PTHREAD_STACK_MIN ? PTHREAD_STACK_MIN : dwStackSize;
-        pthread_attr_setstacksize(&attr, stackSize);
-    }
+    OsPosixSetThreadStackSize(&attr, dwStackSize);
 
     HANDLE hThread = launch->threadH;
     pthread_t thread;
@@ -244,7 +240,7 @@ HANDLE SCreateThread(uint32_t dwStackSize, uint32_t (STORMAPI* lpStartAddress)(v
         // Drop both references: the thread never ran.
         StormLinux::SyncThreadExited(hThread);
         StormLinux::SyncClose(hThread);
-        sem_destroy(&launch->started);
+        OsPosixSemaphoreDestroy(launch->started);
         SMemFree(launch, __FILE__, __LINE__, 0);
         return nullptr;
     }
@@ -252,8 +248,7 @@ HANDLE SCreateThread(uint32_t dwStackSize, uint32_t (STORMAPI* lpStartAddress)(v
     pthread_attr_destroy(&attr);
 
     // The new thread posts before it touches s_threadCrit, so waiting here while holding it is safe.
-    while (sem_wait(&launch->started) == -1 && errno == EINTR) {
-    }
+    OsPosixSemaphoreWait(launch->started);
 
     uint32_t threadId = static_cast<uint32_t>(launch->threadId);
 

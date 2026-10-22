@@ -969,6 +969,9 @@ static std::string WriteReport() {
             case GxApi_OpenGl:
                 api = "OpenGL";
                 break;
+            case GxApi_Metal:
+                api = "Metal";
+                break;
             default:
                 break;
         }
@@ -1121,7 +1124,7 @@ static int32_t Script_GetSummary(lua_State* L) {
 
     if (g_theGxDevicePtr) {
         EGxApi deviceApi = g_theGxDevicePtr->DeviceApi();
-        api = deviceApi == GxApi_D3d9 ? "D3D9" : deviceApi == GxApi_D3d9Ex ? "D3D9Ex" : deviceApi == GxApi_OpenGl ? "OpenGL" : "?";
+        api = deviceApi == GxApi_D3d9 ? "D3D9" : deviceApi == GxApi_D3d9Ex ? "D3D9Ex" : deviceApi == GxApi_OpenGl ? "OpenGL" : deviceApi == GxApi_Metal ? "Metal" : "?";
     }
 
     SetString(L, "api", api);

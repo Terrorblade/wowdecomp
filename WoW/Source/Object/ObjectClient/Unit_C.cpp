@@ -8450,9 +8450,20 @@ void CGUnit_C::UpdateSelectionRadius() {
     }
 }
 
+// Units take no part in world collision, the movement code handles their shapes.
+// OFFSET: 0x004899F0
+int32_t CGUnit_C::IsCollidable(int32_t flags) const {
+    return 0;
+}
+
 // OFFSET: 0x008A1420
 bool CGUnit_C::IsTransport() const {
     return true;
+}
+
+// OFFSET: 0x00959DE0
+int32_t CGUnit_C::IsPointInside(const C3Vector& point) const {
+    return 1;
 }
 
 // VERIFY: 9da62ce8 auto
@@ -21516,6 +21527,17 @@ void CGUnit_C::CreateUnitMount(int32_t a2, int32_t a3) {
     this->UpdateObjectEffectAnimationStates();
 }
 
+// VERIFY: 5d485eba manual
+// OFFSET: 0x0073C1D0
+void CGUnit_C::OnSpellEffectClear(CEffect* effect) {
+    bool updateAnimation = effect->m_kitRec && effect->m_kitRec->m_animID > 0 && (effect->m_flags & 0x1000);
+    CGObject_C::OnSpellEffectClear(effect);
+
+    if (updateAnimation) {
+        this->UpdateBaseAnimation(0, -1);
+    }
+}
+
 // VERIFY: e8fc52d0 manual
 // OFFSET: 0x0073C140
 void CGUnit_C::MountAnimEndCallback(CM2Model* model, uint32_t boneId, uint32_t sequenceId, int32_t interrupted, uint32_t time, uint64_t param) {
@@ -23288,7 +23310,7 @@ void CGUnit_C::RenderTargetSelection() const {
                 fade = (1.0f - half * half) * fade;
             }
 
-            color.a = static_cast<uint8_t>(fade * color.a);
+            color.a = static_cast<uint8_t>(static_cast<int64_t>(fade * color.a));
             C3Vector amount(grow, grow, grow);
             box.Expand(amount);
 
@@ -23327,10 +23349,10 @@ void CGUnit_C::RenderPetTargetSelection() const {
 
     if (t > 0.75f) {
         float x = (t - 0.75f) * 4.0f;
-        color.a = static_cast<uint8_t>((1.0f - x * x) * 255.0f);
+        color.a = static_cast<uint8_t>(static_cast<int64_t>((1.0f - x * x) * 255.0f));
     } else if (t < 0.25f) {
         float x = t * 4.0f;
-        color.a = static_cast<uint8_t>(x * x * 255.0f);
+        color.a = static_cast<uint8_t>(static_cast<int64_t>(x * x * 255.0f));
     }
 
     C3Vector amount(size, size, size + size);

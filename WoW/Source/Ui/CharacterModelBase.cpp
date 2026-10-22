@@ -263,7 +263,7 @@ void CGCharacterModelBase::SetUpModel(CGUnit_C* unit) {
 
     CCharacterComponent::RemoveVisuals(model);
     this->SetModel(model);
-    this->SetFrameAlpha(static_cast<uint8_t>(unit->GetBaseAlpha() * 255.0f));
+    this->SetFrameAlpha(static_cast<uint8_t>(static_cast<int64_t>(unit->GetBaseAlpha() * 255.0f)));
     model->SetBoneSequence(0xFFFFFFFF, 0, 0xFFFFFFFF, 0, 1.0f, 1, 1);
 
     for (CM2Model* attached = model->m_attachList; attached; attached = attached->m_attachNext) {

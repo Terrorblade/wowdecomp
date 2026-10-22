@@ -422,7 +422,7 @@ void CSimpleMessageScrollFrame::OnLayerUpdate(float elapsedSec) {
                     hide = true;
                 } else {
                     line->m_fadeLeft = fadeLeft;
-                    line->m_color.a = static_cast<uint8_t>(fadeLeft / this->m_fadeDuration * 255.0f);
+                    line->m_color.a = static_cast<uint8_t>(static_cast<int64_t>(fadeLeft / this->m_fadeDuration * 255.0f));
                     node.m_string->SetVertexColor(line->m_color);
                 }
             }

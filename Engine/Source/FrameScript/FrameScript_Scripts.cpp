@@ -610,17 +610,17 @@ static int32_t Script_debugstack(lua_State* L) {
     }
 
     if (lua_isnumber(L, 1)) {
-        level = lua_tonumber(L, 1);
+        level = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
         lua_remove(L, 1);
     }
 
     if (lua_isnumber(L, 1)) {
-        levels1 = lua_tonumber(L, 1);
+        levels1 = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
         lua_remove(L, 1);
     }
 
     if (lua_isnumber(L, 1)) {
-        levels2 = lua_tonumber(L, 1);
+        levels2 = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
         lua_remove(L, 1);
     }
 

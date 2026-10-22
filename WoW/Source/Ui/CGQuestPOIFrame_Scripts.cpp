@@ -126,7 +126,7 @@ static int32_t Script_SetFillAlpha(lua_State* L) {
         alpha = 0.0f;
     }
 
-    frame->m_fillAlpha = static_cast<uint8_t>(alpha);
+    frame->m_fillAlpha = static_cast<uint8_t>(static_cast<int64_t>(alpha));
     return 0;
 }
 
@@ -143,7 +143,7 @@ static int32_t Script_SetBorderAlpha(lua_State* L) {
         alpha = 0.0f;
     }
 
-    frame->m_borderAlpha = static_cast<uint8_t>(alpha);
+    frame->m_borderAlpha = static_cast<uint8_t>(static_cast<int64_t>(alpha));
     return 0;
 }
 

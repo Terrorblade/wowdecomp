@@ -71,7 +71,7 @@ int32_t CGxFont::UpdateDimensions() {
     double minHeight = 2.0 / g_heightPixels;
     height = height > minHeight ? height : minHeight;
 
-    uint32_t pixelSize = static_cast<uint32_t>(ScreenToPixelHeight(0, height));
+    uint32_t pixelSize = static_cast<uint32_t>(static_cast<int64_t>(ScreenToPixelHeight(0, height)));
 
     if (pixelSize > 32) {
         pixelSize = 32;
@@ -90,7 +90,7 @@ int32_t CGxFont::UpdateDimensions() {
     this->m_cellHeight = pixelSize;
 
     float baseline = static_cast<float>(pixelSize * face->ascender) / units;
-    this->m_baseline = static_cast<uint32_t>(baseline + 0.5);
+    this->m_baseline = static_cast<uint32_t>(static_cast<int64_t>(baseline + 0.5));
 
     if (this->m_fontFlags & 8) {
         this->m_cellHeight = pixelSize + 4;
@@ -308,7 +308,7 @@ float CGxFont::ComputeStepFixedWidth(uint32_t code, uint32_t nextCode) {
         return 0.0f;
     }
 
-    uint32_t advance = static_cast<uint32_t>(this->GetGlyphAdvance(code));
+    uint32_t advance = static_cast<uint32_t>(static_cast<int64_t>(this->GetGlyphAdvance(code)));
 
     if (advance >= this->m_cellHeight) {
         return this->m_cellHeight;
@@ -322,7 +322,7 @@ float CGxFont::ComputeStepFixedWidth(uint32_t code, uint32_t nextCode) {
 
     uint32_t step = this->m_cellHeight - padding / 2;
 
-    uint32_t nextAdvance = static_cast<uint32_t>(this->GetGlyphAdvance(nextCode));
+    uint32_t nextAdvance = static_cast<uint32_t>(static_cast<int64_t>(this->GetGlyphAdvance(nextCode)));
 
     if (nextAdvance >= this->m_cellHeight) {
         return step;

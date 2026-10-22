@@ -22,7 +22,7 @@ int32_t Script_GetWorldStateUIInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     int32_t id = index - 1 < CGWorldStateInfo::m_worldStateUI.m_count ? CGWorldStateInfo::m_worldStateUI.m_data[index - 1].m_id : 0;
     WorldStateUIRec* rec = g_worldStateUIDB.GetRecord(id);
 

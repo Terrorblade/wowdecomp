@@ -878,7 +878,7 @@ static int32_t Script_GetEventCPUUsage(lua_State* L) {
 // OFFSET: 0x00514BA0
 static int32_t Script_GetMouseButtonName(lua_State* L) {
     if (lua_isnumber(L, 1)) {
-        lua_pushstring(L, GetMouseButtonName(IndexToMouseButton(static_cast<uint32_t>(lua_tonumber(L, 1)))));
+        lua_pushstring(L, GetMouseButtonName(IndexToMouseButton(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))))));
         return 1;
     }
 
@@ -1238,7 +1238,7 @@ static int32_t Script_TargetTotem(lua_State* L) {
         return 0;
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (slot > 3) {
         luaL_error(L, "Totem slot must be in range of 1 to %d", 4);
@@ -1312,7 +1312,7 @@ static int32_t Script_SetPVP(lua_State* L) {
     uint8_t enable;
 
     if (lua_isnumber(L, 1)) {
-        enable = static_cast<uint8_t>(lua_tonumber(L, 1));
+        enable = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     } else {
         enable = 0;
     }
@@ -1536,7 +1536,7 @@ static int32_t Script_IsMouseButtonDown(lua_State* L) {
     int32_t down;
 
     if (lua_isnumber(L, 1)) {
-        down = EventIsButtonDown(IndexToMouseButton(static_cast<uint32_t>(lua_tonumber(L, 1))));
+        down = EventIsButtonDown(IndexToMouseButton(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)))));
     } else if (lua_isstring(L, 1)) {
         down = EventIsButtonDown(StringToMouseButton(lua_tolstring(L, 1, nullptr)));
     } else {
@@ -2172,7 +2172,7 @@ static int32_t Script_ArenaTeamInviteByName(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     const char* playerName = lua_tolstring(L, 2, nullptr);
     uint32_t teamId = index >= 3 ? 0 : CGArenaTeamInfo::m_arenaTeams[index].m_teamId;
 
@@ -2202,7 +2202,7 @@ static int32_t Script_ArenaTeamLeave(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     uint32_t teamId = index >= 3 ? 0 : CGArenaTeamInfo::m_arenaTeams[index].m_teamId;
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_ARENA_TEAM_LEAVE));
@@ -2220,7 +2220,7 @@ static int32_t Script_ArenaTeamUninviteByName(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     const char* playerName = lua_tolstring(L, 2, nullptr);
 
     if (playerName && SStrLen(playerName) > 48) {
@@ -2246,7 +2246,7 @@ static int32_t Script_ArenaTeamSetLeaderByName(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     const char* playerName = lua_tolstring(L, 2, nullptr);
 
     if (playerName && SStrLen(playerName) > 48) {
@@ -2272,7 +2272,7 @@ static int32_t Script_ArenaTeamDisband(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     uint32_t teamId = index >= 3 ? 0 : CGArenaTeamInfo::m_arenaTeams[index].m_teamId;
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_ARENA_TEAM_DISBAND));
@@ -2318,7 +2318,7 @@ static int32_t Script_GetTotemInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (slot > 3) {
         luaL_error(L, "Totem slot must be in range of 1 to %d", 4);
@@ -2532,7 +2532,7 @@ static int32_t Script_GetMirrorTimerInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index > 2) {
         luaL_error(L, "ERROR: Invalid timer (Ex: \"BREATH\"");
@@ -2710,7 +2710,7 @@ static int32_t Script_GetTotemTimeLeft(lua_State* L) {
         return 0;
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (slot > 3) {
         luaL_error(L, "Totem slot must be in range of 1 to %d", 4);
@@ -2968,7 +2968,7 @@ static int32_t Script_IsTitleKnown(lua_State* L) {
     }
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    uint32_t mask = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t mask = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
     if (player && mask && (player->m_player->m_playerFieldKnownTitles[mask >> 6] & (1ull << (mask & 63)))) {
         lua_pushnumber(L, 1.0);
@@ -3419,7 +3419,7 @@ static int32_t Script_GetCoinIcon(lua_State* L) {
     }
 
     char icon[260];
-    GetCurrencyIcon(static_cast<uint32_t>(lua_tonumber(L, 1)), icon, sizeof(icon));
+    GetCurrencyIcon(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))), icon, sizeof(icon));
     lua_pushstring(L, icon);
     return 1;
 }
@@ -3434,7 +3434,7 @@ static int32_t Script_GetCoinText(lua_State* L) {
 
     const char* separator = luaL_optlstring(L, 2, ", ", nullptr);
     char text[1024];
-    GetCurrencyText(static_cast<uint32_t>(lua_tonumber(L, 1)), text, sizeof(text), separator);
+    GetCurrencyText(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))), text, sizeof(text), separator);
     lua_pushstring(L, text);
     return 1;
 }
@@ -3454,7 +3454,7 @@ static int32_t Script_GetCoinTextureString(lua_State* L) {
     }
 
     char text[1024];
-    GetCurrencyTextureString(static_cast<uint32_t>(lua_tonumber(L, 1)), text, sizeof(text), height);
+    GetCurrencyTextureString(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))), text, sizeof(text), height);
     lua_pushstring(L, text);
     return 1;
 }
@@ -3542,7 +3542,7 @@ static int32_t Script_GetAddOnInfo(lua_State* L) {
     const char* name;
 
     if (lua_isnumber(L, 1)) {
-        name = GetAddOnByIndex(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+        name = GetAddOnByIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
 
         if (!name) {
             luaL_error(L, "AddOn index must be in the range of 1 to %d", GetNumAddOns());
@@ -3611,7 +3611,7 @@ static int32_t Script_GetAddOnMetadata(lua_State* L) {
     const char* name;
 
     if (lua_isnumber(L, 1)) {
-        name = GetAddOnByIndex(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+        name = GetAddOnByIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
 
         if (!name) {
             luaL_error(L, "AddOn index must be in the range of 1 to %d", GetNumAddOns());
@@ -3634,7 +3634,7 @@ static int32_t Script_GetAddOnMemoryUsage(lua_State* L) {
     const char* name;
 
     if (lua_isnumber(L, 1)) {
-        name = GetAddOnByIndex(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+        name = GetAddOnByIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
 
         if (!name) {
             luaL_error(L, "AddOn index must be in the range of 1 to %d", GetNumAddOns());
@@ -3659,7 +3659,7 @@ static int32_t Script_GetAddOnCPUUsage(lua_State* L) {
     const char* name;
 
     if (lua_isnumber(L, 1)) {
-        name = GetAddOnByIndex(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+        name = GetAddOnByIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
 
         if (!name) {
             luaL_error(L, "AddOn index must be in the range of 1 to %d", GetNumAddOns());
@@ -3684,7 +3684,7 @@ static int32_t Script_EnableAddOn(lua_State* L) {
     const char* name;
 
     if (lua_isnumber(L, 1)) {
-        name = GetAddOnByIndex(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+        name = GetAddOnByIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
 
         if (!name) {
             luaL_error(L, "AddOn index must be in the range of 1 to %d", GetNumAddOns());
@@ -3719,7 +3719,7 @@ static int32_t Script_DisableAddOn(lua_State* L) {
     const char* name;
 
     if (lua_isnumber(L, 1)) {
-        name = GetAddOnByIndex(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+        name = GetAddOnByIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
 
         if (!name) {
             luaL_error(L, "AddOn index must be in the range of 1 to %d", GetNumAddOns());
@@ -3754,7 +3754,7 @@ static int32_t Script_IsAddOnLoadOnDemand(lua_State* L) {
     const char* name;
 
     if (lua_isnumber(L, 1)) {
-        name = GetAddOnByIndex(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+        name = GetAddOnByIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
 
         if (!name) {
             luaL_error(L, "AddOn index must be in the range of 1 to %d", GetNumAddOns());
@@ -4393,7 +4393,7 @@ static int32_t Script_GetAddOnDependencies(lua_State* L) {
     const char* name;
 
     if (lua_isnumber(L, 1)) {
-        name = GetAddOnByIndex(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+        name = GetAddOnByIndex(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
 
         if (!name) {
             luaL_error(L, "AddOn index must be in the range of 1 to %d", GetNumAddOns());
@@ -4509,7 +4509,7 @@ static int32_t Script_EquipPendingItem(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player) {
-        player->ClearPendingEquip(static_cast<uint32_t>(lua_tonumber(L, 1)), 1);
+        player->ClearPendingEquip(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))), 1);
     }
 
     return 0;
@@ -4526,7 +4526,7 @@ static int32_t Script_CancelPendingEquip(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player) {
-        player->ClearPendingEquip(static_cast<uint32_t>(lua_tonumber(L, 1)), 0);
+        player->ClearPendingEquip(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))), 0);
     }
 
     return 0;
@@ -4731,7 +4731,7 @@ static int32_t Script_CheckInteractDistance(lua_State* L) {
     static float s_interactDistances[4] = { s_inspectDistSq, s_playerInteractDistSq, s_duelDistSq, s_followDistSq };
     CGUnit_C* unit = GetUnitFromName(lua_tolstring(L, 1, nullptr));
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (player && unit && index < 4) {
         C3Vector unitPosition = unit->GetPosition();
@@ -5636,7 +5636,7 @@ static int32_t Script_PickupPlayerMoney(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player) {
-        uint32_t amount = static_cast<uint32_t>(lua_tonumber(L, 1));
+        uint32_t amount = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
         if (amount && amount <= player->GetCoinage()) {
             CGGameUI::SetCursorMoney(amount);
@@ -6011,7 +6011,7 @@ static int32_t Script_SetDungeonDifficulty(lua_State* L) {
         return 0;
     }
 
-    uint32_t difficulty = static_cast<uint32_t>(lua_tonumber(L, 1) - 1.0);
+    uint32_t difficulty = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
 
     if (difficulty > 1) {
         return 0;
@@ -6046,7 +6046,7 @@ static int32_t Script_SetRaidDifficulty(lua_State* L) {
         return 0;
     }
 
-    uint32_t difficulty = static_cast<uint32_t>(lua_tonumber(L, 1) - 1.0);
+    uint32_t difficulty = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
 
     if (difficulty > 3) {
         return 0;

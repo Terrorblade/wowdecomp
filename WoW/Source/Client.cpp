@@ -29,6 +29,7 @@
 #include "Engine/Source/Model2/M2Cache.h"
 #include "Engine/Source/Os/Gui.h"
 #include "Engine/Source/Os/Input.h"
+#include "Engine/Source/Os/OsCacheLimits.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Os/OsIME.h"
 #include "Engine/Source/Os/Path.h"
@@ -1105,7 +1106,7 @@ int32_t InitializeEngineCallback(const void* data, void* param) {
 
     s_cvTextureFilteringMode = CVar::Register("textureFilteringMode", "Texture filtering mode", 1, "1", CWorldParam::TextureFilteringCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     s_cvarUIFaster = CVar::Register("UIFaster", "UI acceleration option", 0, "3", UIFasterCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvTextureCacheSize = CVar::Register("textureCacheSize", "Texture cache size in bytes", 1, "32", TextureCacheSizeCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvTextureCacheSize = CVar::Register("textureCacheSize", "Texture cache size in bytes", 1, OsGetCacheLimits().m_textureCacheDefault, TextureCacheSizeCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     TextureSetCacheSize(s_cvTextureCacheSize->m_intValue << 20);
 
     uint32_t m2Flags = GetM2CvarFlags();
@@ -1389,7 +1390,12 @@ static void OpenArchives() {
 
     int32_t priority = 64;
     uint32_t slot = 0;
-    s_archiveHandles.SetCount(64);
+
+    // The original reserves 64 handles, which installs with many patch archives overrun (patches, base archives and
+    // each patch's version of every base archive). The array is trimmed to the slots used below.
+    uint32_t archiveCount = sizeof(s_archives) / sizeof(s_archives[0]);
+    uint32_t capacity = patches.m_files.Count() + archiveCount + patches.m_files.Count() * archiveCount + archiveCount;
+    s_archiveHandles.SetCount(capacity > 64 ? capacity : 64);
 
     for (uint32_t i = patches.m_files.Count(); i; i--) {
         if (SFile::OpenArchive(patches.m_files[i - 1], priority, 0xC00, &s_archiveHandles[slot])) {

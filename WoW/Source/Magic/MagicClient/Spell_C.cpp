@@ -9234,9 +9234,9 @@ void Spell_C_PlayMissileTrajectoryCastVisuals(CGUnit_C* unit, PendingSpellCast* 
     }
 
     if (spell->m_attributesExD & 0x40000) {
-        LaunchMissileVisual(guids, misses, unit, spell, visual, 0, 0, cast ? &cast->m_data : nullptr, missReasons, reflectResults, static_cast<uint32_t>(time * 1000.0f));
+        LaunchMissileVisual(guids, misses, unit, spell, visual, 0, 0, cast ? &cast->m_data : nullptr, missReasons, reflectResults, static_cast<uint32_t>(static_cast<int64_t>(time * 1000.0f)));
     } else {
-        CreateMissilesForTargets(guids, unit, spell, visual, 0, 0, cast ? &cast->m_data : nullptr, nullptr, nullptr, static_cast<uint32_t>(time * 1000.0f));
+        CreateMissilesForTargets(guids, unit, spell, visual, 0, 0, cast ? &cast->m_data : nullptr, nullptr, nullptr, static_cast<uint32_t>(static_cast<int64_t>(time * 1000.0f)));
     }
 }
 

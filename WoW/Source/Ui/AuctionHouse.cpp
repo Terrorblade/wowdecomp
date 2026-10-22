@@ -2239,7 +2239,7 @@ void CGAuctionHouse::ShutdownGame() {
 uint32_t CalculateAuctionDeposit(uint32_t depositRate, uint32_t sellPrice, uint32_t runTime) {
     for (uint32_t i = 0; i < 3; i++) {
         if (runTime == s_depositRunTimes[i]) {
-            uint32_t deposit = static_cast<uint32_t>(static_cast<float>(depositRate * sellPrice / 100) * runTime * 0.0041666669f);
+            uint32_t deposit = static_cast<uint32_t>(static_cast<int64_t>(static_cast<float>(depositRate * sellPrice / 100) * runTime * 0.0041666669f));
             return deposit < 100 ? 100 : deposit;
         }
     }

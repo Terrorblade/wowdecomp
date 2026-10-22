@@ -380,6 +380,7 @@ bool OsUrlDownload::DownloadString(const char* url, OsURLDownloadCallback callba
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    OsPosixSetThreadStackSize(&attr, 0);
 
     pthread_t thread;
     int result = pthread_create(&thread, &attr, OsUrlDownloadThread, request);

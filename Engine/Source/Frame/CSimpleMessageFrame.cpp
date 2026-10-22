@@ -188,7 +188,7 @@ void CSimpleMessageFrame::AddPendingMessage(const char* text, const CImVector& c
     this->ShowLineNode(node, this->m_timeVisible, this->m_fadeDuration);
 
     float height = node->m_string->GetHeight();
-    uint32_t lines = static_cast<uint32_t>(floor(height / node->m_string->GetFontHeight(true) + 0.5));
+    uint32_t lines = static_cast<uint32_t>(static_cast<int64_t>(floor(height / node->m_string->GetFontHeight(true) + 0.5)));
 
     if (lines > 1 && this->m_rows > lines) {
         uint32_t top = this->m_insertMode == INSERT_AT_TOP;
@@ -293,7 +293,7 @@ void CSimpleMessageFrame::UpdateRect() {
     if (lineHeight <= 0.0f) {
         this->m_rows = 0;
     } else {
-        uint32_t rows = static_cast<uint32_t>((this->m_messageFrameArea.maxY - this->m_messageFrameArea.minY) / lineHeight);
+        uint32_t rows = static_cast<uint32_t>(static_cast<int64_t>((this->m_messageFrameArea.maxY - this->m_messageFrameArea.minY) / lineHeight));
         this->m_rows = rows;
 
         if (fabs(lineHeight * static_cast<float>(rows + 1) - (this->m_messageFrameArea.maxY - this->m_messageFrameArea.minY)) < 0.00000023841858f) {
@@ -392,7 +392,7 @@ void CSimpleMessageFrame::OnLayerUpdate(float elapsedSec) {
                 this->HideLineNode(node);
             } else {
                 node->m_fadeLeft = fadeLeft;
-                node->m_color.a = static_cast<uint8_t>(fadeLeft / this->m_fadeDuration * 255.0f);
+                node->m_color.a = static_cast<uint8_t>(static_cast<int64_t>(fadeLeft / this->m_fadeDuration * 255.0f));
                 node->m_string->SetVertexColor(node->m_color);
             }
         }

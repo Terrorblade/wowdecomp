@@ -535,7 +535,7 @@ static int32_t Script_SetSelectedRace(lua_State* L) {
         return 0;
     }
 
-    CCharacterCreation::SetSelectedRace(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+    CCharacterCreation::SetSelectedRace(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
     return 0;
 }
 
@@ -554,7 +554,7 @@ static int32_t Script_CustomizeExistingCharacter(lua_State* L) {
         return 0;
     }
 
-    CCharacterCreation::SetToExistingCharacter(static_cast<uint32_t>(lua_tonumber(L, 1)) - 1);
+    CCharacterCreation::SetToExistingCharacter(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
     return 0;
 }
 

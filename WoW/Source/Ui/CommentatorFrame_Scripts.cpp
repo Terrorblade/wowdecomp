@@ -91,7 +91,7 @@ static int32_t Script_CommentatorGetMapInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (index >= CGCommentator::s_Commentator.m_maps.Count()) {
         luaL_error(L, "no map at that index");
@@ -368,8 +368,8 @@ static int32_t Script_CommentatorGetInstanceInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t mapIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t instanceIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t mapIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t instanceIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (mapIndex >= CGCommentator::s_Commentator.m_maps.Count()) {
         luaL_error(L, "no map at that index");
@@ -441,7 +441,7 @@ static int32_t Script_CommentatorGetNumPlayers(lua_State* L) {
         return 0;
     }
 
-    uint32_t faction = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t faction = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
     if (faction - 1 >= 2) {
         luaL_error(L, "Error: faction index too large");
@@ -475,8 +475,8 @@ static int32_t Script_CommentatorGetPlayerInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t faction = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t faction = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (faction >= 2) {
         luaL_error(L, "Error: faction index too large");
@@ -527,8 +527,8 @@ static int32_t Script_CommentatorFollowPlayer(lua_State* L) {
         return 0;
     }
 
-    uint32_t faction = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t faction = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
     if (faction >= 2) {
         luaL_error(L, "Error: faction index too large");
@@ -573,8 +573,8 @@ static int32_t Script_CommentatorLookatPlayer(lua_State* L) {
         return 0;
     }
 
-    uint32_t faction = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2));
+    uint32_t faction = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
     if (faction >= 2) {
         luaL_error(L, "Error: faction index too large");
@@ -619,7 +619,7 @@ static int32_t Script_CommentatorSetMapAndInstanceIndex(lua_State* L) {
         return 0;
     }
 
-    uint32_t mapIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t mapIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (mapIndex >= CGCommentator::s_Commentator.m_maps.Count()) {
         luaL_error(L, "no map at that index");
@@ -627,7 +627,7 @@ static int32_t Script_CommentatorSetMapAndInstanceIndex(lua_State* L) {
     }
 
     CGCommentator::MapInfo* map = CGCommentator::s_Commentator.GetMapInfoByIndex(mapIndex);
-    uint32_t instanceIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t instanceIndex = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (instanceIndex >= map->m_instances.Count()) {
         luaL_error(L, "no instance at that index");
@@ -656,8 +656,8 @@ static int32_t Script_CommentatorSetPlayerIndex(lua_State* L) {
         return 0;
     }
 
-    uint32_t faction = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t faction = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
 
     if (faction >= 2) {
         luaL_error(L, "Error: faction index too large");
@@ -764,10 +764,10 @@ static int32_t Script_CommentatorStartInstance(lua_State* L) {
         return 0;
     }
 
-    uint32_t mapID = static_cast<uint32_t>(lua_tonumber(L, 1));
-    uint32_t teamSize = static_cast<uint32_t>(lua_tonumber(L, 2));
-    uint32_t minLevel = static_cast<uint32_t>(lua_tonumber(L, 3));
-    uint32_t maxLevel = static_cast<uint32_t>(lua_tonumber(L, 4));
+    uint32_t mapID = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
+    uint32_t teamSize = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
+    uint32_t minLevel = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3)));
+    uint32_t maxLevel = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 4)));
 
     if (teamSize != 2 && teamSize != 3 && teamSize != 5) {
         luaL_error(L, "Unknown team size. Use 2, 3, or 5.");
@@ -829,7 +829,7 @@ static int32_t Script_CommentatorAddPlayer(lua_State* L) {
         return 0;
     }
 
-    uint32_t team = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t team = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (team > 1) {
         team = 0;

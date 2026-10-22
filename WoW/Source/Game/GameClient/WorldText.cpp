@@ -169,7 +169,7 @@ void WORLDTEXTSTRING::CalculateNewColor(uint32_t elapsed) {
     if (elapsed < type.m_fadeInTime) {
         alpha = 0xFF;
 
-        uint32_t fadeAlpha = static_cast<uint32_t>(255.0f * progress);
+        uint32_t fadeAlpha = static_cast<uint32_t>(static_cast<int64_t>(255.0f * progress));
 
         if (fadeAlpha <= 0xFF) {
             alpha = fadeAlpha;
@@ -256,8 +256,8 @@ static void WorldTextSetupOrthoProjection() {
     window.maxX = 0.0f;
     g_theGxDevicePtr->CapsWindowSize(window);
 
-    uint32_t width = static_cast<uint32_t>(window.maxX - window.minX);
-    uint32_t height = static_cast<uint32_t>(window.maxY - window.minY);
+    uint32_t width = static_cast<uint32_t>(static_cast<int64_t>(window.maxX - window.minX));
+    uint32_t height = static_cast<uint32_t>(static_cast<int64_t>(window.maxY - window.minY));
 
     C44Matrix ortho;
     float h = static_cast<float>(height);

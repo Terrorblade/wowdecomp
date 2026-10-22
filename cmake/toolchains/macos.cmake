@@ -1,6 +1,6 @@
 # Cross compiles the macOS client with clang and ld64.lld against a macOS SDK.
-# Tools/Cross/cross.py sysroot macos checks out the SDK (ThirdParty/macos-sdk) and fetches SDL2 and xvidcore
-# into .cross/macos. WOWDECOMP_MACOS_SDK can point at another SDK, such as the one from xcrun --show-sdk-path on a Mac.
+# Tools/Cross/cross.py sysroot macos checks out the SDK (ThirdParty/macos-sdk) and fetches xvidcore into .cross/macos.
+# WOWDECOMP_MACOS_SDK can point at another SDK, such as the one from xcrun --show-sdk-path on a Mac.
 # WOWDECOMP_MACOS_ARCH picks arm64 or x86_64.
 
 set(CMAKE_SYSTEM_NAME Darwin)
@@ -59,6 +59,3 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 set(CMAKE_FIND_FRAMEWORK LAST)
-
-set(WOWDECOMP_MACOS_FRAMEWORKS "${WOWDECOMP_CROSS_ROOT}/Frameworks" CACHE PATH "SDL2.framework location")
-list(APPEND CMAKE_FRAMEWORK_PATH "${WOWDECOMP_MACOS_FRAMEWORKS}")

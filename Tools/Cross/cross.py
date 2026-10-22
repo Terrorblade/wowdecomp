@@ -24,7 +24,6 @@ import struct
 import subprocess
 import sys
 import tarfile
-import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -64,7 +63,6 @@ LINUX_SKIP_PREFIX = ("python3", "libpython3", "perl", "gir1.2-", "libgirepositor
 # Only the parts of each package a compiler and linker read.
 LINUX_KEEP = ("usr/include/", "usr/lib/", "usr/lib64/", "lib/", "lib64/", "usr/share/pkgconfig/")
 
-SDL2_VERSION = "2.32.10"
 BOTTLE_TAGS = {
     "arm64": ["arm64_big_sur", "arm64_monterey", "arm64_ventura", "arm64_sonoma", "arm64_sequoia", "arm64_tahoe", "arm64_golden_gate"],
     "x86_64": ["big_sur", "monterey", "ventura", "sonoma", "sequoia", "tahoe"],
@@ -306,20 +304,6 @@ def sysroot_linux(args):
     log(f"linux sysroot ready at {dest} ({broken} dangling links skipped)")
 
 
-def find_7z():
-    for candidate in ("7z", "7zz", "7za"):
-        path = shutil.which(candidate)
-
-        if path:
-            return path
-
-    for candidate in (r"C:\Program Files\7-Zip\7z.exe", r"C:\ProgramData\chocolatey\bin\7z.exe"):
-        if Path(candidate).exists():
-            return candidate
-
-    raise RuntimeError("7-Zip is needed to unpack the SDL2 disk image")
-
-
 MACOS_SDK_REPO = "https://github.com/alexey-lysiuk/macos-sdk"
 MACOS_SDK_PATH = ROOT / "ThirdParty" / "macos-sdk"
 MACOS_SDK_FOLDER = "MacOSX26.5.sdk"
@@ -358,35 +342,6 @@ def init_macos_sdk():
         raise RuntimeError(f"{sdk} is incomplete after the checkout")
 
 
-def install_sdl2(dest):
-    dmg = fetch(f"https://github.com/libsdl-org/SDL/releases/download/release-{SDL2_VERSION}/SDL2-{SDL2_VERSION}.dmg", CACHE / f"SDL2-{SDL2_VERSION}.dmg")
-    framework = dest / "SDL2.framework"
-
-    if framework.exists():
-        shutil.rmtree(framework)
-
-    with tempfile.TemporaryDirectory(dir=CACHE) as tmp:
-        subprocess.run([find_7z(), "x", "-y", f"-o{tmp}", str(dmg)], check=True, stdout=subprocess.DEVNULL)
-        found = next(Path(tmp).rglob("SDL2.framework"), None)
-
-        if not found:
-            raise RuntimeError("SDL2.framework not found in the disk image")
-
-        # 7-Zip leaves the framework's links as small text files holding the target, so the bundle is laid out again:
-        # Versions/<v> holds the files, Versions/Current and the top level entries link into it.
-        versions = found / "Versions"
-        version = next((p.name for p in versions.iterdir() if p.is_dir() and p.name != "Current"), "A")
-        dest.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(versions / version, framework / "Versions" / version)
-
-    os.symlink(version, framework / "Versions" / "Current", target_is_directory=True)
-
-    for item in (framework / "Versions" / version).iterdir():
-        os.symlink(os.path.join("Versions", "Current", item.name), framework / item.name, target_is_directory=item.is_dir())
-
-    log(f"  SDL2 {SDL2_VERSION} framework at {framework}")
-
-
 def install_bottle(name, arch, dest):
     info = json.loads(urllib.request.urlopen(f"https://formulae.brew.sh/api/formula/{name}.json").read())
     files = info["bottle"]["stable"]["files"]
@@ -409,8 +364,6 @@ def sysroot_macos(args):
     root.mkdir(parents=True, exist_ok=True)
 
     init_macos_sdk()
-
-    install_sdl2(root / "Frameworks")
 
     for arch in ("arm64", "x86_64"):
         deps = root / f"deps-{arch}"
@@ -536,19 +489,6 @@ def tar_add(tar, name, data=None, mode=0o644, link=None, directory=False):
         tar.addfile(info, io.BytesIO(data))
 
 
-def tar_tree(tar, source, name, executables=()):
-    """Adds source as name, keeping symlinks as links."""
-    if source.is_symlink():
-        tar_add(tar, name, link=os.readlink(source))
-    elif source.is_dir():
-        tar_add(tar, name, directory=True)
-
-        for child in sorted(source.iterdir()):
-            tar_tree(tar, child, f"{name}/{child.name}", executables)
-    else:
-        tar_add(tar, name, source.read_bytes(), 0o755 if source.name in executables else 0o644)
-
-
 def package_macos(args):
     archs = ["arm64", "x86_64"]
 
@@ -564,7 +504,6 @@ def package_macos(args):
             sys.exit(f"missing {app}, build it first")
 
     binary = universal_binary([(app / "Contents" / "MacOS" / "Wow64").read_bytes() for app in apps])
-    framework = Path(os.environ.get("WOWDECOMP_MACOS_FRAMEWORKS", CROSS / "macos" / "Frameworks")) / "SDL2.framework"
     out = ROOT / "bin" / "Wow64-mac.tar.gz"
 
     with tarfile.open(out, "w:gz", format=tarfile.PAX_FORMAT) as tar:
@@ -575,9 +514,6 @@ def package_macos(args):
         tar_add(tar, "Wow64/Wow64.app/Contents/Info.plist", (apps[0] / "Contents" / "Info.plist").read_bytes())
         tar_add(tar, "Wow64/Wow64.app/Contents/MacOS", directory=True)
         tar_add(tar, "Wow64/Wow64.app/Contents/MacOS/Wow64", binary, 0o755)
-        tar_add(tar, "Wow64/Wow64.app/Contents/Frameworks", directory=True)
-        # The copy in the build output has its links flattened, the cross root keeps the real layout.
-        tar_tree(tar, framework, "Wow64/Wow64.app/Contents/Frameworks/SDL2.framework", executables={"SDL2"})
 
     log(f"  {out} ({out.stat().st_size // 1048576} MB)")
 

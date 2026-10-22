@@ -12,8 +12,8 @@ static int32_t Script_GetAutoCompleteResults(lua_State* L) {
     }
 
     const char* text = lua_tolstring(L, 1, nullptr);
-    uint32_t include = static_cast<uint32_t>(lua_tonumber(L, 2));
-    uint32_t exclude = static_cast<uint32_t>(lua_tonumber(L, 3));
+    uint32_t include = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
+    uint32_t exclude = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3)));
     int32_t numReturns = static_cast<int32_t>(lua_tonumber(L, 4));
     int32_t cursor;
 

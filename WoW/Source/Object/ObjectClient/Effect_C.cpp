@@ -1496,7 +1496,7 @@ void CEffect::CreateProceduralEffectImpl(int32_t expireTime, float param, uint32
         this->m_attachToMount = unit->m_mountModel->m_lastAnimTime == 0;
 
         if (param > 0.0f) {
-            uint32_t duration = static_cast<uint32_t>(param * 1000.0f);
+            uint32_t duration = static_cast<uint32_t>(static_cast<int64_t>(param * 1000.0f));
             uint32_t animId = unit->GetCurrentTorsoAnimId();
             M2SequenceInfo info;
             info.Clear();
@@ -1518,7 +1518,7 @@ void CEffect::CreateProceduralEffectImpl(int32_t expireTime, float param, uint32
         this->m_attachToModel = unit->m_worldModel->m_lastAnimTime == 0;
 
         if (param > 0.0f) {
-            uint32_t duration = static_cast<uint32_t>(param * 1000.0f);
+            uint32_t duration = static_cast<uint32_t>(static_cast<int64_t>(param * 1000.0f));
             uint32_t animId = unit->GetCurrentTorsoAnimId();
             M2SequenceInfo info;
             info.Clear();

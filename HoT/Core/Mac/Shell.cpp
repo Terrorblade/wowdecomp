@@ -1,4 +1,5 @@
 #include "HoT/Core/Shell.h"
+#include "Engine/Source/Os/Mac/MacOs.h"
 #include <spawn.h>
 #include <sys/wait.h>
 #include <thread>
@@ -7,8 +8,8 @@ extern char** environ;
 
 namespace HoT::Shell {
 
-// No-op: SDL_FlashWindow would do this but SDL is not on the HoT include path.
 void FlashGameWindow() {
+    OsMacRequestAttention();
 }
 
 void OpenUrl(const char* url) {

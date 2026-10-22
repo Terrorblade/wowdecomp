@@ -12,6 +12,10 @@ bool OsCloseFile(HOSFILE file) {
     return Blizzard::File::Close(reinterpret_cast<Blizzard::File::StreamRecord*>(file));
 }
 
+FILE* OsFileOpenStdio(const char* fileName, const char* mode) {
+    return fopen(fileName, mode);
+}
+
 // OFFSET: 0x00461B10
 int32_t OsFileExists(const char* fileName) {
     return Blizzard::File::IsFile(fileName);

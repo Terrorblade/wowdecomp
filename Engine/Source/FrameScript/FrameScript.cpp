@@ -632,7 +632,7 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
                         }
 
                         if (count > 0) {
-                            uint32_t n = static_cast<uint32_t>(key);
+                            uint32_t n = static_cast<uint32_t>(static_cast<int64_t>(key));
 
                             if (key > 0 && key <= count && n == key) {
                                 lua_pop(L, 1);

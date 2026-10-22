@@ -1688,7 +1688,7 @@ void CMissile::CalcPosition(int32_t advance) {
     if (trajectory) {
         if (flags & 0x40000) {
             float t = this->m_adjustedDuration ? (now - this->m_adjustTime) / static_cast<float>(this->m_adjustedDuration) : 1.0f;
-            arrival += (this->m_adjustedDuration - (arrival - this->m_adjustTime)) * t;
+            arrival += static_cast<uint32_t>(static_cast<int64_t>((static_cast<float>(this->m_adjustedDuration) - static_cast<float>(arrival - this->m_adjustTime)) * t));
             float targetScale = arrival == this->m_fireTime ? 1.0f : this->m_travelTime / ((arrival - this->m_fireTime) * 0.001f);
             timeScale = t * (targetScale - this->m_timeScale) + this->m_timeScale;
         }

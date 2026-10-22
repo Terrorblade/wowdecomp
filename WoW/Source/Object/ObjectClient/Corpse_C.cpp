@@ -380,6 +380,27 @@ float CGCorpse_C::GetFacing() const {
     return this->m_passenger.GetFacing(this->m_passenger.m_facing);
 }
 
+// Shared with CGDynamicObject_C, which keeps its CPassenger at the same offset.
+// OFFSET: 0x007064E0
+C3Vector CGCorpse_C::GetPosition() const {
+    return this->m_passenger.GetPosition(this->m_passenger.m_position);
+}
+
+// OFFSET: 0x00706500
+C3Vector CGCorpse_C::GetRawPosition() const {
+    return this->m_passenger.m_position;
+}
+
+// OFFSET: 0x00706550
+float CGCorpse_C::GetRawFacing() const {
+    return this->m_passenger.m_facing;
+}
+
+// OFFSET: 0x00706560
+uint64_t CGCorpse_C::GetTransportGUID() const {
+    return this->m_passenger.m_transportGuid.m_guid;
+}
+
 // VERIFY: 63ae9671 manual
 // OFFSET: 0x00705850
 void CGCorpse_C::ModelLoaded(CM2Model* model) {

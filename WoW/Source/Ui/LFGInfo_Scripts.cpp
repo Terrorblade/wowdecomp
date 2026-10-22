@@ -1918,7 +1918,7 @@ static int32_t Script_ClearLFGDungeon(lua_State* L) {
         return 0;
     }
 
-    uint32_t type = static_cast<uint32_t>(lua_tonumber(L, 1));
+    uint32_t type = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     int32_t id = static_cast<int32_t>(lua_tonumber(L, 2));
 
     if (type < 7 && g_lfgDungeonsDB.GetRecord(id)) {

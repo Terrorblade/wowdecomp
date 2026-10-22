@@ -538,7 +538,7 @@ void DayNight::SyncSkyAnimWithTime(DNOverrideSky* sky, int32_t minutes) {
 
     if (abs(minutes - static_cast<int32_t>(sky->m_lastTimeOfDay)) >= 2 && (sky->m_flags & 1)) {
         float speed = 0.000000011574074f * length;
-        uint32_t time = static_cast<uint32_t>(length * (minutes * 0.00069444446f));
+        uint32_t time = static_cast<uint32_t>(static_cast<int64_t>(length * (minutes * 0.00069444446f)));
         sky->m_model->SetBoneSequence(0xFFFFFFFF, 0, 0xFFFFFFFF, time, speed, 1, 1);
     }
 
@@ -863,7 +863,7 @@ void DayNight::DNClouds::SetSharpness(float sharpness) {
     float step = (255 - this->m_density) * 0.00390625f;
 
     for (uint32_t i = 0; i < 256; i++) {
-        s_cloudSharpness[i] = static_cast<uint8_t>(255.0 - pow(static_cast<double>(this->m_sharpness), static_cast<double>(exponent)) * 255.0);
+        s_cloudSharpness[i] = static_cast<uint8_t>(static_cast<int64_t>(255.0 - pow(static_cast<double>(this->m_sharpness), static_cast<double>(exponent)) * 255.0));
         exponent += step;
     }
 }
@@ -940,7 +940,7 @@ void DayNight::DNPlanet::ClipGeometry(C3Vector* verts, C2Vector* texCoords, CImV
                 alpha = 1.0f;
             }
 
-            colors[i].a = static_cast<uint8_t>(alpha * 255.0f);
+            colors[i].a = static_cast<uint8_t>(static_cast<int64_t>(alpha * 255.0f));
         }
     }
 }
@@ -949,7 +949,7 @@ void DayNight::DNPlanet::ClipGeometry(C3Vector* verts, C2Vector* texCoords, CImV
 // OFFSET: 0x007EE0D0
 void DayNight::DNStars::Update() {
     this->m_position = DayNight::g_dnInfo.m_cameraPos;
-    this->m_color.a = static_cast<uint8_t>(DayNight::InterpTable(s_starFadeTable, 4, DayNight::g_dnInfo.m_dayProgression) * 254.0f + 1.0f);
+    this->m_color.a = static_cast<uint8_t>(static_cast<int64_t>(DayNight::InterpTable(s_starFadeTable, 4, DayNight::g_dnInfo.m_dayProgression) * 254.0f + 1.0f));
 }
 
 // VERIFY: ece2840b auto
@@ -1440,7 +1440,7 @@ void DayNight::DNClouds::UpdateTextureAnimation() {
         density = this->m_densityOverride;
     }
 
-    this->m_density = static_cast<uint8_t>((1.0f - density) * 255.0f);
+    this->m_density = static_cast<uint8_t>(static_cast<int64_t>((1.0f - density) * 255.0f));
 
     uint16_t zInt = this->m_animFrame >> 8;
     uint32_t permZ0 = s_cloudPerm[zInt];
@@ -2548,7 +2548,7 @@ void DayNight::LoadMap(int32_t mapId) {
         density = DayNight::g_clouds.m_densityOverride;
     }
 
-    DayNight::g_clouds.m_density = static_cast<uint8_t>((1.0f - density) * 255.0f);
+    DayNight::g_clouds.m_density = static_cast<uint8_t>(static_cast<int64_t>((1.0f - density) * 255.0f));
     DayNight::g_clouds.SetSharpness(0.95999998f);
     DayNight::g_clouds.m_enabled = 1;
     DayNight::GlareBase::m_masterEnable = 1;
@@ -2875,7 +2875,7 @@ void DayNight::DNStars::Destroy() {
 // OFFSET: 0x007EE300
 void DayNight::SetFlashColor(CImVector color, float blend) {
     DayNight::g_dnInfo.m_flashColor = color;
-    DayNight::g_dnInfo.m_flashBlend = static_cast<uint8_t>(blend * 255.0f);
+    DayNight::g_dnInfo.m_flashBlend = static_cast<uint8_t>(static_cast<int64_t>(blend * 255.0f));
 }
 
 // VERIFY: 8f429e9d auto
@@ -2979,7 +2979,7 @@ void DayNight::DNGlare::Update(float deltaSec) {
 
     float t = (dot - this->m_minDot) / (1.0f - this->m_minDot);
     this->m_scale = ((this->m_scaleMax - this->m_scaleMin) * t + this->m_scaleMin) * this->m_baseScale;
-    this->m_color.a = static_cast<uint8_t>((t * (this->m_alphaMax - this->m_alphaMin) + this->m_alphaMin) * this->m_fade * (this->m_color.a * 0.0039215689f) * 255.0f);
+    this->m_color.a = static_cast<uint8_t>(static_cast<int64_t>((t * (this->m_alphaMax - this->m_alphaMin) + this->m_alphaMin) * this->m_fade * (this->m_color.a * 0.0039215689f) * 255.0f));
     this->m_screenGlow = pow(dot, s_glarePower) * this->m_fade;
 }
 

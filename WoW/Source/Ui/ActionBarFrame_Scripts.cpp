@@ -327,7 +327,7 @@ static int32_t Script_GetActionCount(lua_State* L) {
         return 0;
     }
 
-    uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t count = slot > 143 ? 0 : CGActionBar::m_slotItemCount[slot];
     lua_pushnumber(L, count);
     return 1;
@@ -549,7 +549,7 @@ static int32_t Script_GetActionAutocast(lua_State* L) {
     double slot = lua_tonumber(L, 1);
     PetAction* action = nullptr;
     int32_t petSpell;
-    int32_t spellId = CGActionBar::GetSpell(static_cast<uint32_t>(slot - 1.0), petSpell);
+    int32_t spellId = CGActionBar::GetSpell(static_cast<uint32_t>(static_cast<int64_t>(slot - 1.0)), petSpell);
 
     if (petSpell && (action = CGPetInfo::GetPetSpellAction(spellId)) && static_cast<int32_t>(action->m_data) < 0) {
         lua_pushnumber(L, 1.0);

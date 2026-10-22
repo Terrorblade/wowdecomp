@@ -2335,7 +2335,7 @@ void CGGameObject_C_Type_DestructibleBuilding::UpdateDestructibleState() {
                 this->m_animating = 1;
                 this->m_baseZ = position.z;
                 this->m_animStartTime = FrameTime::s_curTimeMs;
-                this->m_animDuration = static_cast<uint32_t>((extents.t.z - extents.b.z) / (speed * 0.33333334f) * 1000.0f);
+                this->m_animDuration = static_cast<uint32_t>(static_cast<int64_t>((extents.t.z - extents.b.z) / (speed * 0.33333334f) * 1000.0f));
 
                 if (this->m_previousState != -1 && effect != 3) {
                     World::ObjectGetExtents(this->m_states[this->m_previousState].m_object, &extents);
@@ -3122,7 +3122,7 @@ effects:
     this->m_pendingAnimState = this->m_animState;
 
     if (speed > 0.0f) {
-        this->m_nextAnimTime = FrameTime::s_curTimeMs + static_cast<uint32_t>(static_cast<float>(info.m_duration - startTime) / speed);
+        this->m_nextAnimTime = FrameTime::s_curTimeMs + static_cast<uint32_t>(static_cast<int64_t>(static_cast<float>(info.m_duration - startTime) / speed));
     } else {
         this->m_nextAnimTime = FrameTime::s_curTimeMs;
     }

@@ -3377,7 +3377,7 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
             WowTime reset = serverTime;
             reset.m_tzHours = serverTime.m_tzHours;
             uint32_t start = baseTime + offset;
-            uint32_t periods = static_cast<uint32_t>(static_cast<float>(serverNow - start) / static_cast<float>(period));
+            uint32_t periods = static_cast<uint32_t>(static_cast<int64_t>(static_cast<float>(serverNow - start) / static_cast<float>(period)));
             reset.AddMinutes(static_cast<int32_t>(start + periods * period - serverNow) / 60);
             uint32_t time;
             WowTime::WowEncodeTime(time, &reset);

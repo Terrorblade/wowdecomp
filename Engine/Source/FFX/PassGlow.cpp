@@ -79,8 +79,8 @@ static void WaveTexCallback(EGxTexCommand command, uint32_t width, uint32_t heig
                         float v = (CMath::sin_(y / 128.0f * 6.2831855f) * 0.5f + 0.5f) * 255.0f;
                         v = v < 0.0f ? 0.0f : (v < 255.0f ? v : 255.0f);
 
-                        color.r = static_cast<uint8_t>(u);
-                        color.g = static_cast<uint8_t>(v);
+                        color.r = static_cast<uint8_t>(static_cast<int64_t>(u));
+                        color.g = static_cast<uint8_t>(static_cast<int64_t>(v));
                         row[x] = color;
                     }
 

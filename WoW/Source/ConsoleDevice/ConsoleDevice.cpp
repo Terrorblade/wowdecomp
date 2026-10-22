@@ -480,6 +480,7 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
 
             case GxApi_D3d9:
             case GxApi_D3d9Ex:
+            case GxApi_Metal:
                 ConsoleGxOverride(s_hardware.m_videoHw->m_d3DOverrides);
                 break;
 

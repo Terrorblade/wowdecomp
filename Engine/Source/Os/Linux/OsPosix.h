@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/ucontext.h>
+#include <unistd.h>
 
 // Threads. Ids are the kernel thread ids Linux uses for priority and affinity, and stable unique numbers on macOS.
 uint32_t OsPosixThreadId();
@@ -22,6 +23,33 @@ bool OsPosixSetThreadAffinity(pthread_t thread, uint64_t mask);
 bool OsPosixSetProcessAffinity(uint64_t mask);
 uint64_t OsPosixProcessAffinity();
 uint32_t OsPosixThreadCount();
+
+// Windows takes a requested stack size as the initial commit and still reserves the executable's 1 MB default, and the
+// client's code needs that depth. POSIX stacks are fixed at creation (512 KB by default for macOS secondary threads),
+// so a thread gets the largest of the request, 1 MB and the system default, in whole pages.
+inline void OsPosixSetThreadStackSize(pthread_attr_t* attr, size_t requested) {
+    size_t stack = 0;
+    pthread_attr_getstacksize(attr, &stack);
+
+    if (stack < 1024 * 1024) {
+        stack = 1024 * 1024;
+    }
+
+    if (stack < requested) {
+        stack = requested;
+    }
+
+    size_t page = static_cast<size_t>(getpagesize());
+    pthread_attr_setstacksize(attr, (stack + page - 1) / page * page);
+}
+
+// Counting semaphores starting at initial. Linux has unnamed POSIX semaphores, macOS only declares them (sem_init
+// fails with ENOSYS), so it uses dispatch semaphores.
+struct OsPosixSemaphore;
+OsPosixSemaphore* OsPosixSemaphoreCreate(uint32_t initial);
+void OsPosixSemaphoreDestroy(OsPosixSemaphore* semaphore);
+void OsPosixSemaphoreWait(OsPosixSemaphore* semaphore);
+void OsPosixSemaphorePost(OsPosixSemaphore* semaphore);
 
 // Condition variables timed against CLOCK_MONOTONIC deadlines.
 void OsPosixCondInit(pthread_cond_t* cond);

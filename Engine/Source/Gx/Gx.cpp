@@ -40,7 +40,7 @@ static BlitFormat s_blitFormats[GxTexFormats_Last] = {
 };
 
 // STATIC: 0x00AD87E4
-const char* g_gxApiNames[GxApis_Last] = { "OpenGL", "D3D9", "D3D9Ex", "D3D10", "D3D11", "GLL" };
+const char* g_gxApiNames[GxApis_Last] = { "OpenGL", "D3D9", "D3D9Ex", "D3D10", "D3D11", "GLL", "Metal" };
 
 // STATIC: 0x00AD8AC0
 static uint32_t s_vertexSize[GxVertexBufferFormats_Last] = { 12, 24, 28, 32, 36, 40, 44, 16, 24, 32, 20, 28, 48, 48 };
@@ -117,7 +117,7 @@ static int (*s_drawListSorters[GxuSorts_Last])(const void*, const void*) = { Dra
 // OFFSET: 0x008C8DE0
 EGxApi GxDefaultApi() {
 #if defined(WOWDECOMP_PLATFORM_POSIX)
-    return GxApi_OpenGl;
+    return GxPosixDefaultApi();
 #else
     return GxApi_D3d9;
 #endif
@@ -128,18 +128,18 @@ EGxApi GxDefaultApi() {
 int32_t GxApiSupported(EGxApi api) {
     switch (api) {
 #if defined(WOWDECOMP_PLATFORM_POSIX)
-        // The Direct3D devices are not built on Linux.
-        case GxApi_OpenGl:
-            return 1;
+        // The Direct3D devices are not built on Linux and macOS.
+        default:
+            return GxPosixApiSupported(api);
 #else
         case GxApi_OpenGl:
         case GxApi_D3d9:
         case GxApi_D3d9Ex:
             return 1;
-#endif
 
         default:
             return 0;
+#endif
     }
 }
 
@@ -191,18 +191,20 @@ CGxDevice* CreateGxDevice(EGxApi api, GxWindowProc windowProc, const CGxFormat& 
     CGxDevice* device;
 
     switch (api) {
+#if defined(WOWDECOMP_PLATFORM_POSIX)
+        case GxApi_OpenGl:
+        case GxApi_D3d9:
+        case GxApi_D3d9Ex:
+        case GxApi_Metal:
+            device = GxPosixCreateDevice(api);
+            g_theGxDevicePtr = device;
+            break;
+#else
         case GxApi_OpenGl:
             device = CreateCGxDeviceOpenGl();
             g_theGxDevicePtr = device;
             break;
 
-#if defined(WOWDECOMP_PLATFORM_POSIX)
-        case GxApi_D3d9:
-        case GxApi_D3d9Ex:
-            device = CreateCGxDeviceOpenGl();
-            g_theGxDevicePtr = device;
-            break;
-#else
         case GxApi_D3d9:
             device = CreateCGxDeviceD3d();
             g_theGxDevicePtr = device;

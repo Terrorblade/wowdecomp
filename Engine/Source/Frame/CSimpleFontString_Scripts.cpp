@@ -123,7 +123,7 @@ static int32_t Script_SetAlpha(lua_State* L) {
         return 0;
     }
 
-    uint8_t alpha = static_cast<uint8_t>(lua_tonumber(L, 2) * 255.0);
+    uint8_t alpha = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 2) * 255.0));
 
     CImVector color;
     string->GetVertexColor(color);

@@ -1447,7 +1447,7 @@ bool GetSlotFromLua(lua_State* L, uint32_t* slot, int32_t* petSpell, int32_t* ty
     *petSpell = 0;
 
     if (lua_isnumber(L, 1) && lua_isstring(L, 2)) {
-        *slot = static_cast<uint32_t>(lua_tonumber(L, 1) - 1.0);
+        *slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
 
         if (*slot <= 1023) {
             if (!SStrCmpI("pet", lua_tolstring(L, 2, nullptr), STORM_MAX_STR)) {

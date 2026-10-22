@@ -6,8 +6,6 @@
 #include "fmod_os_misc.h"
 #include "fmod_memory.h"
 
-#include <SDL.h>
-
 #include <dlfcn.h>
 #include <errno.h>
 #include <pthread.h>
@@ -25,7 +23,7 @@
 #include "Engine/Source/Os/Linux/OsPosix.h"
 
 int gSizeofCriticalSection = sizeof(pthread_mutex_t);
-int gSizeofSemaphore       = sizeof(sem_t);
+int gSizeofSemaphore       = 0;
 
 
 /*
@@ -556,19 +554,10 @@ FMOD_RESULT FMOD_OS_Thread_Create(const char *name, THREAD_RETURNTYPE (THREAD_CA
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     /*
-        The FMOD stack sizes are tuned for Windows' default commit; keep the larger glibc default (8MB) unless asked
-        for more.
+        FMOD's sizes are what Windows commits up front. The async thread reads MPQ files through the client's
+        callbacks and needs the 1 MB Windows reserves on top.
     */
-    if (stacksize > 0)
-    {
-        size_t defaultsize = 0;
-
-        pthread_attr_getstacksize(&attr, &defaultsize);
-        if ((size_t)stacksize > defaultsize)
-        {
-            pthread_attr_setstacksize(&attr, (size_t)stacksize);
-        }
-    }
+    OsPosixSetThreadStackSize(&attr, stacksize > 0 ? (size_t)stacksize : 0);
 
     rc = pthread_create(&thread, &attr, FMOD_OS_Thread_Start, start);
     pthread_attr_destroy(&attr);
@@ -733,36 +722,20 @@ FMOD_RESULT FMOD_OS_CriticalSection_Leave(FMOD_OS_CRITICALSECTION *crit)
 	[RETURN_VALUE]
 
 	[REMARKS]
-    Counting semaphore starting at 0, like the Windows metered section (initial count 0, max 0xffff).
+    Counting semaphore starting at 0, like the Windows metered section (initial count 0).
 
 	[SEE_ALSO]
 */
 FMOD_RESULT FMOD_OS_Semaphore_Create(FMOD_OS_SEMAPHORE **sema)
 {
-    sem_t *s;
-
     if (!sema)
     {
         return FMOD_ERR_INVALID_PARAM;
     }
 
-    s = (sem_t *)malloc(sizeof(sem_t));
-    if (!s)
-    {
-        *sema = 0;
-        return FMOD_ERR_MEMORY;
-    }
+    *sema = (FMOD_OS_SEMAPHORE *)OsPosixSemaphoreCreate(0);
 
-    if (sem_init(s, 0, 0) != 0)
-    {
-        free(s);
-        *sema = 0;
-        return FMOD_ERR_MEMORY;
-    }
-
-    *sema = (FMOD_OS_SEMAPHORE *)s;
-
-    return FMOD_OK;
+    return *sema ? FMOD_OK : FMOD_ERR_MEMORY;
 }
 
 
@@ -784,8 +757,7 @@ FMOD_RESULT FMOD_OS_Semaphore_Free(FMOD_OS_SEMAPHORE *sema)
         return FMOD_ERR_INVALID_PARAM;
     }
 
-    sem_destroy((sem_t *)sema);
-    free(sema);
+    OsPosixSemaphoreDestroy((OsPosixSemaphore *)sema);
 
     return FMOD_OK;
 }
@@ -809,9 +781,7 @@ FMOD_RESULT FMOD_OS_Semaphore_Wait(FMOD_OS_SEMAPHORE *sema)
         return FMOD_ERR_INVALID_PARAM;
     }
 
-    while (sem_wait((sem_t *)sema) == -1 && errno == EINTR)
-    {
-    }
+    OsPosixSemaphoreWait((OsPosixSemaphore *)sema);
 
     return FMOD_OK;
 }
@@ -830,18 +800,12 @@ FMOD_RESULT FMOD_OS_Semaphore_Wait(FMOD_OS_SEMAPHORE *sema)
 */
 FMOD_RESULT FMOD_OS_Semaphore_Signal(FMOD_OS_SEMAPHORE *sema, bool interrupt)
 {
-    int value = 0;
-
     if (!sema)
     {
         return FMOD_ERR_INVALID_PARAM;
     }
 
-    sem_getvalue((sem_t *)sema, &value);
-    if (value < 0xffff)
-    {
-        sem_post((sem_t *)sema);
-    }
+    OsPosixSemaphorePost((OsPosixSemaphore *)sema);
 
     return FMOD_OK;
 }
@@ -925,50 +889,6 @@ FMOD_RESULT FMOD_OS_Library_Free(FMOD_OS_LIBRARY *handle)
     {
         return FMOD_ERR_INVALID_PARAM;
     }
-
-    return FMOD_OK;
-}
-
-
-/*
-	[DESCRIPTION]
-
-	[PARAMETERS]
-
-	[RETURN_VALUE]
-
-	[REMARKS]
-    Counts SDL's playback + capture devices, like waveOut/waveIn on Windows.  Only meaningful once the SDL output
-    has initialized SDL audio.  This runs on every System::update, so it samples at most once a second.
-
-	[SEE_ALSO]
-*/
-FMOD_RESULT FMOD_OS_CheckDriverList(bool *devicelistchanged)
-{
-    static int          lastNumDrivers  = -1;
-    static unsigned int lastCheckTime   = 0;
-    int                 numDrivers      = -1;
-    unsigned int        now;
-
-    *devicelistchanged = false;
-
-    if (!SDL_WasInit(SDL_INIT_AUDIO))
-    {
-        return FMOD_OK;
-    }
-
-    FMOD_OS_Time_GetMs(&now);
-    if (lastNumDrivers != -1 && now - lastCheckTime < 1000)
-    {
-        return FMOD_OK;
-    }
-    lastCheckTime = now;
-
-    numDrivers  = SDL_GetNumAudioDevices(0);
-    numDrivers += SDL_GetNumAudioDevices(1);
-
-    *devicelistchanged = (numDrivers != lastNumDrivers && lastNumDrivers != -1);
-    lastNumDrivers = numDrivers;
 
     return FMOD_OK;
 }

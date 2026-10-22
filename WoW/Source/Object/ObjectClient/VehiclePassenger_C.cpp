@@ -329,7 +329,7 @@ void CVehiclePassenger_C::StartWaitingForVehicleTransitionAnim(WOWGUID guid, uin
 
     if (seatRec->m_flags & (entering ? 0x8000000 : 0x10000000)) {
         float duration = entering ? seatRec->m_field33512213037 : seatRec->m_field33512213038;
-        uint32_t timeout = static_cast<uint32_t>(duration * 1000.0f);
+        uint32_t timeout = static_cast<uint32_t>(static_cast<int64_t>(duration * 1000.0f));
 
         if (timeout > 3000) {
             timeout = 3000;

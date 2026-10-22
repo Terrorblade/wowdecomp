@@ -31,7 +31,7 @@ static int32_t Script_SignPetition(lua_State* L) {
     uint8_t slot = 1;
 
     if (lua_isnumber(L, 1)) {
-        slot = static_cast<uint8_t>(lua_tonumber(L, 1));
+        slot = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     }
 
     WOWGUID petition = CGPetitionInfo::m_petitionGUID;
@@ -144,7 +144,7 @@ static int32_t Script_GetPetitionNameInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     PetitionSignerInfo* signer;
     NameCache* name;
     WOWGUID none;

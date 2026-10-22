@@ -258,7 +258,7 @@ void CGGameObject_C_Type_Transport::InitializeStateChangeTime(uint32_t time) {
 
     if (gameObject->m_level && this->m_frameCount) {
         float elapsed = this->GetStateDuration(gameObject->m_state) * (gameObject->m_pathProgress * 0.000015259022f);
-        this->m_stateChangeTime = time - static_cast<uint32_t>(elapsed);
+        this->m_stateChangeTime = time - static_cast<uint32_t>(static_cast<int64_t>(elapsed));
     }
 }
 

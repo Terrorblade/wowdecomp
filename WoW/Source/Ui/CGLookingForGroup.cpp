@@ -248,7 +248,7 @@ int32_t CGLookingForGroup::GetLFGProposalMember(lua_State* L) {
         return 0;
     }
 
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
     if (!CGLookingForGroup::m_proposal.m_dungeonId || index > 4) {
         return 0;

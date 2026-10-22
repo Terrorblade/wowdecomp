@@ -10,6 +10,7 @@
 #include "Engine/Source/Gxu/Gxu.h"
 #include "Engine/Source/Images/MippedImg.h"
 #include "Engine/Source/Images/tga.h"
+#include "Engine/Source/Os/OsCacheLimits.h"
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Services/AsyncFile.h"
@@ -901,6 +902,10 @@ uint32_t TextureCacheGetMaxSize() {
         size = 0x2000000;
     }
 
+    if (OsGetCacheLimits().m_textureCacheMax) {
+        size = OsGetCacheLimits().m_textureCacheMax;
+    }
+
     return g_theGxDevicePtr->DeviceApi() == GxApi_D3d9Ex ? 0 : size;
 }
 
@@ -1053,6 +1058,10 @@ void TextureSetCacheSize(int32_t size) {
 
     if (OsGetPhysicalMemory() <= 0x40000000) {
         maxSize = 0x2000000;
+    }
+
+    if (OsGetCacheLimits().m_textureCacheMax) {
+        maxSize = OsGetCacheLimits().m_textureCacheMax;
     }
 
     if (g_theGxDevicePtr->DeviceApi() == GxApi_D3d9Ex) {
@@ -1208,7 +1217,7 @@ void FillInSolidTexture(const CImVector& color, CTexture* texture) {
 // VERIFY: f77dd4dd manual
 // OFFSET: 0x004B69E0
 void AsyncTextureHandler() {
-    uint32_t available = 0x400000 - s_asyncLoadBufferUsed;
+    uint32_t available = OsGetCacheLimits().m_textureReadAhead - s_asyncLoadBufferUsed;
 
     for (CAsyncObject* object = s_asyncLoadList.Head(); !s_asyncLoadList.IsEnd(object); ) {
         CAsyncObject* next = s_asyncLoadList.RawNext(object);
@@ -2245,7 +2254,7 @@ CTexture* CreateBlpAsync(char* extension, const char* fileName, uint32_t flags, 
 
     CAsyncObject* object = texture->m_asyncObject;
 
-    if (0x400000 - s_asyncLoadBufferUsed < object->m_size) {
+    if (OsGetCacheLimits().m_textureReadAhead - s_asyncLoadBufferUsed < object->m_size) {
         s_asyncTextureList.LinkNode(object, 2, nullptr);
     } else {
         AsyncTextureProcess(object, 0);

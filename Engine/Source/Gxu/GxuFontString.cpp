@@ -114,7 +114,7 @@ void CGxString::InitializeViewTranslation() {
 
     float heightPixels = g_heightPixels;
     float spacingPixels = this->m_spacing * heightPixels;
-    float spacing = static_cast<uint32_t>(spacingPixels + 0.99995) / heightPixels;
+    float spacing = static_cast<uint32_t>(static_cast<int64_t>(spacingPixels + 0.99995)) / heightPixels;
     float textHeight = spacing * (this->m_numLines - 1) + this->m_numLines * this->m_currentFontHeight;
 
     for (uint32_t i = 0; i < this->m_embeddedTextureInfo.m_count; i++) {
@@ -802,7 +802,7 @@ int32_t CGxString::SetGradient(int32_t start, int32_t length) {
     uint8_t alpha = this->m_fontColor.a;
     int32_t first = 4 * start;
     int32_t count = this->m_gradientInfo.m_count;
-    uint8_t fade = static_cast<uint8_t>(alpha / static_cast<float>(length));
+    uint8_t fade = static_cast<uint8_t>(static_cast<int64_t>(alpha / static_cast<float>(length)));
 
     for (int32_t i = 0; i < count; i++) {
         if (i < first) {
@@ -875,7 +875,7 @@ void CGxString::CreateGeometry() {
     uint32_t numBytes = 0;
 
     float spacingPixels = g_heightPixels * spacing;
-    spacingPixels = static_cast<uint32_t>(spacingPixels + 0.99995);
+    spacingPixels = static_cast<uint32_t>(static_cast<int64_t>(spacingPixels + 0.99995));
 
     float fontPixelHeight = ScreenToPixelHeight(0, this->m_currentFontHeight);
     float lineHeight;

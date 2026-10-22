@@ -38,7 +38,7 @@ static int32_t Script_GetNumArenaTeamMembers(lua_State* L) {
         return 0;
     }
 
-    uint32_t team = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t team = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t showOffline = StringToBOOL(L, 2, 0);
     uint32_t count;
 
@@ -62,8 +62,8 @@ static int32_t Script_GetArenaTeamGdfInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t team = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t team = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     ArenaTeamMember* member;
 
     if (team < 3 && index < CGArenaTeamInfo::m_arenaTeams[team].m_numMembers && (member = CGArenaTeamInfo::m_arenaTeams[team].m_members.m_data[index])) {
@@ -161,8 +161,8 @@ static int32_t Script_GetArenaTeamRosterInfo(lua_State* L) {
         return 0;
     }
 
-    uint32_t team = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t team = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     ArenaTeamMember* member;
 
     if (team >= 3 || index >= CGArenaTeamInfo::m_arenaTeams[team].m_numMembers || !(member = CGArenaTeamInfo::m_arenaTeams[team].m_members.m_data[index])) {
@@ -219,8 +219,8 @@ static int32_t Script_SetArenaTeamRosterSelection(lua_State* L) {
         return 0;
     }
 
-    uint32_t team = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
+    uint32_t team = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     CGArenaTeamInfo::SelectMember(team, index);
     return 0;
 }
@@ -233,7 +233,7 @@ static int32_t Script_GetArenaTeamRosterSelection(lua_State* L) {
         return 0;
     }
 
-    uint32_t team = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t team = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     lua_pushnumber(L, CGArenaTeamInfo::GetSelectedMemberIndex(team) + 1);
     return 1;
 }
@@ -308,7 +308,7 @@ static int32_t Script_ArenaTeamRoster(lua_State* L) {
         return 0;
     }
 
-    uint32_t team = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
+    uint32_t team = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGArenaTeamInfo::QueryRoster(team);
     return 0;
 }

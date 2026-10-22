@@ -99,7 +99,6 @@ static Anchor s_anchor;
 static float s_distance = kDefaultDistance;
 static uint32_t s_counter = kFirstCounter;
 static bool s_respawnPending = false;
-static int32_t s_riderDisplay = -1;
 
 static uint32_t FloatBits(float value) {
     uint32_t raw;
@@ -582,36 +581,15 @@ static int32_t Script_IsSpawned(lua_State* L) {
     return 2;
 }
 
-// A naked human male creature display for the riders, nil when the DBC has none.
-static int32_t Script_RiderDisplay(lua_State* L) {
-    if (s_riderDisplay < 0) {
-        s_riderDisplay = 0;
+// WorldPreview_HumanModelData() -> the CreatureModelData id of the human male character model.
+static int32_t Script_HumanModelData(lua_State* L) {
+    CreatureModelDataRec* rec = GetModelDataRec(1, 0);
 
-        for (int32_t i = 0; i < g_creatureDisplayInfoDB.m_numRecords && !s_riderDisplay; i++) {
-            const CreatureDisplayInfoRec& display = g_creatureDisplayInfoDB.m_records[i];
-            const CreatureDisplayInfoExtraRec* extra = g_creatureDisplayInfoExtraDB.GetRecord(display.m_extendedDisplayInfoID);
-
-            if (!extra || extra->m_displayRaceID != 1 || extra->m_displaySexID != 0 || !g_creatureModelDataDB.GetRecord(display.m_modelID)) {
-                continue;
-            }
-
-            bool naked = true;
-
-            for (int32_t item : extra->m_npcitemDisplay) {
-                naked = naked && !item;
-            }
-
-            if (naked) {
-                s_riderDisplay = display.m_id;
-            }
-        }
-    }
-
-    if (!s_riderDisplay) {
+    if (!rec) {
         return 0;
     }
 
-    lua_pushnumber(L, s_riderDisplay);
+    lua_pushnumber(L, rec->m_id);
     return 1;
 }
 
@@ -645,7 +623,7 @@ void Apply() {
     Lua::RegisterFunction("WorldPreview_Remove", Gated<Script_Remove>);
     Lua::RegisterFunction("WorldPreview_MoveHere", Gated<Script_MoveHere>);
     Lua::RegisterFunction("WorldPreview_IsSpawned", Gated<Script_IsSpawned>);
-    Lua::RegisterFunction("WorldPreview_RiderDisplay", Gated<Script_RiderDisplay>);
+    Lua::RegisterFunction("WorldPreview_HumanModelData", Gated<Script_HumanModelData>);
 }
 
 void OnIdle() {
@@ -690,7 +668,6 @@ void OnLoadingScreenStarted() {
 
 void OnGameDestroy() {
     RemoveAll();
-    s_riderDisplay = -1;
 }
 
 }

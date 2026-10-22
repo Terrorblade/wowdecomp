@@ -34,7 +34,7 @@ local drag;
 local loadedPath;
 
 VE.vehicleAnim = 0;
-VE.riderAnim = ME.MOUNT_ANIM;
+VE.riderAnim = nil;
 VE.allSeats = false;
 VE.inWorld = false;
 VE.attached = {};
@@ -91,8 +91,21 @@ local function RefreshControls()
 	end
 
 	vehicleAnimButton:SetText("Vehicle: "..AnimText(VE.vehicleAnim));
-	riderAnimButton:SetText("Rider: "..AnimText(VE.riderAnim));
+	riderAnimButton:SetText("Rider: "..(VE.riderAnim and AnimText(VE.riderAnim) or "Seat"));
 	NoggitCheckBox_SetChecked(allSeatsBox, VE.allSeats);
+end
+
+-- What the client plays on a seated passenger, the ride loop when the seat has one and Stand otherwise.
+local function SeatAnim(values)
+	local flags = Num(values.m_flags);
+	flags = flags < 0 and flags + 4294967296 or flags;
+	local loop = Num(values.m_rideAnimLoop);
+
+	if ( floor(flags / 2) % 2 == 1 and loop >= 0 ) then
+		return loop;
+	end
+
+	return 0;
 end
 
 -- Riders go on every seat with a row, or only on the selected one, slot numbers are seat slot + 1.
@@ -110,7 +123,7 @@ local function ApplyRiders()
 			wanted[seat.slot + 1] = {
 				attachment = attachment,
 				rider = true,
-				anim = VE.riderAnim,
+				anim = VE.riderAnim or SeatAnim(seat.values),
 				offset = { x = Num(seat.values["m_attachmentOffset[0]"]), y = Num(seat.values["m_attachmentOffset[1]"]), z = Num(seat.values["m_attachmentOffset[2]"]) },
 				yaw = Num(seat.values.m_field33512213027),
 				pitch = Num(seat.values.m_passengerPitch),
@@ -135,6 +148,33 @@ local function ApplyRiders()
 	VE.attached = {};
 end
 
+local RIDER_LOOKS = { m_skinID = 5, m_faceID = 5, m_hairStyleID = 8, m_hairColorID = 7, m_facialHairID = 6 };
+
+-- A client only human male display with random looks, no gear and no baked texture so the character component dresses it.
+local function RiderDisplay()
+	local modelId = ME.Quiet("WorldPreview_HumanModelData");
+	local extraId = ME.TempId("CreatureDisplayInfoExtra", "rider");
+	local displayId = ME.TempId("CreatureDisplayInfo", "rider");
+
+	if ( not modelId or not extraId or not displayId ) then
+		return nil;
+	end
+
+	local extra = { m_displayRaceID = 1, m_displaySexID = 0, m_flags = 0, m_bakeName = "" };
+
+	for key, count in pairs(RIDER_LOOKS) do
+		extra[key] = random(0, count - 1);
+	end
+
+	for i = 0, 10 do
+		extra["m_npcitemDisplay["..i.."]"] = 0;
+	end
+
+	local display = { m_modelID = modelId, m_extendedDisplayInfoID = extraId, m_creatureModelScale = 1, m_creatureModelAlpha = 255 };
+	local ok = pcall(DbcEditor_ApplyLocal, "CreatureDisplayInfoExtra", extraId, extra) and pcall(DbcEditor_ApplyLocal, "CreatureDisplayInfo", displayId, display);
+	return ok and displayId or nil;
+end
+
 local function ClearWorld()
 	for slot = WORLD_VEHICLE, WORLD_RIDER + VE.SEATS - 1 do
 		ME.Quiet("WorldPreview_Remove", slot);
@@ -153,14 +193,13 @@ local function SyncWorld()
 		return;
 	end
 
-	local riderDisplay = VE.vehicleId and ME.Quiet("WorldPreview_RiderDisplay");
 	local riders = {};
-	local parts = { shown.displayId, VE.vehicleId or 0, riderDisplay or 0 };
+	local parts = { shown.displayId, VE.vehicleId or 0 };
 
 	for _, seat in ipairs(seats) do
 		table.insert(parts, seat.slot..":"..Num(seat.values.m_id));
 
-		if ( riderDisplay and (VE.allSeats or seat.selected) ) then
+		if ( VE.vehicleId and (VE.allSeats or seat.selected) ) then
 			table.insert(riders, seat.slot);
 			table.insert(parts, "r"..seat.slot);
 		end
@@ -185,6 +224,8 @@ local function SyncWorld()
 		ME.Notice("In world preview: "..tostring(err or "the client refused the unit"), "info");
 		return;
 	end
+
+	local riderDisplay = #riders > 0 and RiderDisplay();
 
 	for _, slot in ipairs(riders) do
 		ME.Quiet("WorldPreview_Spawn", WORLD_RIDER + slot, { kind = "unit", displayId = riderDisplay, parent = WORLD_VEHICLE, seat = slot, anim = VE.riderAnim });
@@ -305,8 +346,11 @@ local function PickRiderAnim()
 		return;
 	end
 
-	GameEditor_PickValue("Rider animation", items, VE.riderAnim, function(value)
-		VE.riderAnim = Num(value);
+	table.insert(items, 1, { value = -1, text = "Seat animation (what the seat row plays)" });
+
+	GameEditor_PickValue("Rider animation", items, VE.riderAnim or -1, function(value)
+		value = Num(value);
+		VE.riderAnim = value >= 0 and value or nil;
 		ApplyRiders();
 		SyncWorld();
 		RefreshControls();
@@ -401,7 +445,7 @@ function VE.CreatePreview(holder)
 	vehicleAnimButton:SetHeight(20);
 	vehicleAnimButton:SetPoint("LEFT", bar, "LEFT", 0, 0);
 
-	riderAnimButton = Common.Button(bar, "Rider", 150, PickRiderAnim, "Animation of the human male on the seats, Mount by default");
+	riderAnimButton = Common.Button(bar, "Rider", 150, PickRiderAnim, "Animation of the human male on the seats, by default the one the seat row plays");
 	riderAnimButton:SetHeight(20);
 	riderAnimButton:SetPoint("LEFT", vehicleAnimButton, "RIGHT", 4, 0);
 

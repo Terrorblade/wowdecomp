@@ -24,7 +24,6 @@ local timeSlider;
 local cameraBox;
 local inWorldBox;
 local worldShown;
-local tempIds = {};
 
 local view = { yaw = 0, pitch = DEFAULT_PITCH, zoom = 1, panX = 0, panY = 0, modelCamera = false };
 local shownDoc;
@@ -53,12 +52,7 @@ end
 
 -- Client only rows past the last id, the in world unit or gameobject needs a display that points at the preview file.
 local function TempId(tableName)
-	if ( not tempIds[tableName] ) then
-		local maxId = ME.MaxId(tableName);
-		tempIds[tableName] = maxId > 0 and maxId + 1 or nil;
-	end
-
-	return tempIds[tableName];
+	return ME.TempId(tableName, "model");
 end
 
 local function CopyRow(tableName, id, changes)

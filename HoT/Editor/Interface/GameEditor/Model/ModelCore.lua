@@ -473,6 +473,25 @@ function ME.Row(tableName, id)
 	return ok and type(row) == "table" and row or nil;
 end
 
+local tempIds = {};
+
+-- A client only row id past the last one, the same key always gets the same id and no two keys share one.
+function ME.TempId(tableName, key)
+	local ids = tempIds[tableName];
+
+	if ( not ids ) then
+		ids = { next = ME.MaxId(tableName) + 1 };
+		tempIds[tableName] = ids;
+	end
+
+	if ( not ids[key] and ids.next > 1 ) then
+		ids[key] = ids.next;
+		ids.next = ids.next + 1;
+	end
+
+	return ids[key];
+end
+
 function ME.MaxId(tableName)
 	if ( not DbcEditor_GetMaxId ) then
 		return 0;

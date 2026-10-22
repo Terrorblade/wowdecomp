@@ -10,7 +10,7 @@
 
 The Linux sysroot and the macOS dependencies live in .cross/, the macOS SDK is the ThirdParty/macos-sdk submodule,
 build trees go to build/cross-<name>/. package builds both Mac architectures and writes a universal Wow64.app to
-bin/Wow64-mac.tar.gz. WOWDECOMP_CROSS_DIR moves .cross/ somewhere else, CI keeps it out of the checkout.
+bin/Wow64-mac.tar.gz. WOWDECOMP_CROSS_DIR (read here and by the toolchains) moves .cross/ somewhere else.
 """
 
 import argparse

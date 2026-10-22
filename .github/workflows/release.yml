@@ -125,7 +125,7 @@ jobs:
         continue-on-error: true
         run: |
           Push-Location "$env:SOAPDIR"
-          cmd.exe /c "SoapCommand.exe streamall"
+          cmd.exe /c "SoapCommand.exe dev streamall"
           Pop-Location
 
       - name: Publish executable builds
@@ -136,7 +136,7 @@ jobs:
           # The Mac binary is universal, both of its slices carry this commit.
           foreach ($platform in "Wn64", "Lx64", "Mc64", "MacA") {
             Write-Host "Publishing $platform build $sha"
-            & ".\SoapCommand.exe" "publishexe $platform $sha"
+            & ".\SoapCommand.exe" dev "publishexe $platform $sha"
             if ($LASTEXITCODE -ne 0) { throw "SoapCommand.exe failed for $platform with exit code $LASTEXITCODE" }
           }
           Pop-Location

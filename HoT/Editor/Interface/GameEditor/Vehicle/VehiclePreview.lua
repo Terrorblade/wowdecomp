@@ -10,6 +10,8 @@ local RETRY_LIMIT = 100;
 local ZOOM_STEP = 1.15;
 local ROTATE_SPEED = 0.012;
 local DEFAULT_PITCH = 0.25;
+local WORLD_VEHICLE = 1;
+local WORLD_RIDER = 2;
 
 local Num = VE.Num;
 
@@ -19,6 +21,8 @@ local message;
 local vehicleAnimButton;
 local riderAnimButton;
 local allSeatsBox;
+local inWorldBox;
+local worldShown;
 
 local view = { yaw = 0, pitch = DEFAULT_PITCH, zoom = 1, panX = 0, panY = 0 };
 local shown = { displayId = nil, path = nil, scale = 1 };
@@ -32,6 +36,7 @@ local loadedPath;
 VE.vehicleAnim = 0;
 VE.riderAnim = ME.MOUNT_ANIM;
 VE.allSeats = false;
+VE.inWorld = false;
 VE.attached = {};
 VE.attachments = nil;
 
@@ -130,10 +135,79 @@ local function ApplyRiders()
 	VE.attached = {};
 end
 
+local function ClearWorld()
+	for slot = WORLD_VEHICLE, WORLD_RIDER + VE.SEATS - 1 do
+		ME.Quiet("WorldPreview_Remove", slot);
+	end
+
+	worldShown = nil;
+end
+
+-- The vehicle and its riders as client only units in front of the player, the client vehicle code seats them.
+local function SyncWorld()
+	if ( not VE.inWorld or not shown.displayId ) then
+		if ( worldShown ) then
+			ClearWorld();
+		end
+
+		return;
+	end
+
+	local riderDisplay = VE.vehicleId and ME.Quiet("WorldPreview_RiderDisplay");
+	local riders = {};
+	local parts = { shown.displayId, VE.vehicleId or 0, riderDisplay or 0 };
+
+	for _, seat in ipairs(seats) do
+		table.insert(parts, seat.slot..":"..Num(seat.values.m_id));
+
+		if ( riderDisplay and (VE.allSeats or seat.selected) ) then
+			table.insert(riders, seat.slot);
+			table.insert(parts, "r"..seat.slot);
+		end
+	end
+
+	local signature = table.concat(parts, ",");
+
+	if ( signature == worldShown ) then
+		ME.Quiet("WorldPreview_SetAnim", WORLD_VEHICLE, VE.vehicleAnim);
+
+		for _, slot in ipairs(riders) do
+			ME.Quiet("WorldPreview_SetAnim", WORLD_RIDER + slot, VE.riderAnim);
+		end
+
+		return;
+	end
+
+	ClearWorld();
+	local ok, err = ME.Quiet("WorldPreview_Spawn", WORLD_VEHICLE, { kind = "unit", displayId = shown.displayId, vehicleId = VE.vehicleId or 0, anim = VE.vehicleAnim });
+
+	if ( not ok ) then
+		ME.Notice("In world preview: "..tostring(err or "the client refused the unit"), "info");
+		return;
+	end
+
+	for _, slot in ipairs(riders) do
+		ME.Quiet("WorldPreview_Spawn", WORLD_RIDER + slot, { kind = "unit", displayId = riderDisplay, parent = WORLD_VEHICLE, seat = slot, anim = VE.riderAnim });
+	end
+
+	worldShown = signature;
+end
+
+function VE.SetInWorld(enabled)
+	VE.inWorld = enabled and true or false;
+
+	if ( inWorldBox ) then
+		NoggitCheckBox_SetChecked(inWorldBox, VE.inWorld);
+	end
+
+	SyncWorld();
+end
+
 -- seats is a list of { slot, values, selected } from the open vehicle.
 function VE.PreviewSeats(list)
 	seats = list or {};
 	ApplyRiders();
+	SyncWorld();
 end
 
 -- Shows the model of a CreatureDisplayInfo row with its skin and scale, nil clears the preview.
@@ -151,6 +225,7 @@ function VE.SetPreviewDisplay(displayId)
 		shown.displayId, shown.path, loadedPath = nil, nil, nil;
 		VE.attachments = nil;
 		SetMessage("Pick a creature display to preview the vehicle");
+		SyncWorld();
 		return false;
 	end
 
@@ -185,6 +260,7 @@ function VE.SetPreviewDisplay(displayId)
 	ApplyView();
 	reapplyIn = REAPPLY_DELAY;
 	ApplyRiders();
+	SyncWorld();
 	RefreshControls();
 	return true;
 end
@@ -215,6 +291,7 @@ local function PickVehicleAnim()
 	GameEditor_PickValue("Vehicle animation", items, VE.vehicleAnim, function(value)
 		VE.vehicleAnim = Num(value);
 		Try("SetSequence", VE.vehicleAnim);
+		SyncWorld();
 		RefreshControls();
 	end);
 end
@@ -231,6 +308,7 @@ local function PickRiderAnim()
 	GameEditor_PickValue("Rider animation", items, VE.riderAnim, function(value)
 		VE.riderAnim = Num(value);
 		ApplyRiders();
+		SyncWorld();
 		RefreshControls();
 	end);
 end
@@ -334,9 +412,23 @@ function VE.CreatePreview(holder)
 	allSeatsBox = NoggitCheckBox_Create(bar, "All seats", false, function(_, checked)
 		VE.allSeats = checked;
 		ApplyRiders();
+		SyncWorld();
 	end);
 	allSeatsBox:SetPoint("RIGHT", reset, "LEFT", -6, 0);
 	Common.Tooltip(allSeatsBox, "Put a rider on every seat instead of only the selected one");
+
+	local here = Common.Button(panel, "Here", 44, function()
+		ME.Quiet("WorldPreview_MoveHere");
+	end, "Move the in world preview in front of you again");
+	here:SetHeight(20);
+	here:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -4);
+
+	inWorldBox = NoggitCheckBox_Create(panel, "In world", VE.inWorld, function(_, checked)
+		VE.SetInWorld(checked);
+	end);
+	inWorldBox:SetPoint("RIGHT", here, "LEFT", -6, 0);
+	Common.Tooltip(inWorldBox, "Also spawn the vehicle with its riders in front of you, client side only, nobody else sees it");
+	message:SetPoint("TOPRIGHT", inWorldBox, "TOPLEFT", -8, 0);
 
 	panel:SetScript("OnShow", function()
 		reapplyIn = REAPPLY_DELAY;

@@ -45,7 +45,10 @@ struct Slot {
     CM2Model* m_model = nullptr;
 };
 
-static std::map<CSimpleModel*, std::map<uint32_t, Slot>> s_frames;
+using Slots = std::map<uint32_t, Slot>;
+
+static std::map<CSimpleModel*, Slots> s_frames;
+static std::map<uint32_t, Slots> s_world;
 static std::map<std::string, bool> s_animExists;
 static bool (*s_hasAccess)() = nullptr;
 
@@ -86,6 +89,12 @@ static void FreeSlot(Slot& slot) {
     slot.m_appliedAnim = 0xFFFFFFFF;
 }
 
+static void FreeSlots(Slots& slots) {
+    for (auto& pair : slots) {
+        FreeSlot(pair.second);
+    }
+}
+
 static void FreeFrame(CSimpleModel* frame) {
     auto it = s_frames.find(frame);
 
@@ -93,15 +102,12 @@ static void FreeFrame(CSimpleModel* frame) {
         return;
     }
 
-    for (auto& pair : it->second) {
-        FreeSlot(pair.second);
-    }
-
+    FreeSlots(it->second);
     s_frames.erase(it);
 }
 
 // A naked human male built like the character select one, so skin and geosets come out right.
-static bool CreateRider(CSimpleModel* frame, Slot& slot) {
+static bool CreateRider(CM2Scene* scene, Slot& slot) {
     CreatureModelDataRec* modelRec = GetModelDataRec(kRiderRace, kRiderSex);
 
     if (!modelRec || !modelRec->m_modelName || !*modelRec->m_modelName) {
@@ -118,7 +124,7 @@ static bool CreateRider(CSimpleModel* frame, Slot& slot) {
     data.m_preferences.m_raceID = kRiderRace;
     data.m_preferences.m_sexID = kRiderSex;
     data.m_preferences.m_classId = 1;
-    data.m_model = frame->GetScene()->CreateModel(HoT::HD::GlueModelPath(modelRec->m_modelName), 0);
+    data.m_model = scene->CreateModel(HoT::HD::GlueModelPath(modelRec->m_modelName), 0);
 
     if (!data.m_model) {
         CCharacterComponent::FreeComponent(component);
@@ -133,21 +139,28 @@ static bool CreateRider(CSimpleModel* frame, Slot& slot) {
     return true;
 }
 
-static bool CreateSlotModel(CSimpleModel* frame, Slot& slot) {
+// The slot model takes the lighting of its parent, so it looks right in a frame and in the world.
+static bool CreateSlotModel(CM2Model* parent, Slot& slot) {
+    CM2Scene* scene = parent->m_scene;
+
+    if (!scene) {
+        return false;
+    }
+
     if (slot.m_rider) {
-        if (!CreateRider(frame, slot)) {
+        if (!CreateRider(scene, slot)) {
             return false;
         }
     } else {
-        slot.m_model = frame->GetScene()->CreateModel(kMarkerModel, 0);
+        slot.m_model = scene->CreateModel(kMarkerModel, 0);
 
         if (!slot.m_model) {
             return false;
         }
     }
 
-    slot.m_model->m_lightingCallback = &CSimpleModel::LightingCallback;
-    slot.m_model->m_lightingArg = frame;
+    slot.m_model->m_lightingCallback = parent->m_lightingCallback;
+    slot.m_model->m_lightingArg = parent->m_lightingArg;
     slot.m_model->SetAnimating(1);
     return true;
 }
@@ -162,13 +175,11 @@ static float BoundingRadius(CM2Model* model) {
 }
 
 // Same seat transform as CVehiclePassenger_C::ComputeModelTransform, the rider keeps its own size whatever the parent scale.
-static void PlaceSlot(CSimpleModel* frame, Slot& slot) {
-    CM2Model* parent = frame->m_model;
+static void PlaceSlot(CM2Model* parent, Slot& slot, float riderScale, float markerScale) {
     CM2Model* model = slot.m_model;
-    float frameScale = frame->m_layoutScale * NDCToDDCHeight(1.0f) * 1.6666666f;
-    float wanted = slot.m_rider ? frameScale : frameScale * frame->m_modelScale * BoundingRadius(parent) * 0.06f * slot.m_size;
     C44Matrix attachment = parent->GetAttachmentWorldTransform(slot.m_attachment);
     float length = sqrtf(attachment.a0 * attachment.a0 + attachment.a1 * attachment.a1 + attachment.a2 * attachment.a2);
+    float wanted = slot.m_rider ? riderScale : (markerScale > 0.0f ? markerScale : length) * BoundingRadius(parent) * 0.06f * slot.m_size;
 
     C44Matrix matrix;
     matrix.RotateAroundZ(-slot.m_yaw);
@@ -189,7 +200,40 @@ static void PlaceSlot(CSimpleModel* frame, Slot& slot) {
     model->m_worldTransform = matrix;
 }
 
-// Attaches each slot to the current frame model, the frame swaps its model on every preview reload.
+// Follows the parent, a frame swaps it on every preview reload and a unit when its display changes.
+static bool UpdateSlot(CM2Model* parent, Slot& slot, float riderScale, float markerScale) {
+    bool loaded = parent && parent->IsLoaded(0, 0);
+
+    if (!slot.m_model && parent) {
+        CreateSlotModel(parent, slot);
+    }
+
+    if (!slot.m_model) {
+        return false;
+    }
+
+    if (!parent || (loaded && !parent->HasAttachment(slot.m_attachment))) {
+        if (slot.m_model->m_attachParent) {
+            slot.m_model->DetachFromParent();
+        }
+    } else if (slot.m_model->m_attachParent != parent || slot.m_model->m_attachmentId != slot.m_attachment) {
+        slot.m_model->AttachToParent(parent, slot.m_attachment, nullptr, 0);
+    }
+
+    bool attached = loaded && slot.m_model->m_attachParent == parent && parent->HasAttachment(slot.m_attachment);
+
+    if (attached) {
+        PlaceSlot(parent, slot, riderScale, markerScale);
+    }
+
+    if (slot.m_rider && slot.m_appliedAnim != slot.m_anim) {
+        slot.m_model->SetBoneSequence(0xFFFFFFFF, slot.m_anim, 0xFFFFFFFF, 0, 1.0f, 1, 1);
+        slot.m_appliedAnim = slot.m_anim;
+    }
+
+    return attached;
+}
+
 static void UpdateFrame(CSimpleModel* frame, lua_State* L) {
     auto it = s_frames.find(frame);
 
@@ -201,41 +245,10 @@ static void UpdateFrame(CSimpleModel* frame, lua_State* L) {
         return;
     }
 
-    CM2Model* parent = frame->m_model;
-    bool loaded = parent && parent->IsLoaded(0, 0);
+    float frameScale = frame->m_layoutScale * NDCToDDCHeight(1.0f) * 1.6666666f;
 
     for (auto& pair : it->second) {
-        Slot& slot = pair.second;
-        bool attached = false;
-
-        if (!slot.m_model && parent) {
-            CreateSlotModel(frame, slot);
-        }
-
-        if (slot.m_model) {
-            if (!parent) {
-                if (slot.m_model->m_attachParent) {
-                    slot.m_model->DetachFromParent();
-                }
-            } else if (loaded && !parent->HasAttachment(slot.m_attachment)) {
-                if (slot.m_model->m_attachParent) {
-                    slot.m_model->DetachFromParent();
-                }
-            } else if (slot.m_model->m_attachParent != parent || slot.m_model->m_attachmentId != slot.m_attachment) {
-                slot.m_model->AttachToParent(parent, slot.m_attachment, nullptr, 0);
-            }
-
-            attached = loaded && slot.m_model->m_attachParent == parent && parent->HasAttachment(slot.m_attachment);
-
-            if (attached) {
-                PlaceSlot(frame, slot);
-            }
-
-            if (slot.m_rider && slot.m_appliedAnim != slot.m_anim) {
-                slot.m_model->SetBoneSequence(0xFFFFFFFF, slot.m_anim, 0xFFFFFFFF, 0, 1.0f, 1, 1);
-                slot.m_appliedAnim = slot.m_anim;
-            }
-        }
+        bool attached = UpdateSlot(frame->m_model, pair.second, frameScale, frameScale * frame->m_modelScale);
 
         if (L) {
             lua_pushboolean(L, attached);
@@ -314,6 +327,32 @@ static CM2Model* LoadedModel(CSimpleModel* frame, lua_State* L, int32_t slotInde
     return model;
 }
 
+static void ReadOptions(lua_State* L, int32_t options, Slot& slot) {
+    lua_getfield(L, options, "rider");
+    bool rider = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+
+    if (rider != slot.m_rider) {
+        FreeSlot(slot);
+        slot.m_rider = rider;
+    }
+
+    slot.m_attachment = static_cast<uint32_t>(std::max(0.0f, Field(L, options, "attachment", 0.0f)));
+    slot.m_anim = static_cast<uint32_t>(std::max(0.0f, Field(L, options, "anim", static_cast<float>(kMountAnim))));
+    slot.m_yaw = Field(L, options, "yaw", 0.0f);
+    slot.m_pitch = Field(L, options, "pitch", 0.0f);
+    slot.m_roll = Field(L, options, "roll", 0.0f);
+    slot.m_size = Field(L, options, "size", 1.0f);
+    lua_getfield(L, options, "offset");
+    static const char* const names[3] = { "x", "y", "z" };
+
+    for (int32_t i = 0; i < 3; i++) {
+        slot.m_offset[i] = lua_type(L, -1) == LUA_TTABLE ? Field(L, lua_gettop(L), names[i], 0.0f) : 0.0f;
+    }
+
+    lua_pop(L, 1);
+}
+
 // ModelEditor_SetPreviewAttach(frame, slot, { attachment, rider, anim, offset = { x, y, z }, yaw, pitch, roll, size } or nil).
 static int32_t Script_SetPreviewAttach(lua_State* L) {
     CSimpleModel* frame = FrameArg(L);
@@ -342,29 +381,7 @@ static int32_t Script_SetPreviewAttach(lua_State* L) {
     }
 
     Slot& slot = s_frames[frame][index];
-    lua_getfield(L, 3, "rider");
-    bool rider = lua_toboolean(L, -1) != 0;
-    lua_pop(L, 1);
-
-    if (rider != slot.m_rider) {
-        FreeSlot(slot);
-        slot.m_rider = rider;
-    }
-
-    slot.m_attachment = static_cast<uint32_t>(std::max(0.0f, Field(L, 3, "attachment", 0.0f)));
-    slot.m_anim = static_cast<uint32_t>(std::max(0.0f, Field(L, 3, "anim", static_cast<float>(kMountAnim))));
-    slot.m_yaw = Field(L, 3, "yaw", 0.0f);
-    slot.m_pitch = Field(L, 3, "pitch", 0.0f);
-    slot.m_roll = Field(L, 3, "roll", 0.0f);
-    slot.m_size = Field(L, 3, "size", 1.0f);
-    lua_getfield(L, 3, "offset");
-    static const char* const names[3] = { "x", "y", "z" };
-
-    for (int32_t i = 0; i < 3; i++) {
-        slot.m_offset[i] = lua_type(L, -1) == LUA_TTABLE ? Field(L, lua_gettop(L), names[i], 0.0f) : 0.0f;
-    }
-
-    lua_pop(L, 1);
+    ReadOptions(L, 3, slot);
     UpdateFrame(frame, nullptr);
     lua_pushboolean(L, true);
     lua_pushstring(L, slot.m_model && slot.m_model->m_shared ? slot.m_model->m_shared->m_fileName : "");
@@ -465,6 +482,59 @@ static int32_t Script_GetPreviewSequences(lua_State* L) {
     return 1;
 }
 
+bool SetWorldSlot(lua_State* L, uint32_t host, uint32_t index, int32_t options) {
+    if (index < 1 || index > kMaxSlots) {
+        return false;
+    }
+
+    if (lua_type(L, options) != LUA_TTABLE) {
+        auto it = s_world.find(host);
+
+        if (it != s_world.end()) {
+            auto slot = it->second.find(index);
+
+            if (slot != it->second.end()) {
+                FreeSlot(slot->second);
+                it->second.erase(slot);
+            }
+        }
+
+        return true;
+    }
+
+    ReadOptions(L, options, s_world[host][index]);
+    return true;
+}
+
+void UpdateWorld(uint32_t host, CM2Model* parent) {
+    auto it = s_world.find(host);
+
+    if (it == s_world.end()) {
+        return;
+    }
+
+    for (auto& pair : it->second) {
+        UpdateSlot(parent, pair.second, 1.0f, 0.0f);
+    }
+}
+
+void DetachWorld(uint32_t host) {
+    auto it = s_world.find(host);
+
+    if (it != s_world.end()) {
+        FreeSlots(it->second);
+    }
+}
+
+void FreeWorld(uint32_t host) {
+    auto it = s_world.find(host);
+
+    if (it != s_world.end()) {
+        FreeSlots(it->second);
+        s_world.erase(it);
+    }
+}
+
 template <lua_CFunction Function>
 static int32_t Gated(lua_State* L) {
     if (!s_hasAccess || !s_hasAccess()) {
@@ -488,6 +558,12 @@ void OnGameDestroy() {
     while (!s_frames.empty()) {
         FreeFrame(s_frames.begin()->first);
     }
+
+    for (auto& pair : s_world) {
+        FreeSlots(pair.second);
+    }
+
+    s_world.clear();
 
     s_animExists.clear();
 }

@@ -17,6 +17,7 @@
 #include "HoT/Editor/Spell/SpellPreview.h"
 #include "HoT/Editor/Spell/WorldTables.h"
 #include "HoT/Editor/TemplateSearch.h"
+#include "HoT/Editor/WorldPreview.h"
 #include "HoT/Lua/Script.h"
 #include "WoW/Source/UIUtil/Camera.h"
 #include "WoW/Source/Ui/WorldFrame.h"
@@ -85,6 +86,7 @@ class EditorModule : public Module {
         WorldTables::Apply();
         TemplateSearch::Apply();
         ModelEditor::Apply();
+        WorldPreview::Apply();
     }
 
     void OnPlayerClientInitialize() override {
@@ -94,12 +96,14 @@ class EditorModule : public Module {
 
     void OnLoadingScreenStarted() override {
         SpellPreview::Stop();
+        WorldPreview::OnLoadingScreenStarted();
         Mode::OnWorldUnloaded();
     }
 
     void OnIdle() override {
         Dbc::OnIdle();
         SpellPreview::OnIdle();
+        WorldPreview::OnIdle();
     }
 
     void OnScriptsLoaded(Lua::State state) override {
@@ -115,6 +119,7 @@ class EditorModule : public Module {
         CreatureEditor::OnGameDestroy();
         FreeCam::OnGameDestroy();
         SpellPreview::OnGameDestroy();
+        WorldPreview::OnGameDestroy();
         Dbc::OnGameDestroy();
         LightEditor::OnGameDestroy();
         WorldTables::OnGameDestroy();

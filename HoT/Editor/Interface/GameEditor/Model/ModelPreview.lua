@@ -10,6 +10,7 @@ local RETRY_LIMIT = 100;
 local ZOOM_STEP = 1.15;
 local ROTATE_SPEED = 0.012;
 local DEFAULT_PITCH = 0.25;
+local WORLD_SLOT = 20;
 
 local Num = ME.Num;
 
@@ -21,6 +22,9 @@ local message;
 local seqButton;
 local timeSlider;
 local cameraBox;
+local inWorldBox;
+local worldShown;
+local tempIds = {};
 
 local view = { yaw = 0, pitch = DEFAULT_PITCH, zoom = 1, panX = 0, panY = 0, modelCamera = false };
 local shownDoc;
@@ -34,6 +38,7 @@ ME.previewSequence = nil;
 ME.previewTime = nil;
 ME.previewAttach = nil;
 ME.previewAttached = nil;
+ME.inWorld = false;
 
 local function SetMessage(text)
 	if ( message ) then
@@ -44,6 +49,134 @@ end
 local function CurrentSequence()
 	local info = ME.current and ME.Info(ME.current);
 	return info and ME.previewSequence and ME.SequenceByIndex(info, ME.previewSequence);
+end
+
+-- Client only rows past the last id, the in world unit or gameobject needs a display that points at the preview file.
+local function TempId(tableName)
+	if ( not tempIds[tableName] ) then
+		local maxId = ME.MaxId(tableName);
+		tempIds[tableName] = maxId > 0 and maxId + 1 or nil;
+	end
+
+	return tempIds[tableName];
+end
+
+local function CopyRow(tableName, id, changes)
+	local values = {};
+
+	for key, value in pairs(ME.Row(tableName, id) or {}) do
+		if ( type(value) ~= "table" ) then
+			values[key] = value;
+		end
+	end
+
+	for key, value in pairs(changes) do
+		values[key] = value;
+	end
+
+	return values;
+end
+
+local function ApplyLocal(tableName, id, values)
+	local ok, result = pcall(DbcEditor_ApplyLocal, tableName, id, values);
+	return ok and result;
+end
+
+local function WorldDisplay(source, path)
+	if ( source.kind == "gameobject" ) then
+		local id = TempId("GameObjectDisplayInfo");
+
+		if ( id and ApplyLocal("GameObjectDisplayInfo", id, CopyRow("GameObjectDisplayInfo", source.displayId, { m_modelName = path })) ) then
+			return "gameobject", id;
+		end
+
+		return nil;
+	end
+
+	local modelId, displayId = TempId("CreatureModelData"), TempId("CreatureDisplayInfo");
+	local display = ME.Row("CreatureDisplayInfo", source.displayId);
+	local modelSource = source.modelDataId or (display and display.m_modelID);
+	local modelChanges = { m_modelName = path };
+
+	if ( not ME.Row("CreatureModelData", modelSource) ) then
+		modelChanges.m_modelScale = 1;
+		modelChanges.m_collisionWidth = 0.5;
+		modelChanges.m_collisionHeight = 2;
+	end
+
+	if ( not modelId or not displayId or not ApplyLocal("CreatureModelData", modelId, CopyRow("CreatureModelData", modelSource, modelChanges)) ) then
+		return nil;
+	end
+
+	local displayChanges = { m_modelID = modelId, m_extendedDisplayInfoID = 0 };
+
+	if ( not display ) then
+		displayChanges.m_creatureModelScale = 1;
+		displayChanges.m_creatureModelAlpha = 255;
+	end
+
+	if ( not ApplyLocal("CreatureDisplayInfo", displayId, CopyRow("CreatureDisplayInfo", source.displayId, displayChanges)) ) then
+		return nil;
+	end
+
+	return "unit", displayId;
+end
+
+local function WorldAnim()
+	local info = ME.current and ME.Info(ME.current);
+	local sequence = info and ME.previewSequence and ME.SequenceByIndex(info, ME.previewSequence);
+	return sequence and Num(sequence.id) or nil;
+end
+
+-- The previewed revision as a client only creature or gameobject in front of the player, with the same animation and attachment.
+local function SyncWorld()
+	local entry = ME.inWorld and ME.Current();
+
+	if ( not entry or not shownPath ) then
+		if ( worldShown ) then
+			ME.Quiet("WorldPreview_Remove", WORLD_SLOT);
+			worldShown = nil;
+		end
+
+		return;
+	end
+
+	local source = entry.source or {};
+	local signature = shownPath..":"..tostring(source.kind)..":"..tostring(source.displayId);
+
+	if ( signature ~= worldShown ) then
+		ME.Quiet("WorldPreview_Remove", WORLD_SLOT);
+		worldShown = nil;
+		local kind, displayId = WorldDisplay(source, shownPath);
+
+		if ( not kind ) then
+			ME.Notice("In world preview: could not make the client only display rows", "info");
+			return;
+		end
+
+		local ok, err = ME.Quiet("WorldPreview_Spawn", WORLD_SLOT, { kind = kind, displayId = displayId, anim = WorldAnim() });
+
+		if ( not ok ) then
+			ME.Notice("In world preview: "..tostring(err or "the client refused the object"), "info");
+			return;
+		end
+
+		worldShown = signature;
+	else
+		ME.Quiet("WorldPreview_SetAnim", WORLD_SLOT, WorldAnim());
+	end
+
+	ME.Quiet("WorldPreview_SetAttach", WORLD_SLOT, 1, ME.previewAttach);
+end
+
+function ME.SetInWorld(enabled)
+	ME.inWorld = enabled and true or false;
+
+	if ( inWorldBox ) then
+		NoggitCheckBox_SetChecked(inWorldBox, ME.inWorld);
+	end
+
+	SyncWorld();
 end
 
 -- Model frame methods are the 3.3.5 CSimpleModel ones, each call is guarded since a bad model raises a Lua error.
@@ -67,6 +200,10 @@ local function ApplySequence()
 		Try("SetSequenceTime", Num(sequence.id), floor(ME.previewTime));
 	else
 		Try("SetSequence", Num(sequence.id));
+	end
+
+	if ( worldShown ) then
+		ME.Quiet("WorldPreview_SetAnim", WORLD_SLOT, Num(sequence.id));
 	end
 end
 
@@ -126,6 +263,7 @@ function ME.PreviewReload(force)
 		Try("ClearModel");
 		shownDoc, shownPath = nil, nil;
 		SetMessage("No model open");
+		SyncWorld();
 		RefreshControls();
 		return;
 	end
@@ -157,6 +295,7 @@ function ME.PreviewReload(force)
 	retries = 0;
 	ApplyView();
 	reapplyIn = REAPPLY_DELAY;
+	SyncWorld();
 	RefreshControls();
 end
 
@@ -197,6 +336,10 @@ end
 local function ApplyAttach()
 	if ( model ) then
 		ME.Quiet("ModelEditor_SetPreviewAttach", model, 1, ME.previewAttach);
+	end
+
+	if ( worldShown ) then
+		ME.Quiet("WorldPreview_SetAttach", WORLD_SLOT, 1, ME.previewAttach);
 	end
 
 	ME.previewAttached = nil;
@@ -379,6 +522,19 @@ function ME.CreatePreview(holder)
 	timeSlider:SetPoint("LEFT", play, "RIGHT", 8, 0);
 	timeSlider:SetPoint("RIGHT", cameraBox, "LEFT", -8, 0);
 	Common.Tooltip(timeSlider, "Hold the animation at this time in milliseconds");
+
+	local here = Common.Button(panel, "Here", 44, function()
+		ME.Quiet("WorldPreview_MoveHere");
+	end, "Move the in world preview in front of you again");
+	here:SetHeight(20);
+	here:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -4);
+
+	inWorldBox = NoggitCheckBox_Create(panel, "In world", ME.inWorld, function(_, checked)
+		ME.SetInWorld(checked);
+	end);
+	inWorldBox:SetPoint("RIGHT", here, "LEFT", -6, 0);
+	Common.Tooltip(inWorldBox, "Also spawn the model as a creature or gameobject in front of you, client side only, nobody else sees it");
+	message:SetPoint("TOPRIGHT", inWorldBox, "TOPLEFT", -8, 0);
 
 	panel:SetScript("OnShow", function()
 		reapplyIn = REAPPLY_DELAY;

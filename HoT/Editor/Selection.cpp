@@ -22,6 +22,7 @@
 #include "HoT/Editor/Mode.h"
 #include "HoT/Editor/Quat.h"
 #include "HoT/Editor/VectorMath.h"
+#include "HoT/Editor/WorldPreview.h"
 #include "HoT/Game/Session.h"
 #include "HoT/Lua/Script.h"
 #include "HoT/Net/Opcodes.h"
@@ -142,7 +143,7 @@ static Kind KindOf(CGObject_C* object) {
 
     uint32_t type = object->m_obj->m_type;
 
-    if (type & TYPEMASK_PLAYER) {
+    if ((type & TYPEMASK_PLAYER) || WorldPreview::IsPreviewGuid(object->m_obj->m_guid.m_guid)) {
         return Kind::None;
     }
 

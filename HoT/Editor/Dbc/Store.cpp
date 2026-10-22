@@ -454,6 +454,7 @@ const std::vector<Store>& Stores() {
         Make(g_taxiPathDB, "TaxiPath"),
         Make(g_totemCategoryDB, "TotemCategory"),
         Make(g_vehicleDB, "Vehicle"),
+        Make(g_vehicleSeatDB, "VehicleSeat"),
     };
 
     return stores;

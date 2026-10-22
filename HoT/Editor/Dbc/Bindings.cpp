@@ -66,6 +66,7 @@
 #include "WoW/Source/DB/Rec/TaxiPathRec.h"
 #include "WoW/Source/DB/Rec/TotemCategoryRec.h"
 #include "WoW/Source/DB/Rec/VehicleRec.h"
+#include "WoW/Source/DB/Rec/VehicleSeatRec.h"
 
 namespace HoT::Editor::Dbc {
 
@@ -1370,6 +1371,68 @@ static void BindVehicle(Builder& builder) {
     DBC_VALUE(m_powerDisplayID[2]);
 }
 
+static void BindVehicleSeat(Builder& builder) {
+    using Rec = VehicleSeatRec;
+    DBC_VALUE(m_id);
+    DBC_VALUE(m_flags);
+    DBC_VALUE(m_attachmentID);
+    DBC_VALUE(m_attachmentOffset[0]);
+    DBC_VALUE(m_attachmentOffset[1]);
+    DBC_VALUE(m_attachmentOffset[2]);
+    DBC_VALUE(m_field33512213004);
+    DBC_VALUE(m_enterSpeed);
+    DBC_VALUE(m_enterGravity);
+    DBC_VALUE(m_enterMinDuration);
+    DBC_VALUE(m_enterMaxDuration);
+    DBC_VALUE(m_enterMinArcHeight);
+    DBC_VALUE(m_enterMaxArcHeight);
+    DBC_VALUE(m_enterAnimStart);
+    DBC_VALUE(m_enterAnimLoop);
+    DBC_VALUE(m_rideAnimStart);
+    DBC_VALUE(m_rideAnimLoop);
+    DBC_VALUE(m_rideUpperAnimStart);
+    DBC_VALUE(m_rideUpperAnimLoop);
+    DBC_VALUE(m_field33512213017);
+    DBC_VALUE(m_exitSpeed);
+    DBC_VALUE(m_exitGravity);
+    DBC_VALUE(m_exitMinDuration);
+    DBC_VALUE(m_exitMaxDuration);
+    DBC_VALUE(m_exitMinArcHeight);
+    DBC_VALUE(m_exitMaxArcHeight);
+    DBC_VALUE(m_exitAnimStart);
+    DBC_VALUE(m_exitAnimLoop);
+    DBC_VALUE(m_exitAnimEnd);
+    DBC_VALUE(m_field33512213027);
+    DBC_VALUE(m_passengerPitch);
+    DBC_VALUE(m_field33512213029);
+    DBC_VALUE(m_passengerAttachmentID);
+    DBC_VALUE(m_vehicleEnterAnim);
+    DBC_VALUE(m_vehicleExitAnim);
+    DBC_VALUE(m_vehicleRideAnimLoop);
+    DBC_VALUE(m_field33512213034);
+    DBC_VALUE(m_vehicleExitAnimBone);
+    DBC_VALUE(m_vehicleEnterAnimBone);
+    DBC_VALUE(m_field33512213037);
+    DBC_VALUE(m_field33512213038);
+    DBC_VALUE(m_vehicleAbilityDisplay);
+    DBC_VALUE(m_enterUisoundID);
+    DBC_VALUE(m_field33512213041);
+    DBC_VALUE(m_uiSkin);
+    DBC_VALUE(m_flagsB);
+    DBC_VALUE(m_field33512213044);
+    DBC_VALUE(m_field33512213045);
+    DBC_VALUE(m_field33512213046);
+    DBC_VALUE(m_field33512213047);
+    DBC_VALUE(m_field33512213048);
+    DBC_VALUE(m_field33512213049);
+    DBC_VALUE(m_field33512213050);
+    DBC_VALUE(m_field33512213051);
+    DBC_VALUE(m_field33512213052);
+    DBC_VALUE(m_field33512213053);
+    DBC_VALUE(m_field33512213054);
+    DBC_VALUE(m_field33512213055);
+}
+
 static const Binding s_bindings[] = {
     { "AnimationData", sizeof(AnimationDataRec), BindAnimationData },
     { "CreatureDisplayInfo", sizeof(CreatureDisplayInfoRec), BindCreatureDisplayInfo },
@@ -1437,6 +1500,7 @@ static const Binding s_bindings[] = {
     { "TaxiPath", sizeof(TaxiPathRec), BindTaxiPath },
     { "TotemCategory", sizeof(TotemCategoryRec), BindTotemCategory },
     { "Vehicle", sizeof(VehicleRec), BindVehicle },
+    { "VehicleSeat", sizeof(VehicleSeatRec), BindVehicleSeat },
 };
 
 const Binding* FindBinding(const char* table) {

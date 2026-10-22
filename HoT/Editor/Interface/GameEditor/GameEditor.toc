@@ -21,5 +21,6 @@ Spell\Spell.xml
 Quest\Quest.xml
 Light\Light.xml
 Model\Model.xml
+Vehicle\Vehicle.xml
 Item\Item.xml
 GameEditor.xml

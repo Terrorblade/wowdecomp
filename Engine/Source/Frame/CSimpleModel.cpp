@@ -29,6 +29,7 @@
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Tempest/CRect.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
+#include "HoT/Editor/Model/PreviewAttach.h"
 
 // STATIC: 0x00B2CB0C
 const char* CSimpleModel::s_objectTypeName = "Model";
@@ -105,6 +106,9 @@ int32_t CSimpleModel::AdvanceTime() {
 // VERIFY: d4b291b5 auto
 // OFFSET: [0x0095F3A0, 0x0095F670, 0x0095F7D0]
 CSimpleModel::~CSimpleModel() {
+    // HoT: frees editor preview riders and markers while the scene is alive.
+    HoT::Editor::ModelEditor::PreviewAttach::OnFrameDestroyed(this);
+
     if (this->m_camera) {
         HandleClose(reinterpret_cast<HOBJECT>(this->m_camera));
     }

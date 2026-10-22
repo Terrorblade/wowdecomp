@@ -1,11 +1,11 @@
--- Models workspace, copies a model, edits its textures, particles and ribbons and adds it to the display DBCs.
+-- Models workspace, copies a model, edits its textures, particles, ribbons and attachment points and adds it to the display DBCs.
 
 local ME = GameEditorModel;
 local Common = GameEditorObject;
 
 local PREVIEW_HEIGHT = 220;
-local TAB_NAMES = { "Textures", "Particles", "Ribbons", "Save" };
-local TAB_TEXTURES, TAB_PARTICLES, TAB_RIBBONS, TAB_SAVE = 1, 2, 3, 4;
+local TAB_NAMES = { "Textures", "Particles", "Ribbons", "Attach", "Save" };
+local TAB_TEXTURES, TAB_PARTICLES, TAB_RIBBONS, TAB_ATTACHMENTS, TAB_SAVE = 1, 2, 3, 4, 5;
 
 local Num = ME.Num;
 
@@ -522,6 +522,7 @@ local function Build(parent)
 	pages[TAB_TEXTURES] = ME.BuildTexturePage(container);
 	pages[TAB_PARTICLES] = ME.BuildParticlePage(container);
 	pages[TAB_RIBBONS] = ME.BuildRibbonPage(container);
+	pages[TAB_ATTACHMENTS] = ME.BuildAttachmentPage(container);
 	pages[TAB_SAVE] = ME.BuildSavePage(container);
 
 	frame:SetScript("OnShow", function()

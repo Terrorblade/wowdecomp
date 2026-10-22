@@ -1059,6 +1059,24 @@ uint32_t ModelDoc::SkinFileDataId(uint32_t profile) const {
     return this->m_modern ? ChunkEntry(this->FindChunk(Tag("SFID")), profile, 4) : 0;
 }
 
+uint32_t ModelDoc::AnimFileDataId(uint16_t id, uint16_t variation) const {
+    const Chunk* chunk = this->m_modern ? this->FindChunk(Tag("AFID")) : nullptr;
+
+    if (!chunk) {
+        return 0;
+    }
+
+    for (size_t pos = 0; pos + 8 <= chunk->m_data.size(); pos += 8) {
+        const uint8_t* entry = chunk->m_data.data() + pos;
+
+        if ((entry[0] | (entry[1] << 8)) == id && (entry[2] | (entry[3] << 8)) == variation) {
+            return Rd32(entry + 4);
+        }
+    }
+
+    return 0;
+}
+
 bool ModelDoc::HasAnimFileDataIds() const {
     const Chunk* chunk = this->m_modern ? this->FindChunk(Tag("AFID")) : nullptr;
     return chunk && !chunk->m_data.empty();

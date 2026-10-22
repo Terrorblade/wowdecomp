@@ -59,6 +59,8 @@ enum HeaderField : uint32_t {
     HEADER_TEXTURES = 0x50,
     HEADER_MATERIALS = 0x70,
     HEADER_TEXTURE_COMBOS = 0x80,
+    HEADER_ATTACHMENTS = 0xF0,
+    HEADER_ATTACHMENT_LOOKUP = 0xF8,
     HEADER_RIBBONS = 0x120,
     HEADER_PARTICLES = 0x128,
 };
@@ -67,6 +69,7 @@ static const uint32_t SEQUENCE_STRIDE = 0x40;
 static const uint32_t BONE_STRIDE = 0x58;
 static const uint32_t TEXTURE_STRIDE = 0x10;
 static const uint32_t MATERIAL_STRIDE = 0x04;
+static const uint32_t ATTACHMENT_STRIDE = 0x28;
 static const uint32_t RIBBON_STRIDE = 0xB0;
 static const uint32_t PARTICLE_STRIDE = 0x1DC;
 static const uint32_t PARTICLE_STRIDE_MODERN = 0x1EC;
@@ -171,6 +174,7 @@ class ModelDoc {
     void SetTextureFileDataId(uint32_t index, uint32_t fileDataId);
     uint32_t SkinFileDataId(uint32_t profile) const;
     bool HasAnimFileDataIds() const;
+    uint32_t AnimFileDataId(uint16_t id, uint16_t variation) const;
     std::vector<std::string> ChunkNames() const;
 
     // Keeps TXAC, EXP2 and PGD1 in step with the particle array, removeIndex below 0 means one emitter was appended.

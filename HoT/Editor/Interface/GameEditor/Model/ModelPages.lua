@@ -1,4 +1,4 @@
--- Textures, Particles and Ribbons pages of the models workspace.
+-- Textures, Particles, Ribbons and Attachments pages of the models workspace.
 
 local ME = GameEditorModel;
 local Common = GameEditorObject;
@@ -1190,7 +1190,173 @@ local function BuildRibbonPage(container)
 	return page;
 end
 
+local ATTACH_KINDS = {
+	{ value = "marker", text = "Marker cube" },
+	{ value = "rider", text = "Human male" },
+};
+
+local function BuildAttachmentPage(container)
+	local page = NewPage(container);
+	local preview = { shown = true, kind = "marker", anim = ME.MOUNT_ANIM, size = 1 };
+
+	EmitterList(page, {
+		key = "attachment",
+		infoKey = "attachments",
+		noun = "attachment",
+		add = "ModelEditor_AddAttachment",
+		remove = "ModelEditor_RemoveAttachment",
+		rowText = function(item)
+			return format("%d  %s (%d)  bone %d", item.index, ME.AttachmentName(item.id), Num(item.id), Num(item.bone));
+		end,
+	});
+	PageScroll(page, 122);
+
+	local function ApplyPreview()
+		local selected = page:IsShown() and preview.shown and page:Selected();
+
+		if ( not selected ) then
+			ME.SetPreviewAttach(nil);
+			return;
+		end
+
+		ME.SetPreviewAttach({ attachment = Num(selected.id), rider = preview.kind == "rider", anim = preview.anim, size = preview.size });
+	end
+
+	local form = ME.CreateForm(page.child, 470, function(fields)
+		local entry = Entry();
+
+		if ( entry ) then
+			ME.Edit("ModelEditor_SetAttachment", entry.doc, entry.sel.attachment, fields);
+		end
+	end);
+	page.form = form;
+
+	form:Header("Attachment");
+	form:Combo("attachmentId", "Id", ME.EnumItems(ME.ATTACHMENT_NAMES, 0, 255), "What the client attaches here, items, spell effects and vehicle seats look the id up", 240);
+	local bone = form:Int("boneIndex", "Bone", 0, 65535, "Bone the point moves with");
+	bone.hintFunc = function(value, data, info)
+		return format("of %d bones", #(info and info.bones or {}));
+	end;
+	form:Value("position", "Position", "vec3", "Offset from the bone pivot in model units");
+	form:Track("animateTrack", "Visible", "byte", "1 shows what hangs on the point, 0 hides it");
+
+	form:Header("Preview");
+	local controls = form:Item(52);
+	local showBox = NoggitCheckBox_Create(controls.frame, "Show in the preview", true, function(_, checked)
+		preview.shown = checked;
+		ApplyPreview();
+	end);
+	showBox:SetPoint("TOPLEFT", controls.frame, "TOPLEFT", 0, 0);
+
+	local kindCombo = NoggitComboBox_Create(controls.frame, 120, ATTACH_KINDS, 1, function(_, _, item)
+		if ( item ) then
+			preview.kind = item.value;
+			ApplyPreview();
+			page:Refresh();
+		end
+	end);
+	kindCombo:SetPoint("TOPLEFT", controls.frame, "TOPLEFT", LABEL_WIDTH, 0);
+
+	local sizeSpin = ME.Spin(controls.frame, 70, 0.1, 20, 0.1, 1, function(value)
+		preview.size = value;
+		ApplyPreview();
+	end, "Size of the marker cube");
+	sizeSpin:SetPoint("LEFT", kindCombo, "RIGHT", 6, 0);
+	ME.SetSpin(sizeSpin, preview.size, true);
+
+	local animButton = Common.Button(controls.frame, "Mount", 150, function()
+		local items = ME.AnimItems(ME.PreviewRiderSequences());
+
+		if ( #items == 0 ) then
+			ME.Notice("The human male is still loading", "info");
+			return;
+		end
+
+		GameEditor_PickValue("Rider animation", items, preview.anim, function(value)
+			preview.anim = Num(value);
+			ApplyPreview();
+			page:Refresh();
+		end);
+	end, "Animation the human male plays, only the ones its model has are listed");
+	animButton:SetHeight(20);
+	animButton:SetPoint("LEFT", kindCombo, "RIGHT", 6, 0);
+
+	local stateText = Common.Label(controls.frame, "", nil, NOGGIT_COLOR_DISABLED);
+	stateText:SetPoint("TOPLEFT", controls.frame, "TOPLEFT", 0, -28);
+	stateText:SetPoint("RIGHT", controls.frame, "RIGHT", 0, 0);
+	controls.refresh = function()
+		NoggitCheckBox_SetChecked(showBox, preview.shown);
+		local rider = preview.kind == "rider";
+
+		if ( rider ) then
+			sizeSpin:Hide();
+			animButton:Show();
+			animButton:SetText(format("%s (%d)", ME.AnimName(preview.anim), preview.anim));
+		else
+			animButton:Hide();
+			sizeSpin:Show();
+		end
+	end;
+
+	page.empty = Common.Paragraph(page.child, "");
+	page.empty:SetPoint("TOPLEFT", page.child, "TOPLEFT", 0, -4);
+	page.empty:SetPoint("TOPRIGHT", page.child, "TOPRIGHT", 0, -4);
+
+	local elapsedSince = 0;
+	page:SetScript("OnUpdate", function(_, elapsed)
+		elapsedSince = elapsedSince + elapsed;
+
+		if ( elapsedSince < 0.25 ) then
+			return;
+		end
+
+		elapsedSince = 0;
+		local selected = page:Selected();
+
+		if ( not selected or not preview.shown ) then
+			stateText:SetText("");
+		elseif ( ME.previewAttached ) then
+			stateText:SetText(format("Showing on %s, saved edits move it after the preview reloads", ME.AttachmentName(selected.id)));
+		elseif ( ME.previewAttached == false ) then
+			stateText:SetText("The preview has not loaded this attachment yet");
+		end
+	end);
+	page:SetScript("OnShow", ApplyPreview);
+	page:SetScript("OnHide", function()
+		ME.SetPreviewAttach(nil);
+	end);
+
+	page.Refresh = function(self)
+		self:RefreshList();
+		local entry = Entry();
+		local selected = self:Selected();
+		local data = selected and ME.Call("ModelEditor_GetAttachment", entry.doc, selected.index);
+
+		if ( type(data) == "table" ) then
+			self.empty:Hide();
+			self.child:SetHeight(form:Refresh(data, Info()) + 10);
+		else
+			form:Refresh(nil, Info());
+
+			for _, item in ipairs(form.items) do
+				item.frame:Hide();
+			end
+
+			self.empty:SetText(Info() and "The model has no attachment points, Add makes one on bone 0." or "No model open");
+			self.empty:Show();
+			self.child:SetHeight(40);
+		end
+
+		self.child:SetWidth(ChildWidth(self));
+		self.scroll.UpdateRange();
+		ApplyPreview();
+	end;
+
+	return page;
+end
+
 ME.BuildTexturePage = BuildTexturePage;
+ME.BuildAttachmentPage = BuildAttachmentPage;
 ME.BuildParticlePage = BuildParticlePage;
 ME.BuildRibbonPage = BuildRibbonPage;
 ME.ShowImport = ShowImport;

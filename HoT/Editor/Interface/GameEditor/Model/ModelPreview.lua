@@ -32,6 +32,8 @@ local drag;
 
 ME.previewSequence = nil;
 ME.previewTime = nil;
+ME.previewAttach = nil;
+ME.previewAttached = nil;
 
 local function SetMessage(text)
 	if ( message ) then
@@ -174,7 +176,14 @@ local function PickAnimation()
 	local items = {};
 
 	for _, sequence in ipairs(info.sequences or {}) do
-		table.insert(items, { value = sequence.index, text = format("%s, %d ms", ME.SequenceText(sequence), Num(sequence.duration)) });
+		if ( ME.IsAvailable(sequence) ) then
+			table.insert(items, { value = sequence.index, text = format("%s, %d ms", ME.SequenceText(sequence), Num(sequence.duration)) });
+		end
+	end
+
+	if ( #items == 0 ) then
+		ME.Notice("The model has no animation it can play", "info");
+		return;
 	end
 
 	GameEditor_PickValue("Animation", items, ME.previewSequence, function(value)
@@ -183,6 +192,24 @@ local function PickAnimation()
 		ApplySequence();
 		RefreshControls();
 	end);
+end
+
+local function ApplyAttach()
+	if ( model ) then
+		ME.Quiet("ModelEditor_SetPreviewAttach", model, 1, ME.previewAttach);
+	end
+
+	ME.previewAttached = nil;
+end
+
+-- Shows a marker or a rider on an attachment id of the previewed model, nil takes it away.
+function ME.SetPreviewAttach(options)
+	ME.previewAttach = options;
+	ApplyAttach();
+end
+
+function ME.PreviewRiderSequences()
+	return model and ME.Quiet("ModelEditor_GetPreviewSequences", model, 1);
 end
 
 local function OnMouseDown(self, button)
@@ -195,6 +222,11 @@ local function OnMouseUp()
 end
 
 local function OnUpdate(self, elapsed)
+	if ( ME.previewAttach ) then
+		local state = ME.Quiet("ModelEditor_UpdatePreviewAttach", model);
+		ME.previewAttached = type(state) == "table" and state[1] or false;
+	end
+
 	if ( drag ) then
 		local down = drag.button and IsMouseButtonDown(drag.button);
 
@@ -363,9 +395,18 @@ ME.OnChanged(function(docs)
 	if ( ME.current ~= shownDoc ) then
 		local info = ME.current and ME.Info(ME.current);
 
-		if ( info and not CurrentSequence() ) then
-			ME.previewSequence = info.sequences and info.sequences[1] and info.sequences[1].index or nil;
+		local sequence = CurrentSequence();
+
+		if ( info and (not sequence or not ME.IsAvailable(sequence)) ) then
+			ME.previewSequence = nil;
 			ME.previewTime = nil;
+
+			for _, candidate in ipairs(info.sequences or {}) do
+				if ( ME.IsAvailable(candidate) ) then
+					ME.previewSequence = candidate.index;
+					break;
+				end
+			end
 		end
 
 		ME.PreviewReload(false);

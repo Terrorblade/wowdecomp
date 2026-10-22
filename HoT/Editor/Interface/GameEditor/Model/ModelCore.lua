@@ -113,6 +113,68 @@ ME.INTERPOLATION = {
 
 ME.SEQUENCE_ALIAS = 0x40;
 
+-- M2 attachment ids by the names the client code and the model files use them for.
+ME.ATTACHMENT_NAMES = {
+	[0] = "Shield / mount",
+	[1] = "Right hand",
+	[2] = "Left hand",
+	[3] = "Right elbow",
+	[4] = "Left elbow",
+	[5] = "Right shoulder",
+	[6] = "Left shoulder",
+	[7] = "Right knee",
+	[8] = "Left knee",
+	[9] = "Right hip",
+	[10] = "Left hip",
+	[11] = "Helm",
+	[12] = "Back",
+	[13] = "Right shoulder flap",
+	[14] = "Left shoulder flap",
+	[15] = "Chest blood front",
+	[16] = "Chest blood back",
+	[17] = "Breath",
+	[18] = "Player name",
+	[19] = "Base",
+	[20] = "Head",
+	[21] = "Spell left hand",
+	[22] = "Spell right hand",
+	[23] = "Special 1",
+	[24] = "Special 2",
+	[25] = "Special 3",
+	[26] = "Sheath main hand",
+	[27] = "Sheath off hand",
+	[28] = "Sheath shield",
+	[29] = "Player name mounted",
+	[30] = "Large weapon left",
+	[31] = "Large weapon right",
+	[32] = "Hip weapon left",
+	[33] = "Hip weapon right",
+	[34] = "Chest",
+	[35] = "Hand arrow",
+	[36] = "Bullet",
+	[37] = "Spell hand omni",
+	[38] = "Spell hand directed",
+	[39] = "Vehicle seat 1",
+	[40] = "Vehicle seat 2",
+	[41] = "Vehicle seat 3",
+	[42] = "Vehicle seat 4",
+	[43] = "Vehicle seat 5",
+	[44] = "Vehicle seat 6",
+	[45] = "Vehicle seat 7",
+	[46] = "Vehicle seat 8",
+	[47] = "Left foot",
+	[48] = "Right foot",
+	[49] = "Shield no glove",
+	[50] = "Spine low",
+	[51] = "Altered right shoulder",
+	[52] = "Altered left shoulder",
+	[53] = "Belt buckle",
+	[54] = "Sheath crossbow",
+	[55] = "Head top",
+};
+
+ME.MOUNT_ANIM = 91;
+
 ME.docs = ME.docs or {};
 ME.order = ME.order or {};
 ME.recent = ME.recent or {};
@@ -884,6 +946,33 @@ function ME.SequenceText(sequence)
 	end
 
 	return text;
+end
+
+function ME.AttachmentName(id)
+	id = Num(id);
+	return ME.ATTACHMENT_NAMES[id] or format("Attachment %d", id);
+end
+
+function ME.IsAvailable(sequence)
+	return sequence and sequence.available ~= false or false;
+end
+
+-- One entry per animation id that can play, the Model frame and SetBoneSequence pick the variation themselves.
+function ME.AnimItems(sequences)
+	local items = {};
+	local seen = {};
+
+	for _, sequence in ipairs(sequences or {}) do
+		local id = Num(sequence.id);
+
+		if ( ME.IsAvailable(sequence) and not seen[id] ) then
+			seen[id] = true;
+			table.insert(items, { value = id, text = format("%s (%d)", ME.AnimName(id), id) });
+		end
+	end
+
+	table.sort(items, function(a, b) return a.value < b.value; end);
+	return items;
 end
 
 function ME.TextureText(info, index)

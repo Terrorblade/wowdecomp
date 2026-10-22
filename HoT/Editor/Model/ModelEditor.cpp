@@ -29,6 +29,7 @@
 #include "HoT/Core/Log.h"
 #include "HoT/Editor/Model/ModelDoc.h"
 #include "HoT/Editor/Model/ModelFiles.h"
+#include "HoT/Editor/Model/PreviewAttach.h"
 #include "HoT/Editor/Model/TextureImport.h"
 #include "HoT/Editor/Resources.h"
 #include "HoT/Game/Session.h"
@@ -581,6 +582,58 @@ static bool IsMultiTexture(const ModelDoc& doc, uint32_t flags) {
 }
 
 // ModelEditor_GetInfo(doc) -> the document summary of the contract.
+static std::map<std::string, bool> s_animExists;
+
+static bool AnimExists(const std::string& path) {
+    std::string key = Files::Lower(path);
+    auto it = s_animExists.find(key);
+
+    if (it == s_animExists.end()) {
+        it = s_animExists.emplace(key, Files::GameFileExists(path)).first;
+    }
+
+    return it->second;
+}
+
+// A sequence plays when its keys are in the file or its .anim file exists, aliases follow their target.
+static bool SequenceAvailable(const ModelDoc& doc, uint32_t index) {
+    uint32_t count = doc.Count(Model::HEADER_SEQUENCES);
+
+    for (uint32_t hops = 0; index < count && hops <= count; hops++) {
+        uint32_t pos = doc.RecordPos(Model::HEADER_SEQUENCES, Model::SEQUENCE_STRIDE, index);
+        uint16_t id = 0;
+        uint16_t variation = 0;
+        uint32_t flags = 0;
+        uint16_t alias = 0;
+        doc.Get(pos, id);
+        doc.Get(pos + 2, variation);
+        doc.Get(pos + 0x0C, flags);
+        doc.Get(pos + 0x3E, alias);
+
+        if (flags & Model::SEQUENCE_FLAG_ALIAS) {
+            index = alias;
+            continue;
+        }
+
+        if (flags & Model::SEQUENCE_FLAG_INLINE) {
+            return true;
+        }
+
+        uint32_t fileDataId = doc.AnimFileDataId(id, variation);
+        const char* path = fileDataId ? HoT::Models::Fdid::ResolveModel(fileDataId) : nullptr;
+
+        if (path && AnimExists(path)) {
+            return true;
+        }
+
+        char suffix[32];
+        snprintf(suffix, sizeof(suffix), "%04u-%02u.anim", static_cast<uint32_t>(id), static_cast<uint32_t>(variation));
+        return AnimExists(Files::StripExtension(doc.Path()) + suffix);
+    }
+
+    return false;
+}
+
 static int32_t Script_GetInfo(lua_State* L) {
     Entry* entry = DocArg(L, 1);
 
@@ -638,6 +691,7 @@ static int32_t Script_GetInfo(lua_State* L) {
         SetNumber(L, "duration", duration);
         SetNumber(L, "flags", flags);
         SetBool(L, "external", !(flags & Model::SEQUENCE_FLAG_INLINE));
+        SetBool(L, "available", SequenceAvailable(doc, i));
         lua_rawseti(L, -2, static_cast<int32_t>(i + 1));
     }
 
@@ -781,6 +835,28 @@ static int32_t Script_GetInfo(lua_State* L) {
     }
 
     lua_setfield(L, -2, "bones");
+
+    count = doc.Count(Model::HEADER_ATTACHMENTS);
+    lua_createtable(L, static_cast<int32_t>(count), 0);
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t pos = doc.RecordPos(Model::HEADER_ATTACHMENTS, Model::ATTACHMENT_STRIDE, i);
+        uint32_t id = 0;
+        uint16_t bone = 0;
+        float position[3] = {};
+        doc.Get(pos, id);
+        doc.Get(pos + 4, bone);
+        doc.Read(pos + 8, position, sizeof(position));
+        lua_createtable(L, 0, 4);
+        SetNumber(L, "index", i);
+        SetNumber(L, "id", id);
+        SetNumber(L, "bone", bone);
+        PushVector(L, position, 3);
+        lua_setfield(L, -2, "position");
+        lua_rawseti(L, -2, static_cast<int32_t>(i + 1));
+    }
+
+    lua_setfield(L, -2, "attachments");
     return 1;
 }
 
@@ -1143,6 +1219,13 @@ static const Field s_ribbonFields[] = {
     { "priorityPlane", Kind::I16, 0xAC, ValueType::Float, Check::None, false, false },
 };
 
+static const Field s_attachmentFields[] = {
+    { "attachmentId", Kind::U32, 0x00, ValueType::Float, Check::None, false, false },
+    { "boneIndex", Kind::U16, 0x04, ValueType::Float, Check::Bone, false, false },
+    { "position", Kind::Vec3, 0x08, ValueType::Float, Check::None, false, false },
+    { "animateTrack", Kind::AnimTrack, 0x14, ValueType::UInt8, Check::None, false, false },
+};
+
 struct RecordKind {
     uint32_t header;
     const Field* fields;
@@ -1152,9 +1235,14 @@ struct RecordKind {
 
 static const RecordKind s_particles = { Model::HEADER_PARTICLES, s_particleFields, sizeof(s_particleFields) / sizeof(s_particleFields[0]), 'p' };
 static const RecordKind s_ribbons = { Model::HEADER_RIBBONS, s_ribbonFields, sizeof(s_ribbonFields) / sizeof(s_ribbonFields[0]), 'r' };
+static const RecordKind s_attachments = { Model::HEADER_ATTACHMENTS, s_attachmentFields, sizeof(s_attachmentFields) / sizeof(s_attachmentFields[0]), 'a' };
 
 static uint32_t Stride(const ModelDoc& doc, const RecordKind& kind) {
-    return kind.header == Model::HEADER_PARTICLES ? doc.ParticleStride() : Model::RIBBON_STRIDE;
+    if (kind.header == Model::HEADER_PARTICLES) {
+        return doc.ParticleStride();
+    }
+
+    return kind.header == Model::HEADER_ATTACHMENTS ? Model::ATTACHMENT_STRIDE : Model::RIBBON_STRIDE;
 }
 
 static bool IsPackedGravity(const ModelDoc& doc, uint32_t pos) {
@@ -2285,6 +2373,187 @@ static int32_t Script_RemoveRibbon(lua_State* L) {
     return RemoveRecord(L, s_ribbons);
 }
 
+// Attachments.
+
+static constexpr uint32_t kMaxAttachmentId = 255;
+
+static uint32_t AttachmentId(const ModelDoc& doc, uint32_t index) {
+    uint32_t id = 0;
+    doc.Get(doc.RecordPos(Model::HEADER_ATTACHMENTS, Model::ATTACHMENT_STRIDE, index), id);
+    return id;
+}
+
+// The id lookup the client resolves attachments through, the first attachment of an id wins.
+static bool RebuildAttachmentLookup(ModelDoc& doc, std::string& error) {
+    uint32_t count = doc.Count(Model::HEADER_ATTACHMENTS);
+    std::vector<uint16_t> lookup;
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t id = AttachmentId(doc, i);
+
+        if (id > kMaxAttachmentId) {
+            error = "attachment ids go from 0 to " + std::to_string(kMaxAttachmentId);
+            return false;
+        }
+
+        if (lookup.size() <= id) {
+            lookup.resize(id + 1, 0xFFFF);
+        }
+
+        if (lookup[id] == 0xFFFF) {
+            lookup[id] = static_cast<uint16_t>(i);
+        }
+    }
+
+    return doc.WriteU16Array(Model::HEADER_ATTACHMENT_LOOKUP, lookup, "attachmentLookup", error);
+}
+
+static uint32_t FreeAttachmentId(const ModelDoc& doc, uint32_t from) {
+    uint32_t count = doc.Count(Model::HEADER_ATTACHMENTS);
+
+    for (uint32_t id = from; id <= kMaxAttachmentId; id++) {
+        bool used = false;
+
+        for (uint32_t i = 0; i < count && !used; i++) {
+            used = AttachmentId(doc, i) == id;
+        }
+
+        if (!used) {
+            return id;
+        }
+    }
+
+    return 0;
+}
+
+static int32_t Script_GetAttachment(lua_State* L) {
+    return GetRecord(L, s_attachments);
+}
+
+// ModelEditor_SetAttachment(doc, index, { attachmentId, boneIndex, position, animateTrack }) -> ok, err.
+static int32_t Script_SetAttachment(lua_State* L) {
+    if (lua_type(L, 3) == LUA_TTABLE) {
+        lua_getfield(L, 3, "attachmentId");
+        bool bad = !lua_isnil(L, -1) && (!lua_isnumber(L, -1) || lua_tonumber(L, -1) < 0 || lua_tonumber(L, -1) > kMaxAttachmentId);
+        lua_pop(L, 1);
+
+        if (bad) {
+            return PushFalseError(L, "attachment ids go from 0 to " + std::to_string(kMaxAttachmentId));
+        }
+    }
+
+    int32_t results = SetRecord(L, s_attachments);
+    Entry* entry = DocArg(L, 1);
+    std::string error;
+
+    if (entry && lua_toboolean(L, -1) && !RebuildAttachmentLookup(entry->m_doc, error)) {
+        lua_pop(L, results);
+        return PushFalseError(L, error);
+    }
+
+    return results;
+}
+
+// ModelEditor_AddAttachment(doc [, copyIndex] [, id]) -> new index, a copy keeps everything but takes a free id.
+static int32_t Script_AddAttachment(lua_State* L) {
+    Entry* entry = DocArg(L, 1);
+    std::string error;
+
+    if (!entry) {
+        return PushNilError(L, "unknown document");
+    }
+
+    ModelDoc& doc = entry->m_doc;
+    uint32_t count = doc.Count(Model::HEADER_ATTACHMENTS);
+    bool copy = !lua_isnoneornil(L, 2);
+    uint32_t source = 0;
+    int64_t wanted = -1;
+
+    if (copy && (!IndexArg(L, 2, source) || source >= count)) {
+        return PushNilError(L, "copy index out of range");
+    }
+
+    if (!lua_isnoneornil(L, 3) && !ToInteger(L, 3, 0, kMaxAttachmentId, wanted)) {
+        return PushNilError(L, "attachment ids go from 0 to " + std::to_string(kMaxAttachmentId));
+    }
+
+    if (!doc.Count(Model::HEADER_BONES)) {
+        return PushNilError(L, "the model has no bones to attach to");
+    }
+
+    std::vector<uint8_t> records;
+
+    if (!doc.CopyRecords(Model::HEADER_ATTACHMENTS, Model::ATTACHMENT_STRIDE, records)) {
+        return PushNilError(L, "attachment list outside the file");
+    }
+
+    uint32_t id = wanted >= 0 ? static_cast<uint32_t>(wanted) : FreeAttachmentId(doc, copy ? AttachmentId(doc, source) : 0);
+
+    if (copy) {
+        std::vector<uint8_t> record(records.begin() + static_cast<size_t>(source) * Model::ATTACHMENT_STRIDE, records.begin() + static_cast<size_t>(source + 1) * Model::ATTACHMENT_STRIDE);
+        records.insert(records.end(), record.begin(), record.end());
+    } else {
+        records.resize(records.size() + Model::ATTACHMENT_STRIDE, 0);
+    }
+
+    if (!doc.ReplaceRecords(Model::HEADER_ATTACHMENTS, records, count + 1, error)) {
+        return PushNilError(L, error);
+    }
+
+    uint32_t pos = doc.RecordPos(Model::HEADER_ATTACHMENTS, Model::ATTACHMENT_STRIDE, count);
+    doc.Put(pos, id);
+
+    if (!copy) {
+        float one = 1.0f;
+        doc.Put(pos + 0x14 + 2, static_cast<uint16_t>(0xFFFF));
+
+        if (!doc.WriteTrack(pos + 0x14, ValueType::UInt8, ConstantTrack(doc, ValueType::UInt8, &one), "", error)) {
+            return PushNilError(L, error);
+        }
+    }
+
+    if (!RebuildAttachmentLookup(doc, error)) {
+        return PushNilError(L, error);
+    }
+
+    Changed(entry);
+    lua_pushnumber(L, count);
+    return 1;
+}
+
+static int32_t Script_RemoveAttachment(lua_State* L) {
+    Entry* entry = DocArg(L, 1);
+    uint32_t index;
+    std::string error;
+
+    if (!entry) {
+        return PushFalseError(L, "unknown document");
+    }
+
+    ModelDoc& doc = entry->m_doc;
+    uint32_t count = doc.Count(Model::HEADER_ATTACHMENTS);
+
+    if (!IndexArg(L, 2, index) || index >= count) {
+        return PushFalseError(L, "index out of range");
+    }
+
+    std::vector<uint8_t> records;
+
+    if (!doc.CopyRecords(Model::HEADER_ATTACHMENTS, Model::ATTACHMENT_STRIDE, records)) {
+        return PushFalseError(L, "attachment list outside the file");
+    }
+
+    records.erase(records.begin() + static_cast<size_t>(index) * Model::ATTACHMENT_STRIDE, records.begin() + static_cast<size_t>(index + 1) * Model::ATTACHMENT_STRIDE);
+
+    if (!doc.ReplaceRecords(Model::HEADER_ATTACHMENTS, records, count - 1, error) || !RebuildAttachmentLookup(doc, error)) {
+        return PushFalseError(L, error);
+    }
+
+    Changed(entry);
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 // Preview.
 
 // ModelEditor_GetPreviewPath(doc) -> a virtual path of the current bytes, a new one per revision.
@@ -2848,9 +3117,17 @@ void Apply() {
     Lua::RegisterFunction("ModelEditor_ListImportFiles", Gated<Script_ListImportFiles>);
     Lua::RegisterFunction("ModelEditor_ImportTexture", Gated<Script_ImportTexture>);
     Lua::RegisterFunction("ModelEditor_GetTextureInfo", Gated<Script_GetTextureInfo>);
+    Lua::RegisterFunction("ModelEditor_GetAttachment", Gated<Script_GetAttachment>);
+    Lua::RegisterFunction("ModelEditor_SetAttachment", Gated<Script_SetAttachment>);
+    Lua::RegisterFunction("ModelEditor_AddAttachment", Gated<Script_AddAttachment>);
+    Lua::RegisterFunction("ModelEditor_RemoveAttachment", Gated<Script_RemoveAttachment>);
+    PreviewAttach::Apply(&HasAccess);
 }
 
 void OnGameDestroy() {
+    PreviewAttach::OnGameDestroy();
+    s_animExists.clear();
+
     for (auto& pair : s_docs) {
         DropPreviews(pair.second.get());
     }

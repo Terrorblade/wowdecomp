@@ -327,7 +327,7 @@ MACOS_SDK_FOLDER = "MacOSX26.5.sdk"
 
 def git(*args):
     # MSYS_NO_PATHCONV keeps Git for Windows from rewriting the leading / of the sparse patterns.
-    subprocess.run(["git", *args], check=True, env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+    subprocess.run(["git", *args], check=True, cwd=ROOT, env={**os.environ, "MSYS_NO_PATHCONV": "1"})
 
 
 def init_macos_sdk():

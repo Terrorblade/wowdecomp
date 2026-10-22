@@ -417,18 +417,26 @@ function VE.CreatePreview(holder)
 	allSeatsBox:SetPoint("RIGHT", reset, "LEFT", -6, 0);
 	Common.Tooltip(allSeatsBox, "Put a rider on every seat instead of only the selected one");
 
-	local here = Common.Button(panel, "Here", 44, function()
+	local top = CreateFrame("Frame", NoggitUI_NewName("GameEditorVehiclePreviewTopBar"), panel);
+	top:SetHeight(24);
+	top:SetPoint("TOPLEFT", panel, "TOPLEFT", 2, -2);
+	top:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -2, -2);
+	model:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -2);
+
+	local here = Common.Button(top, "Here", 44, function()
 		ME.Quiet("WorldPreview_MoveHere");
 	end, "Move the in world preview in front of you again");
 	here:SetHeight(20);
-	here:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -4);
+	here:SetPoint("RIGHT", top, "RIGHT", 0, 0);
 
-	inWorldBox = NoggitCheckBox_Create(panel, "In world", VE.inWorld, function(_, checked)
+	inWorldBox = NoggitCheckBox_Create(top, "In world", VE.inWorld, function(_, checked)
 		VE.SetInWorld(checked);
 	end);
 	inWorldBox:SetPoint("RIGHT", here, "LEFT", -6, 0);
 	Common.Tooltip(inWorldBox, "Also spawn the vehicle with its riders in front of you, client side only, nobody else sees it");
-	message:SetPoint("TOPRIGHT", inWorldBox, "TOPLEFT", -8, 0);
+	message:ClearAllPoints();
+	message:SetPoint("TOPLEFT", model, "TOPLEFT", 6, -6);
+	message:SetPoint("TOPRIGHT", model, "TOPRIGHT", -6, -6);
 
 	panel:SetScript("OnShow", function()
 		reapplyIn = REAPPLY_DELAY;

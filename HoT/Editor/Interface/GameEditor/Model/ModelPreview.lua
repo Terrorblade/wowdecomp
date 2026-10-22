@@ -523,18 +523,26 @@ function ME.CreatePreview(holder)
 	timeSlider:SetPoint("RIGHT", cameraBox, "LEFT", -8, 0);
 	Common.Tooltip(timeSlider, "Hold the animation at this time in milliseconds");
 
-	local here = Common.Button(panel, "Here", 44, function()
+	local top = CreateFrame("Frame", NoggitUI_NewName("GameEditorModelPreviewTopBar"), panel);
+	top:SetHeight(24);
+	top:SetPoint("TOPLEFT", panel, "TOPLEFT", 2, -2);
+	top:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -2, -2);
+	model:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -2);
+
+	local here = Common.Button(top, "Here", 44, function()
 		ME.Quiet("WorldPreview_MoveHere");
 	end, "Move the in world preview in front of you again");
 	here:SetHeight(20);
-	here:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -4);
+	here:SetPoint("RIGHT", top, "RIGHT", 0, 0);
 
-	inWorldBox = NoggitCheckBox_Create(panel, "In world", ME.inWorld, function(_, checked)
+	inWorldBox = NoggitCheckBox_Create(top, "In world", ME.inWorld, function(_, checked)
 		ME.SetInWorld(checked);
 	end);
 	inWorldBox:SetPoint("RIGHT", here, "LEFT", -6, 0);
 	Common.Tooltip(inWorldBox, "Also spawn the model as a creature or gameobject in front of you, client side only, nobody else sees it");
-	message:SetPoint("TOPRIGHT", inWorldBox, "TOPLEFT", -8, 0);
+	message:ClearAllPoints();
+	message:SetPoint("TOPLEFT", model, "TOPLEFT", 6, -6);
+	message:SetPoint("TOPRIGHT", model, "TOPRIGHT", -6, -6);
 
 	panel:SetScript("OnShow", function()
 		reapplyIn = REAPPLY_DELAY;

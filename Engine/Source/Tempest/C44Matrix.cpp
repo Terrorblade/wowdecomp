@@ -304,27 +304,6 @@ C44Matrix operator*(const C44Matrix& l, float s) {
     return result;
 }
 
-// VERIFY: 2f00be7c auto
-// OFFSET: 0x004C21B0
-C3Vector operator*(const C3Vector& v, const C44Matrix& m) {
-    C3Vector result;
-    result.x = m.c0 * v.z + m.b0 * v.y + v.x * m.a0 + m.d0;
-    result.y = m.c1 * v.z + m.b1 * v.y + m.a1 * v.x + m.d1;
-    result.z = m.c2 * v.z + m.b2 * v.y + m.a2 * v.x + m.d2;
-    return result;
-}
-
-// VERIFY: 3c76980d auto
-// OFFSET: 0x004C2270
-C4Vector operator*(const C4Vector& v, const C44Matrix& m) {
-    C4Vector result;
-    result.x = m.d0 * v.w + m.b0 * v.y + m.c0 * v.z + v.x * m.a0;
-    result.y = m.d1 * v.w + m.b1 * v.y + m.a1 * v.x + m.c1 * v.z;
-    result.z = m.d2 * v.w + m.b2 * v.y + m.a2 * v.x + m.c2 * v.z;
-    result.w = m.d3 * v.w + m.b3 * v.y + m.a3 * v.x + m.c3 * v.z;
-    return result;
-}
-
 // VERIFY: ea7afa9a manual
 // OFFSET: 0x004C2300
 C3Vector operator*=(C3Vector& v, const C44Matrix& m) {

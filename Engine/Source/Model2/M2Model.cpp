@@ -7068,7 +7068,51 @@ static bool CanCombineBatches(const CModelBatch& a, const CModelBatch& b) {
 // VERIFY: 01820d35 manual
 // OFFSET: 0x00832DD0
 void CModelBatchList::Optimize() {
-    std::sort(this->m_batches, this->m_batches + this->m_count, SModelBatchLessThan());
+    // FIX: SModelBatchLessThan's keys are read once per batch and sorted packed, the comparator chased four pointers per call
+    struct BatchKey {
+        uint16_t m_influences;
+        uintptr_t m_geo;
+        uintptr_t m_shared;
+        uint32_t m_batchIndex;
+        CModelBatch m_batch;
+    };
+
+    static std::vector<BatchKey> keys;
+    keys.resize(this->m_count);
+
+    for (uint32_t i = 0; i < this->m_count; i++) {
+        const CModelBatch& batch = this->m_batches[i];
+        CM2Model* model = batch.m_model;
+        M2SkinSection* section;
+
+        if (model->m_optGeo) {
+            section = &model->m_optGeo->m_skinSections[model->m_optGeo->m_batches[batch.m_batchIndex].m_skinSectionIndex];
+        } else {
+            section = &model->m_shared->m_skinSections[model->m_shared->m_skinData->m_batches[batch.m_batchIndex].m_skinSectionIndex];
+        }
+
+        keys[i] = { section->m_boneInfluences, reinterpret_cast<uintptr_t>(model->m_optGeo), reinterpret_cast<uintptr_t>(model->m_shared), batch.m_batchIndex, batch };
+    }
+
+    std::sort(keys.begin(), keys.end(), [](const BatchKey& a, const BatchKey& b) {
+        if (a.m_influences != b.m_influences) {
+            return a.m_influences < b.m_influences;
+        }
+
+        if (a.m_geo != b.m_geo) {
+            return a.m_geo < b.m_geo;
+        }
+
+        if (a.m_shared != b.m_shared) {
+            return a.m_shared < b.m_shared;
+        }
+
+        return a.m_batchIndex < b.m_batchIndex;
+    });
+
+    for (uint32_t i = 0; i < this->m_count; i++) {
+        this->m_batches[i] = keys[i].m_batch;
+    }
 
     for (uint32_t i = 0; i < this->m_count; i += this->m_batches[i].m_count) {
         CModelBatch* batch = &this->m_batches[i];

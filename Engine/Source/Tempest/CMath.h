@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <xmmintrin.h>
 
 class CMath {
     public:
@@ -70,7 +71,8 @@ inline float CMath::cos_(float x) {
 
 // INLINED
 inline int32_t CMath::fint_(float f) {
-    return static_cast<int32_t>(lrintf(f));
+    // FIX: cvtss2si rounds in the current mode like the original fistp, the CRT lrintf reads the FPU environment on every call
+    return _mm_cvtss_si32(_mm_set_ss(f));
 }
 
 // INLINED

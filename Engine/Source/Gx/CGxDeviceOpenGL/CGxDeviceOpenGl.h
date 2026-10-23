@@ -28,7 +28,7 @@ class CGxDeviceOpenGl : public CGxDevice {
         Ds_AlphaOp0 = 51,
         Ds_VertexArray0 = 59,
         Ds_TexCoordArray0 = 65,
-        Ds_Unk73 = 73,
+        Ds_Reserved73 = 73,
         Ds_PolygonOffsetFill = 74,
         Ds_PolygonOffset = 75,
         Ds_Blend = 76,
@@ -38,7 +38,7 @@ class CGxDeviceOpenGl : public CGxDevice {
         Ds_TextureShader = 80,
         Ds_FragmentProgram = 81,
         Ds_VertexProgram = 82,
-        Ds_Unk83 = 83,
+        Ds_VertexProgramNV = 83,
         Ds_MatrixMode = 84,
         Ds_BlendFunc = 85,
         Ds_ArrayBuffer = 86,
@@ -48,7 +48,7 @@ class CGxDeviceOpenGl : public CGxDevice {
         DeviceStates_Last = 90,
     };
 
-    /* 3968 */ uint32_t m_deviceStates [90];
+    /* 3968 */ uint32_t m_deviceStates [DeviceStates_Last];
     /* 3AD0 */ uint32_t unused_3AD0;
     /* 3AD4 */ uint32_t m_materialDirty;
     /* 3AD8 */ GLenum m_sphereMapMode;

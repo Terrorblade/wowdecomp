@@ -91,7 +91,7 @@ static bool InGame() {
 }
 
 static CGUnit_C* Mover() {
-    return static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    return static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 }
 
 static bool CursorModeActive() {
@@ -720,7 +720,7 @@ void OnIdle(float elapsed) {
     UpdateLook(right, elapsed);
 }
 
-static const TypeMask INTERACT_TYPES = static_cast<TypeMask>(TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT);
+static const OBJECT_TYPE INTERACT_TYPES = static_cast<OBJECT_TYPE>(TYPE_UNIT | TYPE_GAMEOBJECT);
 
 struct InteractCandidate {
     WOWGUID m_guid;
@@ -739,7 +739,7 @@ struct InteractSearch {
 static bool CanInteractWith(CGPlayer_C* player, CGObject_C* object, uint32_t time) {
     uint32_t type = object->m_obj->m_type;
 
-    if (type & TYPEMASK_UNIT) {
+    if (type & TYPE_UNIT) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(object);
 
         if (unit->m_unit->m_unitFieldHealth <= 0) {
@@ -749,7 +749,7 @@ static bool CanInteractWith(CGPlayer_C* player, CGObject_C* object, uint32_t tim
         return unit->m_unit->m_unitNpcFlags && player->CanInteractNow(unit);
     }
 
-    if (type & TYPEMASK_GAMEOBJECT) {
+    if (type & TYPE_GAMEOBJECT) {
         CGGameObject_C* gameObject = static_cast<CGGameObject_C*>(object);
         return gameObject->CanUse() && gameObject->CanUseNow();
     }
@@ -767,7 +767,7 @@ static int32_t InteractProc(WOWGUID guid, void* param) {
 
     float reach = 0.0f;
 
-    if (object->m_obj->m_type & TYPEMASK_UNIT) {
+    if (object->m_obj->m_type & TYPE_UNIT) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(object);
         reach = unit->m_unit->m_unitFieldCombatreach;
 

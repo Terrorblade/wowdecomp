@@ -676,7 +676,7 @@ static void SheetTextureCallback(EGxTexCommand command, uint32_t width, uint32_t
             break;
         }
 
-        case GxTex_3: {
+        case GxTex_Recreate: {
             CCharacterComponent::UpdateBaseTexture(command, width, height, depth, mipLevel, userArg, texelStrideInBytes, texels);
             SheetSlot* slot = component->m_hdSheet;
 

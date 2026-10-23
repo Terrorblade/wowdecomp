@@ -327,7 +327,7 @@ static void FixMaterials(uint8_t* base, uint32_t size, M2Data* header) {
 
     for (uint32_t i = 0; i < count; i++) {
         if (materials[i].m_blendMode > MODERN_BLEND_MAX) {
-            materials[i].m_blendMode = 4;
+            materials[i].m_blendMode = M2BLEND_ADD;
             materials[i].m_flags |= 5;
         }
 

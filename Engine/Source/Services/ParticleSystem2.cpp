@@ -264,7 +264,7 @@ void CParticleEmitter2::SetModel(CM2Scene* scene, const char* name) {
         this->m_model = scene->CreateModel(name, 0);
 
         if (this->m_model) {
-            this->m_params.m_hasModel = 1;
+            this->m_params.m_hasModel = CParticleEmitter2::PT_MODEL;
         }
     }
 }
@@ -1432,7 +1432,7 @@ int32_t CParticleEmitter2::HasLiveParticles() {
 uint32_t CParticleEmitter2::GetNumParticleModels() {
     uint32_t count = 0;
 
-    if (this->m_params.m_hasModel == 1) {
+    if (this->m_params.m_hasModel == CParticleEmitter2::PT_MODEL) {
         count = this->m_liveList.Count();
     }
 
@@ -1446,7 +1446,7 @@ uint32_t CParticleEmitter2::GetNumParticleModels() {
 // VERIFY: 8d3bef82 auto
 // OFFSET: 0x0097BA70
 CM2Model* CParticleEmitter2::GetParticleModelInternal(uint32_t& index) {
-    if (this->m_params.m_hasModel == 1) {
+    if (this->m_params.m_hasModel == CParticleEmitter2::PT_MODEL) {
         uint32_t count = this->m_liveList.Count();
 
         if (index < count) {
@@ -2156,7 +2156,7 @@ CSortableParticleRecord CSortableParticleQueue::Pop() {
 // VERIFY: eeea2b31 manual
 // OFFSET: 0x00979250
 CParticleEmitter2::Params::Params() {
-    this->m_hasModel = 0;
+    this->m_hasModel = CParticleEmitter2::PT_QUAD;
     this->m_emissionRate = 0.0f;
     this->m_emissionRateVariation = 0.0f;
     this->m_life = 0.0f;
@@ -2570,7 +2570,7 @@ void CParticleEmitter2::Update(float deltaTime, const C44Matrix& transform, cons
     this->InternalUpdate(deltaTime, 0);
     this->m_flags |= 0x80;
 
-    if (this->m_params.m_hasModel == 1) {
+    if (this->m_params.m_hasModel == CParticleEmitter2::PT_MODEL) {
         this->PlaceParticleModels(frameOfReference);
     }
 }

@@ -61,9 +61,9 @@ void OnDestroyed(CSimpleFrame* frame) {
 
 static void UpdateRegistration(CSimpleFrame* frame, const FrameData& data) {
     if (data.m_buttonEnabled || data.m_stickEnabled) {
-        frame->EnableEvent(SIMPLE_EVENT_4, -1);
+        frame->EnableEvent(SIMPLE_EVENT_JOYSTICK, -1);
     } else {
-        frame->DisableEvent(SIMPLE_EVENT_4);
+        frame->DisableEvent(SIMPLE_EVENT_JOYSTICK);
     }
 }
 
@@ -120,7 +120,7 @@ static void Collect(std::vector<CSimpleFrame*>& frames, Predicate predicate) {
     }
 
     for (int32_t strata = FRAME_STRATA_TOOLTIP; strata >= 0; strata--) {
-        CSimpleSortedArray<FRAMEPRIORITY*>& queue = top->m_eventqueue[SIMPLE_EVENT_4][strata];
+        CSimpleSortedArray<FRAMEPRIORITY*>& queue = top->m_eventqueue[SIMPLE_EVENT_JOYSTICK][strata];
 
         for (uint32_t i = 0; i < queue.m_count; i++) {
             FRAMEPRIORITY* priority = queue.m_array[i];

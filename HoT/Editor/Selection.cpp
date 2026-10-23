@@ -126,15 +126,15 @@ static Kind KindOf(CGObject_C* object) {
 
     uint32_t type = object->m_obj->m_type;
 
-    if ((type & TYPEMASK_PLAYER) || WorldPreview::IsPreviewGuid(object->m_obj->m_guid.m_guid)) {
+    if ((type & TYPE_PLAYER) || WorldPreview::IsPreviewGuid(object->m_obj->m_guid.m_guid)) {
         return Kind::None;
     }
 
-    if (type & TYPEMASK_UNIT) {
+    if (type & TYPE_UNIT) {
         return Kind::Creature;
     }
 
-    if (type & TYPEMASK_GAMEOBJECT) {
+    if (type & TYPE_GAMEOBJECT) {
         return Kind::GameObject;
     }
 
@@ -146,7 +146,7 @@ static CGObject_C* ObjectByGuid(uint64_t guid) {
         return nullptr;
     }
 
-    return ClntObjMgrObjectPtr(WOWGUID{ guid }, static_cast<TypeMask>(TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT), __FILE__, __LINE__);
+    return ClntObjMgrObjectPtr(WOWGUID{ guid }, static_cast<OBJECT_TYPE>(TYPE_UNIT | TYPE_GAMEOBJECT), __FILE__, __LINE__);
 }
 
 CGObject_C* SelectedObject() {
@@ -647,7 +647,7 @@ static uint64_t PickObject(float x, float y) {
     }
 
     float distance = 0.0f;
-    uint64_t guid = WorldFrame_PickEditorModel(frame, x, y, TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT, 0, &distance);
+    uint64_t guid = WorldFrame_PickEditorModel(frame, x, y, TYPE_UNIT | TYPE_GAMEOBJECT, 0, &distance);
 
     if (guid) {
         return guid;

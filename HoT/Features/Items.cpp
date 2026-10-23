@@ -88,7 +88,7 @@ ItemRec* Resolve(int32_t id, ItemRec* dbcRecord) {
 
 static int32_t RefreshVisibleItems(WOWGUID guid, void* param) {
     int32_t itemId = *static_cast<int32_t*>(param);
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !player->m_characterComponent) {
         return 1;

@@ -85,7 +85,7 @@ static CGPlayer_C* Caster() {
 }
 
 static CGObject_C* ObjectByGuid(uint64_t guid) {
-    return guid ? ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPEMASK_OBJECT, __FILE__, __LINE__) : nullptr;
+    return guid ? ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPE_OBJECT, __FILE__, __LINE__) : nullptr;
 }
 
 static Targets PickTargets(const SpellRec& spell, CGPlayer_C* player) {

@@ -84,7 +84,7 @@ CGGameObject_C* GameObjectByGuid(uint64_t guid) {
         return nullptr;
     }
 
-    return static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+    return static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 }
 
 uint64_t& PackedRotation(CGGameObject_C* object) {

@@ -113,7 +113,7 @@ static int32_t Script_PlayAnimation(lua_State* L) {
         return 0;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         luaL_error(L, "PlayAnimation: \"%s\" is not in range / not loaded.", token);

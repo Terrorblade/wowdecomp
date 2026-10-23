@@ -90,7 +90,7 @@ bool IsShieldModel(const CGUnit_C* unit, uint32_t hand, const CGUnitVirtualItem*
     }
 
     ItemDisplayInfoRec rec;
-    const ItemDisplayInfoRec* found = unit->GetVirtualItemDisplayRec(hand, rec) ? &rec : nullptr;
+    const ItemDisplayInfoRec* found = unit->GetVirtualItemDisplayRec(static_cast<VIRTUAL_MONSTER_SLOT>(hand), rec) ? &rec : nullptr;
 
     return UsesShieldFolder(found, item->m_inventoryType == INVTYPE_SHIELD);
 }

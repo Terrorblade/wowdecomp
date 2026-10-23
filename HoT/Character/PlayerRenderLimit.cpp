@@ -92,7 +92,7 @@ static void Reset() {
 }
 
 bool IsHidden(const CGObject_C* object) {
-    if (s_hidden.empty() || !object || !(object->m_obj->m_type & TYPEMASK_PLAYER)) {
+    if (s_hidden.empty() || !object || !(object->m_obj->m_type & TYPE_PLAYER)) {
         return false;
     }
 
@@ -172,7 +172,7 @@ static int32_t CollectCandidate(WOWGUID guid, void* param) {
         return 1;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 1;
@@ -237,7 +237,7 @@ static void ReleaseStale(uint32_t now) {
             continue;
         }
 
-        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(WOWGUID{ entry.first }, TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(WOWGUID{ entry.first }, TYPE_PLAYER, __FILE__, __LINE__));
 
         if (!player || !ReleaseUnit(player)) {
             continue;

@@ -50,7 +50,7 @@ static void CloseLootOutOfRange() {
         return;
     }
 
-    CGObject_C* target = ClntObjMgrObjectPtr(lootGuid, static_cast<TypeMask>(TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT | TYPEMASK_CORPSE), __FILE__, __LINE__);
+    CGObject_C* target = ClntObjMgrObjectPtr(lootGuid, static_cast<OBJECT_TYPE>(TYPE_UNIT | TYPE_GAMEOBJECT | TYPE_CORPSE), __FILE__, __LINE__);
 
     if (!target) {
         return;

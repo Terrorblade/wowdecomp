@@ -15,7 +15,7 @@ static int32_t FREETYPE_RenderGlyph(FT_Face face, uint32_t code, bool monochrome
     }
 
     // HoT: FreeType 2.14 renumbered FT_Render_Mode, 1 is LIGHT there, so name the modes.
-    return FT_Render_Glyph(face->glyph, monochrome ? ft_render_mode_mono : ft_render_mode_normal) == 0;
+    return FT_Render_Glyph(face->glyph, monochrome ? ft_render_mode_mono : ft_render_mode_normal) == FT_Err_Ok;
 }
 
 // VERIFY: d81e8b25 manual

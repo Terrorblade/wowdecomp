@@ -117,7 +117,7 @@ static void OnSlotReceived(uint32_t index, const PlayerQuestLogEntry& slot) {
 
     WOWGUID guid = ClntObjMgrGetActivePlayer();
 
-    if (!guid || !ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!guid || !ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__)) {
         return;
     }
 

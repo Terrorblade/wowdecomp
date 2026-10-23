@@ -325,7 +325,7 @@ static int32_t Script_CustomLfgQueue(lua_State* L) {
 static CGItem_C* GetItemFromLuaArg(lua_State* L) {
     if (lua_gettop(L) == 0 || lua_type(L, 1) == LUA_TNIL) {
         WOWGUID guid = CGGameUI::GetCursorItem();
-        return guid ? static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__)) : nullptr;
+        return guid ? static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__)) : nullptr;
     }
 
     if (lua_gettop(L) >= 2 && lua_isnumber(L, 1) && lua_isnumber(L, 2)) {

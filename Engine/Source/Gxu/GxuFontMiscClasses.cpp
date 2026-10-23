@@ -25,6 +25,8 @@ struct MSDFVERT {
 
 static_assert(sizeof(MSDFVERT) == 32, "MSDFVERT must match GxVBF_PCT2");
 
+static const double ONEOVERTEXSIZE = (1.0 / 256.0);
+
 // STATIC: 0x00AD9BCC
 TSList<TEXTLINETEXTURE, TSGetLink<TEXTLINETEXTURE> > TEXTLINETEXTURE::s_freeTextLineTextures;
 
@@ -93,12 +95,12 @@ void CHARCODEDESC::GenerateTextureCoords(uint32_t rowNumber, uint32_t cellHeight
     float left = this->m_glyphStartPixel;
 
     CRect coords;
-    coords.minY = top * (1.0 / 256.0);
-    coords.minX = left * (1.0 / 256.0);
-    coords.maxY = (top + cellHeight) * (1.0 / 256.0);
+    coords.minY = top * ONEOVERTEXSIZE;
+    coords.minX = left * ONEOVERTEXSIZE;
+    coords.maxY = (top + cellHeight) * ONEOVERTEXSIZE;
 
     float right = left + this->m_bitmapData.m_glyphCellWidth;
-    coords.maxX = (1.0 / 256.0) * right;
+    coords.maxX = ONEOVERTEXSIZE * right;
 
     this->m_bitmapData.m_textureCoords = coords;
 }
@@ -650,6 +652,7 @@ CHARCODEDESC* TEXTURECACHEROW::CreateNewDesc(GLYPHBITMAPDATA* data, uint32_t row
             desc->m_bitmapData.CopyFrom(data);
             desc->GenerateTextureCoords(rowNumber, cellHeight);
             inserted = 1;
+            next = desc;
         } else if (!next) {
             return nullptr;
         }

@@ -133,7 +133,7 @@ static CGItem_C* GetItem(uint64_t guid) {
         return nullptr;
     }
 
-    return static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPEMASK_ITEM, __FILE__, __LINE__));
+    return static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPE_ITEM, __FILE__, __LINE__));
 }
 
 static void LockItem(uint64_t guid) {
@@ -174,7 +174,7 @@ static bool FindItemBagSlot(uint64_t guid, int32_t& outBag, int32_t& outSlot) {
     }
 
     for (int32_t bag = 0; bag < MAX_EQUIPPED_BAGS; bag++) {
-        CGContainer_C* container = static_cast<CGContainer_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(bag), TYPEMASK_CONTAINER, __FILE__, __LINE__));
+        CGContainer_C* container = static_cast<CGContainer_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(bag), TYPE_CONTAINER, __FILE__, __LINE__));
 
         if (!container) {
             continue;
@@ -534,7 +534,7 @@ static bool SendScrap() {
 
 static void CheckStationRange() {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    CGObject_C* station = s_station ? ClntObjMgrObjectPtr(WOWGUID{ s_station }, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__) : nullptr;
+    CGObject_C* station = s_station ? ClntObjMgrObjectPtr(WOWGUID{ s_station }, TYPE_GAMEOBJECT, __FILE__, __LINE__) : nullptr;
 
     if (!player || !station || C3Vector::Distance(player->GetPosition(), station->GetPosition()) > s_interactRange + RANGE_TOLERANCE) {
         CloseInternal(true, true);

@@ -77,11 +77,6 @@ struct DNOverrideSky : public TSHashObject<DNOverrideSky, HASHKEY_STRI> {
 
     DNOverrideSky();
 };
-
-// INLINED
-// The last time of day starts two minutes out of range so the first update syncs the animation
-inline DNOverrideSky::DNOverrideSky() : m_model(nullptr), m_animLengthMs(0), m_lastTimeOfDay(0xFFFFFFFE), m_flags(0) {
-}
 }
 
 namespace DayNight {

@@ -249,7 +249,7 @@ static int32_t CopyStringToBuffer(const char* src, char* dst) {
 
 // VERIFY: 576ded8c auto
 // OFFSET: 0x004E6FB0
-void* CCharacterComponent::LoadItemComponentTexture(const ItemDisplayInfoRec* displayRec, COMPONENT_SECTIONS section) {
+HTEXTURECACHE CCharacterComponent::LoadItemComponentTexture(const ItemDisplayInfoRec* displayRec, COMPONENT_SECTIONS section) {
     SStrPrintf(s_path, sizeof(s_path), "Item\\TextureComponents\\%s\\%s_%s.blp", s_componentSections[section], displayRec->m_texture[section], s_fileDecorations[2]);
 
     if (!SFile::FileExists(s_path)) {
@@ -397,7 +397,7 @@ void CCharacterComponent::DestroyRenderTextures() {
 
 // VERIFY: 47092af8 auto
 // OFFSET: 0x004E76D0
-CharSectionsRec* CCharacterComponent::GetSectionsRecord(COMPONENT_VARIATIONS variation, int32_t variationIndex, int32_t colorIndex, bool* found) {
+CharSectionsRec* CCharacterComponent::GetSectionsRecord(CHARTEXTUREVARIATIONS variation, int32_t variationIndex, int32_t colorIndex, bool* found) {
     return ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, variation, variationIndex, colorIndex, found);
 }
 
@@ -618,7 +618,7 @@ INVENTORY_SLOTS CCharacterComponent::GetInvSlotForItemSlot(ITEM_SLOT itemSlot) {
 // OFFSET: 0x004E7B80
 int32_t CCharacterComponent::GetNumSkins(int32_t raceID, int32_t sexID, int32_t classID, COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, classID);
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_SKIN, 0);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_SKIN, 0);
 
     if (numColors <= 0) {
         return 0;
@@ -627,7 +627,7 @@ int32_t CCharacterComponent::GetNumSkins(int32_t raceID, int32_t sexID, int32_t 
     int32_t count = 0;
 
     for (int32_t i = 0; i < numColors; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_SKIN, 0, i, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_SKIN, 0, i, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             count++;
@@ -641,7 +641,7 @@ int32_t CCharacterComponent::GetNumSkins(int32_t raceID, int32_t sexID, int32_t 
 // OFFSET: 0x004E7C10
 int32_t CCharacterComponent::GetNumHairStylesForColor(int32_t raceID, int32_t sexID, int32_t classID, int32_t hairColorID, COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, classID);
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_HAIR);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_HAIR);
 
     if (numVariations <= 0) {
         return 0;
@@ -650,7 +650,7 @@ int32_t CCharacterComponent::GetNumHairStylesForColor(int32_t raceID, int32_t se
     int32_t count = 0;
 
     for (int32_t i = 0; i < numVariations; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_HAIR, i, hairColorID, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_HAIR, i, hairColorID, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             count++;
@@ -664,7 +664,7 @@ int32_t CCharacterComponent::GetNumHairStylesForColor(int32_t raceID, int32_t se
 // OFFSET: 0x004E7CB0
 int32_t CCharacterComponent::GetNumHairColorsForStyle(int32_t raceID, int32_t sexID, int32_t classID, int32_t hairStyleID, COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, classID);
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_HAIR, hairStyleID);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_HAIR, hairStyleID);
 
     if (numColors <= 0) {
         return 0;
@@ -673,7 +673,7 @@ int32_t CCharacterComponent::GetNumHairColorsForStyle(int32_t raceID, int32_t se
     int32_t count = 0;
 
     for (int32_t i = 0; i < numColors; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_HAIR, hairStyleID, i, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_HAIR, hairStyleID, i, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             count++;
@@ -687,7 +687,7 @@ int32_t CCharacterComponent::GetNumHairColorsForStyle(int32_t raceID, int32_t se
 // OFFSET: 0x004E7D50
 int32_t CCharacterComponent::GetNumFacesForSkin(int32_t raceID, int32_t sexID, int32_t classID, int32_t skinID, COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, classID);
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_FACE);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_FACE);
 
     if (numVariations <= 0) {
         return 0;
@@ -696,7 +696,7 @@ int32_t CCharacterComponent::GetNumFacesForSkin(int32_t raceID, int32_t sexID, i
     int32_t count = 0;
 
     for (int32_t i = 0; i < numVariations; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_FACE, i, skinID, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_FACE, i, skinID, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             count++;
@@ -710,7 +710,7 @@ int32_t CCharacterComponent::GetNumFacesForSkin(int32_t raceID, int32_t sexID, i
 // OFFSET: 0x004E7DF0
 int32_t CCharacterComponent::GetNumFacialFeaturesForHairColor(int32_t raceID, int32_t sexID, int32_t classID, int32_t hairColorID, COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, classID);
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_FACIAL_HAIR);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_FACIALHAIR);
 
     if (!numVariations) {
         return CCharacterComponent::s_characterFacialHairStylesList[raceID * 2 + sexID];
@@ -719,7 +719,7 @@ int32_t CCharacterComponent::GetNumFacialFeaturesForHairColor(int32_t raceID, in
     int32_t count = 0;
 
     for (int32_t i = 0; i < numVariations; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_FACIAL_HAIR, i, hairColorID, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_FACIALHAIR, i, hairColorID, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             count++;
@@ -732,7 +732,7 @@ int32_t CCharacterComponent::GetNumFacialFeaturesForHairColor(int32_t raceID, in
 // VERIFY: 14158ef3 manual
 // OFFSET: 0x004E7E90
 static int32_t ComponentGetSkinColor(int32_t raceID, int32_t sexID, int32_t index, COMPONENT_SELECTION selection) {
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_SKIN, 0);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_SKIN, 0);
 
     if (numColors <= 0) {
         return -1;
@@ -741,7 +741,7 @@ static int32_t ComponentGetSkinColor(int32_t raceID, int32_t sexID, int32_t inde
     int32_t found = 0;
 
     for (int32_t i = 0; i < numColors; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_SKIN, 0, i, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_SKIN, 0, i, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             if (index == found) {
@@ -758,7 +758,7 @@ static int32_t ComponentGetSkinColor(int32_t raceID, int32_t sexID, int32_t inde
 // VERIFY: ea087dcf manual
 // OFFSET: 0x004E7F20
 static int32_t ComponentGetHairVariation(int32_t raceID, int32_t sexID, int32_t hairColorID, int32_t index, COMPONENT_SELECTION selection) {
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_HAIR);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_HAIR);
 
     if (numVariations <= 0) {
         return -1;
@@ -767,7 +767,7 @@ static int32_t ComponentGetHairVariation(int32_t raceID, int32_t sexID, int32_t 
     int32_t found = 0;
 
     for (int32_t i = 0; i < numVariations; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_HAIR, i, hairColorID, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_HAIR, i, hairColorID, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             if (index == found) {
@@ -784,7 +784,7 @@ static int32_t ComponentGetHairVariation(int32_t raceID, int32_t sexID, int32_t 
 // VERIFY: 2ed94613 manual
 // OFFSET: 0x004E7FB0
 static int32_t ComponentGetHairColor(int32_t raceID, int32_t sexID, int32_t hairStyleID, int32_t index, COMPONENT_SELECTION selection) {
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_HAIR, hairStyleID);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_HAIR, hairStyleID);
 
     if (numColors <= 0) {
         return -1;
@@ -793,7 +793,7 @@ static int32_t ComponentGetHairColor(int32_t raceID, int32_t sexID, int32_t hair
     int32_t found = 0;
 
     for (int32_t i = 0; i < numColors; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_HAIR, hairStyleID, i, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_HAIR, hairStyleID, i, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             if (index == found) {
@@ -810,7 +810,7 @@ static int32_t ComponentGetHairColor(int32_t raceID, int32_t sexID, int32_t hair
 // VERIFY: 06e939c6 manual
 // OFFSET: 0x004E8050
 static int32_t ComponentGetFaceVariation(int32_t raceID, int32_t sexID, int32_t skinID, int32_t index, COMPONENT_SELECTION selection) {
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_FACE);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_FACE);
 
     if (numVariations <= 0) {
         return -1;
@@ -819,7 +819,7 @@ static int32_t ComponentGetFaceVariation(int32_t raceID, int32_t sexID, int32_t 
     int32_t found = 0;
 
     for (int32_t i = 0; i < numVariations; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_FACE, i, skinID, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_FACE, i, skinID, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             if (index == found) {
@@ -837,7 +837,7 @@ static int32_t ComponentGetFaceVariation(int32_t raceID, int32_t sexID, int32_t 
 // OFFSET: 0x004E80E0
 int32_t CCharacterComponent::GetNthFacialFeatureIndex(int32_t raceID, int32_t sexID, int32_t classID, int32_t hairColorID, int32_t facialHairID, int32_t index, COMPONENT_SELECTION selection) {
     bool found;
-    ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_FACIAL_HAIR, facialHairID, hairColorID, &found);
+    ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_FACIALHAIR, facialHairID, hairColorID, &found);
 
     if (!found) {
         if (index < static_cast<int32_t>(CCharacterComponent::s_characterFacialHairStylesList[raceID * 2 + sexID])) {
@@ -856,7 +856,7 @@ int32_t CCharacterComponent::GetNthFacialFeatureIndex(int32_t raceID, int32_t se
     int32_t matched = 0;
 
     for (int32_t i = 0; i < count; i++) {
-        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, VARIATION_FACIAL_HAIR, i, hairColorID, nullptr);
+        CharSectionsRec* rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, raceID, sexID, CHARTEXTUREVAR_FACIALHAIR, i, hairColorID, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             if (index == matched) {
@@ -947,7 +947,7 @@ void CCharacterComponent::PasteCrappyGreen(MipBits* dstMips, C2iVector& dstPos, 
 
 // VERIFY: 6c996c19 manual
 // OFFSET: 0x004E83A0
-void CCharacterComponent::PasteOpaque(void* texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset) {
+void CCharacterComponent::PasteOpaque(HTEXTURECACHE texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset) {
     uint32_t srcWidth = srcInfo.m_width;
     uint32_t width = srcSize.x;
     uint32_t height = srcSize.y;
@@ -982,7 +982,7 @@ void CCharacterComponent::PasteOpaque(void* texture, const BlpPalPixel* pal, Mip
 
 // VERIFY: 212be31e manual
 // OFFSET: 0x004E84F0
-void CCharacterComponent::PasteTransparent1Bit(void* texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset) {
+void CCharacterComponent::PasteTransparent1Bit(HTEXTURECACHE texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset) {
     uint32_t srcWidth = srcInfo.m_width;
     uint32_t width = srcSize.x;
     uint32_t height = srcSize.y;
@@ -1021,7 +1021,7 @@ void CCharacterComponent::PasteTransparent1Bit(void* texture, const BlpPalPixel*
 
 // VERIFY: d1dc9035 manual
 // OFFSET: 0x004E8660
-void CCharacterComponent::PasteTransparent4Bit(void* texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset) {
+void CCharacterComponent::PasteTransparent4Bit(HTEXTURECACHE texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset) {
     uint32_t srcWidth = srcInfo.m_width;
     uint32_t width = srcSize.x;
     uint32_t height = srcSize.y;
@@ -1064,7 +1064,7 @@ void CCharacterComponent::PasteTransparent4Bit(void* texture, const BlpPalPixel*
 
 // VERIFY: 4d979816 manual
 // OFFSET: 0x004E8840
-void CCharacterComponent::PasteTransparent8Bit(void* texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset) {
+void CCharacterComponent::PasteTransparent8Bit(HTEXTURECACHE texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset) {
     uint32_t srcWidth = srcInfo.m_width;
     uint32_t width = srcSize.x;
     uint32_t height = srcSize.y;
@@ -1105,7 +1105,7 @@ void CCharacterComponent::PasteTransparent8Bit(void* texture, const BlpPalPixel*
 
 // VERIFY: 8ec155b7 manual
 // OFFSET: 0x004E89F0
-void CCharacterComponent::PasteOpaqueScale(void* texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
+void CCharacterComponent::PasteOpaqueScale(HTEXTURECACHE texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
     uint32_t srcWidth = srcInfo.m_width;
     uint32_t width = srcSize.x;
     uint32_t height = srcSize.y;
@@ -1207,7 +1207,7 @@ CTexture* CreateTexture(const char* fileName, CStatus* status) {
 
 // VERIFY: 11ef4f44 auto
 // OFFSET: 0x004E8D70
-void CComponentRequest::AddLayer(uint8_t section, void* texture) {
+void CComponentRequest::AddLayer(uint8_t section, HTEXTURECACHE texture) {
     if (this->m_layerCount < sizeof(this->m_layerTextures) / sizeof(this->m_layerTextures[0])) {
         this->m_layerTextures[this->m_layerCount] = TextureCacheCopyTexture(texture);
         this->m_layerSections[this->m_layerCount++] = section;
@@ -1260,7 +1260,7 @@ void CCharacterComponent::SetTexturesDirty() {
 // VERIFY: ca5f5399 auto
 // OFFSET: 0x004E8E70
 void CCharacterComponent::CreateRequestAU() {
-    this->m_request->m_baseTextures[SECTION_ARM_UPPER] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+    this->m_request->m_baseTextures[SECTION_ARM_UPPER] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
 
     for (int32_t layer = 0; layer < 2; layer++) {
         if ((1 << layer) & this->m_section[SECTION_ARM_UPPER].m_layerMask) {
@@ -1272,7 +1272,7 @@ void CCharacterComponent::CreateRequestAU() {
 // VERIFY: 48a06e0d auto
 // OFFSET: 0x004E8F00
 void CCharacterComponent::CreateRequestAL() {
-    this->m_request->m_baseTextures[SECTION_ARM_LOWER] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+    this->m_request->m_baseTextures[SECTION_ARM_LOWER] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
 
     for (int32_t layer = 0; layer < 7; layer++) {
         if ((1 << layer) & this->m_section[SECTION_ARM_LOWER].m_layerMask) {
@@ -1284,7 +1284,7 @@ void CCharacterComponent::CreateRequestAL() {
 // VERIFY: 27aef1fc auto
 // OFFSET: 0x004E8F90
 void CCharacterComponent::CreateRequestHA() {
-    this->m_request->m_baseTextures[SECTION_HAND] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+    this->m_request->m_baseTextures[SECTION_HAND] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
 
     if (this->m_section[SECTION_HAND].m_layerMask & 0x1) {
         this->m_request->AddLayer(SECTION_HAND, this->m_section[SECTION_HAND].m_layerTex[0]);
@@ -1294,51 +1294,51 @@ void CCharacterComponent::CreateRequestHA() {
 // VERIFY: 8b4affb8 auto
 // OFFSET: 0x004E8FF0
 void CCharacterComponent::CreateRequestHU() {
-    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
 
     if (skinRec && (skinRec->m_flags & 0x8)) {
-        this->m_request->m_baseTextures[SECTION_HEAD_UPPER] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+        this->m_request->m_baseTextures[SECTION_HEAD_UPPER] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
     }
 
-    if (this->m_baseVariation[VARIATION_FACE].m_texture[1]) {
-        this->m_request->AddLayer(SECTION_HEAD_UPPER, this->m_baseVariation[VARIATION_FACE].m_texture[1]);
+    if (this->m_baseVariation[CHARTEXTUREVAR_FACE].m_texture[1]) {
+        this->m_request->AddLayer(SECTION_HEAD_UPPER, this->m_baseVariation[CHARTEXTUREVAR_FACE].m_texture[1]);
     }
 
-    if (this->m_baseVariation[VARIATION_FACIAL_HAIR].m_texture[1]) {
-        this->m_request->AddLayer(SECTION_HEAD_UPPER, this->m_baseVariation[VARIATION_FACIAL_HAIR].m_texture[1]);
+    if (this->m_baseVariation[CHARTEXTUREVAR_FACIALHAIR].m_texture[1]) {
+        this->m_request->AddLayer(SECTION_HEAD_UPPER, this->m_baseVariation[CHARTEXTUREVAR_FACIALHAIR].m_texture[1]);
     }
 
-    if (this->m_baseVariation[VARIATION_HAIR].m_texture[2]) {
-        this->m_request->AddLayer(SECTION_HEAD_UPPER, this->m_baseVariation[VARIATION_HAIR].m_texture[2]);
+    if (this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[2]) {
+        this->m_request->AddLayer(SECTION_HEAD_UPPER, this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[2]);
     }
 }
 
 // VERIFY: 6b9fa30d auto
 // OFFSET: 0x004E90E0
 void CCharacterComponent::CreateRequestHL() {
-    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
 
     if (skinRec && (skinRec->m_flags & 0x8)) {
-        this->m_request->m_baseTextures[SECTION_HEAD_LOWER] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+        this->m_request->m_baseTextures[SECTION_HEAD_LOWER] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
     }
 
-    if (this->m_baseVariation[VARIATION_FACE].m_texture[0]) {
-        this->m_request->AddLayer(SECTION_HEAD_LOWER, this->m_baseVariation[VARIATION_FACE].m_texture[0]);
+    if (this->m_baseVariation[CHARTEXTUREVAR_FACE].m_texture[0]) {
+        this->m_request->AddLayer(SECTION_HEAD_LOWER, this->m_baseVariation[CHARTEXTUREVAR_FACE].m_texture[0]);
     }
 
-    if (this->m_baseVariation[VARIATION_FACIAL_HAIR].m_texture[0]) {
-        this->m_request->AddLayer(SECTION_HEAD_LOWER, this->m_baseVariation[VARIATION_FACIAL_HAIR].m_texture[0]);
+    if (this->m_baseVariation[CHARTEXTUREVAR_FACIALHAIR].m_texture[0]) {
+        this->m_request->AddLayer(SECTION_HEAD_LOWER, this->m_baseVariation[CHARTEXTUREVAR_FACIALHAIR].m_texture[0]);
     }
 
-    if (this->m_baseVariation[VARIATION_HAIR].m_texture[1]) {
-        this->m_request->AddLayer(SECTION_HEAD_LOWER, this->m_baseVariation[VARIATION_HAIR].m_texture[1]);
+    if (this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[1]) {
+        this->m_request->AddLayer(SECTION_HEAD_LOWER, this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[1]);
     }
 }
 
 // VERIFY: 5d1d019e manual
 // OFFSET: 0x004E91D0
 void CCharacterComponent::CreateRequestTU() {
-    this->m_request->m_baseTextures[SECTION_TORSO_UPPER] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+    this->m_request->m_baseTextures[SECTION_TORSO_UPPER] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
 
     if (!(this->m_section[SECTION_TORSO_UPPER].m_layerMask & 0x7) && this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[1]) {
         this->m_request->AddLayer(SECTION_TORSO_UPPER, this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[1]);
@@ -1354,7 +1354,7 @@ void CCharacterComponent::CreateRequestTU() {
 // VERIFY: 0a0fcd15 auto
 // OFFSET: 0x004E9280
 void CCharacterComponent::CreateRequestTL() {
-    this->m_request->m_baseTextures[SECTION_TORSO_LOWER] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+    this->m_request->m_baseTextures[SECTION_TORSO_LOWER] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
 
     for (int32_t layer = 0; layer < 7; layer++) {
         if ((1 << layer) & this->m_section[SECTION_TORSO_LOWER].m_layerMask) {
@@ -1366,7 +1366,7 @@ void CCharacterComponent::CreateRequestTL() {
 // VERIFY: c8aaa938 manual
 // OFFSET: 0x004E9310
 void CCharacterComponent::CreateRequestLU() {
-    this->m_request->m_baseTextures[SECTION_LEG_UPPER] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+    this->m_request->m_baseTextures[SECTION_LEG_UPPER] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
 
     if (((this->m_flags & 0x20) || !(this->m_section[SECTION_LEG_UPPER].m_layerMask & 0x3)) && this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[0]) {
         this->m_request->AddLayer(SECTION_LEG_UPPER, this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[0]);
@@ -1385,7 +1385,7 @@ void CCharacterComponent::CreateRequestLU() {
 // VERIFY: 6ef99de9 manual
 // OFFSET: 0x004E9400
 void CCharacterComponent::CreateRequestLL() {
-    this->m_request->m_baseTextures[SECTION_LEG_LOWER] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+    this->m_request->m_baseTextures[SECTION_LEG_LOWER] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
 
     int32_t first = (this->m_flags & 0x20) != 0;
     int32_t last = 2 * ((this->m_flags & 0x20) == 0) + 4;
@@ -1400,7 +1400,7 @@ void CCharacterComponent::CreateRequestLL() {
 // VERIFY: ce9392ca auto
 // OFFSET: 0x004E94B0
 void CCharacterComponent::CreateRequestFO() {
-    this->m_request->m_baseTextures[SECTION_FOOT] = TextureCacheCopyTexture(this->m_baseVariation[VARIATION_SKIN].m_texture[0]);
+    this->m_request->m_baseTextures[SECTION_FOOT] = TextureCacheCopyTexture(this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0]);
 
     if (this->m_section[SECTION_FOOT].m_layerMask & 0x1) {
         this->m_request->AddLayer(SECTION_FOOT, this->m_section[SECTION_FOOT].m_layerTex[0]);
@@ -1643,7 +1643,7 @@ void CCharacterComponent::ValidateComponentData(ComponentData* data, COMPONENT_C
         if (numStyles > 0) {
             prefs.m_hairStyleId = ComponentGetHairVariation(prefs.m_raceID, prefs.m_sexID, prefs.m_hairColorId, static_cast<int32_t>(prefs.m_hairStyleId) % numStyles, selection);
         } else {
-            int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, prefs.m_raceID, prefs.m_sexID, VARIATION_HAIR);
+            int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, prefs.m_raceID, prefs.m_sexID, CHARTEXTUREVAR_HAIR);
             int32_t* numColors = static_cast<int32_t*>(alloca(sizeof(int32_t) * numVariations));
             int32_t numValid = 0;
 
@@ -1730,11 +1730,11 @@ void CCharacterComponent::ReplaceExtraSkinTexture(const char* debug) {
         return;
     }
 
-    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID)) {
+    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID)) {
         return;
     }
 
-    const char* textureName = CCharacterComponent::s_chrVarArray[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID].m_variation[VARIATION_SKIN].m_variation[0].m_color[this->m_data.m_preferences.m_skinID]->m_textureName[1];
+    const char* textureName = CCharacterComponent::s_chrVarArray[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID].m_variation[CHARTEXTUREVAR_SKIN].m_variation[0].m_color[this->m_data.m_preferences.m_skinID]->m_textureName[1];
 
     if (!*textureName) {
         return;
@@ -1745,7 +1745,7 @@ void CCharacterComponent::ReplaceExtraSkinTexture(const char* debug) {
     CTexture* texture = CreateTexture(HoT::HD::ExtraSkinTexture(this, s_path), &s_status);
 
     if (texture) {
-        this->m_data.m_model->ReplaceTexture(8, texture);
+        this->m_data.m_model->ReplaceTexture(M2TEX_EXTRA_SKIN, texture);
         HandleClose(reinterpret_cast<HOBJECT>(texture));
     }
 }
@@ -1753,11 +1753,11 @@ void CCharacterComponent::ReplaceExtraSkinTexture(const char* debug) {
 // VERIFY: d35306aa manual
 // OFFSET: 0x004EA150
 void CCharacterComponent::ReplaceHairTexture(int32_t hairStyleID, const char* debug) {
-    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId)) {
+    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId)) {
         return;
     }
 
-    const char* textureName = CCharacterComponent::s_chrVarArray[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID].m_variation[VARIATION_HAIR].m_variation[hairStyleID].m_color[this->m_data.m_preferences.m_hairColorId]->m_textureName[0];
+    const char* textureName = CCharacterComponent::s_chrVarArray[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID].m_variation[CHARTEXTUREVAR_HAIR].m_variation[hairStyleID].m_color[this->m_data.m_preferences.m_hairColorId]->m_textureName[0];
 
     if (!*textureName) {
         return;
@@ -1768,15 +1768,15 @@ void CCharacterComponent::ReplaceHairTexture(int32_t hairStyleID, const char* de
     CTexture* texture = CreateTexture(HoT::HD::HairTexture(this, hairStyleID, s_path), &s_status);
 
     if (texture) {
-        this->m_data.m_model->ReplaceTexture(6, texture);
+        this->m_data.m_model->ReplaceTexture(M2TEX_HAIR, texture);
         HandleClose(reinterpret_cast<HOBJECT>(texture));
     }
 }
 
 // VERIFY: 88329d82 manual
 // OFFSET: 0x004EA1F0
-void CCharacterComponent::LoadBaseVariation(COMPONENT_VARIATIONS variation, int32_t textureIndex, int32_t variationIndex, int32_t colorIndex, COMPONENT_SECTIONS section, const char* debug) {
-    void*& texture = this->m_baseVariation[variation].m_texture[textureIndex];
+void CCharacterComponent::LoadBaseVariation(CHARTEXTUREVARIATIONS variation, int32_t textureIndex, int32_t variationIndex, int32_t colorIndex, COMPONENT_SECTIONS section, const char* debug) {
+    HTEXTURECACHE& texture = this->m_baseVariation[variation].m_texture[textureIndex];
 
     if (texture) {
         TextureCacheDestroyTexture(texture);
@@ -1805,7 +1805,7 @@ void CCharacterComponent::LoadBaseVariation(COMPONENT_VARIATIONS variation, int3
 // VERIFY: 63815769 auto
 // OFFSET: 0x004EA2F0
 void CCharacterComponent::SetHairColor(int32_t hairColorID, bool loadHair, const char* debug) {
-    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, this->m_data.m_preferences.m_hairStyleId, hairColorID)) {
+    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, this->m_data.m_preferences.m_hairStyleId, hairColorID)) {
         return;
     }
 
@@ -1823,12 +1823,12 @@ void CCharacterComponent::SetHairColor(int32_t hairColorID, bool loadHair, const
     }
 
     if (loadHair) {
-        this->LoadBaseVariation(VARIATION_HAIR, 1, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
-        this->LoadBaseVariation(VARIATION_HAIR, 2, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
+        this->LoadBaseVariation(CHARTEXTUREVAR_HAIR, 1, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
+        this->LoadBaseVariation(CHARTEXTUREVAR_HAIR, 2, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
     }
 
-    this->LoadBaseVariation(VARIATION_FACIAL_HAIR, 0, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
-    this->LoadBaseVariation(VARIATION_FACIAL_HAIR, 1, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
+    this->LoadBaseVariation(CHARTEXTUREVAR_FACIALHAIR, 0, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
+    this->LoadBaseVariation(CHARTEXTUREVAR_FACIALHAIR, 1, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
 }
 
 // VERIFY: 2d880572 manual
@@ -1837,16 +1837,16 @@ void CCharacterComponent::SetHairStyle(int32_t hairStyleID, const char* debug) {
     // HoT: HD components apply the manifest customization geosets on every way out.
     HoT::HD::CustomizationScope hdScope(this);
 
-    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId)) {
+    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId)) {
         return;
     }
 
     this->m_data.m_preferences.m_hairStyleId = hairStyleID;
-    this->m_data.m_geosets[0] = GetConditionalGeoset(&this->m_data.m_preferences);
+    this->m_data.m_geosets[CHARGEOSET_HAIR] = GetConditionalGeoset(&this->m_data.m_preferences);
 
     if (!(this->m_data.m_flags & 0x1)) {
-        this->LoadBaseVariation(VARIATION_HAIR, 1, hairStyleID, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
-        this->LoadBaseVariation(VARIATION_HAIR, 2, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
+        this->LoadBaseVariation(CHARTEXTUREVAR_HAIR, 1, hairStyleID, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
+        this->LoadBaseVariation(CHARTEXTUREVAR_HAIR, 2, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
     }
 
     this->SetHairColor(this->m_data.m_preferences.m_hairColorId, false, debug);
@@ -1861,23 +1861,23 @@ void CCharacterComponent::SetFace(int32_t faceID, bool loadHair, const char* deb
         return;
     }
 
-    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
 
     if (skinRec && (skinRec->m_flags & 0x8)) {
         return;
     }
 
-    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, faceID, this->m_data.m_preferences.m_skinID)) {
+    if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, faceID, this->m_data.m_preferences.m_skinID)) {
         return;
     }
 
     this->m_data.m_preferences.m_faceId = faceID;
-    this->LoadBaseVariation(VARIATION_FACE, 0, faceID, this->m_data.m_preferences.m_skinID, SECTION_HEAD_LOWER, debug);
-    this->LoadBaseVariation(VARIATION_FACE, 1, this->m_data.m_preferences.m_faceId, this->m_data.m_preferences.m_skinID, SECTION_HEAD_UPPER, debug);
+    this->LoadBaseVariation(CHARTEXTUREVAR_FACE, 0, faceID, this->m_data.m_preferences.m_skinID, SECTION_HEAD_LOWER, debug);
+    this->LoadBaseVariation(CHARTEXTUREVAR_FACE, 1, this->m_data.m_preferences.m_faceId, this->m_data.m_preferences.m_skinID, SECTION_HEAD_UPPER, debug);
 
     if (loadHair) {
-        this->LoadBaseVariation(VARIATION_HAIR, 1, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
-        this->LoadBaseVariation(VARIATION_HAIR, 2, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
+        this->LoadBaseVariation(CHARTEXTUREVAR_HAIR, 1, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
+        this->LoadBaseVariation(CHARTEXTUREVAR_HAIR, 2, this->m_data.m_preferences.m_hairStyleId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
     }
 
     this->m_flags |= 0x4;
@@ -1898,14 +1898,14 @@ void CCharacterComponent::SetBeardStyle(int32_t facialHairID, bool loadVariation
     CharacterFacialHairStylesRec* styleRec = GetConditionalFacialHairStyle(&this->m_data.m_preferences);
 
     if (styleRec) {
-        this->m_data.m_geosets[1] = styleRec->m_geoset[0] + 100;
-        this->m_data.m_geosets[3] = styleRec->m_geoset[1] + 300;
-        this->m_data.m_geosets[2] = styleRec->m_geoset[2] + 200;
-        this->m_data.m_geosets[16] = styleRec->m_geoset[3] + 1600;
+        this->m_data.m_geosets[CHARGEOSET_BEARD] = styleRec->m_geoset[0] + 100;
+        this->m_data.m_geosets[CHARGEOSET_MOUSTACHE] = styleRec->m_geoset[1] + 300;
+        this->m_data.m_geosets[CHARGEOSET_SIDEBURN] = styleRec->m_geoset[2] + 200;
+        this->m_data.m_geosets[CHARGEOSET_FACIALJEWELRY] = styleRec->m_geoset[3] + 1600;
         this->m_flags |= 0x4;
-        this->m_data.m_geosets[17] = styleRec->m_geoset[4] + 1700;
+        this->m_data.m_geosets[CHARGEOSET_EYEEFFECTS] = styleRec->m_geoset[4] + 1700;
 
-        if ((styleRec->m_geoset[0] || styleRec->m_geoset[1] || styleRec->m_geoset[2]) && (!this->m_baseVariation[VARIATION_HAIR].m_texture[1] || !this->m_baseVariation[VARIATION_HAIR].m_texture[2])) {
+        if ((styleRec->m_geoset[0] || styleRec->m_geoset[1] || styleRec->m_geoset[2]) && (!this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[1] || !this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[2])) {
             this->ReplaceHairTexture(1, debug);
         }
     }
@@ -1915,8 +1915,8 @@ void CCharacterComponent::SetBeardStyle(int32_t facialHairID, bool loadVariation
     }
 
     if (loadVariation) {
-        this->LoadBaseVariation(VARIATION_FACIAL_HAIR, 0, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
-        this->LoadBaseVariation(VARIATION_FACIAL_HAIR, 1, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
+        this->LoadBaseVariation(CHARTEXTUREVAR_FACIALHAIR, 0, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_LOWER, debug);
+        this->LoadBaseVariation(CHARTEXTUREVAR_FACIALHAIR, 1, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, SECTION_HEAD_UPPER, debug);
     }
 
     this->SetDirtySections(0x300);
@@ -1927,12 +1927,12 @@ void CCharacterComponent::SetBeardStyle(int32_t facialHairID, bool loadVariation
 void CCharacterComponent::SetSkinColor(int32_t skinID, bool loadHair, bool renderAll, const char* debug) {
     this->m_data.m_preferences.m_skinID = skinID;
 
-    if ((this->m_data.m_flags & 0x1) || !ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, skinID)) {
+    if ((this->m_data.m_flags & 0x1) || !ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, skinID)) {
         return;
     }
 
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0);
-    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, skinID, nullptr);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0);
+    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, skinID, nullptr);
 
     if (skinID < numColors && skinRec && !(skinRec->m_flags & 0x8)) {
         CharSectionsRec* underwearRec = this->GetSectionsRecord(VARIATION_UNDERWEAR, 0, skinID, nullptr);
@@ -1966,7 +1966,7 @@ void CCharacterComponent::SetSkinColor(int32_t skinID, bool loadHair, bool rende
     }
 
     this->ReplaceExtraSkinTexture(debug);
-    this->LoadBaseVariation(VARIATION_SKIN, 0, 0, this->m_data.m_preferences.m_skinID, SECTION_TORSO_UPPER, debug);
+    this->LoadBaseVariation(CHARTEXTUREVAR_SKIN, 0, 0, this->m_data.m_preferences.m_skinID, SECTION_TORSO_UPPER, debug);
     this->SetFace(this->m_data.m_preferences.m_faceId, loadHair, debug);
 
     if (renderAll) {
@@ -2072,7 +2072,7 @@ void CCharacterComponent::AddLink(CM2Model* parent, GEOCOMPONENTLINKS link, cons
         return;
     }
 
-    model->ReplaceTexture(2, texture);
+    model->ReplaceTexture(M2TEX_OBJECT_SKIN, texture);
     HandleClose(reinterpret_cast<HOBJECT>(texture));
 
     if (itemVisual > 0) {
@@ -2133,7 +2133,7 @@ CM2Model* CCharacterComponent::MakeAmmoModel(CM2Model* model, const ItemDisplayI
         return nullptr;
     }
 
-    ammoModel->ReplaceTexture(2, texture);
+    ammoModel->ReplaceTexture(M2TEX_OBJECT_SKIN, texture);
     HandleClose(reinterpret_cast<HOBJECT>(texture));
     CCharacterComponent::ComponentUtilAddItemVisual(ammoModel, displayRec->m_itemVisual);
 
@@ -2269,7 +2269,7 @@ void CCharacterComponent::RemoveHandItem(CM2Model* model, INVENTORY_SLOTS invSlo
 // OFFSET: 0x004EB150
 bool CCharacterComponent::SetNextSkin(COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0);
 
     if (numColors <= 0) {
         return false;
@@ -2288,8 +2288,8 @@ bool CCharacterComponent::SetNextSkin(COMPONENT_CONTEXT context) {
     CharSectionsRec* skinRec;
 
     while (true) {
-        skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, skinID, nullptr);
-        CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, this->m_data.m_preferences.m_faceId, skinID, nullptr);
+        skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, skinID, nullptr);
+        CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, this->m_data.m_preferences.m_faceId, skinID, nullptr);
         CharSectionsRec* underwearRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_UNDERWEAR, 0, skinID, nullptr);
 
         if (skinRec && ComponentFlagsMatch(skinRec->m_flags, selection) && faceRec && ComponentFlagsMatch(faceRec->m_flags, selection) && (context == COMPONENT_CONTEXT_2 || (underwearRec && ComponentFlagsMatch(underwearRec->m_flags, selection)))) {
@@ -2314,7 +2314,7 @@ bool CCharacterComponent::SetNextSkin(COMPONENT_CONTEXT context) {
 // OFFSET: 0x004EB290
 bool CCharacterComponent::SetPrevSkin(COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0);
 
     if (numColors <= 0) {
         return false;
@@ -2333,8 +2333,8 @@ bool CCharacterComponent::SetPrevSkin(COMPONENT_CONTEXT context) {
     CharSectionsRec* skinRec;
 
     while (true) {
-        skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, skinID, nullptr);
-        CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, this->m_data.m_preferences.m_faceId, skinID, nullptr);
+        skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, skinID, nullptr);
+        CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, this->m_data.m_preferences.m_faceId, skinID, nullptr);
         CharSectionsRec* underwearRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_UNDERWEAR, 0, skinID, nullptr);
 
         if (skinRec && ComponentFlagsMatch(skinRec->m_flags, selection) && faceRec && ComponentFlagsMatch(faceRec->m_flags, selection) && (context == COMPONENT_CONTEXT_2 || (underwearRec && ComponentFlagsMatch(underwearRec->m_flags, selection)))) {
@@ -2393,7 +2393,7 @@ bool CCharacterComponent::SetRandomHairStyle(COMPONENT_CONTEXT context) {
 // OFFSET: 0x004EB500
 bool CCharacterComponent::SetNextHairColor(COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, this->m_data.m_preferences.m_hairStyleId);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, this->m_data.m_preferences.m_hairStyleId);
 
     if (numColors <= 0) {
         return false;
@@ -2412,7 +2412,7 @@ bool CCharacterComponent::SetNextHairColor(COMPONENT_CONTEXT context) {
     CharSectionsRec* rec;
 
     while (true) {
-        rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, this->m_data.m_preferences.m_hairStyleId, hairColorID, nullptr);
+        rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, this->m_data.m_preferences.m_hairStyleId, hairColorID, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             break;
@@ -2436,7 +2436,7 @@ bool CCharacterComponent::SetNextHairColor(COMPONENT_CONTEXT context) {
 // OFFSET: 0x004EB5C0
 bool CCharacterComponent::SetPrevHairColor(COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
-    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, this->m_data.m_preferences.m_hairStyleId);
+    int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, this->m_data.m_preferences.m_hairStyleId);
 
     if (numColors <= 0) {
         return false;
@@ -2455,7 +2455,7 @@ bool CCharacterComponent::SetPrevHairColor(COMPONENT_CONTEXT context) {
     CharSectionsRec* rec;
 
     while (true) {
-        rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, this->m_data.m_preferences.m_hairStyleId, hairColorID, nullptr);
+        rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, this->m_data.m_preferences.m_hairStyleId, hairColorID, nullptr);
 
         if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
             break;
@@ -2496,7 +2496,7 @@ bool CCharacterComponent::SetRandomHairColor(COMPONENT_CONTEXT context) {
 // OFFSET: 0x004EB710
 bool CCharacterComponent::SetNextFace(COMPONENT_CONTEXT context, int32_t colorOffset) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE);
 
     if (numVariations <= 0) {
         return false;
@@ -2515,13 +2515,13 @@ bool CCharacterComponent::SetNextFace(COMPONENT_CONTEXT context, int32_t colorOf
     int32_t skinID;
 
     while (true) {
-        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, faceID);
+        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, faceID);
         bool matched = false;
 
         for (int32_t i = 0; i < numColors; i = skinID + 1) {
             skinID = (i + colorOffset) % numColors;
-            CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, faceID, skinID, nullptr);
-            CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, skinID, nullptr);
+            CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, faceID, skinID, nullptr);
+            CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, skinID, nullptr);
             CharSectionsRec* underwearRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_UNDERWEAR, 0, skinID, nullptr);
 
             if (faceRec && ComponentFlagsMatch(faceRec->m_flags, selection) && skinRec && ComponentFlagsMatch(skinRec->m_flags, selection) && (context == COMPONENT_CONTEXT_2 || (underwearRec && ComponentFlagsMatch(underwearRec->m_flags, selection)))) {
@@ -2543,8 +2543,8 @@ bool CCharacterComponent::SetNextFace(COMPONENT_CONTEXT context, int32_t colorOf
         }
     }
 
-    CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, faceID, this->m_data.m_preferences.m_skinID, nullptr);
-    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, faceID, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
     CharSectionsRec* underwearRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_UNDERWEAR, 0, this->m_data.m_preferences.m_skinID, nullptr);
 
     if (!faceRec || !ComponentFlagsMatch(faceRec->m_flags, selection) || !skinRec || !ComponentFlagsMatch(skinRec->m_flags, selection) || (context != COMPONENT_CONTEXT_2 && (!underwearRec || !ComponentFlagsMatch(underwearRec->m_flags, selection)))) {
@@ -2560,7 +2560,7 @@ bool CCharacterComponent::SetNextFace(COMPONENT_CONTEXT context, int32_t colorOf
 // OFFSET: 0x004EB990
 bool CCharacterComponent::SetPrevFace(COMPONENT_CONTEXT context, int32_t colorOffset) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE);
 
     if (numVariations <= 0) {
         return false;
@@ -2579,13 +2579,13 @@ bool CCharacterComponent::SetPrevFace(COMPONENT_CONTEXT context, int32_t colorOf
     int32_t skinID;
 
     while (true) {
-        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, faceID);
+        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, faceID);
         bool matched = false;
 
         for (int32_t i = 0; i < numColors; i = skinID + 1) {
             skinID = (i + colorOffset) % numColors;
-            CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, faceID, skinID, nullptr);
-            CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, skinID, nullptr);
+            CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, faceID, skinID, nullptr);
+            CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, skinID, nullptr);
             CharSectionsRec* underwearRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_UNDERWEAR, 0, skinID, nullptr);
 
             if (faceRec && ComponentFlagsMatch(faceRec->m_flags, selection) && skinRec && ComponentFlagsMatch(skinRec->m_flags, selection) && (context == COMPONENT_CONTEXT_2 || (underwearRec && ComponentFlagsMatch(underwearRec->m_flags, selection)))) {
@@ -2607,8 +2607,8 @@ bool CCharacterComponent::SetPrevFace(COMPONENT_CONTEXT context, int32_t colorOf
         }
     }
 
-    CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, faceID, this->m_data.m_preferences.m_skinID, nullptr);
-    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, faceID, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
     CharSectionsRec* underwearRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_UNDERWEAR, 0, this->m_data.m_preferences.m_skinID, nullptr);
 
     if (!faceRec || !ComponentFlagsMatch(faceRec->m_flags, selection) || !skinRec || !ComponentFlagsMatch(skinRec->m_flags, selection) || (context != COMPONENT_CONTEXT_2 && (!underwearRec || !ComponentFlagsMatch(underwearRec->m_flags, selection)))) {
@@ -2642,7 +2642,7 @@ bool CCharacterComponent::SetRandomFace(COMPONENT_CONTEXT context) {
 bool CCharacterComponent::SetNextFacialFeature(COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
     bool found;
-    ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, &found);
+    ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, &found);
 
     if (!found) {
         int32_t count = CCharacterComponent::s_characterFacialHairStylesList[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID];
@@ -2652,7 +2652,7 @@ bool CCharacterComponent::SetNextFacialFeature(COMPONENT_CONTEXT context) {
         return true;
     }
 
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR);
 
     if (numVariations <= 0) {
         return false;
@@ -2671,11 +2671,11 @@ bool CCharacterComponent::SetNextFacialFeature(COMPONENT_CONTEXT context) {
     CharSectionsRec* rec = nullptr;
 
     while (true) {
-        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR, facialHairID);
+        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR, facialHairID);
         int32_t color;
 
         for (color = 0; color < numColors; color++) {
-            rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR, facialHairID, color, nullptr);
+            rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR, facialHairID, color, nullptr);
 
             if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
                 break;
@@ -2695,7 +2695,7 @@ bool CCharacterComponent::SetNextFacialFeature(COMPONENT_CONTEXT context) {
         }
     }
 
-    CharSectionsRec* keepRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR, facialHairID, this->m_data.m_preferences.m_hairColorId, nullptr);
+    CharSectionsRec* keepRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR, facialHairID, this->m_data.m_preferences.m_hairColorId, nullptr);
 
     if (keepRec && ComponentFlagsMatch(keepRec->m_flags, selection)) {
         this->SetBeardStyle(keepRec->m_variationIndex, true, nullptr);
@@ -2712,7 +2712,7 @@ bool CCharacterComponent::SetNextFacialFeature(COMPONENT_CONTEXT context) {
 bool CCharacterComponent::SetPrevFacialFeature(COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
     bool found;
-    ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, &found);
+    ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR, this->m_data.m_preferences.m_facialHairId, this->m_data.m_preferences.m_hairColorId, &found);
 
     if (!found) {
         uint32_t count = CCharacterComponent::s_characterFacialHairStylesList[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID];
@@ -2722,7 +2722,7 @@ bool CCharacterComponent::SetPrevFacialFeature(COMPONENT_CONTEXT context) {
         return true;
     }
 
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR);
 
     if (numVariations <= 0) {
         return false;
@@ -2741,11 +2741,11 @@ bool CCharacterComponent::SetPrevFacialFeature(COMPONENT_CONTEXT context) {
     CharSectionsRec* rec = nullptr;
 
     while (true) {
-        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR, facialHairID);
+        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR, facialHairID);
         int32_t color;
 
         for (color = 0; color < numColors; color++) {
-            rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR, facialHairID, color, nullptr);
+            rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR, facialHairID, color, nullptr);
 
             if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
                 break;
@@ -2765,7 +2765,7 @@ bool CCharacterComponent::SetPrevFacialFeature(COMPONENT_CONTEXT context) {
         }
     }
 
-    CharSectionsRec* keepRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACIAL_HAIR, facialHairID, this->m_data.m_preferences.m_hairColorId, nullptr);
+    CharSectionsRec* keepRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACIALHAIR, facialHairID, this->m_data.m_preferences.m_hairColorId, nullptr);
 
     if (ComponentFlagsMatch(keepRec->m_flags, selection)) {
         this->SetBeardStyle(keepRec->m_variationIndex, true, nullptr);
@@ -2926,7 +2926,7 @@ void CCharacterComponent::TurnOffGuildTabardPurchase() {
 
 // VERIFY: 5f4d62d3 manual
 // OFFSET: 0x004EC550
-void CCharacterComponent::Paste(void* texture, MipBits* dstMips, const C2iVector& dstPos, const C2iVector& srcPos, const C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel) {
+void CCharacterComponent::Paste(HTEXTURECACHE texture, MipBits* dstMips, const C2iVector& dstPos, const C2iVector& srcPos, const C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel) {
     C2iVector pos = dstPos;
     C2iVector src = srcPos;
     C2iVector size = srcSize;
@@ -2959,7 +2959,7 @@ void CCharacterComponent::Paste(void* texture, MipBits* dstMips, const C2iVector
 
 // VERIFY: 4a30e6aa manual
 // OFFSET: 0x004EC690
-void CCharacterComponent::PasteTransparent1BitScale(void* texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
+void CCharacterComponent::PasteTransparent1BitScale(HTEXTURECACHE texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
     uint32_t srcRowPitch = srcInfo.m_width;
     uint32_t copyWidth = srcSize.x;
     uint32_t copyHeight = srcSize.y;
@@ -3094,7 +3094,7 @@ void CCharacterComponent::PasteTransparent1BitScale(void* texture, MipBits* dstM
 
 // VERIFY: 3cc4e3c5 manual
 // OFFSET: 0x004ECC20
-void CCharacterComponent::PasteTransparent4BitScale(void* texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
+void CCharacterComponent::PasteTransparent4BitScale(HTEXTURECACHE texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
     uint32_t srcRowPitch = srcInfo.m_width;
     uint32_t copyWidth = srcSize.x;
     uint32_t copyHeight = srcSize.y;
@@ -3245,7 +3245,7 @@ void CCharacterComponent::PasteTransparent4BitScale(void* texture, MipBits* dstM
 
 // VERIFY: 523c6ae3 manual
 // OFFSET: 0x004ED200
-void CCharacterComponent::PasteTransparent8BitScale(void* texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
+void CCharacterComponent::PasteTransparent8BitScale(HTEXTURECACHE texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
     uint32_t srcRowPitch = srcInfo.m_width;
     uint32_t copyWidth = srcSize.x;
     uint32_t copyHeight = srcSize.y;
@@ -3383,7 +3383,7 @@ bool CCharacterComponent::VariationsLoaded(int32_t wait) {
     info.m_alphaSize = 0;
     info.m_opaque = 1;
 
-    for (int32_t variation = 0; variation < NUM_COMPONENT_VARIATIONS; variation++) {
+    for (int32_t variation = 0; variation < CHARTEXTUREVARIATIONS_NUM; variation++) {
         for (int32_t i = 0; i < 3; i++) {
             if (this->m_baseVariation[variation].m_texture[i] && !TextureCacheGetInfo(this->m_baseVariation[variation].m_texture[i], info, wait)) {
                 return false;
@@ -3467,7 +3467,7 @@ void CCharacterComponent::GeosRenderPrep() {
     if (this->m_data.m_preferences.m_classId == 6) {
         eyeGlow = true;
     } else {
-        CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_FACE, this->m_data.m_preferences.m_faceId, this->m_data.m_preferences.m_skinID, nullptr);
+        CharSectionsRec* faceRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_FACE, this->m_data.m_preferences.m_faceId, this->m_data.m_preferences.m_skinID, nullptr);
 
         if (faceRec && (faceRec->m_flags & 0x4)) {
             eyeGlow = true;
@@ -3478,8 +3478,8 @@ void CCharacterComponent::GeosRenderPrep() {
     model->SetGeometryVisible(0, 2000, 0);
     model->SetGeometryVisible(0, 0, 1);
 
-    for (int32_t i = 0; i < 19; i++) {
-        if (i == 17 && eyeGlow) {
+    for (int32_t i = 0; i < NUM_CHARGEOSETS; i++) {
+        if (i == CHARGEOSET_EYEEFFECTS && eyeGlow) {
             this->m_data.m_model->SetGeometryVisible(1703, 1703, 1);
         } else {
             this->m_data.m_model->SetGeometryVisible(this->m_data.m_geosets[i], this->m_data.m_geosets[i], 1);
@@ -3749,17 +3749,17 @@ void CCharacterComponent::RemoveItem(ITEM_SLOT itemSlot) {
 
     switch (itemSlot) {
         case ITEMSLOT_HEAD: {
-            this->m_data.m_geosets[0] = GetConditionalGeoset(&this->m_data.m_preferences);
+            this->m_data.m_geosets[CHARGEOSET_HAIR] = GetConditionalGeoset(&this->m_data.m_preferences);
             CCharacterComponent::RemoveLinkpt(this->m_data.m_model, ATTACH_HELM);
             CharacterFacialHairStylesRec* styleRec = GetConditionalFacialHairStyle(&this->m_data.m_preferences);
 
             if (styleRec) {
-                this->m_data.m_geosets[1] = styleRec->m_geoset[0] + 100;
-                this->m_data.m_geosets[3] = styleRec->m_geoset[1] + 300;
-                this->m_data.m_geosets[2] = styleRec->m_geoset[2] + 200;
-                this->m_data.m_geosets[7] = 702;
-                this->m_data.m_geosets[16] = styleRec->m_geoset[3] + 1600;
-                this->m_data.m_geosets[17] = styleRec->m_geoset[4] + 1700;
+                this->m_data.m_geosets[CHARGEOSET_BEARD] = styleRec->m_geoset[0] + 100;
+                this->m_data.m_geosets[CHARGEOSET_MOUSTACHE] = styleRec->m_geoset[1] + 300;
+                this->m_data.m_geosets[CHARGEOSET_SIDEBURN] = styleRec->m_geoset[2] + 200;
+                this->m_data.m_geosets[CHARGEOSET_EAR] = 702;
+                this->m_data.m_geosets[CHARGEOSET_FACIALJEWELRY] = styleRec->m_geoset[3] + 1600;
+                this->m_data.m_geosets[CHARGEOSET_EYEEFFECTS] = styleRec->m_geoset[4] + 1700;
             }
 
             this->m_itemDisplayID[itemSlot] = 0;
@@ -3782,12 +3782,12 @@ void CCharacterComponent::RemoveItem(ITEM_SLOT itemSlot) {
                 return;
             }
 
-            this->m_data.m_geosets[15] = 1501;
+            this->m_data.m_geosets[CHARGEOSET_CAPE] = 1501;
             this->ClearGuildTexture(4);
             break;
 
         case ITEMSLOT_CAPE:
-            this->m_data.m_geosets[15] = 1501;
+            this->m_data.m_geosets[CHARGEOSET_CAPE] = 1501;
             this->m_itemDisplayID[itemSlot] = 0;
             return;
 
@@ -3912,31 +3912,31 @@ void CCharacterComponent::AddHelm(int32_t itemVisual) {
     uint32_t raceMask = 1 << this->m_data.m_preferences.m_raceID;
 
     if (raceMask & visRec->m_hideGeoset[0]) {
-        this->m_data.m_geosets[0] = 1;
+        this->m_data.m_geosets[CHARGEOSET_HAIR] = 1;
     }
 
     if (raceMask & visRec->m_hideGeoset[1]) {
-        this->m_data.m_geosets[1] = 101;
+        this->m_data.m_geosets[CHARGEOSET_BEARD] = 101;
     }
 
     if (raceMask & visRec->m_hideGeoset[2]) {
-        this->m_data.m_geosets[2] = 201;
+        this->m_data.m_geosets[CHARGEOSET_SIDEBURN] = 201;
     }
 
     if (raceMask & visRec->m_hideGeoset[3]) {
-        this->m_data.m_geosets[3] = 301;
+        this->m_data.m_geosets[CHARGEOSET_MOUSTACHE] = 301;
     }
 
     if (raceMask & visRec->m_hideGeoset[4]) {
-        this->m_data.m_geosets[7] = 701;
+        this->m_data.m_geosets[CHARGEOSET_EAR] = 701;
     }
 
     if (raceMask & visRec->m_hideGeoset[5]) {
-        this->m_data.m_geosets[16] = 1601;
+        this->m_data.m_geosets[CHARGEOSET_FACIALJEWELRY] = 1601;
     }
 
     if (raceMask & visRec->m_hideGeoset[6]) {
-        this->m_data.m_geosets[17] = 1701;
+        this->m_data.m_geosets[CHARGEOSET_EYEEFFECTS] = 1701;
     }
 }
 
@@ -4146,7 +4146,7 @@ void CCharacterComponent::SetShieldItemDisplay(int32_t displayID) {
 
 // VERIFY: e411dd8f manual
 // OFFSET: 0x004EF9D0
-void CCharacterComponent::PasteScale(void* texture, MipBits* dstMips, const C2iVector& dstPos, const C2iVector& srcPos, const C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
+void CCharacterComponent::PasteScale(HTEXTURECACHE texture, MipBits* dstMips, const C2iVector& dstPos, const C2iVector& srcPos, const C2iVector& srcSize, TCTEXTUREINFO& srcInfo) {
     C2iVector pos = dstPos;
     C2iVector src = srcPos;
     C2iVector size = srcSize;
@@ -4173,7 +4173,7 @@ void CCharacterComponent::PasteScale(void* texture, MipBits* dstMips, const C2iV
 // VERIFY: 16ff2fc9 manual
 // OFFSET: 0x004EFAB0
 void CCharacterComponent::ComputeLoadProgress(int64_t& local, int64_t& total) {
-    for (int32_t variation = 0; variation < NUM_COMPONENT_VARIATIONS; variation++) {
+    for (int32_t variation = 0; variation < CHARTEXTUREVARIATIONS_NUM; variation++) {
         for (int32_t i = 0; i < 3; i++) {
             if (this->m_baseVariation[variation].m_texture[i]) {
                 TextureCacheComputeLoadProgress(this->m_baseVariation[variation].m_texture[i], local, total);
@@ -4228,7 +4228,7 @@ inline CharacterSection::~CharacterSection() {
 
 // INLINED
 inline CharacterBaseVariation::~CharacterBaseVariation() {
-    void** texture = this->m_texture;
+    HTEXTURECACHE* texture = this->m_texture;
 
     for (int32_t i = 0; i < 7; i++) {
         if (texture[i]) {
@@ -4319,7 +4319,7 @@ void CCharacterComponent::UpdateBaseTexture(EGxTexCommand command, uint32_t widt
 
             break;
 
-        case GxTex_3:
+        case GxTex_Recreate:
             if (!(component->m_data.m_flags & 0x2)) {
                 component->SetTexturesDirty();
                 component->SetDirtySections(0xFFFFFFFF);
@@ -4373,7 +4373,7 @@ void CCharacterComponent::CreateBaseTexture() {
     }
 
     this->m_baseSkinTexture = TextureCreate(s_textureSize, s_textureSize, this->m_gxTexFormat, dataFormat, flags, this, &CCharacterComponent::UpdateBaseTexture, "CharacterBaseSkin", 1);
-    this->m_data.m_model->ReplaceTexture(1, this->m_baseSkinTexture);
+    this->m_data.m_model->ReplaceTexture(M2TEX_SKIN, this->m_baseSkinTexture);
 }
 
 // VERIFY: 51c5a21d manual
@@ -4602,7 +4602,7 @@ void CCharacterComponent::UpdateItemFO(ITEM_SLOT itemSlot, const ItemDisplayInfo
 // OFFSET: 0x004F0490
 bool CCharacterComponent::SetNextHairStyle(COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR);
 
     if (numVariations <= 0) {
         return false;
@@ -4621,11 +4621,11 @@ bool CCharacterComponent::SetNextHairStyle(COMPONENT_CONTEXT context) {
     CharSectionsRec* rec = nullptr;
 
     while (true) {
-        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID);
+        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, hairStyleID);
         int32_t color;
 
         for (color = 0; color < numColors; color++) {
-            rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, color, nullptr);
+            rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, hairStyleID, color, nullptr);
 
             if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
                 break;
@@ -4645,7 +4645,7 @@ bool CCharacterComponent::SetNextHairStyle(COMPONENT_CONTEXT context) {
         }
     }
 
-    CharSectionsRec* keepRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId, nullptr);
+    CharSectionsRec* keepRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId, nullptr);
 
     if (keepRec && ComponentFlagsMatch(keepRec->m_flags, selection)) {
         this->SetHairStyle(keepRec->m_variationIndex, nullptr);
@@ -4668,7 +4668,7 @@ bool CCharacterComponent::SetNextHairStyle(COMPONENT_CONTEXT context) {
 // OFFSET: 0x004F0630
 bool CCharacterComponent::SetPrevHairStyle(COMPONENT_CONTEXT context) {
     COMPONENT_SELECTION selection = GetSelectionFromContext(context, this->m_data.m_preferences.m_classId);
-    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR);
+    int32_t numVariations = ComponentGetNumVariations(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR);
 
     if (numVariations <= 0) {
         return false;
@@ -4687,11 +4687,11 @@ bool CCharacterComponent::SetPrevHairStyle(COMPONENT_CONTEXT context) {
     CharSectionsRec* rec = nullptr;
 
     while (true) {
-        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID);
+        int32_t numColors = ComponentGetNumColors(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, hairStyleID);
         int32_t color;
 
         for (color = 0; color < numColors; color++) {
-            rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, color, nullptr);
+            rec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, hairStyleID, color, nullptr);
 
             if (rec && ComponentFlagsMatch(rec->m_flags, selection)) {
                 break;
@@ -4711,7 +4711,7 @@ bool CCharacterComponent::SetPrevHairStyle(COMPONENT_CONTEXT context) {
         }
     }
 
-    CharSectionsRec* keepRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId, nullptr);
+    CharSectionsRec* keepRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId, nullptr);
 
     if (keepRec && ComponentFlagsMatch(keepRec->m_flags, selection)) {
         this->SetHairStyle(keepRec->m_variationIndex, nullptr);
@@ -4732,7 +4732,7 @@ bool CCharacterComponent::SetPrevHairStyle(COMPONENT_CONTEXT context) {
 
 // VERIFY: f3be180c auto
 // OFFSET: 0x004F07D0
-void CCharacterComponent::PasteFromSkin(COMPONENT_SECTIONS section, void* texture, MipBits* dstMips) {
+void CCharacterComponent::PasteFromSkin(COMPONENT_SECTIONS section, HTEXTURECACHE texture, MipBits* dstMips) {
     if (!TextureCacheHasMips(texture)) {
         return;
     }
@@ -4764,7 +4764,7 @@ void CCharacterComponent::PasteFromSkin(COMPONENT_SECTIONS section, void* textur
 
 // VERIFY: c9c0de88 auto
 // OFFSET: 0x004F08A0
-void CCharacterComponent::PasteToSection(COMPONENT_SECTIONS section, void* texture, MipBits* dstMips) {
+void CCharacterComponent::PasteToSection(COMPONENT_SECTIONS section, HTEXTURECACHE texture, MipBits* dstMips) {
     if (!TextureCacheHasMips(texture)) {
         return;
     }
@@ -4818,7 +4818,7 @@ CCharacterComponent* CCharacterComponent::AllocComponent() {
 // VERIFY: 88917dfa manual
 // OFFSET: 0x004F09D0
 void CCharacterComponent::RenderPrepAU() {
-    CCharacterComponent::PasteFromSkin(SECTION_ARM_UPPER, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+    CCharacterComponent::PasteFromSkin(SECTION_ARM_UPPER, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
 
     for (int32_t layer = 0; layer < 2; layer++) {
         if ((1 << layer) & this->m_section[SECTION_ARM_UPPER].m_layerMask) {
@@ -4830,7 +4830,7 @@ void CCharacterComponent::RenderPrepAU() {
 // VERIFY: 274a74cd manual
 // OFFSET: 0x004F0A30
 void CCharacterComponent::RenderPrepAL() {
-    CCharacterComponent::PasteFromSkin(SECTION_ARM_LOWER, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+    CCharacterComponent::PasteFromSkin(SECTION_ARM_LOWER, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
 
     for (int32_t layer = 0; layer < 7; layer++) {
         if ((1 << layer) & this->m_section[SECTION_ARM_LOWER].m_layerMask) {
@@ -4842,7 +4842,7 @@ void CCharacterComponent::RenderPrepAL() {
 // VERIFY: 7c6cc546 auto
 // OFFSET: 0x004F0A90
 void CCharacterComponent::RenderPrepHA() {
-    CCharacterComponent::PasteFromSkin(SECTION_HAND, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+    CCharacterComponent::PasteFromSkin(SECTION_HAND, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
 
     if (this->m_section[SECTION_HAND].m_layerMask & 0x1) {
         CCharacterComponent::PasteToSection(SECTION_HAND, this->m_section[SECTION_HAND].m_layerTex[0], CCharacterComponent::s_textureBuffer);
@@ -4852,51 +4852,51 @@ void CCharacterComponent::RenderPrepHA() {
 // VERIFY: ba0a1b45 auto
 // OFFSET: 0x004F0AD0
 void CCharacterComponent::RenderPrepHU() {
-    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
 
     if (skinRec && (skinRec->m_flags & 0x8)) {
-        CCharacterComponent::PasteFromSkin(SECTION_HEAD_UPPER, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+        CCharacterComponent::PasteFromSkin(SECTION_HEAD_UPPER, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
     }
 
-    if (this->m_baseVariation[VARIATION_FACE].m_texture[1]) {
-        CCharacterComponent::PasteToSection(SECTION_HEAD_UPPER, this->m_baseVariation[VARIATION_FACE].m_texture[1], CCharacterComponent::s_textureBuffer);
+    if (this->m_baseVariation[CHARTEXTUREVAR_FACE].m_texture[1]) {
+        CCharacterComponent::PasteToSection(SECTION_HEAD_UPPER, this->m_baseVariation[CHARTEXTUREVAR_FACE].m_texture[1], CCharacterComponent::s_textureBuffer);
     }
 
-    if (this->m_baseVariation[VARIATION_FACIAL_HAIR].m_texture[1]) {
-        CCharacterComponent::PasteToSection(SECTION_HEAD_UPPER, this->m_baseVariation[VARIATION_FACIAL_HAIR].m_texture[1], CCharacterComponent::s_textureBuffer);
+    if (this->m_baseVariation[CHARTEXTUREVAR_FACIALHAIR].m_texture[1]) {
+        CCharacterComponent::PasteToSection(SECTION_HEAD_UPPER, this->m_baseVariation[CHARTEXTUREVAR_FACIALHAIR].m_texture[1], CCharacterComponent::s_textureBuffer);
     }
 
-    if (this->m_baseVariation[VARIATION_HAIR].m_texture[2]) {
-        CCharacterComponent::PasteToSection(SECTION_HEAD_UPPER, this->m_baseVariation[VARIATION_HAIR].m_texture[2], CCharacterComponent::s_textureBuffer);
+    if (this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[2]) {
+        CCharacterComponent::PasteToSection(SECTION_HEAD_UPPER, this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[2], CCharacterComponent::s_textureBuffer);
     }
 }
 
 // VERIFY: 617f148e auto
 // OFFSET: 0x004F0B70
 void CCharacterComponent::RenderPrepHL() {
-    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
+    CharSectionsRec* skinRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
 
     if (skinRec && (skinRec->m_flags & 0x8)) {
-        CCharacterComponent::PasteFromSkin(SECTION_HEAD_LOWER, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+        CCharacterComponent::PasteFromSkin(SECTION_HEAD_LOWER, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
     }
 
-    if (this->m_baseVariation[VARIATION_FACE].m_texture[0]) {
-        CCharacterComponent::PasteToSection(SECTION_HEAD_LOWER, this->m_baseVariation[VARIATION_FACE].m_texture[0], CCharacterComponent::s_textureBuffer);
+    if (this->m_baseVariation[CHARTEXTUREVAR_FACE].m_texture[0]) {
+        CCharacterComponent::PasteToSection(SECTION_HEAD_LOWER, this->m_baseVariation[CHARTEXTUREVAR_FACE].m_texture[0], CCharacterComponent::s_textureBuffer);
     }
 
-    if (this->m_baseVariation[VARIATION_FACIAL_HAIR].m_texture[0]) {
-        CCharacterComponent::PasteToSection(SECTION_HEAD_LOWER, this->m_baseVariation[VARIATION_FACIAL_HAIR].m_texture[0], CCharacterComponent::s_textureBuffer);
+    if (this->m_baseVariation[CHARTEXTUREVAR_FACIALHAIR].m_texture[0]) {
+        CCharacterComponent::PasteToSection(SECTION_HEAD_LOWER, this->m_baseVariation[CHARTEXTUREVAR_FACIALHAIR].m_texture[0], CCharacterComponent::s_textureBuffer);
     }
 
-    if (this->m_baseVariation[VARIATION_HAIR].m_texture[1]) {
-        CCharacterComponent::PasteToSection(SECTION_HEAD_LOWER, this->m_baseVariation[VARIATION_HAIR].m_texture[1], CCharacterComponent::s_textureBuffer);
+    if (this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[1]) {
+        CCharacterComponent::PasteToSection(SECTION_HEAD_LOWER, this->m_baseVariation[CHARTEXTUREVAR_HAIR].m_texture[1], CCharacterComponent::s_textureBuffer);
     }
 }
 
 // VERIFY: 9b31b577 manual
 // OFFSET: 0x004F0C10
 void CCharacterComponent::RenderPrepTU() {
-    CCharacterComponent::PasteFromSkin(SECTION_TORSO_UPPER, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+    CCharacterComponent::PasteFromSkin(SECTION_TORSO_UPPER, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
 
     if (!(this->m_section[SECTION_TORSO_UPPER].m_layerMask & 0x7) && this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[1]) {
         CCharacterComponent::PasteToSection(SECTION_TORSO_UPPER, this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[1], CCharacterComponent::s_textureBuffer);
@@ -4912,7 +4912,7 @@ void CCharacterComponent::RenderPrepTU() {
 // VERIFY: 7c74bc85 manual
 // OFFSET: 0x004F0CA0
 void CCharacterComponent::RenderPrepTL() {
-    CCharacterComponent::PasteFromSkin(SECTION_TORSO_LOWER, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+    CCharacterComponent::PasteFromSkin(SECTION_TORSO_LOWER, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
 
     for (int32_t layer = 0; layer < 7; layer++) {
         if ((1 << layer) & this->m_section[SECTION_TORSO_LOWER].m_layerMask) {
@@ -4924,7 +4924,7 @@ void CCharacterComponent::RenderPrepTL() {
 // VERIFY: a637f73d manual
 // OFFSET: 0x004F0D00
 void CCharacterComponent::RenderPrepLU() {
-    CCharacterComponent::PasteFromSkin(SECTION_LEG_UPPER, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+    CCharacterComponent::PasteFromSkin(SECTION_LEG_UPPER, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
 
     if (((this->m_flags & 0x20) || !(this->m_section[SECTION_LEG_UPPER].m_layerMask & 0x3)) && this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[0]) {
         CCharacterComponent::PasteToSection(SECTION_LEG_UPPER, this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[0], CCharacterComponent::s_textureBuffer);
@@ -4942,7 +4942,7 @@ void CCharacterComponent::RenderPrepLU() {
 // VERIFY: 65c5e194 manual
 // OFFSET: 0x004F0DB0
 void CCharacterComponent::RenderPrepLL() {
-    CCharacterComponent::PasteFromSkin(SECTION_LEG_LOWER, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+    CCharacterComponent::PasteFromSkin(SECTION_LEG_LOWER, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
 
     int32_t last = 2 * ((this->m_flags & 0x20) == 0) + 4;
 
@@ -4956,7 +4956,7 @@ void CCharacterComponent::RenderPrepLL() {
 // VERIFY: 90820596 auto
 // OFFSET: 0x004F0E40
 void CCharacterComponent::RenderPrepFO() {
-    CCharacterComponent::PasteFromSkin(SECTION_FOOT, this->m_baseVariation[VARIATION_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
+    CCharacterComponent::PasteFromSkin(SECTION_FOOT, this->m_baseVariation[CHARTEXTUREVAR_SKIN].m_texture[0], CCharacterComponent::s_textureBuffer);
 
     if (this->m_section[SECTION_FOOT].m_layerMask & 0x1) {
         CCharacterComponent::PasteToSection(SECTION_FOOT, this->m_section[SECTION_FOOT].m_layerTex[0], CCharacterComponent::s_textureBuffer);
@@ -5398,7 +5398,7 @@ bool CCharacterComponent::Initialize(EGxTexFormat format, uint32_t mipLevels, in
         s_threadTextureBuffer = TextureAllocMippedImg(PIXEL_ARGB8888, s_textureSize, s_textureSize);
     }
 
-    EventRegisterEx(EVENT_ID_POLL, &CCharacterComponent::Update, nullptr, 0.0f);
+    EventRegisterEx(EVENT_ID_POLL, &CCharacterComponent::Update, nullptr, EVENT_PRIORITY_NORMAL);
 
     return true;
 }
@@ -5449,7 +5449,7 @@ bool CCharacterComponent::SkinNpc(const char* debug) {
         return false;
     }
 
-    this->m_data.m_model->ReplaceTexture(1, texture);
+    this->m_data.m_model->ReplaceTexture(M2TEX_SKIN, texture);
     HandleClose(reinterpret_cast<HOBJECT>(texture));
     this->ReplaceExtraSkinTexture(debug);
     this->m_data.m_flags |= 0x1;
@@ -5481,7 +5481,7 @@ void CCharacterComponent::ReplaceMonsterSkin(CM2Model* model, const CreatureDisp
             CTexture* texture = TextureCreate(path, flags, &status, 0);
 
             if (texture) {
-                model->ReplaceTexture(i + 11, texture);
+                model->ReplaceTexture(i + M2TEX_MONSTER_1, texture);
                 HandleClose(reinterpret_cast<HOBJECT>(texture));
             }
         }
@@ -5512,7 +5512,7 @@ void CCharacterComponent::AddCape() {
     CTexture* texture = CreateTexture(s_path, &status);
 
     if (texture) {
-        this->m_data.m_model->ReplaceTexture(2, texture);
+        this->m_data.m_model->ReplaceTexture(M2TEX_OBJECT_SKIN, texture);
         HandleClose(reinterpret_cast<HOBJECT>(texture));
     }
 }
@@ -5545,7 +5545,7 @@ bool CCharacterComponent::Destroy() {
     }
 
     for (uint32_t i = 0; i < CCharacterComponent::s_chrVarArrayLength; i++) {
-        for (int32_t variation = 0; variation < NUM_COMPONENT_VARIATIONS; variation++) {
+        for (int32_t variation = 0; variation < CHARTEXTUREVARIATIONS_NUM; variation++) {
             CharVariationList& list = CCharacterComponent::s_chrVarArray[i].m_variation[variation];
 
             for (int32_t j = 0; j < list.m_numVariations; j++) {
@@ -5590,7 +5590,7 @@ bool CCharacterComponent::Init(ComponentData* data, const char* debug) {
     this->m_handItemDisplayID[1] = 0;
     this->m_handItemDisplayID[2] = 0;
 
-    if (static_cast<int32_t>(data->m_preferences.m_raceID) < 0 || static_cast<int32_t>(data->m_preferences.m_raceID) > g_chrRacesDB.m_maxID || !ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID)) {
+    if (static_cast<int32_t>(data->m_preferences.m_raceID) < 0 || static_cast<int32_t>(data->m_preferences.m_raceID) > g_chrRacesDB.m_maxID || !ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, CHARTEXTUREVAR_SKIN, 0, this->m_data.m_preferences.m_skinID)) {
         HoT::HD::OnComponentInitDone(this);
         return false;
     }

@@ -131,7 +131,7 @@ static bool KindFromName(const std::string& lowerName, int32_t& variation, int32
 }
 
 static bool IsPlayerUnit(const CGUnit_C* unit) {
-    return unit && (unit->m_obj->m_type & TYPEMASK_PLAYER);
+    return unit && (unit->m_obj->m_type & TYPE_PLAYER);
 }
 
 static bool IsMirrorImageUnit(const CGUnit_C* unit) {
@@ -278,7 +278,7 @@ static const char* RedirectTexture(const CCharacterComponent* component, int32_t
 }
 
 static int32_t RefreshUnitCallback(WOWGUID guid, void* param) {
-    CGObject_C* unit = ClntObjMgrObjectPtr(guid, static_cast<TypeMask>(TYPEMASK_UNIT | TYPEMASK_PLAYER), __FILE__, __LINE__);
+    CGObject_C* unit = ClntObjMgrObjectPtr(guid, static_cast<OBJECT_TYPE>(TYPE_UNIT | TYPE_PLAYER), __FILE__, __LINE__);
 
     if (unit) {
         unit->UpdateDisplayInfo(1);

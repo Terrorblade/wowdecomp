@@ -272,7 +272,7 @@ static void TickForces() {
             continue;
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ forces.m_guid }, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ forces.m_guid }, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             DriftUnit(unit, forces.m_fields, dt);

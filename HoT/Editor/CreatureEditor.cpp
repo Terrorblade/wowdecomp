@@ -954,7 +954,7 @@ static int32_t Script_GetTargetGuid(lua_State* L) {
     }
 
     GobEditor::DecodedGuid decoded = GobEditor::DecodeGuid(target.m_guid);
-    CGObject_C* unit = ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__);
+    CGObject_C* unit = ClntObjMgrObjectPtr(target, TYPE_UNIT, __FILE__, __LINE__);
     const char* name = unit ? unit->GetObjectName() : nullptr;
 
     lua_pushstring(L, GobEditor::GuidToString(target.m_guid).c_str());

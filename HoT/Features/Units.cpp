@@ -354,7 +354,7 @@ static const AbsorbEffects& EffectsFor(uint32_t spellId) {
 }
 
 static uint32_t SumAbsorbs(WOWGUID guid, bool healAbsorb) {
-    CGUnit_C* unit = guid ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__)) : nullptr;
+    CGUnit_C* unit = guid ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__)) : nullptr;
 
     if (!unit) {
         return 0;
@@ -692,7 +692,7 @@ bool PushScaledLevel(lua_State* L) {
         return false;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit || unit->IsBossMob()) {
         return false;
@@ -703,7 +703,7 @@ bool PushScaledLevel(lua_State* L) {
 }
 
 static void RefreshUnitDisplays(WOWGUID guid) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit && unit->m_namePlateFrame) {
         unit->m_namePlateFrame->UpdateLevelDisplay(unit);

@@ -42,7 +42,7 @@ if (WOWDECOMP_PLATFORM_LINUX)
 endif ()
 
 if (WOWDECOMP_PLATFORM_WIN)
-    target_link_options(Wow PRIVATE "/INCREMENTAL:NO" "/ENTRY:start")
+    target_link_options(Wow PRIVATE "/INCREMENTAL:NO" "/ENTRY:start" "/MAP")
 endif ()
 
 target_link_libraries(Wow

@@ -5,6 +5,7 @@
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Os/Error.h"
 #include "ThirdParty/nvapi/nvapi.h"
+#include "GameVersion.h"
 
 typedef IDirect3D9* (WINAPI* Direct3DCreate9Proc)(UINT sdkVersion);
 
@@ -190,7 +191,7 @@ int32_t CGxDeviceD3d::ICreateWindow(CGxFormat& format) {
         height += CGxDevice::s_clientAdjust.y;
     }
 
-    this->m_hwnd = CreateWindowExA(WS_EX_APPWINDOW, "GxWindowClassD3d", "World of Warcraft", style, format.m_pos.x, format.m_pos.y, width, height, nullptr, nullptr, instance, this);
+    this->m_hwnd = CreateWindowExA(WS_EX_APPWINDOW, "GxWindowClassD3d", CLIENT_NAME, style, format.m_pos.x, format.m_pos.y, width, height, nullptr, nullptr, instance, this);
 
     if (this->m_hwnd && format.m_maximize != 2) {
         ShowWindow(this->m_hwnd, SW_SHOWNORMAL);
@@ -223,9 +224,9 @@ LRESULT CALLBACK CGxDeviceD3d::WindowProcD3d(HWND hwnd, UINT message, WPARAM wpa
             uint32_t resizeType = 0;
 
             if (wparam == SIZE_MINIMIZED) {
-                resizeType = 1;
+                resizeType = Gx_SizeMinimized;
             } else if (wparam == SIZE_MAXHIDE) {
-                resizeType = 2;
+                resizeType = Gx_SizeMaxHide;
             }
 
             device->DeviceWM(GxWM_Size, reinterpret_cast<uintptr_t>(&rect), resizeType);
@@ -240,7 +241,7 @@ LRESULT CALLBACK CGxDeviceD3d::WindowProcD3d(HWND hwnd, UINT message, WPARAM wpa
                     rect.minX = 0.0f;
                     rect.maxY = 0.0f;
                     rect.maxX = 0.0f;
-                    device->DeviceWM(GxWM_Size, reinterpret_cast<uintptr_t>(&rect), 1);
+                    device->DeviceWM(GxWM_Size, reinterpret_cast<uintptr_t>(&rect), Gx_SizeMinimized);
                 }
             } else if (LOWORD(wparam) == WA_ACTIVE && !device->IDevIsWindowed()) {
                 CRect rect;

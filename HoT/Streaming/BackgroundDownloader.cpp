@@ -598,7 +598,7 @@ static void EnqueueMount(const std::wstring& path, const std::string& sha) {
 }
 
 static int32_t RefreshUnitModel(WOWGUID guid, void* param) {
-    CGObject_C* unit = ClntObjMgrObjectPtr(guid, static_cast<TypeMask>(TYPEMASK_UNIT | TYPEMASK_PLAYER), __FILE__, __LINE__);
+    CGObject_C* unit = ClntObjMgrObjectPtr(guid, static_cast<OBJECT_TYPE>(TYPE_UNIT | TYPE_PLAYER), __FILE__, __LINE__);
 
     if (unit) {
         unit->UpdateDisplayInfo(1);

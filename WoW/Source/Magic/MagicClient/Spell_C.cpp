@@ -2,6 +2,7 @@
 #include "HoT/DB/Custom.h"
 #include "HoT/Profiler/Profiler.h"
 #include "HoT/Features/Features.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/Types.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -382,7 +383,7 @@ int32_t Spell_C_GetPowerCost(const SpellRec* spell, const CGUnit_C* unit) {
         cost = (flat + base) * pct / 100;
     }
 
-    if (!(unit->m_obj->m_type & TYPEMASK_PLAYER) && (spell->m_attributes & 0x80000) && spell->m_spellLevel) {
+    if (!(unit->m_obj->m_type & TYPE_PLAYER) && (spell->m_attributes & 0x80000) && spell->m_spellLevel) {
         float spellLevelValue = GetGameTableValue(6, spell->m_spellLevel - 1, 0);
         float unitLevelValue = GetGameTableValue(6, unit->m_unit->m_unitFieldLevel - 1, 0);
 
@@ -391,9 +392,9 @@ int32_t Spell_C_GetPowerCost(const SpellRec* spell, const CGUnit_C* unit) {
         }
     }
 
-    if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && Spell_C_HasEffect(spell, 97)) {
+    if ((unit->m_obj->m_type & TYPE_PLAYER) && Spell_C_HasEffect(spell, SPELL_EFFECT_CAST_BUTTON)) {
         for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-            if (spell->m_effect[i] != 97) {
+            if (spell->m_effect[i] != SPELL_EFFECT_CAST_BUTTON) {
                 continue;
             }
 
@@ -519,12 +520,12 @@ bool Spell_C_IsUsableAction(CGUnit_C* unit, const SpellRec* spell, const WOWGUID
         return false;
     }
 
-    if (spell->m_effect[0] == 47) {
+    if (spell->m_effect[0] == SPELL_EFFECT_TRADE_SKILL) {
         return true;
     }
 
     if (unit->IsActivePlayer()) {
-        bool attack = spell->m_effect[0] == 78 || (spell->m_attributes & 0x2);
+        bool attack = spell->m_effect[0] == SPELL_EFFECT_ATTACK || (spell->m_attributes & 0x2);
         uint32_t flags = static_cast<CGPlayer_C*>(unit)->m_player->m_playerFlags;
 
         if (flags & 0x1000000) {
@@ -630,7 +631,7 @@ bool Spell_C_IsUsableAction(CGUnit_C* unit, const SpellRec* spell, const WOWGUID
             guid = CGGameUI::m_lockedTarget;
         }
 
-        CGUnit_C* targetUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* targetUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (g_autoSelfCastCVar->m_intValue) {
             int32_t implicit = spell->m_implicitTargetA[0];
@@ -884,7 +885,7 @@ void SpellVisualsHandleCastStart(CGUnit_C* unit, PendingSpellCastData* data, con
     }
 
     if (spell->m_attributes & 0x2) {
-        unit->SetSheatheState(2, 1, 0);
+        unit->SetSheatheState(WEAPONMODE_RANGEDMODE, 1, 0);
     }
 
     if (spell->m_attributesExB & 0x20) {
@@ -900,7 +901,7 @@ void SpellVisualsHandleCastStart(CGUnit_C* unit, PendingSpellCastData* data, con
 
     if (visual) {
         if (visual->m_hasMissile && visual->m_missileModel && (visual->m_missileModel == -1 || visual->m_missileModel == -2)) {
-            unit->SetSheatheState(1, 1, 0);
+            unit->SetSheatheState(WEAPONMODE_NORMALMODE, 1, 0);
         }
 
         SpellVisualKitRec* kit = g_spellVisualKitDB.GetRecord(visual->m_precastKit);
@@ -916,7 +917,7 @@ void SpellVisualsHandleCastStart(CGUnit_C* unit, PendingSpellCastData* data, con
 
         if (unit->IsActivePlayer() && (spell->m_attributes & 0x400000) && (data->m_targetFlags & 0x2) && data->m_objectTarget.m_guid) {
             if (!(spell->m_facingCasterFlags & 0x1) || unit->IsInFrontOfTargetWithGuid(data->m_objectTarget)) {
-                unit->SetTrackingTarget(data->m_objectTarget, 0);
+                unit->SetTrackingTarget(data->m_objectTarget, TRACKTYPE_SPELLPRECAST);
             }
         }
 
@@ -1045,7 +1046,7 @@ void PendingSpellCast::OnSpellStartPacket(CDataStore* msg) {
         return;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return;
@@ -1108,7 +1109,7 @@ void PendingSpellCast::OnSpellStartPacket(CDataStore* msg) {
         }
 
         if (spell.m_attributes & 0x400000) {
-            unit->SetTrackingTarget(target, 0);
+            unit->SetTrackingTarget(target, TRACKTYPE_SPELLPRECAST);
         }
     } else if ((this->m_data.m_targetFlags & 0x2) && this->m_data.m_objectTarget.m_guid && this->m_data.m_objectTarget == ClntObjMgrGetActivePlayer()) {
         CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
@@ -1440,8 +1441,8 @@ void HandleSpellFailedOrGo(CGUnit_C* unit, PendingSpellCast* cast, const SpellRe
     if (cast == s_targetingSpell) {
         s_needTargets = 0;
         s_targetingSpell = nullptr;
-        CursorSetResetMode(1);
-        CursorSetMode(1);
+        CursorSetResetMode(POINT_CURSOR);
+        CursorSetMode(POINT_CURSOR);
         Spell_C_DestroySpellWorldObject();
         CGInputControl* input = CGInputControl::GetActive();
         input->m_mouseModeFlags &= ~0x10;
@@ -1491,10 +1492,10 @@ void FinishPendingSpellCast(PendingSpellCast* cast, const SpellRec* spell, CGUni
 // VERIFY: 840e25a5 manual
 // OFFSET: 0x00801220
 bool Spell_C_HasCooldownOnEvent(const SpellRec* spell, WOWGUID guid) {
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__));
 
-    if (item && (item->m_obj->m_type & TYPEMASK_ITEM)) {
-        CGUnit_C* owner = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(item->m_item->m_itemFieldOwner, TYPEMASK_UNIT, __FILE__, __LINE__));
+    if (item && (item->m_obj->m_type & TYPE_ITEM)) {
+        CGUnit_C* owner = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(item->m_item->m_itemFieldOwner, TYPE_UNIT, __FILE__, __LINE__));
         ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, WOWGUID{ 0 }, nullptr, nullptr, false);
         int32_t slot = item->GetOnUseSlot();
 
@@ -1615,7 +1616,7 @@ int32_t Packet_SMSG_SPELL_FAILURE(void* param, NETMESSAGE msgId, uint32_t time, 
 
     PendingSpellCast local;
     PendingSpellCast* cast = FindPendingSpellCast(caster, &local, castCount, spellId, caster);
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         SI2::PlaySpellFizzleSound(spellId, unit);
@@ -1627,7 +1628,7 @@ int32_t Packet_SMSG_SPELL_FAILURE(void* param, NETMESSAGE msgId, uint32_t time, 
         unit->SpellInterrupted(cast->m_data.m_castCount, cast->m_data.m_spellId);
     }
 
-    CGUnit_C* casterUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* casterUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (casterUnit) {
         HandleSpellFailedOrGo(casterUnit, cast, &spell, reason);
@@ -1808,7 +1809,7 @@ int32_t Packet_SMSG_CAST_FAILED(void* param, NETMESSAGE msgId, uint32_t time, CD
     PendingSpellCast* cast = FindPendingSpellCast(player, &local, castCount, spellId, player);
     Spell_C_SpellFailed(cast, &spell, reason, customError, customArg, true);
 
-    if (reason != 67 && (spell.m_attributes & 0x2000000)) {
+    if (reason != SPELL_FAILED_NOT_READY && (spell.m_attributes & 0x2000000)) {
         s_spellHistory[0].ClearOnHold(spellId, 0, true);
         CGSpellBook::UpdateCooldowns();
         CGSpellBook::UpdateUsable();
@@ -2023,7 +2024,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         return;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!this->HasValidTransports()) {
         if (!(this->m_data.m_castFlags & 0x1) && unit) {
@@ -2074,7 +2075,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
             arrival = now - static_cast<int32_t>(sqrtf(dx * dx + dy * dy + dz * dz) / spell.m_speed * -1000.0f);
             Spell_C_AddToInTransitList(caster, &spell, serverTime, arrival);
         } else if (hitCount) {
-            CGObject_C* target = ClntObjMgrObjectPtr(hits.m_data[0], TYPEMASK_OBJECT, __FILE__, __LINE__);
+            CGObject_C* target = ClntObjMgrObjectPtr(hits.m_data[0], TYPE_OBJECT, __FILE__, __LINE__);
 
             if (target) {
                 C3Vector targetPosition = target->GetPosition();
@@ -2100,8 +2101,8 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         }
     }
 
-    CGObject_C* castObject = ClntObjMgrObjectPtr(castItem, TYPEMASK_OBJECT, __FILE__, __LINE__);
-    WOWGUID source = castObject && (castObject->m_obj->m_type & (TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT)) ? castItem : caster;
+    CGObject_C* castObject = ClntObjMgrObjectPtr(castItem, TYPE_OBJECT, __FILE__, __LINE__);
+    WOWGUID source = castObject && (castObject->m_obj->m_type & (TYPE_UNIT | TYPE_GAMEOBJECT)) ? castItem : caster;
 
     if (!hidden || (spell.m_attributesExG & 0x80000000)) {
         UnitCombatLogCastGo(caster, this->m_data.m_objectTarget, spellId);
@@ -2114,10 +2115,10 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
             UnitCombatLogSpellMissed(source, misses.m_data[i], spellId, missReasons.m_data[i], false, false, 0);
 
             if (!(spell.m_attributes & 0x100)) {
-                CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(misses.m_data[i], TYPEMASK_UNIT, __FILE__, __LINE__));
+                CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(misses.m_data[i], TYPE_UNIT, __FILE__, __LINE__));
 
                 if (target) {
-                    target->AddWorldText(source, missReasons.m_data[i], &spell, false);
+                    target->AddWorldText(source, static_cast<MISS_REASON>(missReasons.m_data[i]), &spell, false);
                 }
 
                 CGGameUI::ShowSpellMissFeedback(misses.m_data[i], missReasons.m_data[i]);
@@ -2127,17 +2128,17 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
                 UnitCombatLogSpellMissed(source, caster, spellId, reflectResults.m_data[i], false, false, 0);
 
                 if (!(spell.m_attributes & 0x100)) {
-                    CGUnit_C* reflector = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+                    CGUnit_C* reflector = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
 
                     if (reflector) {
-                        reflector->AddWorldText(source, reflectResults.m_data[i], &spell, false);
+                        reflector->AddWorldText(source, static_cast<MISS_REASON>(reflectResults.m_data[i]), &spell, false);
                     }
 
                     CGGameUI::ShowSpellMissFeedback(caster, reflectResults.m_data[i]);
                 }
             }
 
-            CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(misses.m_data[i], TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(misses.m_data[i], TYPE_UNIT, __FILE__, __LINE__));
 
             if (target) {
                 target->PlayCombatSpellMissEffects(missReasons.m_data[i], source);
@@ -2217,7 +2218,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
                         kitData.m_transportGUID = this->m_data.m_destTarget;
                         unit->PlaySpellVisualKit(kitData);
                     }
-                } else if (ClntObjMgrObjectPtr(castItem, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__)) {
+                } else if (ClntObjMgrObjectPtr(castItem, TYPE_GAMEOBJECT, __FILE__, __LINE__)) {
                     NotifyDestLocSpellCastData data;
                     data.m_caster = castItem;
                     data.m_destTarget = this->m_data.m_destTarget;
@@ -2262,7 +2263,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
                         kitData.m_transportGUID = point.m_transport;
                         unit->PlaySpellVisualKit(kitData);
                     }
-                } else if (ClntObjMgrObjectPtr(castItem, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__)) {
+                } else if (ClntObjMgrObjectPtr(castItem, TYPE_GAMEOBJECT, __FILE__, __LINE__)) {
                     NotifyDestLocSpellCastData data;
                     data.m_caster = castItem;
                     data.m_destTarget = WOWGUID{ 0 };
@@ -2326,7 +2327,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         }
 
         for (uint32_t effect = 0; effect < 3; effect++) {
-            if (spell.m_effect[effect] != 33) {
+            if (spell.m_effect[effect] != SPELL_EFFECT_OPEN_LOCK) {
                 continue;
             }
 
@@ -2334,7 +2335,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
                 break;
             }
 
-            CGGameObject_C* gameObject = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(hits.m_data[0], TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+            CGGameObject_C* gameObject = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(hits.m_data[0], TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
             if (!gameObject) {
                 break;
@@ -2358,14 +2359,14 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
             }
 
             for (uint32_t i = 0; i < 3; i++) {
-                if (spell.m_effect[i] != 33) {
+                if (spell.m_effect[i] != SPELL_EFFECT_OPEN_LOCK) {
                     continue;
                 }
 
                 for (uint32_t j = 0; j < 8 && action < 0; j++) {
                     switch (lock->m_type[j]) {
                         case 1:
-                            if ((castObject->m_obj->m_type & TYPEMASK_ITEM) && castObject->m_obj->m_entryID == lock->m_index[j]) {
+                            if ((castObject->m_obj->m_type & TYPE_ITEM) && castObject->m_obj->m_entryID == lock->m_index[j]) {
                                 action = lock->m_action[j];
                             }
 
@@ -2400,7 +2401,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         for (uint32_t i = 0; i < 3; i++) {
             int32_t effect = spell.m_effect[i];
 
-            if (effect == 71 || effect == 95 || effect == 116 || ((effect == 99 || effect == 127 || effect == 158) && CGGameUI::IsAutoLooting())) {
+            if (effect == SPELL_EFFECT_PICKPOCKET || effect == SPELL_EFFECT_SKINNING || effect == SPELL_EFFECT_SKIN_PLAYER_CORPSE || ((effect == SPELL_EFFECT_DISENCHANT || effect == SPELL_EFFECT_PROSPECTING || effect == SPELL_EFFECT_MILLING) && CGGameUI::IsAutoLooting())) {
                 if (!player->m_autoLoot) {
                     player->SetAutoLoot(g_autoLootDefaultCVar->m_intValue);
                 }
@@ -2414,7 +2415,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         }
 
         int32_t itemId = 0;
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(castItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(castItem, TYPE_ITEM, __FILE__, __LINE__));
 
         if (item) {
             itemId = item->m_obj->m_entryID;
@@ -2569,7 +2570,7 @@ const char* GetPowerString(POWER_TYPE powerType) {
 const SpellVisualRec* GetSpellVisual(const SpellRec* spell) {
     int32_t visualId = spell->m_spellVisualID[0];
 
-    if (ViolenceGetLevel() < 2 && spell->m_spellVisualID[1]) {
+    if (ViolenceGetLevel() < VIOLENCELEVEL_HIGH && spell->m_spellVisualID[1]) {
         visualId = spell->m_spellVisualID[1];
     }
 
@@ -2661,7 +2662,7 @@ bool Spell_C_CanTargetCorpse(const CGCorpse_C* corpse) {
         return false;
     }
 
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(s_targetingSpell->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(s_targetingSpell->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
         return false;
@@ -2681,7 +2682,7 @@ bool Spell_C_CanTargetCorpse(const CGCorpse_C* corpse) {
 // VERIFY: f486f02f manual
 // OFFSET: 0x007FFF20
 bool Spell_C_CanTargetObject(const CGGameObject_C* object) {
-    return (s_needTargets & 0x4800) && (object->m_obj->m_type & TYPEMASK_GAMEOBJECT) && object->IsValidTargetForSpell(s_targetingSpell->m_data.m_castItem, s_targetingSpell->m_data.m_spellId);
+    return (s_needTargets & 0x4800) && (object->m_obj->m_type & TYPE_GAMEOBJECT) && object->IsValidTargetForSpell(s_targetingSpell->m_data.m_castItem, s_targetingSpell->m_data.m_spellId);
 }
 
 // VERIFY: 6491424d auto
@@ -2748,7 +2749,7 @@ CGUnit_C* Spell_C_TargetImpliedTarget(CGUnit_C* target, const SpellRec* spell, u
             return target;
         }
 
-        CGUnit_C* implied = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target->m_unit->m_unitFieldTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* implied = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target->m_unit->m_unitFieldTarget, TYPE_UNIT, __FILE__, __LINE__));
         bool ignoreFlags = spell ? (spell->m_attributesExF >> 3) & 1 : false;
 
         if (!implied || !caster->CanAssist(implied, ignoreFlags)) {
@@ -2774,7 +2775,7 @@ CGUnit_C* Spell_C_TargetImpliedTarget(CGUnit_C* target, const SpellRec* spell, u
         bool ignoreFlags = spell ? (spell->m_attributesExF >> 3) & 1 : false;
 
         if (caster->CanAssist(target, ignoreFlags)) {
-            CGUnit_C* implied = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target->m_unit->m_unitFieldTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* implied = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target->m_unit->m_unitFieldTarget, TYPE_UNIT, __FILE__, __LINE__));
 
             if (!implied || !caster->CanAttack(implied)) {
                 return nullptr;
@@ -2799,7 +2800,7 @@ void Spell_C_GetMinMaxRange(CGUnit_C* caster, const SpellRec* spell, float* minR
 
     int32_t friendly;
 
-    if (target && (target->m_obj->m_type & TYPEMASK_UNIT)) {
+    if (target && (target->m_obj->m_type & TYPE_UNIT)) {
         friendly = caster->CanAssist(static_cast<CGUnit_C*>(target), false);
     } else {
         friendly = SpellRec::IsHelpfulOrHarmful(spell) == 1;
@@ -2830,13 +2831,13 @@ bool Spell_C::HandleSpriteRay(const WOWGUID& guid, bool checkRange) {
         return false;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         return false;
     }
 
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targeting->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targeting->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
         return false;
@@ -2851,7 +2852,7 @@ bool Spell_C::HandleSpriteRay(const WOWGUID& guid, bool checkRange) {
     uint32_t type = object->m_obj->m_type;
     bool valid = false;
 
-    if (type & TYPEMASK_UNIT) {
+    if (type & TYPE_UNIT) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(object);
 
         if (spell.m_attributesExE & 0x800) {
@@ -2906,13 +2907,13 @@ bool Spell_C::HandleSpriteRay(const WOWGUID& guid, bool checkRange) {
 
             if ((needTargets & 0x2) && (!(data->m_unitFieldFlags & 0x100) || (spell.m_attributesExC & 0x10000000) || (spell.m_attributesExE & 0x200000))) {
                 valid = true;
-            } else if ((needTargets & 0x8000) && data->m_unitFieldHealth <= 0 && ((unit->m_obj->m_type & TYPEMASK_PLAYER) || data->m_unitFieldPetnumber)) {
+            } else if ((needTargets & 0x8000) && data->m_unitFieldHealth <= 0 && ((unit->m_obj->m_type & TYPE_PLAYER) || data->m_unitFieldPetnumber)) {
                 if (!caster->CanAssist(unit, false)) {
                     return false;
                 }
 
                 valid = true;
-            } else if ((needTargets & 0x200) && data->m_unitFieldHealth <= 0 && (unit->m_obj->m_type & TYPEMASK_PLAYER)) {
+            } else if ((needTargets & 0x200) && data->m_unitFieldHealth <= 0 && (unit->m_obj->m_type & TYPE_PLAYER)) {
                 if (caster->CanAssist(unit, false)) {
                     return false;
                 }
@@ -2928,15 +2929,15 @@ bool Spell_C::HandleSpriteRay(const WOWGUID& guid, bool checkRange) {
         if (!valid) {
             return false;
         }
-    } else if (type & TYPEMASK_ITEM) {
+    } else if (type & TYPE_ITEM) {
         if (!(s_needTargets & 0x4010)) {
             return false;
         }
-    } else if (type & TYPEMASK_GAMEOBJECT) {
+    } else if (type & TYPE_GAMEOBJECT) {
         if (!(s_needTargets & 0x4800) || !static_cast<CGGameObject_C*>(object)->IsValidTargetForSpell(targeting->m_data.m_castItem, targeting->m_data.m_spellId)) {
             return false;
         }
-    } else if (type & TYPEMASK_CORPSE) {
+    } else if (type & TYPE_CORPSE) {
         const CGCorpse_C* corpse = static_cast<CGCorpse_C*>(object);
         bool friendly = false;
 
@@ -2990,7 +2991,7 @@ bool SpellIsTrackingAura(const SpellRec* spell) {
     for (int32_t i = 0; i < 3; i++) {
         int32_t aura = spell->m_effectAura[i];
 
-        if (aura == 44 || aura == 45 || aura == 151) {
+        if (aura == SPELL_AURA_TRACK_CREATURES || aura == SPELL_AURA_TRACK_RESOURCES || aura == SPELL_AURA_TRACK_STEALTHED) {
             return true;
         }
     }
@@ -3001,7 +3002,7 @@ bool SpellIsTrackingAura(const SpellRec* spell) {
 // VERIFY: a97f4372 manual
 // OFFSET: 0x00800510
 int32_t Packet_SMSG_ON_CANCEL_EXPECTED_RIDE_VEHICLE_AURA(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_vehiclePassenger) {
         player->m_vehiclePassenger->ClearFlag8();
@@ -3025,7 +3026,7 @@ void Spell_C_SetPlayerClass(int32_t classId) {
 int32_t Packet_SMSG_GAMEOBJECT_RESET_STATE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID guid;
     msg->Get(guid.m_guid);
-    CGGameObject_C* gameObject = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+    CGGameObject_C* gameObject = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(guid, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
     if (gameObject) {
         gameObject->ResetDisplayState();
@@ -3083,7 +3084,7 @@ bool Spell_C_IsCurrentItem(int32_t itemId) {
             continue;
         }
 
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(cast->m_data.m_castItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(cast->m_data.m_castItem, TYPE_ITEM, __FILE__, __LINE__));
 
         if (item && item->m_obj->m_entryID == itemId) {
             return true;
@@ -3107,7 +3108,7 @@ void Spell_C_CancelAutoRepeat(bool a1) {
         ClientServices::Send2(&msg);
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (unit) {
         unit->SetCastingAutoRepeat(false);
@@ -3129,7 +3130,7 @@ void Spell_C_CancelAutoRepeat(bool a1) {
     FrameScript_SignalEvent(SCRIPT_EVENT_STOP_AUTOREPEAT_SPELL, nullptr);
 
     if (s_autoRepeatingSpell) {
-        static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__))->MeleeModeLeave();
+        static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__))->MeleeModeLeave();
     }
 }
 
@@ -3187,7 +3188,7 @@ int32_t SpellRec::IsHelpfulOrHarmful(const SpellRec* spell) {
     for (uint32_t i = 0; i < 3; i++) {
         switch (spell->m_implicitTargetA[i]) {
             case 1:
-                if (spell->m_effectAura[i] != 4) {
+                if (spell->m_effectAura[i] != SPELL_AURA_DUMMY) {
                     return 1;
                 }
 
@@ -3217,7 +3218,7 @@ int32_t SpellRec::IsHelpfulOrHarmful(const SpellRec* spell) {
 
         switch (spell->m_implicitTargetB[i]) {
             case 1:
-                if (spell->m_effectAura[i] != 4) {
+                if (spell->m_effectAura[i] != SPELL_AURA_DUMMY) {
                     return 1;
                 }
 
@@ -3252,7 +3253,7 @@ int32_t SpellRec::IsHelpfulOrHarmful(const SpellRec* spell) {
 // VERIFY: 69f73b82 auto
 // OFFSET: 0x008009B0
 bool SpellRec::WillSummonCritter(const SpellRec* spell) {
-    if (spell->m_effect[0] == 28) {
+    if (spell->m_effect[0] == SPELL_EFFECT_SUMMON) {
         SummonPropertiesRec* properties = g_summonPropertiesDB.GetRecord(spell->m_effectMiscValueB[0]);
 
         if (properties && properties->m_slot == 5) {
@@ -3260,13 +3261,13 @@ bool SpellRec::WillSummonCritter(const SpellRec* spell) {
         }
     }
 
-    return spell->m_effectAura[0] == 78;
+    return spell->m_effectAura[0] == SPELL_AURA_MOUNTED;
 }
 
 // VERIFY: 54ab5610 manual
 // OFFSET: 0x007FFA30
 int32_t Spell_C_GetSpellReagentUses(const SpellRec* spell) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -3310,7 +3311,7 @@ bool SpellHistory::GetSpellCooldown(int32_t spellId, int32_t itemId, uint32_t* d
 
     SpellRec spell;
 
-    if (!g_spellDB.GetRecord(spellId, &spell) || spell.m_effect[0] == 78 || spell.m_effect[0] == 47) {
+    if (!g_spellDB.GetRecord(spellId, &spell) || spell.m_effect[0] == SPELL_EFFECT_ATTACK || spell.m_effect[0] == SPELL_EFFECT_TRADE_SKILL) {
         return false;
     }
 
@@ -3583,11 +3584,11 @@ uint32_t Spell_C_GetSpellLevel(const SpellRec* spell, int32_t isPet, int32_t isU
     CGUnit_C* unit;
 
     if (isUnit) {
-        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPE_UNIT, __FILE__, __LINE__));
     } else if (isPet) {
-        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
     } else {
-        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     }
 
     if (!unit) {
@@ -3636,7 +3637,7 @@ int32_t SpellRec::GetCastTime(const SpellRec* spell, int32_t isPet, int32_t isUn
     }
 
     Spell_C_ModifySpellValue(spell, castTime, 10);
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_UNIT, __FILE__, __LINE__));
 
     if (!(spell->m_attributes & 0x30) && !(spell->m_attributesExC & 0x20000000)) {
         if (isPet && unit) {
@@ -3646,7 +3647,7 @@ int32_t SpellRec::GetCastTime(const SpellRec* spell, int32_t isPet, int32_t isUn
                 guid = &unit->m_unit->m_unitFieldSummon;
             }
 
-            unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPE_UNIT, __FILE__, __LINE__));
         }
 
         if (unit && castTime > 0 && fnotequal(unit->m_unit->m_unitModCastSpeed, 1.0f)) {
@@ -3664,7 +3665,7 @@ int32_t SpellRec::GetCastTime(const SpellRec* spell, int32_t isPet, int32_t isUn
                 CGBag_C* bag = &player->m_bag;
 
                 if (bag) {
-                    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ bag->GetItemGuid(17) }, TYPEMASK_ITEM, __FILE__, __LINE__));
+                    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ bag->GetItemGuid(17) }, TYPE_ITEM, __FILE__, __LINE__));
 
                     if (item) {
                         ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, player->m_obj->m_guid, nullptr, nullptr, false);
@@ -3727,7 +3728,7 @@ void SpellRec::GetMinRange(const SpellRec* spell, float* range) {
 // VERIFY: 823383e2 manual
 // OFFSET: 0x007FF480
 void Spell_C_GetMinMaxRange(CGUnit_C* caster, const SpellRec* spell, float* minRange, float* maxRange, int32_t friendly, CGObject_C* target) {
-    CGUnit_C* targetUnit = target && (target->m_obj->m_type & TYPEMASK_UNIT) ? static_cast<CGUnit_C*>(target) : nullptr;
+    CGUnit_C* targetUnit = target && (target->m_obj->m_type & TYPE_UNIT) ? static_cast<CGUnit_C*>(target) : nullptr;
 
     if (spell->m_attributes & 0x404) {
         *maxRange = 100.0f;
@@ -3742,7 +3743,7 @@ void Spell_C_GetMinMaxRange(CGUnit_C* caster, const SpellRec* spell, float* minR
             *minRange = 0.0f;
 
             if (!targetUnit) {
-                targetUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster->m_combat.m_attacking, TYPEMASK_UNIT, __FILE__, __LINE__));
+                targetUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster->m_combat.m_attacking, TYPE_UNIT, __FILE__, __LINE__));
             }
 
             float reach = targetUnit ? targetUnit->m_unit->m_unitFieldCombatreach : caster->m_unit->m_unitFieldCombatreach;
@@ -3776,14 +3777,14 @@ void Spell_C_GetMinMaxRange(CGUnit_C* caster, const SpellRec* spell, float* minR
             }
         }
 
-        if (targetUnit && (caster->m_movement->m_flags & 0x100D) && (targetUnit->m_movement->m_flags & 0x100D) && !caster->IsRunning() && !targetUnit->IsRunning() && ((rec->m_flags & 1) || (targetUnit->m_obj->m_type & TYPEMASK_PLAYER))) {
+        if (targetUnit && (caster->m_movement->m_flags & 0x100D) && (targetUnit->m_movement->m_flags & 0x100D) && !caster->IsRunning() && !targetUnit->IsRunning() && ((rec->m_flags & 1) || (targetUnit->m_obj->m_type & TYPE_PLAYER))) {
             bonus += 2.6666667f;
         }
     }
 
-    if ((spell->m_attributes & 2) && (caster->m_obj->m_type & TYPEMASK_PLAYER)) {
+    if ((spell->m_attributes & 2) && (caster->m_obj->m_type & TYPE_PLAYER)) {
         CGPlayer_C* player = static_cast<CGPlayer_C*>(caster);
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->m_bag.GetItemGuid(17) }, TYPEMASK_ITEM, __FILE__, __LINE__));
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->m_bag.GetItemGuid(17) }, TYPE_ITEM, __FILE__, __LINE__));
 
         if (item) {
             ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, caster->m_obj->m_guid, nullptr, nullptr, false);
@@ -3862,7 +3863,7 @@ void Spell_C_GetMinMaxPoints(const SpellRec* spell, uint32_t effectIndex, float*
 
         int32_t aura = spell->m_effectAura[effectIndex];
 
-        if (aura == 10 || aura == 103 || aura == 183) {
+        if (aura == SPELL_AURA_MOD_THREAT || aura == SPELL_AURA_MOD_TOTAL_THREAT || aura == SPELL_AURA_MOD_CRITICAL_THREAT) {
             Spell_C_ModifySpellValue(spell, minValue, 2);
             Spell_C_ModifySpellValue(spell, maxValue, 2);
         }
@@ -3917,7 +3918,7 @@ int32_t Spell_C_GetDuration(const SpellRec* spell, int32_t isPet, int32_t isUnit
         Spell_C_ModifySpellValue(spell, duration, 1);
     }
 
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !applyHaste) {
         return duration;
@@ -3925,7 +3926,7 @@ int32_t Spell_C_GetDuration(const SpellRec* spell, int32_t isPet, int32_t isUnit
 
     for (uint32_t i = 0; i < 3; i++) {
         if (spell->m_effectAuraPeriod[i]) {
-            if (((spell->m_attributesExE & 0x2000) || player->AffectedByAura(316, spell)) && !(spell->m_attributesExC & 0x20000000) && player->m_unit->m_unitModCastSpeed >= 0.001f) {
+            if (((spell->m_attributesExE & 0x2000) || player->AffectedByAura(SPELL_AURA_PERIODIC_HASTE, spell)) && !(spell->m_attributesExC & 0x20000000) && player->m_unit->m_unitModCastSpeed >= 0.001f) {
                 duration = CMath::fint_(duration * player->m_unit->m_unitModCastSpeed);
             }
 
@@ -4416,36 +4417,36 @@ static bool SpellCancelsAura(const SpellRec* spell, const SpellRec* aura, uint32
     }
 
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-        if (spell->m_effect[i] != 6) {
+        if (spell->m_effect[i] != SPELL_EFFECT_APPLY_AURA) {
             continue;
         }
 
         int32_t misc = spell->m_effectMiscValue[i];
 
         switch (spell->m_effectAura[i]) {
-            case 38:
+            case SPELL_AURA_STATE_IMMUNITY:
                 if (misc == aura->m_effectAura[auraEffect]) {
                     return true;
                 }
 
                 break;
 
-            case 39:
-            case 267:
+            case SPELL_AURA_SCHOOL_IMMUNITY:
+            case SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL:
                 if (!(aura->m_attributesExB & 0x4000000) && (aura->m_schoolMask & misc)) {
                     return true;
                 }
 
                 break;
 
-            case 41:
+            case SPELL_AURA_DISPEL_IMMUNITY:
                 if (misc == aura->m_dispelType) {
                     return true;
                 }
 
                 break;
 
-            case 77:
+            case SPELL_AURA_MECHANIC_IMMUNITY:
                 if (misc == aura->m_mechanic || misc == aura->m_effectMechanic[auraEffect]) {
                     return true;
                 }
@@ -4463,11 +4464,11 @@ uint32_t GetRequiredAuraVisionBitmask(const SpellRec* spell) {
     uint32_t mask = spell->m_requiredAuraVision > 0 ? 1 << (spell->m_requiredAuraVision - 1) : 0;
 
     for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
-        if (spell->m_effectAura[i] == 17) {
+        if (spell->m_effectAura[i] == SPELL_AURA_MOD_STEALTH_DETECT) {
             mask |= 0x20;
         }
 
-        if (spell->m_effectAura[i] == 19 && (!spell->m_effectMiscValue[i] || spell->m_effectMiscValue[i] == 10)) {
+        if (spell->m_effectAura[i] == SPELL_AURA_MOD_INVISIBILITY_DETECT && (!spell->m_effectMiscValue[i] || spell->m_effectMiscValue[i] == 10)) {
             mask |= 0x40;
         }
     }
@@ -4547,7 +4548,7 @@ float Spell_C_GetCursorWorldObjectFacing() {
         return s_cursorWorldObjectFacing;
     }
 
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(s_targetingSpell->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(s_targetingSpell->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
         return s_cursorWorldObjectFacing;
@@ -4951,7 +4952,7 @@ int32_t Packet_SMSG_SPELL_UPDATE_CHAIN_TARGETS(void* param, NETMESSAGE msgId, ui
         msg->Get(targets.m_data[i].m_guid);
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         unit->UpdateChainTargets(targets, spellId);
@@ -4963,9 +4964,9 @@ int32_t Packet_SMSG_SPELL_UPDATE_CHAIN_TARGETS(void* param, NETMESSAGE msgId, ui
 // VERIFY: 40ea9fd4 manual
 // OFFSET: 0x00800550
 static int32_t UnitOnRemoteMissileTrajectoryCollision(WOWGUID guid, void* param) {
-    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__);
 
-    if (object && (object->m_obj->m_type & TYPEMASK_UNIT)) {
+    if (object && (object->m_obj->m_type & TYPE_UNIT)) {
         static_cast<CGUnit_C*>(object)->OnRemoteMissileTrajectoryCollision(static_cast<MissileCollisionData*>(param));
     }
 
@@ -4999,7 +5000,7 @@ int32_t Packet_SMSG_PLAY_SPELL_VISUAL(void* param, NETMESSAGE msgId, uint32_t ti
     SpellVisualKitRec* kit = g_spellVisualKitDB.GetRecord(kitId);
 
     if (kit) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             PlaySpellVisuaKitData kitData(nullptr, kit, 0);
@@ -5020,7 +5021,7 @@ int32_t Packet_SMSG_PLAY_SPELL_IMPACT(void* param, NETMESSAGE msgId, uint32_t ti
     SpellVisualKitRec* kit = g_spellVisualKitDB.GetRecord(kitId);
 
     if (kit) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             PlaySpellVisuaKitData kitData(nullptr, kit, 1);
@@ -5035,7 +5036,7 @@ int32_t Packet_SMSG_PLAY_SPELL_IMPACT(void* param, NETMESSAGE msgId, uint32_t ti
 // OFFSET: 0x00800950
 bool SpellAppliesNonStanceShapeshift(const SpellRec* spell) {
     for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
-        if (spell->m_effectAura[i] != 36) {
+        if (spell->m_effectAura[i] != SPELL_AURA_MOD_SHAPESHIFT) {
             continue;
         }
 
@@ -5129,7 +5130,7 @@ float Spell_C_GetSpellRadius() {
         return 0.0f;
     }
 
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
         return 0.0f;
@@ -5165,7 +5166,7 @@ int32_t Packet_SMSG_SPELL_DELAYED(void* param, NETMESSAGE msgId, uint32_t time, 
     *msg >> guid;
     int32_t delay;
     msg->Get(reinterpret_cast<uint32_t&>(delay));
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         SpellRec spell;
@@ -5208,7 +5209,7 @@ int32_t Packet_SMSG_UNIT_SPELLCAST_START(void* param, NETMESSAGE msgId, uint32_t
     SpellRec spell;
 
     if (g_spellDB.GetRecord(spellId, &spell)) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             int32_t signal;
@@ -5293,7 +5294,7 @@ bool Spell_C_IsActiveSpell(const SpellRec* spell, const CGUnit_C* unit) {
     CGUnit_C* vehicle = unit->m_vehiclePassenger ? unit->m_vehiclePassenger->GetVehicleUnit() : nullptr;
 
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-        if (spell->m_effect[i] != 28) {
+        if (spell->m_effect[i] != SPELL_EFFECT_SUMMON) {
             continue;
         }
 
@@ -5325,11 +5326,11 @@ bool Spell_C_IsActiveSpell(const SpellRec* spell, const CGUnit_C* unit) {
         }
     }
 
-    if (spell->m_effectAura[0] == 78) {
+    if (spell->m_effectAura[0] == SPELL_AURA_MOUNTED) {
         SpellRec aura;
 
         for (uint32_t i = 0; i < unit->GetAuraCount(); i++) {
-            if (g_spellDB.GetRecord(self->m_auras[i].m_spellId, &aura) && aura.m_effectAura[0] == 78 && aura.m_effectMiscValue[0] == spell->m_effectMiscValue[0]) {
+            if (g_spellDB.GetRecord(self->m_auras[i].m_spellId, &aura) && aura.m_effectAura[0] == SPELL_AURA_MOUNTED && aura.m_effectMiscValue[0] == spell->m_effectMiscValue[0]) {
                 active = true;
                 break;
             }
@@ -5364,7 +5365,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
     }
 
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-        if (spell->m_effect[i] != 28) {
+        if (spell->m_effect[i] != SPELL_EFFECT_SUMMON) {
             continue;
         }
 
@@ -5387,7 +5388,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
         SpellRec mount;
 
         for (uint32_t i = 0; i < unit->GetAuraCount(); i++) {
-            if (g_spellDB.GetRecord(unit->m_auras[i].m_spellId, &mount) && mount.m_effectAura[0] == 78 && mount.m_effectMiscValue[0] == spell->m_effectMiscValue[0] && mount.m_id != spell->m_id) {
+            if (g_spellDB.GetRecord(unit->m_auras[i].m_spellId, &mount) && mount.m_effectAura[0] == SPELL_AURA_MOUNTED && mount.m_effectMiscValue[0] == spell->m_effectMiscValue[0] && mount.m_id != spell->m_id) {
                 Spell_C_CancelAura(&mount, unit, -1);
                 return;
             }
@@ -5408,7 +5409,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
         }
 
         for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
-            if (spell->m_effectAura[i] != 36) {
+            if (spell->m_effectAura[i] != SPELL_AURA_MOD_SHAPESHIFT) {
                 continue;
             }
 
@@ -5425,7 +5426,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
         }
     }
 
-    if ((spell->m_attributesEx & 0x2000) && !(spell->m_attributesEx & 0x4) && (unit->m_obj->m_type & TYPEMASK_PLAYER) && static_cast<CGPlayer_C*>(unit)->ToggleFarSight(nullptr)) {
+    if ((spell->m_attributesEx & 0x2000) && !(spell->m_attributesEx & 0x4) && (unit->m_obj->m_type & TYPE_PLAYER) && static_cast<CGPlayer_C*>(unit)->ToggleFarSight(nullptr)) {
         return;
     }
 
@@ -5434,7 +5435,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
     }
 
     for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
-        if (spell->m_effectAura[i] != 236) {
+        if (spell->m_effectAura[i] != SPELL_AURA_CONTROL_VEHICLE) {
             continue;
         }
 
@@ -5446,7 +5447,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
 
         if (controlled->m_guid == unit->GetTransportGUID()) {
             WOWGUID transport = { unit->GetTransportGUID() };
-            CGUnit_C* transportUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(transport, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* transportUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(transport, TYPE_UNIT, __FILE__, __LINE__));
 
             if (transportUnit) {
                 CVehicle_C* vehicle = transportUnit->m_vehicle;
@@ -5456,7 +5457,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
                     VehicleSeatRec* seatRec = vehicle->GetVehicleSeatRec(seat);
 
                     if (seatRec && (seatRec->m_flags & 0x2000000)) {
-                        CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+                        CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
                         if (mover) {
                             mover->VehicleExit();
@@ -5476,9 +5477,9 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
     CGUnit_C* vehicleUnit = unit->m_vehiclePassenger ? unit->m_vehiclePassenger->GetVehicleUnit() : nullptr;
 
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-        if (spell->m_effect[i] == 28 && vehicleUnit && vehicleUnit->m_obj->m_entryID == spell->m_effectMiscValue[i]) {
+        if (spell->m_effect[i] == SPELL_EFFECT_SUMMON && vehicleUnit && vehicleUnit->m_obj->m_entryID == spell->m_effectMiscValue[i]) {
             CGInputControl* input = CGInputControl::GetActive();
-            CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
             if (mover && input->IsVehicleSeatFlagSet(0x2000000)) {
                 mover->VehicleExit();
@@ -5506,7 +5507,7 @@ bool Spell_C_IsCastingInterruptedByCombat(const WOWGUID& guid) {
         }
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit && unit->m_unit->m_unitChannelSpell) {
         SpellRec spell;
@@ -5527,7 +5528,7 @@ int32_t Spell_C_HandleTerrainRay(const CTerrainClickEvent& evt, bool checkRange)
     }
 
     PendingSpellCastData* data = s_targetingSpell ? &s_targetingSpell->m_data : nullptr;
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(data->m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(data->m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
         return 1;
@@ -5540,7 +5541,7 @@ int32_t Spell_C_HandleTerrainRay(const CTerrainClickEvent& evt, bool checkRange)
     C3Vector position = evt.m_point;
 
     if (evt.m_guid) {
-        CGObject_C* object = ClntObjMgrObjectPtr(evt.m_guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+        CGObject_C* object = ClntObjMgrObjectPtr(evt.m_guid, TYPE_OBJECT, __FILE__, __LINE__);
 
         if (object) {
             position *= object->GetMatrix();
@@ -5562,7 +5563,7 @@ int32_t Spell_C_HandleTerrainRay(const CTerrainClickEvent& evt, bool checkRange)
 // VERIFY: 047edb41 manual
 // OFFSET: 0x008055C0
 void Spell_C_FailPendingCast(PendingSpellCast* cast, const SpellRec* spell, int32_t reason) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, spell, reason);
@@ -5609,11 +5610,11 @@ bool Spell_C_IsCurrentSpell(int32_t spellId) {
 
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (spell.m_effect[0] == 78) {
+    if (spell.m_effect[0] == SPELL_EFFECT_ATTACK) {
         return player && player->m_combat.m_attacking;
     }
 
-    if (spell.m_effect[0] == 47) {
+    if (spell.m_effect[0] == SPELL_EFFECT_TRADE_SKILL) {
         if (player) {
             SkillLineAbilityRec* ability = player->LookupAbility(spell.m_id);
 
@@ -5658,7 +5659,7 @@ void Spell_C_CancelSpell(PendingSpellCast* cast, bool stopRecast, bool notifySer
     }
 
     if (cast != s_targetingSpell && notifyServer) {
-        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
         if ((caster && caster->GetSpellCastingTime(&spell) > 0) || (spell.m_attributes & 0x404)) {
             CDataStore msg;
@@ -5670,7 +5671,7 @@ void Spell_C_CancelSpell(PendingSpellCast* cast, bool stopRecast, bool notifySer
         }
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, &spell, reason);
@@ -5804,7 +5805,7 @@ int32_t Packet_SMSG_SPELL_FAILED_OTHER(void* param, NETMESSAGE msgId, uint32_t t
 
     PendingSpellCast local;
     PendingSpellCast* cast = FindPendingSpellCast(caster, &local, castCount, spellId, caster);
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, &spell, reason);
@@ -5824,7 +5825,7 @@ int32_t Packet_SMSG_ITEM_COOLDOWN(void* param, NETMESSAGE msgId, uint32_t time, 
     SpellRec spell;
 
     if (g_spellDB.GetRecord(spellId, &spell)) {
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
         if (item) {
             int32_t itemId = item->m_obj->m_entryID;
@@ -6111,7 +6112,7 @@ void ShowPetSpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t r
             break;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, spell, reason);
@@ -6299,19 +6300,19 @@ static UIErrors GetSpellFailedError(int32_t reason, const SpellRec* spell, int32
     UIErrors error = ERR_SPELL_FAILED_S;
 
     switch (reason) {
-        case 2:
+        case SPELL_FAILED_ALREADY_AT_FULL_HEALTH:
             return ERR_SPELL_FAILED_ALREADY_AT_FULL_HEALTH;
 
-        case 3:
+        case SPELL_FAILED_ALREADY_AT_FULL_MANA:
             return ERR_SPELL_FAILED_ALREADY_AT_FULL_MANA;
 
-        case 4:
+        case SPELL_FAILED_ALREADY_AT_FULL_POWER:
             return ERR_SPELL_FAILED_ALREADY_AT_FULL_POWER_S;
 
-        case 11:
+        case SPELL_FAILED_BAD_IMPLICIT_TARGETS:
             return ERR_GENERIC_NO_TARGET;
 
-        case 12:
+        case SPELL_FAILED_BAD_TARGETS:
             if (spell->m_targets & 0x10) {
                 return ERR_INVALID_ITEM_TARGET;
             }
@@ -6322,15 +6323,15 @@ static UIErrors GetSpellFailedError(int32_t reason, const SpellRec* spell, int32
 
             return error;
 
-        case 28:
+        case SPELL_FAILED_EQUIPPED_ITEM:
             return ERR_SPELL_FAILED_EQUIPPED_ITEM;
 
-        case 29:
-        case 30:
-        case 31:
+        case SPELL_FAILED_EQUIPPED_ITEM_CLASS:
+        case SPELL_FAILED_EQUIPPED_ITEM_CLASS_MAINHAND:
+        case SPELL_FAILED_EQUIPPED_ITEM_CLASS_OFFHAND:
             return ERR_SPELL_FAILED_EQUIPPED_ITEM_CLASS_S;
 
-        case 45:
+        case SPELL_FAILED_ITEM_NOT_READY:
             switch (spell->m_category) {
                 case 4:
                 case 9:
@@ -6344,10 +6345,10 @@ static UIErrors GetSpellFailedError(int32_t reason, const SpellRec* spell, int32
                     return ERR_ITEM_COOLDOWN;
             }
 
-        case 52:
+        case SPELL_FAILED_NEED_AMMO:
             return ERR_NOAMMO_S;
 
-        case 67:
+        case SPELL_FAILED_NOT_READY:
             switch (spell->m_category) {
                 case 4:
                 case 9:
@@ -6374,41 +6375,41 @@ static UIErrors GetSpellFailedError(int32_t reason, const SpellRec* spell, int32
             CGContainerInfo::UpdateCooldowns();
             return error;
 
-        case 72:
+        case SPELL_FAILED_NOT_UNSHEATHED:
             return ERR_SPELL_FAILED_NOTUNSHEATHED;
 
-        case 94:
+        case SPELL_FAILED_ONLY_SHAPESHIFT:
             return ERR_SPELL_FAILED_SHAPESHIFT_FORM_S;
 
-        case 97:
+        case SPELL_FAILED_OUT_OF_RANGE:
             return ERR_SPELL_OUT_OF_RANGE;
 
-        case 100:
+        case SPELL_FAILED_REAGENTS:
             return ERR_SPELL_FAILED_REAGENTS;
 
-        case 129:
+        case SPELL_FAILED_TOO_MANY_OF_ITEM:
             if (misc > 0) {
                 error = ERR_ITEM_MAX_LIMIT_CATEGORY_COUNT_EXCEEDED_IS;
             }
 
             return error;
 
-        case 131:
+        case SPELL_FAILED_TOTEMS:
             return ERR_SPELL_FAILED_TOTEMS;
 
-        case 148:
+        case SPELL_FAILED_PLAY_TIME:
             return ERR_PLAY_TIME_EXCEEDED;
 
-        case 170:
+        case SPELL_FAILED_ON_USE_ENCHANT:
             return ERR_BAD_ON_USE_ENCHANT;
 
-        case 174:
+        case SPELL_FAILED_TOO_MANY_SOCKETS:
             return ERR_TOO_MANY_SOCKETS;
 
-        case 178:
+        case SPELL_FAILED_NO_VALID_TARGETS:
             return ERR_GENERIC_NO_VALID_TARGETS;
 
-        case 184:
+        case SPELL_FAILED_MAX_SOCKETS:
             return ERR_MAX_SOCKETS;
 
         default:
@@ -6428,7 +6429,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
 
     UpdateTradeSkillRecast(spellId);
 
-    if (s_autoRepeatingSpell && (reason == 67 || reason == 105)) {
+    if (s_autoRepeatingSpell && (reason == SPELL_FAILED_NOT_READY || reason == SPELL_FAILED_SPELL_IN_PROGRESS)) {
         SpellRec autoRepeat;
 
         if (g_spellDB.GetRecord(s_autoRepeatingSpell, &autoRepeat) && (autoRepeat.m_attributesExC & 0x400000)) {
@@ -6444,14 +6445,14 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
 
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (player && reason != 27) {
+    if (player && reason != SPELL_FAILED_DONT_REPORT) {
         SI2::PlaySpellFizzleSound(spellId, player);
     }
 
     UIErrors error = GetSpellFailedError(reason, spell, misc1);
 
     if (player) {
-        if (reason == 52) {
+        if (reason == SPELL_FAILED_NEED_AMMO) {
             CGTutorial::TriggerTutorial(44);
         }
 
@@ -6463,35 +6464,35 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             autoRepeat = true;
         } else {
             switch (reason) {
-                case 47:
-                case 52:
-                case 53:
-                case 54:
-                case 97:
-                case 128:
-                case 134:
+                case SPELL_FAILED_LINE_OF_SIGHT:
+                case SPELL_FAILED_NEED_AMMO:
+                case SPELL_FAILED_NEED_AMMO_POUCH:
+                case SPELL_FAILED_NEED_EXOTIC_AMMO:
+                case SPELL_FAILED_OUT_OF_RANGE:
+                case SPELL_FAILED_TOO_CLOSE:
+                case SPELL_FAILED_UNIT_NOT_INFRONT:
                     player->CancelRangedMode();
                     break;
             }
         }
 
         if (autoRepeat) {
-            bool cancel = reason != 27;
+            bool cancel = reason != SPELL_FAILED_DONT_REPORT;
             bool check = true;
 
             if (spellId == s_autoRangedCombatSpell && resetCooldown) {
                 switch (reason) {
-                    case 11:
-                    case 12:
-                    case 23:
-                    case 28:
-                    case 29:
-                    case 30:
-                    case 31:
-                    case 52:
-                    case 97:
-                    case 128:
-                    case 134:
+                    case SPELL_FAILED_BAD_IMPLICIT_TARGETS:
+                    case SPELL_FAILED_BAD_TARGETS:
+                    case SPELL_FAILED_CASTER_DEAD:
+                    case SPELL_FAILED_EQUIPPED_ITEM:
+                    case SPELL_FAILED_EQUIPPED_ITEM_CLASS:
+                    case SPELL_FAILED_EQUIPPED_ITEM_CLASS_MAINHAND:
+                    case SPELL_FAILED_EQUIPPED_ITEM_CLASS_OFFHAND:
+                    case SPELL_FAILED_NEED_AMMO:
+                    case SPELL_FAILED_OUT_OF_RANGE:
+                    case SPELL_FAILED_TOO_CLOSE:
+                    case SPELL_FAILED_UNIT_NOT_INFRONT:
                         break;
 
                     default:
@@ -6504,13 +6505,13 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
                 Spell_C_CancelAutoRepeat(true);
 
                 switch (reason) {
-                    case 29:
-                    case 52:
-                    case 53:
-                    case 54:
-                    case 97:
-                    case 128:
-                    case 134:
+                    case SPELL_FAILED_EQUIPPED_ITEM_CLASS:
+                    case SPELL_FAILED_NEED_AMMO:
+                    case SPELL_FAILED_NEED_AMMO_POUCH:
+                    case SPELL_FAILED_NEED_EXOTIC_AMMO:
+                    case SPELL_FAILED_OUT_OF_RANGE:
+                    case SPELL_FAILED_TOO_CLOSE:
+                    case SPELL_FAILED_UNIT_NOT_INFRONT:
                         player->CancelRangedMode();
                         break;
                 }
@@ -6539,8 +6540,8 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
         s_lastFailedTime = now;
     }
 
-    if (reason == 27) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    if (reason == SPELL_FAILED_DONT_REPORT) {
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             HandleSpellFailedOrGo(unit, cast, spell, 27);
@@ -6552,7 +6553,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
 
     char format[1024];
     format[0] = 0;
-    bool pet = spell->m_effect[0] == 57 || (spell->m_effect[0] == 36 && spell->m_implicitTargetA[0] == 5);
+    bool pet = spell->m_effect[0] == SPELL_EFFECT_LEARN_PET_SPELL || (spell->m_effect[0] == SPELL_EFFECT_LEARN_SPELL && spell->m_implicitTargetA[0] == 5);
 
     if (pet) {
         char token[64];
@@ -6566,7 +6567,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
     }
 
     if (!format[0]) {
-        if (reason == 172) {
+        if (reason == SPELL_FAILED_CUSTOM_ERROR) {
             GetCustomSpellFailedString(format, sizeof(format), misc1);
             suppress = true;
         }
@@ -6592,7 +6593,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
     const char* message = format;
 
     switch (reason) {
-        case 4: {
+        case SPELL_FAILED_ALREADY_AT_FULL_POWER: {
             if (!player) {
                 Spell_C_FailPendingCast(cast, spell, 27);
                 return;
@@ -6617,9 +6618,9 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 29:
-        case 30:
-        case 31: {
+        case SPELL_FAILED_EQUIPPED_ITEM_CLASS:
+        case SPELL_FAILED_EQUIPPED_ITEM_CLASS_MAINHAND:
+        case SPELL_FAILED_EQUIPPED_ITEM_CLASS_OFFHAND: {
             bool found = false;
 
             for (int32_t i = 0; i < g_itemSubClassMaskDB.m_numRecords; i++) {
@@ -6645,7 +6646,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 54: {
+        case SPELL_FAILED_NEED_EXOTIC_AMMO: {
             ItemSubClassRec* rec = FindAnyItemSubclassRec(6, 1 << misc1);
 
             if (rec) {
@@ -6656,7 +6657,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 55: {
+        case SPELL_FAILED_NEED_MORE_ITEMS: {
             WOWGUID guid = { static_cast<uint64_t>(static_cast<int64_t>(spellId)) | 0x1FE0000000000000ull };
             ItemStats_C* stats = g_itemDBCache.GetRecord(misc1, guid, SpellMissingItemsCallback, reinterpret_cast<void*>(static_cast<intptr_t>(misc2)), false);
 
@@ -6670,7 +6671,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 85: {
+        case SPELL_FAILED_NO_POWER: {
             PowerDisplayRec* display = g_powerDisplayDB.GetRecord(spell->m_powerDisplayID);
 
             if (display) {
@@ -6688,7 +6689,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 94: {
+        case SPELL_FAILED_ONLY_SHAPESHIFT: {
             uint32_t count = g_spellShapeshiftFormDB.m_numRecords;
 
             if (count > 64) {
@@ -6733,9 +6734,9 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 100:
-        case 131: {
-            if (reason == 100 && misc1 == -2) {
+        case SPELL_FAILED_REAGENTS:
+        case SPELL_FAILED_TOTEMS: {
+            if (reason == SPELL_FAILED_REAGENTS && misc1 == -2) {
                 error = static_cast<UIErrors>(0);
                 text[0] = 0;
                 message = text;
@@ -6755,7 +6756,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 101: {
+        case SPELL_FAILED_REQUIRES_AREA: {
             AreaTableRec* area = g_areaTableDB.GetRecord(misc1);
 
             if (area) {
@@ -6766,7 +6767,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 102: {
+        case SPELL_FAILED_REQUIRES_SPELL_FOCUS: {
             SpellFocusObjectRec* focus = g_spellFocusObjectDB.GetRecord(misc1);
 
             if (focus) {
@@ -6777,7 +6778,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 129: {
+        case SPELL_FAILED_TOO_MANY_OF_ITEM: {
             if (!misc1) {
                 break;
             }
@@ -6794,7 +6795,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 130: {
+        case SPELL_FAILED_TOTEM_CATEGORY: {
             TotemCategoryRec* totem = g_totemCategoryDB.GetRecord(misc1);
 
             if (!totem) {
@@ -6807,7 +6808,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 147: {
+        case SPELL_FAILED_PREVENTED_BY_MECHANIC: {
             SpellMechanicRec* mechanic = g_spellMechanicDB.GetRecord(misc1);
 
             if (mechanic) {
@@ -6818,18 +6819,18 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 150: {
+        case SPELL_FAILED_MIN_SKILL: {
             SkillLineRec* skill = g_skillLineDB.GetRecord(misc1);
             SStrPrintf(text, sizeof(text), format, skill ? skill->m_displayName : "UNKNOWN", misc2);
             message = text;
             break;
         }
 
-        case 176: {
-            CGObject_C* object = ClntObjMgrObjectPtr(cast->m_data.m_castItem, TYPEMASK_OBJECT, __FILE__, __LINE__);
+        case SPELL_FAILED_UNIQUE_GLYPH: {
+            CGObject_C* object = ClntObjMgrObjectPtr(cast->m_data.m_castItem, TYPE_OBJECT, __FILE__, __LINE__);
             const char* name = spell->m_name;
 
-            if (object && (object->m_obj->m_type & TYPEMASK_ITEM)) {
+            if (object && (object->m_obj->m_type & TYPE_ITEM)) {
                 WOWGUID none = { 0 };
                 ItemStats_C* stats = g_itemDBCache.GetRecord(object->m_obj->m_entryID, none, nullptr, nullptr, false);
 
@@ -6842,7 +6843,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             break;
         }
 
-        case 181:
+        case SPELL_FAILED_FISHING_TOO_LOW:
             SStrPrintf(text, sizeof(text), format, misc1);
             message = text;
             break;
@@ -6858,7 +6859,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
         }
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, spell, reason);
@@ -6996,7 +6997,7 @@ bool Spell_C_IsActivePlayerCasting() {
 bool OnCancelCombat() {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (!player || !(player->m_obj->m_type & TYPEMASK_PLAYER) || !(player->m_combatModeFlags & 0x4)) {
+    if (!player || !(player->m_obj->m_type & TYPE_PLAYER) || !(player->m_combatModeFlags & 0x4)) {
         return false;
     }
 
@@ -7048,7 +7049,7 @@ bool Spell_C_HaveSpellTokens(CGUnit_C* unit, const SpellRec* spell, bool report,
     for (uint32_t i = 0; i < sizeof(spell->m_totem) / sizeof(spell->m_totem[0]); i++) {
         if (spell->m_totem[i] && !player->m_bag.FindItemOfType(spell->m_totem[i], 0)) {
             if (report) {
-                Spell_C_SpellFailed(cast, spell, 131, spell->m_totem[i], -1, false);
+                Spell_C_SpellFailed(cast, spell, SPELL_FAILED_TOTEMS, spell->m_totem[i], -1, false);
             }
 
             return false;
@@ -7058,7 +7059,7 @@ bool Spell_C_HaveSpellTokens(CGUnit_C* unit, const SpellRec* spell, bool report,
     for (uint32_t i = 0; i < sizeof(spell->m_requiredTotemCategoryID) / sizeof(spell->m_requiredTotemCategoryID[0]); i++) {
         if (spell->m_requiredTotemCategoryID[i] && !player->m_bag.FindTotemCategory(spell->m_requiredTotemCategoryID[i], 0)) {
             if (report) {
-                Spell_C_SpellFailed(cast, spell, 130, spell->m_requiredTotemCategoryID[i], -1, false);
+                Spell_C_SpellFailed(cast, spell, SPELL_FAILED_TOTEM_CATEGORY, spell->m_requiredTotemCategoryID[i], -1, false);
             }
 
             return false;
@@ -7089,7 +7090,7 @@ bool Spell_C_HaveSpellTokens(CGUnit_C* unit, const SpellRec* spell, bool report,
 
         if (count < needed) {
             if (report) {
-                Spell_C_SpellFailed(cast, spell, 100, spell->m_reagent[i], -1, false);
+                Spell_C_SpellFailed(cast, spell, SPELL_FAILED_REAGENTS, spell->m_reagent[i], -1, false);
             }
 
             return false;
@@ -7153,7 +7154,7 @@ bool Spell_C_HaveEquippedSpellItems(CGUnit_C* unit, const SpellRec* spell, bool 
 
     if ((spell->m_attributesExC & 0x1000400) == 0x1000400 && !player->EquippedItemMeetSpellRequirements(spell, 0x10000)) {
         if (report) {
-            Spell_C_SpellFailed(cast, spell, 31, spell->m_equippedItemClass, spell->m_equippedItemSubclass, false);
+            Spell_C_SpellFailed(cast, spell, SPELL_FAILED_EQUIPPED_ITEM_CLASS_OFFHAND, spell->m_equippedItemClass, spell->m_equippedItemSubclass, false);
         }
 
         return false;
@@ -7193,7 +7194,7 @@ bool Spell_C_HaveEquippedSpellItems(CGUnit_C* unit, const SpellRec* spell, bool 
 
     if (!CGCharacterInfo::GetActivePlayerAmmoID(player)) {
         if (report) {
-            Spell_C_SpellFailed(cast, spell, 52, ammoType, -1, false);
+            Spell_C_SpellFailed(cast, spell, SPELL_FAILED_NEED_AMMO, ammoType, -1, false);
         }
 
         return false;
@@ -7206,7 +7207,7 @@ bool Spell_C_HaveEquippedSpellItems(CGUnit_C* unit, const SpellRec* spell, bool 
 
     if (!player->m_bag.FindItem(FindAmmoByType, &search, 0)) {
         if (report) {
-            Spell_C_SpellFailed(cast, spell, 52, ammoType, -1, false);
+            Spell_C_SpellFailed(cast, spell, SPELL_FAILED_NEED_AMMO, ammoType, -1, false);
         }
 
         return false;
@@ -7222,7 +7223,7 @@ bool Spell_C_RangeCheckSelected(CGUnit_C* caster, const SpellRec* spell, WOWGUID
         target = CGGameUI::m_lockedTarget;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(target, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(target, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         return false;
@@ -7294,7 +7295,7 @@ bool Spell_C_RangeCheckSelected(CGUnit_C* caster, const SpellRec* spell, WOWGUID
     }
 
     if (pet && !(needTargets & 0x2)) {
-        object = ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_OBJECT, __FILE__, __LINE__);
+        object = ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_OBJECT, __FILE__, __LINE__);
 
         if (!object) {
             return false;
@@ -7307,7 +7308,7 @@ bool Spell_C_RangeCheckSelected(CGUnit_C* caster, const SpellRec* spell, WOWGUID
     uint32_t type = object->m_obj->m_type;
     bool check = false;
 
-    if (type & TYPEMASK_UNIT) {
+    if (type & TYPE_UNIT) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(object);
 
         if (spell->m_attributesExE & 0x800) {
@@ -7348,24 +7349,24 @@ bool Spell_C_RangeCheckSelected(CGUnit_C* caster, const SpellRec* spell, WOWGUID
             check = true;
         } else if ((needTargets & 0x2) && !(unit->m_unit->m_unitFieldFlags & 0x100)) {
             check = true;
-        } else if ((needTargets & 0x8000) && unit->m_unit->m_unitFieldHealth <= 0 && ((unit->m_obj->m_type & TYPEMASK_PLAYER) || unit->m_unit->m_unitFieldPetnumber)) {
+        } else if ((needTargets & 0x8000) && unit->m_unit->m_unitFieldHealth <= 0 && ((unit->m_obj->m_type & TYPE_PLAYER) || unit->m_unit->m_unitFieldPetnumber)) {
             if (!caster->CanAssist(unit, false)) {
                 return false;
             }
 
             check = true;
-        } else if ((needTargets & 0x200) && unit->m_unit->m_unitFieldHealth <= 0 && (unit->m_obj->m_type & TYPEMASK_PLAYER) && !caster->CanAssist(unit, false)) {
+        } else if ((needTargets & 0x200) && unit->m_unit->m_unitFieldHealth <= 0 && (unit->m_obj->m_type & TYPE_PLAYER) && !caster->CanAssist(unit, false)) {
             check = true;
         } else {
             return false;
         }
-    } else if (type & TYPEMASK_GAMEOBJECT) {
+    } else if (type & TYPE_GAMEOBJECT) {
         if (!(needTargets & 0x4800)) {
             return false;
         }
 
         check = true;
-    } else if (type & TYPEMASK_CORPSE) {
+    } else if (type & TYPE_CORPSE) {
         const CGCorpse_C* corpse = static_cast<const CGCorpse_C*>(object);
 
         if ((needTargets & 0x8000) && !(corpse->m_corpse->m_corpseFieldFlags & 0x1) && caster->CanAssist(corpse)) {
@@ -7388,9 +7389,9 @@ bool Spell_C_RangeCheckSelected(CGUnit_C* caster, const SpellRec* spell, WOWGUID
 
     if (!result && report) {
         if (flag) {
-            Spell_C_SpellFailed(cast, spell, 97, -1, -1, false);
+            Spell_C_SpellFailed(cast, spell, SPELL_FAILED_OUT_OF_RANGE, -1, -1, false);
         } else {
-            Spell_C_SpellFailed(cast, spell, 128, -1, -1, false);
+            Spell_C_SpellFailed(cast, spell, SPELL_FAILED_TOO_CLOSE, -1, -1, false);
         }
     }
 
@@ -7431,7 +7432,7 @@ static int32_t Spell_C_Idle(const void* data, void* param) {
             continue;
         }
 
-        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(trigger->m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(trigger->m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
         if (caster) {
             WOWGUID none = { 0 };
@@ -7523,7 +7524,7 @@ int32_t Packet_SMSG_NOTIFY_DEST_LOC_SPELL_CAST(void* param, NETMESSAGE msgId, ui
 // VERIFY: 97984ce5 manual
 // OFFSET: 0x007FFAC0
 static bool CheckEnchantItemLevel(const PendingSpellCast* cast, const SpellRec* spell, const ItemStats_C* stats, const CGItem_C* item, int32_t* reason) {
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
         *reason = 27;
@@ -7532,7 +7533,7 @@ static bool CheckEnchantItemLevel(const PendingSpellCast* cast, const SpellRec* 
 
     int32_t maxLevel = 0;
 
-    if (cast->m_data.m_castItem != caster->m_obj->m_guid && item && (item->m_obj->m_type & TYPEMASK_ITEM)) {
+    if (cast->m_data.m_castItem != caster->m_obj->m_guid && item && (item->m_obj->m_type & TYPE_ITEM)) {
         maxLevel = spell->m_maxLevel;
     }
 
@@ -7558,7 +7559,7 @@ static bool CheckItemRequirement(const PendingSpellCast* cast, const SpellRec* s
         return true;
     }
 
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(itemGuid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(itemGuid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!item) {
         *reason = 178;
@@ -7575,7 +7576,7 @@ static bool CheckItemRequirement(const PendingSpellCast* cast, const SpellRec* s
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
         int32_t effect = spell->m_effect[i];
 
-        if ((effect == 53 || effect == 54 || effect == 156) && !CheckEnchantItemLevel(cast, spell, stats, item, reason)) {
+        if ((effect == SPELL_EFFECT_ENCHANT_ITEM || effect == SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY || effect == SPELL_EFFECT_ENCHANT_ITEM_PRISMATIC) && !CheckEnchantItemLevel(cast, spell, stats, item, reason)) {
             return false;
         }
     }
@@ -7601,7 +7602,7 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
             CGUnit_C* target = targets[i - 1];
             i--;
 
-            if (!target || !(target->m_obj->m_type & TYPEMASK_UNIT)) {
+            if (!target || !(target->m_obj->m_type & TYPE_UNIT)) {
                 continue;
             }
 
@@ -7642,7 +7643,7 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
             CGUnit_C* target = targets[i - 1];
             i--;
 
-            if (target && (target->m_obj->m_type & TYPEMASK_UNIT) && !(target->m_unit->m_unitFieldFlags & 0x80000)) {
+            if (target && (target->m_obj->m_type & TYPE_UNIT) && !(target->m_unit->m_unitFieldFlags & 0x80000)) {
                 valid++;
             }
         } while (i);
@@ -7657,11 +7658,11 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
     bool steal = false;
 
     for (uint32_t j = 0; j < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); j++) {
-        if (spell->m_effect[j] == 38 || spell->m_effect[j] == 108) {
+        if (spell->m_effect[j] == SPELL_EFFECT_DISPEL || spell->m_effect[j] == SPELL_EFFECT_DISPEL_MECHANIC) {
             dispel = true;
         }
 
-        if (spell->m_effect[j] == 126) {
+        if (spell->m_effect[j] == SPELL_EFFECT_STEAL_BENEFICIAL_BUFF) {
             steal = true;
         }
     }
@@ -7678,20 +7679,20 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
         CGUnit_C* target = targets[i - 1];
         i--;
 
-        if (!target || !(target->m_obj->m_type & TYPEMASK_UNIT)) {
+        if (!target || !(target->m_obj->m_type & TYPE_UNIT)) {
             continue;
         }
 
         for (uint32_t j = 0; j < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); j++) {
             int32_t effect = spell->m_effect[j];
 
-            if (effect != 38 && effect != 108 && effect != 126) {
+            if (effect != SPELL_EFFECT_DISPEL && effect != SPELL_EFFECT_DISPEL_MECHANIC && effect != SPELL_EFFECT_STEAL_BENEFICIAL_BUFF) {
                 continue;
             }
 
             int32_t misc = spell->m_effectMiscValue[j];
-            bool mechanic = effect == 108;
-            bool isSteal = effect == 126;
+            bool mechanic = effect == SPELL_EFFECT_DISPEL_MECHANIC;
+            bool isSteal = effect == SPELL_EFFECT_STEAL_BENEFICIAL_BUFF;
             int32_t harmful;
 
             if (spell->m_attributesEx & 0x10000) {
@@ -7720,7 +7721,7 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
         for (uint32_t j = 0; j < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); j++) {
             int32_t effect = spell->m_effect[j];
 
-            if (effect && effect != 38 && effect != 108 && effect != 126) {
+            if (effect && effect != SPELL_EFFECT_DISPEL && effect != SPELL_EFFECT_DISPEL_MECHANIC && effect != SPELL_EFFECT_STEAL_BENEFICIAL_BUFF) {
                 return true;
             }
         }
@@ -7734,7 +7735,7 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
 // OFFSET: 0x00809F80
 int32_t Spell_C_PrepareMissileTrajectoryCast(CGUnit_C* caster, PendingSpellCast* cast, const SpellRec* spell, const TSStackArray<CGUnit_C*>* targets, float* pitch, float* speed) {
     if (caster->IsUpdatingMissileTrajectory()) {
-        Spell_C_SpellFailed(cast, spell, 105, -1, -1, false);
+        Spell_C_SpellFailed(cast, spell, SPELL_FAILED_SPELL_IN_PROGRESS, -1, -1, false);
         return 0;
     }
 
@@ -7755,7 +7756,7 @@ int32_t Spell_C_PrepareMissileTrajectoryCast(CGUnit_C* caster, PendingSpellCast*
 
     if (playNow) {
         if (s_delayedTrajectoryCast || (kit && kit->m_animID >= 0 && caster->m_specialIdleAnim == kit->m_animID)) {
-            Spell_C_SpellFailed(cast, spell, 105, -1, -1, false);
+            Spell_C_SpellFailed(cast, spell, SPELL_FAILED_SPELL_IN_PROGRESS, -1, -1, false);
             return 0;
         }
 
@@ -7780,7 +7781,7 @@ int32_t Spell_C_PrepareMissileTrajectoryCast(CGUnit_C* caster, PendingSpellCast*
 
     if (!caster->ComputeMissileTrajectory(spell, pitch, speed, &launch, &impact, &time, nullptr, nullptr, 0)) {
         ConsoleWrite("Could not compute missile trajectory", DEFAULT_COLOR);
-        Spell_C_SpellFailed(cast, spell, 32, -1, -1, false);
+        Spell_C_SpellFailed(cast, spell, SPELL_FAILED_ERROR, -1, -1, false);
         return 0;
     }
 
@@ -7828,9 +7829,9 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
         s_spellWorldModel = nullptr;
     }
 
-    CursorSetResetMode(1);
-    CursorSetMode(1);
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CursorSetResetMode(POINT_CURSOR);
+    CursorSetMode(POINT_CURSOR);
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
         if (cast == s_targetingSpell) {
@@ -7845,7 +7846,7 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
     }
 
     if (!castItem) {
-        CGSpellBook::GetAppropriateSpellRank(&cast->m_data.m_spellId, caster, static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_objectTarget, TYPEMASK_UNIT, __FILE__, __LINE__)));
+        CGSpellBook::GetAppropriateSpellRank(&cast->m_data.m_spellId, caster, static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_objectTarget, TYPE_UNIT, __FILE__, __LINE__)));
     }
 
     SpellRec spell;
@@ -7863,7 +7864,7 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
     }
 
     if (cast->m_data.m_objectTarget) {
-        targets.m_data[targets.m_count++] = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_objectTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+        targets.m_data[targets.m_count++] = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_objectTarget, TYPE_UNIT, __FILE__, __LINE__));
     }
 
     int32_t reason;
@@ -7875,16 +7876,16 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
 
     if (!(spell.m_attributes & 0x8000000) && caster->GetClientStandState()) {
         if (!caster->CanAutoStand()) {
-            Spell_C_SpellFailed(cast, &spell, 69, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_NOT_STANDING, -1, -1, false);
             return;
         }
 
-        caster->ChangeStandState(0);
+        caster->ChangeStandState(UNIT_STANDING);
     }
 
     if (!(spell.m_attributes & 0x1000000) && static_cast<int32_t>(caster->m_unit->m_unitFieldMountdisplayid) > 0 && !caster->MountedCombatAllowed() && caster->m_mountDisplayId > 0 && !(caster->m_clientFlags & 0x10000000)) {
         if (!caster->CanAutoDismount()) {
-            Spell_C_SpellFailed(cast, &spell, 64, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_NOT_MOUNTED, -1, -1, false);
             return;
         }
 
@@ -7905,7 +7906,7 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
     }
 
     for (uint32_t i = 0; i < sizeof(spell.m_effectAura) / sizeof(spell.m_effectAura[0]); i++) {
-        if (spell.m_effectAura[i] == 78) {
+        if (spell.m_effectAura[i] == SPELL_AURA_MOUNTED) {
             if (!caster->CanCurrentFormMount() && caster->CanAutoUnshift()) {
                 caster->CancelShapeshiftForMount();
             }
@@ -7917,12 +7918,12 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
     if (caster->m_movement->m_flags & 0x2000000) {
         if ((static_cast<int32_t>(caster->m_unit->m_unitFieldMountdisplayid) > 0 && (caster->m_mountDisplayId <= 0 || (caster->m_clientFlags & 0x10000000))) || caster->m_shapeshiftSuppressed) {
             if ((spell.m_attributesEx & 0x44) && (spell.m_channelInterruptFlags & 0x18)) {
-                Spell_C_SpellFailed(cast, &spell, 51, -1, -1, false);
+                Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_MOVING, -1, -1, false);
                 return;
             }
 
             if ((spell.m_interruptFlags & 0x1) && !(spell.m_attributesExB & 0x20) && (SpellRec::GetCastTime(&spell, caster->m_unit->m_unitFieldPetnumber != 0, 0, 0) || (spell.m_auraInterruptFlags & 0x18))) {
-                Spell_C_SpellFailed(cast, &spell, 51, -1, -1, false);
+                Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_MOVING, -1, -1, false);
                 return;
             }
         }
@@ -7932,19 +7933,19 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
     uint8_t castFlags = 0;
 
     if (castItem) {
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(castItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(castItem, TYPE_ITEM, __FILE__, __LINE__));
 
         if (!item) {
             ConsoleWrite("Casting item not found", DEFAULT_COLOR);
-            Spell_C_SpellFailed(cast, &spell, 32, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_ERROR, -1, -1, false);
             return;
         }
 
-        CGObject_C* container = ClntObjMgrObjectPtr(item->m_item->m_itemFieldContained, TYPEMASK_OBJECT, __FILE__, __LINE__);
+        CGObject_C* container = ClntObjMgrObjectPtr(item->m_item->m_itemFieldContained, TYPE_OBJECT, __FILE__, __LINE__);
 
         if (!container) {
             ConsoleWrite("Casting item's container not found", DEFAULT_COLOR);
-            Spell_C_SpellFailed(cast, &spell, 32, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_ERROR, -1, -1, false);
             return;
         }
 
@@ -7952,22 +7953,22 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
 
         if (slot < 0) {
             ConsoleWrite("Casting item not found in container", DEFAULT_COLOR);
-            Spell_C_SpellFailed(cast, &spell, 32, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_ERROR, -1, -1, false);
             return;
         }
 
-        CGPlayer_C* owner = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(item->m_item->m_itemFieldOwner, TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGPlayer_C* owner = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(item->m_item->m_itemFieldOwner, TYPE_PLAYER, __FILE__, __LINE__));
 
         if (!owner) {
             ConsoleWrite("Active player not found", DEFAULT_COLOR);
-            Spell_C_SpellFailed(cast, &spell, 32, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_ERROR, -1, -1, false);
             return;
         }
 
         uint8_t bag = owner->FindSlotIndex(item->m_item->m_itemFieldContained);
 
         if (item->GetInventoryType() && (bag != 0xFF || slot > 18)) {
-            Spell_C_SpellFailed(cast, &spell, 28, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_EQUIPPED_ITEM, -1, -1, false);
             return;
         }
 
@@ -7990,12 +7991,12 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
     }
 
     SpellMissileRec* missile = g_spellMissileDB.GetRecord(spell.m_spellMissileID);
-    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
     if (missile && (missile->m_flags & 0x1)) {
         if (mover != caster) {
             ConsoleWrite("Missile trajectory does not have active mover caster", DEFAULT_COLOR);
-            Spell_C_SpellFailed(cast, &spell, 27, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_DONT_REPORT, -1, -1, false);
             return;
         }
 
@@ -8217,7 +8218,7 @@ static bool Spell_C_BeginCast(CGUnit_C* caster, const SpellRec* spell, WOWGUID t
     }
 
     if (spell->m_attributesExE & 0x800) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPE_UNIT, __FILE__, __LINE__));
         CGUnit_C* implied = unit ? Spell_C_TargetImpliedTarget(unit, spell, s_needTargets, caster) : nullptr;
 
         if (implied) {
@@ -8235,12 +8236,12 @@ static bool Spell_C_BeginCast(CGUnit_C* caster, const SpellRec* spell, WOWGUID t
         return false;
     }
 
-    if ((caster->m_obj->m_type & TYPEMASK_PLAYER) && (spell->m_attributes & 0x200)) {
+    if ((caster->m_obj->m_type & TYPE_PLAYER) && (spell->m_attributes & 0x200)) {
         CGPlayer_C* player = static_cast<CGPlayer_C*>(caster);
         bool found = false;
 
         for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-            if (spell->m_effect[i] != 54) {
+            if (spell->m_effect[i] != SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY) {
                 continue;
             }
 
@@ -8317,7 +8318,7 @@ static bool Spell_C_BeginCast(CGUnit_C* caster, const SpellRec* spell, WOWGUID t
         target = CGGameUI::m_lockedTarget;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(target, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(target, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (target && !object) {
         float minRange;
@@ -8339,7 +8340,7 @@ static bool Spell_C_BeginCast(CGUnit_C* caster, const SpellRec* spell, WOWGUID t
         return false;
     }
 
-    if (target && (!object || !(object->m_obj->m_type & TYPEMASK_UNIT) || caster->CanAssist(static_cast<CGUnit_C*>(object), false))) {
+    if (target && (!object || !(object->m_obj->m_type & TYPE_UNIT) || caster->CanAssist(static_cast<CGUnit_C*>(object), false))) {
         return false;
     }
 
@@ -8378,7 +8379,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
             owner = &data->m_unitFieldCreatedby;
         }
 
-        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*owner, TYPEMASK_UNIT, __FILE__, __LINE__));
+        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*owner, TYPE_UNIT, __FILE__, __LINE__));
     }
 
     if (!unit || unit->IsAlteredFormTransitionPreventingMovement()) {
@@ -8395,19 +8396,19 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
     cast->m_petGuid = petGuid;
     bool melee;
 
-    if (spell.m_effect[0] == 78 || (spell.m_attributes & 0x2) || (spell.m_attributesExB & 0x20)) {
+    if (spell.m_effect[0] == SPELL_EFFECT_ATTACK || (spell.m_attributes & 0x2) || (spell.m_attributesExB & 0x20)) {
         melee = true;
     } else {
         melee = false;
 
-        if (!item && (unit->m_obj->m_type & TYPEMASK_PLAYER)) {
+        if (!item && (unit->m_obj->m_type & TYPE_PLAYER)) {
             int16_t overrideId = static_cast<int16_t>(static_cast<CGPlayer_C*>(unit)->m_player->m_playerFieldBytes2);
 
             if (overrideId) {
                 OverrideSpellDataRec* rec = g_overrideSpellDataDB.GetRecord(overrideId);
 
                 if (rec && !(rec->m_flags & 0x4) && !Spell_C_IsOverride(spellId, rec)) {
-                    Spell_C_SpellFailed(cast, &spell, 173, -1, -1, false);
+                    Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW, -1, -1, false);
                     return false;
                 }
             }
@@ -8419,7 +8420,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         s_meleeTutorialCount = 0;
     }
 
-    if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && s_meleeTutorialActive && IsTutorialFlagged(5)) {
+    if ((unit->m_obj->m_type & TYPE_PLAYER) && s_meleeTutorialActive && IsTutorialFlagged(5)) {
         if (melee) {
             s_meleeTutorialCount++;
         } else {
@@ -8433,7 +8434,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
 
     if (unit->HasVehicleTransport()) {
         WOWGUID transport = { unit->GetTransportGUID() };
-        CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(transport, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(transport, TYPE_UNIT, __FILE__, __LINE__));
 
         if (vehicle) {
             VehicleSeatRec* seat = vehicle->GetVehicleSeatRec(unit->m_movementData.m_transportSeat);
@@ -8454,11 +8455,11 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
                 }
 
                 if (!(spell.m_attributesExF & 0x1000) && !(spell.m_attributes & 0x1000000) && (seat->m_flags & required) != required) {
-                    Spell_C_SpellFailed(cast, &spell, 173, -1, -1, false);
+                    Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW, -1, -1, false);
                     return false;
                 }
 
-                if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && (seat->m_flags & 0x40000800)) {
+                if ((unit->m_obj->m_type & TYPE_PLAYER) && (seat->m_flags & 0x40000800)) {
                     for (uint32_t i = 0; i < sizeof(spell.m_effect) / sizeof(spell.m_effect[0]); i++) {
                         for (int32_t j = 0; j < 4; j++) {
                             if (spell.m_effect[i] != j) {
@@ -8468,7 +8469,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
                             SummonPropertiesRec* properties = g_summonPropertiesDB.GetRecord(spell.m_effectMiscValueB[i]);
 
                             if (properties && properties->m_control) {
-                                Spell_C_SpellFailed(cast, &spell, 173, -1, -1, false);
+                                Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW, -1, -1, false);
                                 return false;
                             }
                         }
@@ -8480,8 +8481,8 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
 
     int32_t effect = spell.m_effect[0];
 
-    if (effect != 83 && effect != 152 && effect != 162 && !CGSpellBook::IsTrackingSpell(spellId) && !SpellRec::WillSummonCritter(&spell)) {
-        uint32_t action = spell.m_effect[0] == 47 || (spell.m_attributes & 0x20) ? 6 : 2;
+    if (effect != SPELL_EFFECT_DUEL && effect != SPELL_EFFECT_SUMMON_RAF_FRIEND && effect != SPELL_EFFECT_TALENT_SPEC_SELECT && !CGSpellBook::IsTrackingSpell(spellId) && !SpellRec::WillSummonCritter(&spell)) {
+        uint32_t action = spell.m_effect[0] == SPELL_EFFECT_TRADE_SKILL || (spell.m_attributes & 0x20) ? 6 : 2;
 
         if (!CGGameUI::CanPerformAction(action)) {
             ReleasePendingSpellCast(cast);
@@ -8496,34 +8497,34 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         return false;
     }
 
-    if (effect == 47) {
+    if (effect == SPELL_EFFECT_TRADE_SKILL) {
         CGTradeSkillInfo::SetTradeSkill(spell.m_id, unit->m_obj->m_guid, 0, 0, 0);
         Spell_C_FailPendingCast(cast, &spell, 187);
         return false;
     }
 
-    if (unit->m_obj->m_type & TYPEMASK_PLAYER) {
+    if (unit->m_obj->m_type & TYPE_PLAYER) {
         uint32_t flags = static_cast<CGPlayer_C*>(unit)->m_player->m_playerFlags;
 
         if (flags & 0x1000000) {
             if (melee || Spell_C_IsRestrictedAbility(&spell)) {
-                Spell_C_SpellFailed(cast, &spell, 173, -1, -1, false);
+                Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW, -1, -1, false);
                 return false;
             }
         } else if (!melee && (flags & 0x800000)) {
-            Spell_C_SpellFailed(cast, &spell, 173, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW, -1, -1, false);
             return false;
         }
     }
 
     if (unit->IsDeadOrGhost() && !(spell.m_attributes & 0x800000)) {
-        Spell_C_SpellFailed(cast, &spell, 23, -1, -1, false);
+        Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_CASTER_DEAD, -1, -1, false);
         return false;
     }
 
     effect = spell.m_effect[0];
 
-    if (effect == 78) {
+    if (effect == SPELL_EFFECT_ATTACK) {
         if (unit->OnAttackIconPressed(target, 0)) {
             Spell_C_FailPendingCast(cast, &spell, 187);
             return false;
@@ -8534,13 +8535,13 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         return false;
     }
 
-    if ((effect == 99 || effect == 127 || effect == 158) && unit->GetComboPointTarget()) {
-        Spell_C_SpellFailed(cast, &spell, 74, -1, -1, false);
+    if ((effect == SPELL_EFFECT_DISENCHANT || effect == SPELL_EFFECT_PROSPECTING || effect == SPELL_EFFECT_MILLING) && unit->GetComboPointTarget()) {
+        Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_NOT_WHILE_LOOTING, -1, -1, false);
         return false;
     }
 
-    if (((effect == 53 || effect == 54 || effect == 92 || effect == 156) && unit->GetComboPointTarget()) || unit->m_mountTransitionSpellId) {
-        Spell_C_SpellFailed(cast, &spell, 105, -1, -1, false);
+    if (((effect == SPELL_EFFECT_ENCHANT_ITEM || effect == SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY || effect == SPELL_EFFECT_ENCHANT_HELD_ITEM || effect == SPELL_EFFECT_ENCHANT_ITEM_PRISMATIC) && unit->GetComboPointTarget()) || unit->m_mountTransitionSpellId) {
+        Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_SPELL_IN_PROGRESS, -1, -1, false);
         return false;
     }
 
@@ -8567,7 +8568,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
     }
 
     if ((spell.m_attributesExG & 0x8) && !(unit->m_unit->m_unitFieldFlags2 & 0x40000)) {
-        Spell_C_SpellFailed(cast, &spell, 107, -1, -1, false);
+        Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_SPELL_UNAVAILABLE, -1, -1, false);
         return false;
     }
 
@@ -8585,14 +8586,14 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         bool usable;
 
         if (unit->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
-            CGItem_C* weapon = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ static_cast<CGPlayer_C*>(unit)->m_bag.GetItemGuid(17) }, TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* weapon = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ static_cast<CGPlayer_C*>(unit)->m_bag.GetItemGuid(17) }, TYPE_ITEM, __FILE__, __LINE__));
             usable = weapon && weapon->IsUsable();
         } else {
-            usable = unit->GetVirtualItem(2, false) != nullptr;
+            usable = unit->GetVirtualItem(VIRTUAL_MONSTER_SLOT_RANGED, false) != nullptr;
         }
 
         if (!usable) {
-            Spell_C_SpellFailed(cast, &spell, 28, spell.m_equippedItemClass, spell.m_equippedItemSubclass, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_EQUIPPED_ITEM, spell.m_equippedItemClass, spell.m_equippedItemSubclass, false);
             return false;
         }
     }
@@ -8607,7 +8608,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         }
 
         if (noComboPoints && !unit->IgnoresAuraState(&spell)) {
-            Spell_C_SpellFailed(cast, &spell, unit->m_unit->m_unitFieldBytes0[1] == 1 ? 22 : 78, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, unit->m_unit->m_unitFieldBytes0[1] == 1 ? SPELL_FAILED_CASTER_AURASTATE : SPELL_FAILED_NO_COMBO_POINTS, -1, -1, false);
             return false;
         }
     }
@@ -8650,23 +8651,23 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
 
     if (!Spell_C_BeginCast(unit, &spell, target, cast, confirmed)) {
         if (target.m_guid == 0xFFFFFFFFFFFFFFFEull) {
-            Spell_C_SpellFailed(cast, &spell, 11, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_BAD_IMPLICIT_TARGETS, -1, -1, false);
             return false;
         }
 
-        if ((spell.m_attributes & 0x200) && (!(unit->m_obj->m_type & TYPEMASK_PLAYER) || !static_cast<CGPlayer_C*>(unit)->m_bag.GetItemGuid(15))) {
-            Spell_C_SpellFailed(cast, &spell, 50, -1, -1, false);
+        if ((spell.m_attributes & 0x200) && (!(unit->m_obj->m_type & TYPE_PLAYER) || !static_cast<CGPlayer_C*>(unit)->m_bag.GetItemGuid(15))) {
+            Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_MAINHAND_EMPTY, -1, -1, false);
             return false;
         }
 
         if ((s_needTargets & 0x80) && (static_cast<uint32_t>(target.m_guid) & static_cast<uint32_t>(target.m_guid >> 32)) != 0xFFFFFFFF && (!(spell.m_attributesExE & 0x800) || !(s_needTargets & 0x10C))) {
-            Spell_C_SpellFailed(cast, &spell, CGGameUI::m_lockedTarget ? 12 : 11, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, CGGameUI::m_lockedTarget ? SPELL_FAILED_BAD_TARGETS : SPELL_FAILED_BAD_IMPLICIT_TARGETS, -1, -1, false);
             return false;
         }
 
         s_targetingSpell = cast;
-        CursorSetResetMode(2);
-        CursorSetMode(28);
+        CursorSetResetMode(CAST_CURSOR);
+        CursorSetMode(CAST_ERROR_CURSOR);
         CGSpellBook::UpdateSelection();
         CGInputControl* input = CGInputControl::GetActive();
         input->m_mouseModeFlags |= 0x10;
@@ -8678,8 +8679,8 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         for (uint32_t i = 0; i < sizeof(spell.m_effect) / sizeof(spell.m_effect[0]); i++) {
             int32_t objectEffect = spell.m_effect[i];
 
-            if (objectEffect == 50 || objectEffect == 104 || objectEffect == 105 || objectEffect == 106 || objectEffect == 107 || objectEffect == 76 || objectEffect == 81) {
-                if (objectEffect == 81) {
+            if (objectEffect == SPELL_EFFECT_TRANS_DOOR || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_SLOT1 || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_SLOT2 || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_SLOT3 || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_SLOT4 || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_WILD || objectEffect == SPELL_EFFECT_CREATE_HOUSE) {
+                if (objectEffect == SPELL_EFFECT_CREATE_HOUSE) {
                     s_cursorWorldObjectHousing = 1;
                 }
 
@@ -8751,7 +8752,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
         return false;
     }
 
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
         return false;
@@ -8765,8 +8766,8 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
 
     uint32_t needTargets = s_needTargets;
 
-    if (spell.m_effect[0] != 83) {
-        uint32_t action = spell.m_effect[0] == 47 || (spell.m_attributes & 0x20) ? 6 : 2;
+    if (spell.m_effect[0] != SPELL_EFFECT_DUEL) {
+        uint32_t action = spell.m_effect[0] == SPELL_EFFECT_TRADE_SKILL || (spell.m_attributes & 0x20) ? 6 : 2;
 
         if (!CGGameUI::CanPerformAction(action)) {
             return false;
@@ -8776,7 +8777,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
     bool result = false;
     uint32_t type = object->m_obj->m_type;
 
-    if (type & TYPEMASK_UNIT) {
+    if (type & TYPE_UNIT) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(object);
 
         if (spell.m_attributesExE & 0x800) {
@@ -8868,7 +8869,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
             }
 
             result = true;
-        } else if ((s_needTargets & 0x8000) && unit->m_unit->m_unitFieldHealth <= 0 && ((unit->m_obj->m_type & TYPEMASK_PLAYER) || unit->m_unit->m_unitFieldPetnumber)) {
+        } else if ((s_needTargets & 0x8000) && unit->m_unit->m_unitFieldHealth <= 0 && ((unit->m_obj->m_type & TYPE_PLAYER) || unit->m_unit->m_unitFieldPetnumber)) {
             if (!caster->CanAssist(unit, false)) {
                 return result;
             }
@@ -8877,7 +8878,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
             cast->m_data.m_targetFlags |= 0x2;
             s_needTargets &= ~0x8000u;
             result = true;
-        } else if ((s_needTargets & 0x200) && unit->m_unit->m_unitFieldHealth <= 0 && (unit->m_obj->m_type & TYPEMASK_PLAYER)) {
+        } else if ((s_needTargets & 0x200) && unit->m_unit->m_unitFieldHealth <= 0 && (unit->m_obj->m_type & TYPE_PLAYER)) {
             if (caster->CanAssist(unit, false)) {
                 return result;
             }
@@ -8903,7 +8904,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
         } else {
             return result;
         }
-    } else if (type & TYPEMASK_ITEM) {
+    } else if (type & TYPE_ITEM) {
         if (!(s_needTargets & 0x4010)) {
             return result;
         }
@@ -8912,7 +8913,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
         cast->m_data.m_targetFlags |= 0x10;
         s_needTargets &= 0xFFFFBFEF;
         result = true;
-    } else if (type & TYPEMASK_GAMEOBJECT) {
+    } else if (type & TYPE_GAMEOBJECT) {
         if (!(s_needTargets & 0x4800)) {
             return result;
         }
@@ -8921,7 +8922,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
         cast->m_data.m_targetFlags |= 0x800;
         s_needTargets &= 0xFFFFB7FF;
         result = true;
-    } else if (type & TYPEMASK_CORPSE) {
+    } else if (type & TYPE_CORPSE) {
         CGCorpse_C* corpse = static_cast<CGCorpse_C*>(object);
 
         if ((s_needTargets & 0x8000) && !(corpse->m_corpse->m_corpseFieldFlags & 0x1) && caster->CanAssist(corpse)) {
@@ -8947,7 +8948,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
         uint8_t tooFar;
 
         if (!RangeCheck(caster, cast->m_data.m_spellId, object, &tooFar)) {
-            Spell_C_SpellFailed(cast, &spell, tooFar ? 97 : 128, -1, -1, false);
+            Spell_C_SpellFailed(cast, &spell, tooFar ? SPELL_FAILED_OUT_OF_RANGE : SPELL_FAILED_TOO_CLOSE, -1, -1, false);
             cast->m_data.m_objectTarget = WOWGUID{ 0 };
             s_needTargets = needTargets;
             return false;
@@ -8980,12 +8981,12 @@ bool Spell_C_HandleGlyphClick(int32_t socket) {
     CGPlayerLocalData* data = static_cast<CGPlayerLocalData*>(player->m_player);
 
     if (!((1 << socket) & data->m_playerGlyphsEnabled)) {
-        Spell_C_SpellFailed(cast, &spell, 177, -1, -1, false);
+        Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_GLYPH_SOCKET_LOCKED, -1, -1, false);
         return false;
     }
 
     for (uint32_t i = 0; i < sizeof(spell.m_effect) / sizeof(spell.m_effect[0]); i++) {
-        if (spell.m_effect[i] != 74) {
+        if (spell.m_effect[i] != SPELL_EFFECT_APPLY_GLYPH) {
             continue;
         }
 
@@ -8998,13 +8999,13 @@ bool Spell_C_HandleGlyphClick(int32_t socket) {
         }
 
         if (slot->m_type != properties->m_glyphSlotFlags) {
-            Spell_C_SpellFailed(s_targetingSpell, &spell, 175, -1, -1, false);
+            Spell_C_SpellFailed(s_targetingSpell, &spell, SPELL_FAILED_INVALID_GLYPH, -1, -1, false);
             return false;
         }
 
         for (uint32_t j = 0; j < sizeof(data->m_playerFieldGlyphs1) / sizeof(data->m_playerFieldGlyphs1[0]); j++) {
             if (data->m_playerFieldGlyphs1[j] == static_cast<uint32_t>(spell.m_effectMiscValue[i])) {
-                Spell_C_SpellFailed(s_targetingSpell, &spell, 176, -1, -1, false);
+                Spell_C_SpellFailed(s_targetingSpell, &spell, SPELL_FAILED_UNIQUE_GLYPH, -1, -1, false);
                 return false;
             }
         }
@@ -9026,7 +9027,7 @@ bool Spell_C_HandleGlyphClick(int32_t socket) {
         return result;
     }
 
-    Spell_C_SpellFailed(cast, &spell, 175, -1, -1, false);
+    Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_INVALID_GLYPH, -1, -1, false);
     return false;
 }
 
@@ -9095,7 +9096,7 @@ void Spell_C_ClickSpell(int32_t spellId, const CGItem_C* item, WOWGUID target) {
 // VERIFY: 0ae47ac1 manual
 // OFFSET: 0x0080DBD0
 bool Spell_C_TargetUnitByGuid(const WOWGUID& guid) {
-    return Spell_C_HandleSpriteClick(ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__), nullptr);
+    return Spell_C_HandleSpriteClick(ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__), nullptr);
 }
 
 // VERIFY: 88279f66 manual
@@ -9139,7 +9140,7 @@ void CreateMissilesForTargets(const TSStackArray<WOWGUID>& targets, CGUnit_C* un
 
     if (targets.m_count && (targetFlags & 0x802) && unitTargets) {
         for (uint32_t i = 0; i < targets.m_count; i++) {
-            if (ClntObjMgrObjectPtr(targets.m_data[i], TYPEMASK_OBJECT, __FILE__, __LINE__)) {
+            if (ClntObjMgrObjectPtr(targets.m_data[i], TYPE_OBJECT, __FILE__, __LINE__)) {
                 uint32_t reflectResult = reflectResults ? reflectResults->m_data[i] : 0;
                 uint32_t missReason = missReasons ? missReasons->m_data[i] : 1;
                 unit->CreateMissile(&targets.m_data[i], data, ammoDisplayId, ammoInventoryType, hit, missReason, reflectResult, visual, spell->m_id, &targets, nullptr, nullptr, delay);
@@ -9264,7 +9265,7 @@ int32_t Packet_MSG_CHANNEL_START(void* param, NETMESSAGE msgId, uint32_t time, C
     SpellRec spell;
 
     if (g_spellDB.GetRecord(spellId, &spell) && ((spell.m_attributesExD & 0x8000000) || (!(spell.m_attributes & 0x2) && (guid == ClntObjMgrGetActivePlayer() || (!(spell.m_attributes & 0x180) && !(spell.m_attributesExC & 0x2000) && !(spell.m_attributesExD & 0x1)))))) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             unit->SetUIChannelSpell(spellId, duration);
@@ -9284,7 +9285,7 @@ int32_t Packet_MSG_CHANNEL_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, 
     WOWGUID guid = smartGuid;
     int32_t remaining;
     msg->Get(reinterpret_cast<uint32_t&>(remaining));
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return 1;
@@ -9336,7 +9337,7 @@ void PlayImpactVisual(const SpellRec* spell, const TSStackArray<WOWGUID>& target
     }
 
     for (uint32_t i = 0; i < targets.m_count; i++) {
-        CGObject_C* object = ClntObjMgrObjectPtr(targets.m_data[i], TYPEMASK_OBJECT, __FILE__, __LINE__);
+        CGObject_C* object = ClntObjMgrObjectPtr(targets.m_data[i], TYPE_OBJECT, __FILE__, __LINE__);
 
         if (!object) {
             continue;
@@ -9528,7 +9529,7 @@ PendingSpellCast* Spell_C_GetDelayedTrajectoryCast() {
 // VERIFY: 4bee51ef auto
 // OFFSET: 0x008009B0
 bool SpellIsCallCompanion(const SpellRec* spell) {
-    if (spell->m_effect[0] == 28) {
+    if (spell->m_effect[0] == SPELL_EFFECT_SUMMON) {
         SummonPropertiesRec* properties = g_summonPropertiesDB.GetRecord(spell->m_effectMiscValueB[0]);
 
         if (properties && properties->m_slot == 5) {
@@ -9536,7 +9537,7 @@ bool SpellIsCallCompanion(const SpellRec* spell) {
         }
     }
 
-    return spell->m_effectAura[0] == 78;
+    return spell->m_effectAura[0] == SPELL_AURA_MOUNTED;
 }
 
 // VERIFY: 4f8ab45f manual
@@ -9570,9 +9571,9 @@ int32_t Spell_C_SendDelayedMissileTrajectoryCast(CGUnit_C* unit) {
     CGItem_C* item;
 
     if (cast->m_data.m_castItem) {
-        CGObject_C* object = ClntObjMgrObjectPtr(cast->m_data.m_castItem, TYPEMASK_OBJECT, __FILE__, __LINE__);
+        CGObject_C* object = ClntObjMgrObjectPtr(cast->m_data.m_castItem, TYPE_OBJECT, __FILE__, __LINE__);
 
-        if (object && !(object->m_obj->m_type & TYPEMASK_ITEM)) {
+        if (object && !(object->m_obj->m_type & TYPE_ITEM)) {
             object = nullptr;
         }
 

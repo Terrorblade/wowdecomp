@@ -150,7 +150,7 @@ static void Dispatch(CDataStore& msg) {
 }
 
 static CGObject_C* Find(uint64_t guid) {
-    return ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    return ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPE_OBJECT, __FILE__, __LINE__);
 }
 
 static CM2Model* ObjectModel(const Object& object) {
@@ -196,7 +196,7 @@ static void SendUnit(const Object& object, const Object* vehicle) {
     }
 
     std::map<uint32_t, uint32_t> values;
-    PutObjectValues(values, object.guid, TYPEMASK_OBJECT | TYPEMASK_UNIT, object.entry, object.scale);
+    PutObjectValues(values, object.guid, TYPE_OBJECT | TYPE_UNIT, object.entry, object.scale);
     values[UNIT_BYTES_0] = 0x00000100;
     values[UNIT_HEALTH] = 1;
     values[UNIT_MAXHEALTH] = 1;
@@ -238,7 +238,7 @@ static void SendGameObject(const Object& object) {
     msg.Put(static_cast<uint64_t>(packedZ));
 
     std::map<uint32_t, uint32_t> values;
-    PutObjectValues(values, object.guid, TYPEMASK_OBJECT | TYPEMASK_GAMEOBJECT, object.entry, object.scale);
+    PutObjectValues(values, object.guid, TYPE_OBJECT | TYPE_GAMEOBJECT, object.entry, object.scale);
     values[GO_DISPLAYID] = object.displayId;
     values[GO_FLAGS] = GO_FLAG_NOT_SELECTABLE;
     values[GO_PARENTROTATION + 0] = FloatBits(0.0f);

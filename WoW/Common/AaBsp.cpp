@@ -5,6 +5,7 @@
 #include "WoW/Common/Types.h"
 #include "WoW/Source/WorldClient/Types.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "HoT/Profiler/Profiler.h"
 
 // STATIC: 0x00CDD7A0
 CAaBspDigestCache* g_BspDigestCache;
@@ -193,6 +194,7 @@ CAaBspNodeDigest* CAaBspDigestCache::GetDigest(const CAaBsp& bsp, const CAaBspNo
 
         this->m_nodes[bucket * 8 + freeSlot] = node;
         digest = &this->m_digests[bucket * 8 + freeSlot];
+        HoT::Profiler::Count(HoT::Profiler::Counter::BspDigestBuilds);
         this->GenerateDigest(digest, bsp, node, faces, vertices, faceVertexIndices);
     }
 

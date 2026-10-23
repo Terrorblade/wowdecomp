@@ -47,6 +47,137 @@ static uint32_t s_doodadHash[1571];
 static std::vector<CM2Model*> s_animateRoots;
 static std::atomic<uint32_t> s_animateNext;
 
+namespace {
+    struct TransparentSortKey {
+        float m_sortDepth;
+        uint32_t m_split;
+        int32_t m_priorityPlane;
+        float m_depth;
+        uint32_t m_index;
+    };
+
+    struct IndexSortKey {
+        uint32_t m_key;
+        uint32_t m_index;
+    };
+
+    std::vector<TransparentSortKey> s_transparentKeys;
+    std::vector<IndexSortKey> s_indexKeys;
+
+    // Same algorithm as M2HeapSort so the result matches it exactly for a comparator that returns the same values.
+    template <class Key, class Compare>
+    void KeyedHeapSort(Key* keys, uint32_t count, Compare compare) {
+        if (count <= 1) {
+            return;
+        }
+
+        for (uint32_t i = count >> 1; i;) {
+            i--;
+
+            Key value = keys[i];
+            uint32_t parent = i;
+
+            for (uint32_t child = 2 * i + 1; child < count; child = 2 * child + 1) {
+                if (child + 1 < count && compare(keys[child + 1], keys[child]) > 0) {
+                    child++;
+                }
+
+                if (compare(keys[child], value) <= 0) {
+                    break;
+                }
+
+                keys[parent] = keys[child];
+                parent = child;
+            }
+
+            keys[parent] = value;
+        }
+
+        for (uint32_t i = count - 1; i; i--) {
+            Key value = keys[i];
+            keys[i] = keys[0];
+
+            uint32_t parent = 0;
+
+            for (uint32_t child = 1; child < i; child = 2 * child + 1) {
+                if (child + 1 < i && compare(keys[child + 1], keys[child]) > 0) {
+                    child++;
+                }
+
+                if (compare(keys[child], value) <= 0) {
+                    break;
+                }
+
+                keys[parent] = keys[child];
+                parent = child;
+            }
+
+            keys[parent] = value;
+        }
+    }
+
+    // FIX: the leading SortTransparent fields are compared from a packed key array and the full comparator only runs on ties
+    void SortTransparentElements(CM2Scene* scene, TSGrowableArray<uint32_t>& list) {
+        uint32_t count = list.m_count;
+
+        if (count <= 1) {
+            return;
+        }
+
+        s_transparentKeys.resize(count);
+
+        for (uint32_t i = 0; i < count; i++) {
+            const M2Element* element = &scene->m_elements.m_data[list.m_data[i]];
+            TransparentSortKey& key = s_transparentKeys[i];
+            key.m_sortDepth = element->m_sortDepth;
+            key.m_split = element->m_flags & 1;
+            key.m_priorityPlane = element->m_priorityPlane;
+            key.m_depth = element->m_depth;
+            key.m_index = list.m_data[i];
+        }
+
+        KeyedHeapSort(s_transparentKeys.data(), count, [scene](const TransparentSortKey& a, const TransparentSortKey& b) -> int32_t {
+            if (b.m_sortDepth < a.m_sortDepth) {
+                return -1;
+            }
+
+            if (b.m_sortDepth > a.m_sortDepth) {
+                return 1;
+            }
+
+            if (a.m_split > b.m_split) {
+                return -1;
+            }
+
+            if (a.m_split < b.m_split) {
+                return 1;
+            }
+
+            if (a.m_priorityPlane < b.m_priorityPlane) {
+                return -1;
+            }
+
+            if (a.m_priorityPlane > b.m_priorityPlane) {
+                return 1;
+            }
+
+            if (b.m_depth < a.m_depth) {
+                return -1;
+            }
+
+            if (b.m_depth > a.m_depth) {
+                return 1;
+            }
+
+            return CM2Scene::SortTransparent(a.m_index, b.m_index, scene);
+        });
+
+        for (uint32_t i = 0; i < count; i++) {
+            list.m_data[i] = s_transparentKeys[i].m_index;
+        }
+    }
+}
+
 // VERIFY: abe62346 auto
 // OFFSET: 0x0081C990
 void CM2Scene::SetTime(uint32_t time) {
@@ -1606,7 +1737,29 @@ void CM2Scene::SortAdditiveParticleElements(uint32_t pass) {
         element->m_sortKey = group;
     }
 
-    M2HeapSort(&CM2Scene::SortAdditiveParticles, list.m_data, list.m_count, this);
+    // FIX: group keys are compared from a packed key array and the full comparator only runs within a group
+    s_indexKeys.resize(list.m_count);
+
+    for (uint32_t i = 0; i < list.m_count; i++) {
+        s_indexKeys[i].m_key = this->m_elements.m_data[list.m_data[i]].m_sortKey;
+        s_indexKeys[i].m_index = list.m_data[i];
+    }
+
+    KeyedHeapSort(s_indexKeys.data(), list.m_count, [this](const IndexSortKey& a, const IndexSortKey& b) -> int32_t {
+        if (a.m_key > b.m_key) {
+            return 1;
+        }
+
+        if (a.m_key < b.m_key) {
+            return -1;
+        }
+
+        return CM2Scene::SortAdditiveParticles(a.m_index, b.m_index, this);
+    });
+
+    for (uint32_t i = 0; i < list.m_count; i++) {
+        list.m_data[i] = s_indexKeys[i].m_index;
+    }
 }
 
 // VERIFY: 3e6be15c manual
@@ -1723,6 +1876,8 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
 
         s_animateNext.store(0);
 
+        HoT::Profiler::Scope threadsScope(HoT::Profiler::Zone::M2AnimateThreads);
+
         if (s_animateRoots.size() > 1) {
             this->m_cache->RunThreads(&CM2Scene::AnimateThread, this);
         } else {
@@ -1742,18 +1897,26 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
         }
     }
 
-    for (CM2Model* model = this->m_animateList; model; model = model->m_animateNext) {
-        if (!model->m_attachParent) {
-            model->AnimateST();
+    {
+        HoT::Profiler::Scope mainScope(HoT::Profiler::Zone::M2AnimateMain);
+
+        for (CM2Model* model = this->m_animateList; model; model = model->m_animateNext) {
+            if (!model->m_attachParent) {
+                model->AnimateST();
+            }
         }
     }
 
-    while (this->m_animateList) {
-        CM2Model* model = this->m_animateList;
-        this->m_animateList = model->m_animateNext;
-        model->m_animatePrev = nullptr;
-        model->m_animateNext = nullptr;
-        model->SetupLighting();
+    {
+        HoT::Profiler::Scope lightingScope(HoT::Profiler::Zone::M2ModelLighting);
+
+        while (this->m_animateList) {
+            CM2Model* model = this->m_animateList;
+            this->m_animateList = model->m_animateNext;
+            model->m_animatePrev = nullptr;
+            model->m_animateNext = nullptr;
+            model->SetupLighting();
+        }
     }
 
     this->m_doodadElements.m_count = 0;
@@ -1765,6 +1928,8 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
     this->m_elements.m_count = 0;
 
     uint32_t elementIndex = 0;
+    uint32_t additiveCount = 0;
+    HoT::Profiler::Scope buildScope(HoT::Profiler::Zone::M2BuildElements);
 
     while (this->m_drawList) {
         CM2Model* model = this->m_drawList;
@@ -2069,8 +2234,6 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
         }
     }
 
-    uint32_t additiveCount = 0;
-
     while (this->m_particleList) {
         CM2Model* model = this->m_particleList;
         this->m_particleList = model->m_particleNext;
@@ -2127,6 +2290,8 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
         }
     }
 
+    buildScope.Next(HoT::Profiler::Zone::M2SortElements);
+
     uint32_t doodadCount = this->m_doodadElements.m_count;
 
     if (doodadCount > 1) {
@@ -2159,7 +2324,25 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
         }
     }
 
-    M2HeapSort(&CM2Scene::SortDoodadProxy, this->m_doodadElements.m_data, doodadCount, this);
+    // FIX: SortDoodadProxy only compares doodad keys, so they are sorted from a packed key array
+    s_indexKeys.resize(doodadCount);
+
+    for (uint32_t i = 0; i < doodadCount; i++) {
+        s_indexKeys[i].m_key = this->m_elements.m_data[this->m_doodadElements.m_data[i]].m_doodadKey;
+        s_indexKeys[i].m_index = this->m_doodadElements.m_data[i];
+    }
+
+    KeyedHeapSort(s_indexKeys.data(), doodadCount, [](const IndexSortKey& a, const IndexSortKey& b) -> int32_t {
+        if (b.m_key > a.m_key) {
+            return -1;
+        }
+
+        return b.m_key < a.m_key;
+    });
+
+    for (uint32_t i = 0; i < doodadCount; i++) {
+        this->m_doodadElements.m_data[i] = s_indexKeys[i].m_index;
+    }
 
     uint32_t out = 0;
 
@@ -2200,8 +2383,8 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
 
     // FIX: introsort for the opaque pass, its comparator is a consistent ordering
     std::sort(this->m_passElements[0].m_data, this->m_passElements[0].m_data + this->m_passElements[0].m_count, [this](uint32_t a, uint32_t b) { return CM2Scene::SortOpaque(a, b, this) < 0; });
-    M2HeapSort(&CM2Scene::SortTransparent, this->m_passElements[1].m_data, this->m_passElements[1].m_count, this);
-    M2HeapSort(&CM2Scene::SortTransparent, this->m_passElements[2].m_data, this->m_passElements[2].m_count, this);
+    SortTransparentElements(this, this->m_passElements[1]);
+    SortTransparentElements(this, this->m_passElements[2]);
 
     if ((this->m_cache->m_flags & 0x80) && additiveCount > 1) {
         this->SortAdditiveParticleElements(1);

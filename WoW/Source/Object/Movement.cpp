@@ -16,6 +16,7 @@
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Tempest/CFacet.h"
 #include "Engine/Source/Tempest/CMath.h"
+#include "HoT/Profiler/Profiler.h"
 #include "WoW/Source/DB/Rec/VehicleRec.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Object/CClientMoveUpdate.h"
@@ -4271,14 +4272,18 @@ uint32_t CMovement_C::CollideRequestMove(uint32_t time, uint32_t elapsed, C3Vect
         float oldSpeed = this->m_currentSpeed;
         uint32_t used;
 
-        if (this->CanCollideWhileFlying()) {
-            used = this->Swim(stepTime, step, stepDist, direction);
-        } else if (this->m_flags & MOVEMENTFLAG_FALLING) {
-            used = this->Fall(stepTime, step, stepDist, C2Vector(direction));
-        } else if (this->m_flags & MOVEMENTFLAG_HOVER) {
-            used = this->HoverMove(stepTime, step, stepDist, direction);
-        } else {
-            used = this->TraceSurface(stepTime, step, stepDist, C2Vector(direction));
+        {
+            HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::CollideTrace);
+
+            if (this->CanCollideWhileFlying()) {
+                used = this->Swim(stepTime, step, stepDist, direction);
+            } else if (this->m_flags & MOVEMENTFLAG_FALLING) {
+                used = this->Fall(stepTime, step, stepDist, C2Vector(direction));
+            } else if (this->m_flags & MOVEMENTFLAG_HOVER) {
+                used = this->HoverMove(stepTime, step, stepDist, direction);
+            } else {
+                used = this->TraceSurface(stepTime, step, stepDist, C2Vector(direction));
+            }
         }
 
         consumed += used;
@@ -5310,6 +5315,7 @@ void CMovement_C::ExecuteMovement(uint32_t time, uint32_t lastTime) {
                 if (flags & MOVEMENTFLAG_ONTRANSPORT) {
                     globals->m_timeCounterMaybe += step;
                 } else {
+                    HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::MoveApply);
                     this->ApplyMovement(cursor, step);
 
                     if (this->m_unit->m_obj->m_guid == CGUnit_C::s_activeMover && (this->m_flags & 0xC0100F) && !this->IsOnSpline() && static_cast<int32_t>(cursor - globals->m_timeCounterMaybe) >= 0) {
@@ -5343,7 +5349,10 @@ void CMovement_C::ExecuteMovement(uint32_t time, uint32_t lastTime) {
     }
 
 done:
-    this->m_unit->OnMoveUpdate(time, 0, 0);
+    {
+        HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::MoveWorldUpdate);
+        this->m_unit->OnMoveUpdate(time, 0, 0);
+    }
 
     if (std::isnan(static_cast<double>(this->m_position.x)) || std::isnan(static_cast<double>(this->m_position.y)) || std::isnan(static_cast<double>(this->m_position.z))) {
         ConsolePrintf("Mover at invalid position");
@@ -5366,7 +5375,10 @@ void CMovement_C::MoveUnits(uint32_t time, uint32_t lastUpdateTime) {
     while (mover) {
         CMovement_C* next = globals->m_movers.Next(mover);
 
+        HoT::Profiler::Count(HoT::Profiler::Counter::UnitsMoved);
+
         if (mover->m_flags & MOVEMENTFLAG_SPLINE_ENABLED) {
+            HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::MoveApply);
             mover->SkipTime(time - lastUpdateTime);
         } else {
             mover->ExecuteMovement(time, lastUpdateTime);

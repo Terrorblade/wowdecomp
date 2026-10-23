@@ -78,6 +78,22 @@ enum class Zone : uint16_t {
     RibbonUpdate,
     Particles,
     Ribbons,
+    MoveApply,
+    MoveWorldUpdate,
+    M2AnimateThreads,
+    M2AnimateMain,
+    M2ModelLighting,
+    CollideWmo,
+    CollideTerrain,
+    CollideTrace,
+    ParticlePrebuild,
+    CollideWmoBsp,
+    CollideWmoTriFacets,
+    CollideDoodads,
+    GxDrawSubmit,
+    M2AdvanceTime,
+    M2BuildElements,
+    M2SortElements,
     Count,
 };
 
@@ -121,6 +137,10 @@ enum class Counter : uint16_t {
     PlayersHidden,
     ModelCreates,
     LoadWaits,
+    UnitsMoved,
+    CollisionQueries,
+    BspDigestBuilds,
+    DoodadMeshBuilds,
     Count,
 };
 
@@ -149,6 +169,16 @@ class Scope {
 
     Scope(const Scope&) = delete;
     Scope& operator=(const Scope&) = delete;
+
+    // Ends the current zone and starts timing the next one.
+    void Next(Zone zone) {
+        if (this->m_start) {
+            Leave(this->m_zone, this->m_start);
+        }
+
+        this->m_zone = zone;
+        this->m_start = g_enabled ? Enter(zone) : 0;
+    }
 
     private:
     Zone m_zone;

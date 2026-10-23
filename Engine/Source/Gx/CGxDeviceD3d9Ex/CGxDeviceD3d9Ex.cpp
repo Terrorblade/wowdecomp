@@ -3119,6 +3119,8 @@ void CGxDeviceD3d9Ex::Draw(CGxBatch* batch, int32_t count) {
         baseVertexIndex = this->m_primVertexFormatBuf[0]->m_index / this->m_primVertexFormatBuf[0]->m_itemSize;
     }
 
+    HoT::Profiler::Scope submitScope(HoT::Profiler::Zone::GxDrawSubmit);
+
     if (count) {
         uint32_t primCount = this->PrimCalcCount(batch->m_primType, batch->m_count);
         this->m_d3dDevice->DrawIndexedPrimitive(s_primitiveConversion[batch->m_primType], baseVertexIndex, batch->m_minIndex, batch->m_maxIndex - batch->m_minIndex + 1, batch->m_start + (this->m_primIndexBuf->m_index >> (this->m_primIndexBuf->m_itemSize == sizeof(uint32_t) ? 2 : 1)), primCount);

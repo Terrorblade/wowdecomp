@@ -190,7 +190,12 @@ void CWorldScene::Render(const C3Vector& cameraPos, float time) {
     if (scene) {
         HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::M2Animate);
         scene->m_flags |= 0x1;
-        scene->AdvanceTime(static_cast<uint32_t>(CMath::fint_(time * 1000.0f)));
+
+        {
+            HoT::Profiler::Scope advanceScope(HoT::Profiler::Zone::M2AdvanceTime);
+            scene->AdvanceTime(static_cast<uint32_t>(CMath::fint_(time * 1000.0f)));
+        }
+
         scene->Animate(cameraPos);
         scene->m_flags &= ~0x1;
     }

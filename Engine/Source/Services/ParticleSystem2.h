@@ -144,12 +144,16 @@ class CParticleEmitter2 {
     static CGxPool* s_indexPool;
     static uint32_t s_initCount;
     static uint8_t s_noIndexBuffer;
-    static CSortableParticleQueue s_pq;
+    // FIX: per thread so particle vertices can be built on the animation workers
+    static thread_local CSortableParticleQueue s_pq;
     static float s_rndTable[128];
     static float s_viewDist;
 
     static void Destroy();
     static void Init();
+    static void PrebuildClear();
+    static uint32_t PrebuildCount();
+    static void PrebuildRun(uint32_t index);
     static void __stdcall RenderIndices(CGxBuf* buf);
     static void __stdcall RenderParticleVertices(CGxBuf* buf, EGxVertexBufferFormat format, uint32_t vertexCount, uint32_t indexCount);
 
@@ -251,6 +255,7 @@ class CParticleEmitter2 {
     int32_t MoveParticle(CParticle2& particle, float deltaTime);
     int32_t MoveParticle(CParticle2_Model& particle, float deltaTime);
     void PlaceParticleModels(const C44Matrix* frameOfReference);
+    uint32_t PrebuildAdd(const C44Matrix* frameOfReference, const C44Matrix& view);
     void ProjectParticle(CParticle2& particle);
     void RandomizeSpin(const CParticle2& particle, float* spin, float* spinRate);
     void Render(const C44Matrix* frameOfReference, void* buffer, uint32_t first);

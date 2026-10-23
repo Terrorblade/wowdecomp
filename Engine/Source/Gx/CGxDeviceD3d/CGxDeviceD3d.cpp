@@ -3033,6 +3033,8 @@ void CGxDeviceD3d::Draw(CGxBatch* batch, int32_t count) {
         HoT::Profiler::OnDraw(this->PrimCalcCount(batch->m_primType, batch->m_count), verts, count != 0, static_cast<CGxShader*>(this->m_hwRenderStates[GxRs_VertexShader].m_data.p), static_cast<CGxShader*>(this->m_hwRenderStates[GxRs_PixelShader].m_data.p));
     }
 
+    HoT::Profiler::Scope submitScope(HoT::Profiler::Zone::GxDrawSubmit);
+
     if (count) {
         uint32_t primCount = this->PrimCalcCount(batch->m_primType, batch->m_count);
         this->m_d3dDevice->DrawIndexedPrimitive(s_primitiveConversion[batch->m_primType], baseVertexIndex, batch->m_minIndex, batch->m_maxIndex - batch->m_minIndex + 1, batch->m_start + (this->m_primIndexBuf->m_index >> (this->m_primIndexBuf->m_itemSize == sizeof(uint32_t) ? 2 : 1)), primCount);

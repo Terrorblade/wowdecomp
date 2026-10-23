@@ -4367,6 +4367,8 @@ bool CMap::GetDoodadDefFacets(TSList<CMapBaseObjLink, TSGetExplicitLink<CMapBase
         return true;
     }
 
+    HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::CollideDoodads);
+
     for (CMapBaseObjLink* link = linkList->Head(); link; link = linkList->Next(link)) {
         CMapDoodadDef* def = static_cast<CMapDoodadDef*>(link->m_owner);
 
@@ -4621,8 +4623,16 @@ bool CMap::GetMapObjFacets(CAaBox* queryBox, CAaBox* box, World::FacetData* face
                 World::TriData::indexCursor = 0;
                 World::TriData::matrixPoolCount = 0;
                 World::TriData triData;
-                owner->GetTris(localBox, flags, &triData, def);
-                World::TriDataToFacetData(&triData, facets, def->m_objectGuid);
+
+                {
+                    HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::CollideWmoBsp);
+                    owner->GetTris(localBox, flags, &triData, def);
+                }
+
+                {
+                    HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::CollideWmoTriFacets);
+                    World::TriDataToFacetData(&triData, facets, def->m_objectGuid);
+                }
 
                 if (status) {
                     *status |= World::TriData::statusFlags;
@@ -4746,9 +4756,14 @@ bool CMap::GetFacets(CAaBox* a1, CAaBox* a2, World::FacetData* a3, uint32_t a4, 
     CMap::mapGetFacetsCount++;
     CMap::s_queryTag++;
     a3->facets.SetCount(0);
+    HoT::Profiler::Count(HoT::Profiler::Counter::CollisionQueries);
 
-    if (!CMap::GetMapObjFacets(a1, a2, a3, a4, a5)) {
-        return false;
+    {
+        HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::CollideWmo);
+
+        if (!CMap::GetMapObjFacets(a1, a2, a3, a4, a5)) {
+            return false;
+        }
     }
 
     if (CMap::bDungeon) {
@@ -4775,6 +4790,7 @@ bool CMap::GetFacets(CAaBox* a1, CAaBox* a2, World::FacetData* a3, uint32_t a4, 
     rect.minX = CMath::fint_(topY * 0.24f - 0.5f);
     rect.minY = CMath::fint_(topX * 0.24f - 0.5f);
     bool result = true;
+    HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::CollideTerrain);
 
     for (int32_t y = rect.minY >> 3; y <= rect.maxY >> 3; y++) {
         for (int32_t x = rect.minX >> 3; x <= rect.maxX >> 3; x++) {

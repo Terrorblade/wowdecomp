@@ -81,12 +81,13 @@ if (TARGET msdfgen::msdfgen-ext)
     )
 endif ()
 
-# The model editor decodes imported images through WIC.
+# The model editor decodes imported images through WIC, the profiler's sampler names functions through DbgHelp.
 if (WIN32)
     target_link_libraries(HoT
         PUBLIC
             windowscodecs
             ole32
+            dbghelp
     )
 endif ()
 

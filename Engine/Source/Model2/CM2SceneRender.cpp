@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include "Engine/Source/Model2/CM2SceneRender.h"
@@ -930,6 +931,16 @@ void CM2SceneRender::DrawCallback() {
     CShaderEffect::UpdateProjMatrix();
 }
 
+static std::atomic<uint32_t> s_particlePrebuildNext;
+
+static void ParticlePrebuildThread(void* param) {
+    uint32_t count = CParticleEmitter2::PrebuildCount();
+
+    for (uint32_t i = s_particlePrebuildNext.fetch_add(1); i < count; i = s_particlePrebuildNext.fetch_add(1)) {
+        CParticleEmitter2::PrebuildRun(i);
+    }
+}
+
 // VERIFY: ae7d8da4 manual
 // OFFSET: 0x00823130
 void CM2SceneRender::Draw(M2PASS pass, M2Element* elements, uint32_t* indices, uint32_t count) {
@@ -948,6 +959,31 @@ void CM2SceneRender::Draw(M2PASS pass, M2Element* elements, uint32_t* indices, u
     this->m_prevBatch = nullptr;
     this->m_prevSkinSection = nullptr;
     this->m_prevMaterial = nullptr;
+
+    // FIX: the pass's particle vertices are built on the animation workers before drawing starts
+    CParticleEmitter2::PrebuildClear();
+
+    if (this->m_cache->m_flags & 4) {
+        HoT::Profiler::Scope prebuildScope(HoT::Profiler::Zone::ParticlePrebuild);
+        C44Matrix billboardView = this->m_scene->m_view;
+        billboardView.Translate(*reinterpret_cast<const C3Vector*>(&this->m_scene->m_viewInv.d0));
+        uint32_t particles = 0;
+
+        for (uint32_t i = 0; i < count; i++) {
+            M2Element* element = &elements[indices[i]];
+
+            if (element->m_type == 4) {
+                particles += element->m_emitter->PrebuildAdd(static_cast<const C44Matrix*>(element->m_model->m_frameOfReference), billboardView);
+            }
+        }
+
+        if (particles >= 256) {
+            s_particlePrebuildNext.store(0);
+            this->m_cache->RunThreads(&ParticlePrebuildThread, nullptr);
+        } else {
+            CParticleEmitter2::PrebuildClear();
+        }
+    }
 
     g_theGxDevicePtr->RsPush();
 
@@ -1061,4 +1097,5 @@ void CM2SceneRender::Draw(M2PASS pass, M2Element* elements, uint32_t* indices, u
     g_theGxDevicePtr->XformSetView(view);
     g_theGxDevicePtr->RsPop();
     GxRsSet(GxRs_Fog, 0);
+    CParticleEmitter2::PrebuildClear();
 }

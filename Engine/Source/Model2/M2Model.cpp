@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
+#include <unordered_map>
+#include <vector>
 #include <xmmintrin.h>
 #include "HoT/Profiler/Profiler.h"
 #if defined(_MSC_VER)
@@ -4934,6 +4936,103 @@ uint32_t CM2Model::ProcessSequenceCallback(uint32_t boneIndex, uint32_t frame, u
     return lastFrame;
 }
 
+namespace {
+    struct CollisionBounds {
+        C3Vector b;
+        C3Vector t;
+    };
+
+    struct CollisionMesh {
+        const M2Data* m_data;
+        C44Matrix m_transform;
+        std::vector<C3Vector> m_positions;
+        std::vector<CollisionBounds> m_faceBounds;
+        std::vector<CollisionBounds> m_blockBounds;
+    };
+
+    constexpr uint32_t kCollisionBlockFaces = 32;
+    constexpr size_t kCollisionCacheMaxBytes = 64u * 1024u * 1024u;
+    std::unordered_map<const CM2Model*, CollisionMesh> s_collisionMeshes;
+    size_t s_collisionMeshBytes;
+    std::vector<uint32_t> s_collisionKept;
+
+    size_t CollisionMeshBytes(const CollisionMesh& mesh) {
+        return sizeof(CollisionMesh) + mesh.m_positions.size() * sizeof(C3Vector) + (mesh.m_faceBounds.size() + mesh.m_blockBounds.size()) * sizeof(CollisionBounds);
+    }
+
+    void ExtendCollisionBounds(CollisionBounds& bounds, const C3Vector& v) {
+        bounds.b.x = std::min(bounds.b.x, v.x);
+        bounds.b.y = std::min(bounds.b.y, v.y);
+        bounds.b.z = std::min(bounds.b.z, v.z);
+        bounds.t.x = std::max(bounds.t.x, v.x);
+        bounds.t.y = std::max(bounds.t.y, v.y);
+        bounds.t.z = std::max(bounds.t.z, v.z);
+    }
+
+    bool CollisionBoundsOutside(const CollisionBounds& bounds, const CAaBox& box) {
+        return bounds.t.x < box.b.x || box.t.x < bounds.b.x || bounds.t.y < box.b.y || box.t.y < bounds.b.y || bounds.t.z < box.b.z || box.t.z < bounds.b.z;
+    }
+
+    const CollisionMesh& GetCollisionMesh(const CM2Model* model, const M2Data* data, const C44Matrix& transform) {
+        auto found = s_collisionMeshes.find(model);
+
+        if (found != s_collisionMeshes.end()) {
+            const CollisionMesh& cached = found->second;
+
+            if (cached.m_data == data && cached.m_positions.size() == data->m_collisionPositions.m_count && !memcmp(&cached.m_transform, &transform, sizeof(C44Matrix))) {
+                return cached;
+            }
+
+            s_collisionMeshBytes -= CollisionMeshBytes(cached);
+            s_collisionMeshes.erase(found);
+        }
+
+        if (s_collisionMeshBytes > kCollisionCacheMaxBytes) {
+            s_collisionMeshes.clear();
+            s_collisionMeshBytes = 0;
+        }
+
+        HoT::Profiler::Count(HoT::Profiler::Counter::DoodadMeshBuilds);
+
+        CollisionMesh& mesh = s_collisionMeshes[model];
+        mesh.m_data = data;
+        mesh.m_transform = transform;
+
+        uint32_t positionCount = data->m_collisionPositions.m_count;
+        const C3Vector* sourcePositions = data->m_collisionPositions.Data();
+        mesh.m_positions.resize(positionCount);
+
+        for (uint32_t i = 0; i < positionCount; i++) {
+            mesh.m_positions[i] = sourcePositions[i] * transform;
+        }
+
+        uint32_t faceCount = data->m_collisionFaceNormals.m_count;
+        mesh.m_faceBounds.resize(faceCount);
+        mesh.m_blockBounds.resize((faceCount + kCollisionBlockFaces - 1) / kCollisionBlockFaces);
+
+        for (uint32_t i = 0; i < faceCount; i++) {
+            const uint16_t* indices = &data->m_collisionIndices[i * 3];
+            CollisionBounds& face = mesh.m_faceBounds[i];
+            face.b = mesh.m_positions[indices[0]];
+            face.t = face.b;
+            ExtendCollisionBounds(face, mesh.m_positions[indices[1]]);
+            ExtendCollisionBounds(face, mesh.m_positions[indices[2]]);
+
+            CollisionBounds& block = mesh.m_blockBounds[i / kCollisionBlockFaces];
+
+            if (i % kCollisionBlockFaces == 0) {
+                block = face;
+            } else {
+                ExtendCollisionBounds(block, face.b);
+                ExtendCollisionBounds(block, face.t);
+            }
+        }
+
+        s_collisionMeshBytes += CollisionMeshBytes(mesh);
+        return mesh;
+    }
+}
+
 // VERIFY: 745168f8 manual
 // OFFSET: 0x0082EC30
 void CM2Model::GetCollisionFacets(const CAaBox& box, const C44Matrix& transform, TSGrowableArray<CFacet>& facets) {
@@ -4943,46 +5042,27 @@ void CM2Model::GetCollisionFacets(const CAaBox& box, const C44Matrix& transform,
 
     M2Data* data = this->m_shared->m_data;
 
-    if (CM2Model::s_collisionPositions.Count() < data->m_collisionPositions.m_count) {
-        CM2Model::s_collisionPositions.SetCount(data->m_collisionPositions.m_count);
+    // FIX: world space collision vertices and face bounds are cached per model, so a query no longer transforms the whole mesh and only visits faces whose bounds touch the box
+    const CollisionMesh& mesh = GetCollisionMesh(this, data, transform);
+    uint32_t faceCount = data->m_collisionFaceNormals.m_count;
+    s_collisionKept.clear();
+
+    for (uint32_t block = 0; block < mesh.m_blockBounds.size(); block++) {
+        if (CollisionBoundsOutside(mesh.m_blockBounds[block], box)) {
+            continue;
+        }
+
+        uint32_t end = std::min(faceCount, (block + 1) * kCollisionBlockFaces);
+
+        for (uint32_t i = block * kCollisionBlockFaces; i < end; i++) {
+            if (!CollisionBoundsOutside(mesh.m_faceBounds[i], box)) {
+                s_collisionKept.push_back(i);
+            }
+        }
     }
 
-    if (CM2Model::s_collisionCodes.Count() < data->m_collisionPositions.m_count) {
-        CM2Model::s_collisionCodes.SetCount(data->m_collisionPositions.m_count);
-    }
-
-    C3Vector* sourcePositions = data->m_collisionPositions.Data();
-    uint32_t positionCount = data->m_collisionPositions.m_count;
-
-    for (uint32_t i = 0; i < positionCount; i++) {
-        C3Vector* position = &CM2Model::s_collisionPositions.m_data[i];
-        *position = sourcePositions[i] * transform;
-        uint32_t* code = &CM2Model::s_collisionCodes.m_data[i];
-        *code = 0;
-
-        if (box.b.x <= position->x) {
-            if (box.t.x < position->x) {
-                *code = 2;
-            }
-        } else {
-            *code = 1;
-        }
-
-        if (box.b.y <= position->y) {
-            if (box.t.y < position->y) {
-                *code |= 8;
-            }
-        } else {
-            *code |= 4;
-        }
-
-        if (box.b.z <= position->z) {
-            if (box.t.z < position->z) {
-                *code |= 0x20;
-            }
-        } else {
-            *code |= 0x10;
-        }
+    if (s_collisionKept.empty()) {
+        return;
     }
 
     C33Matrix rotation(transform);
@@ -5013,38 +5093,20 @@ void CM2Model::GetCollisionFacets(const CAaBox& box, const C44Matrix& transform,
         rotation.c2 = rotation.c2 * scale;
     }
 
-    uint32_t* codes = CM2Model::s_collisionCodes.m_data;
-    uint32_t count = facets.Count();
+    facets.Reserve(static_cast<uint32_t>(s_collisionKept.size()), 0);
 
-    for (uint32_t i = 0; i < data->m_collisionFaceNormals.m_count; i++) {
+    for (uint32_t i : s_collisionKept) {
         uint16_t* indices = &data->m_collisionIndices[i * 3];
-
-        if (!(codes[indices[1]] & codes[indices[2]] & codes[indices[0]])) {
-            count++;
-        }
-    }
-
-    facets.Reserve(count, 0);
-    codes = CM2Model::s_collisionCodes.m_data;
-
-    for (uint32_t i = 0; i < data->m_collisionFaceNormals.m_count; i++) {
-        uint16_t* indices = &data->m_collisionIndices[i * 3];
-
-        if (codes[indices[1]] & codes[indices[2]] & codes[indices[0]]) {
-            continue;
-        }
-
         CFacet* facet = facets.New();
-        facet->v[0] = CM2Model::s_collisionPositions.m_data[indices[0]];
-        facet->v[1] = CM2Model::s_collisionPositions.m_data[indices[1]];
-        facet->v[2] = CM2Model::s_collisionPositions.m_data[indices[2]];
+        facet->v[0] = mesh.m_positions[indices[0]];
+        facet->v[1] = mesh.m_positions[indices[1]];
+        facet->v[2] = mesh.m_positions[indices[2]];
 
         C3Vector& normal = data->m_collisionFaceNormals[i];
         facet->plane.n.x = normal.y * rotation.b0 + normal.z * rotation.c0 + normal.x * rotation.a0;
         facet->plane.n.y = normal.z * rotation.c1 + normal.x * rotation.a1 + normal.y * rotation.b1;
         facet->plane.n.z = normal.x * rotation.a2 + normal.y * rotation.b2 + normal.z * rotation.c2;
         facet->plane.d = -(facet->v[0].z * facet->plane.n.z + facet->v[0].y * facet->plane.n.y + facet->v[0].x * facet->plane.n.x);
-        codes = CM2Model::s_collisionCodes.m_data;
     }
 }
 
@@ -6592,6 +6654,14 @@ void CM2Model::ProcessCallbacksRecursive() {
 // VERIFY: d96ccadd manual
 // OFFSET: 0x00832640
 CM2Model::~CM2Model() {
+    // FIX: drop this model's cached collision mesh
+    auto collisionMesh = s_collisionMeshes.find(this);
+
+    if (collisionMesh != s_collisionMeshes.end()) {
+        s_collisionMeshBytes -= CollisionMeshBytes(collisionMesh->second);
+        s_collisionMeshes.erase(collisionMesh);
+    }
+
     CM2Model* model30 = this->m_model30;
 
     if (model30 && model30->m_refCount-- == 1) {

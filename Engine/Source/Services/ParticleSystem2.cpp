@@ -5,6 +5,8 @@
 #include <cstring>
 #include <new>
 #include <typeinfo>
+#include <unordered_map>
+#include <vector>
 #include "Engine/Source/Services/ParticleSystem2.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Gx/CGxBuf.h"
@@ -38,13 +40,14 @@ static int32_t s_particleRenderEnable = 1;
 static float s_stepRound = 0.5f;
 
 // STATIC: 0x00B2D540
-static C3Vector s_particleNormal(0.0f, 0.0f, 1.0f);
+// FIX: the vertex building statics are per thread so the animation workers can build particle vertices
+static thread_local C3Vector s_particleNormal(0.0f, 0.0f, 1.0f);
 
 // STATIC: 0x00B2D550
-static C44Matrix s_particleXform(1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+static thread_local C44Matrix s_particleXform(1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 
 // STATIC: 0x00B2D590
-static C33Matrix s_billboardXform(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+static thread_local C33Matrix s_billboardXform(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 
 // STATIC: 0x00B2D5B4
 static const float s_cornerOffsets[4][2] = { { -1.0f, 1.0f }, { -1.0f, -1.0f }, { 1.0f, 1.0f }, { 1.0f, -1.0f } };
@@ -73,7 +76,25 @@ uint8_t CParticleEmitter2::s_noIndexBuffer;
 static const uint32_t s_pqParams[2] = { 32, 32 };
 
 // STATIC: 0x00DCE894
-CSortableParticleQueue CParticleEmitter2::s_pq(s_pqParams);
+thread_local CSortableParticleQueue CParticleEmitter2::s_pq(s_pqParams);
+
+namespace {
+
+struct PrebuiltVertices {
+    CParticleEmitter2* m_emitter;
+    const C44Matrix* m_frameOfReference;
+    C44Matrix m_view;
+    std::vector<uint8_t> m_data;
+    CAaBox m_worldBounds;
+    uint32_t m_vertexCount;
+    uint32_t m_renderedParticles;
+};
+
+std::vector<PrebuiltVertices> s_prebuilt;
+uint32_t s_prebuiltCount;
+std::unordered_map<CParticleEmitter2*, uint32_t> s_prebuiltIndex;
+
+}
 
 // STATIC: 0x00DCE8C4
 void* ParticleSystemManager::sm_projectParam;
@@ -782,7 +803,7 @@ void CParticleEmitter2::FillOutParticleVertex(void* buffer, EGxVertexBufferForma
         vertex->m_normalStride = stride;
         vertex->m_normal = static_cast<uint8_t*>(buffer) + GxVertexAttribOffset(format, GxVA_Normal);
     } else {
-        static C3Vector s_zeroNormal(0.0f, 0.0f, 0.0f);
+        static thread_local C3Vector s_zeroNormal(0.0f, 0.0f, 0.0f);
         vertex->m_normal = reinterpret_cast<uint8_t*>(&s_zeroNormal);
         vertex->m_normalStride = 0;
     }
@@ -1644,8 +1665,10 @@ int32_t CParticleEmitter2::BuildVertex(const CParticle2& particle, ParticleVerte
             }
 
             if (flags & 0x4000) {
+                // FIX: the rotation is the same for all four corners, built once instead of per corner
+                C33Matrix rotation = C33Matrix::Rotation(angle, this->m_billboardAxis, true);
+
                 for (uint32_t i = 0; i < 4; i++) {
-                    C33Matrix rotation = C33Matrix::Rotation(angle, this->m_billboardAxis, true);
                     float offsetX = s_cornerOffsets[i][0] * scale.x;
                     float offsetY = s_cornerOffsets[i][1] * scale.y;
                     float billboardX = s_billboardXform.b0 * offsetY + offsetX * s_billboardXform.a0;
@@ -2374,8 +2397,20 @@ void CParticleEmitter2::RenderParticles(const C44Matrix* frameOfReference, void*
 
     ParticleVertex vertex;
     vertex.m_count = 0;
-    this->FillOutParticleVertex(buffer, format, &vertex);
-    this->BuildParticleVertices(vertex, count, view.AffineInverse());
+    auto prebuilt = s_prebuiltIndex.find(this);
+
+    // FIX: vertices the animation workers built for these exact inputs are copied instead of built here
+    if (prebuilt != s_prebuiltIndex.end() && s_prebuilt[prebuilt->second].m_frameOfReference == frameOfReference && !memcmp(&s_prebuilt[prebuilt->second].m_view, &view, sizeof(C44Matrix))) {
+        const PrebuiltVertices& entry = s_prebuilt[prebuilt->second];
+        memcpy(buffer, entry.m_data.data(), entry.m_vertexCount * GxVertexSize(format));
+        vertex.m_count = entry.m_vertexCount;
+        this->m_worldBounds = entry.m_worldBounds;
+        this->m_renderedParticles = entry.m_renderedParticles;
+        s_prebuiltIndex.erase(prebuilt);
+    } else {
+        this->FillOutParticleVertex(buffer, format, &vertex);
+        this->BuildParticleVertices(vertex, count, view.AffineInverse());
+    }
 
     if (buf) {
         g_theGxDevicePtr->BufUnlock(buf, 0);
@@ -3168,4 +3203,79 @@ CParticleEmitter2* CSplineParticleEmitter::Clone(int32_t copyParticles) {
     void* mem = SMemAlloc(sizeof(CSplineParticleEmitter), __FILE__, __LINE__, 0);
 
     return mem ? new (mem) CSplineParticleEmitter(*this, copyParticles) : nullptr;
+}
+
+// FIX: queues this emitter's vertices for the animation workers, returns how many particles it will build
+uint32_t CParticleEmitter2::PrebuildAdd(const C44Matrix* frameOfReference, const C44Matrix& view) {
+    if (!s_particleRenderEnable || this->m_params.m_hasModel || !this->m_liveList.Count() || !TextureGetGxTex(this->m_texture, 0, nullptr)) {
+        return 0;
+    }
+
+    if (!s_prebuiltIndex.emplace(this, s_prebuiltCount).second) {
+        return 0;
+    }
+
+    if (s_prebuilt.size() <= s_prebuiltCount) {
+        s_prebuilt.resize(s_prebuiltCount + 1);
+    }
+
+    uint32_t count = 0x4000 / this->m_vertsPerParticle;
+
+    if (count >= this->m_liveList.Count()) {
+        count = this->m_liveList.Count();
+    }
+
+    EGxVertexBufferFormat format = (this->m_params.m_materialFlags & 0x1) ? GxVBF_PNCT : GxVBF_PCT;
+    PrebuiltVertices& entry = s_prebuilt[s_prebuiltCount++];
+    entry.m_emitter = this;
+    entry.m_frameOfReference = frameOfReference;
+    entry.m_view = view;
+    entry.m_vertexCount = 0;
+    entry.m_renderedParticles = 0;
+    entry.m_data.resize(count * this->m_vertsPerParticle * GxVertexSize(format));
+
+    return count;
+}
+
+void CParticleEmitter2::PrebuildClear() {
+    s_prebuiltCount = 0;
+    s_prebuiltIndex.clear();
+}
+
+uint32_t CParticleEmitter2::PrebuildCount() {
+    return s_prebuiltCount;
+}
+
+// FIX: the RenderParticles vertex work for one queued emitter, safe to run on any animation worker
+void CParticleEmitter2::PrebuildRun(uint32_t index) {
+    PrebuiltVertices& entry = s_prebuilt[index];
+    CParticleEmitter2* emitter = entry.m_emitter;
+    CAaBox worldBounds = emitter->m_worldBounds;
+    uint32_t renderedParticles = emitter->m_renderedParticles;
+
+    emitter->m_worldBounds.b.x = 3.4028235e38f;
+    emitter->m_worldBounds.b.y = 3.4028235e38f;
+    emitter->m_worldBounds.b.z = 3.4028235e38f;
+    emitter->m_worldBounds.t.x = -3.4028235e38f;
+    emitter->m_worldBounds.t.y = -3.4028235e38f;
+    emitter->m_worldBounds.t.z = -3.4028235e38f;
+    emitter->RenderParticlesPrep(entry.m_frameOfReference, entry.m_view);
+
+    uint32_t count = 0x4000 / emitter->m_vertsPerParticle;
+
+    if (count >= emitter->m_liveList.Count()) {
+        count = emitter->m_liveList.Count();
+    }
+
+    EGxVertexBufferFormat format = (emitter->m_params.m_materialFlags & 0x1) ? GxVBF_PNCT : GxVBF_PCT;
+    ParticleVertex vertex;
+    vertex.m_count = 0;
+    emitter->FillOutParticleVertex(entry.m_data.data(), format, &vertex);
+    emitter->BuildParticleVertices(vertex, count, entry.m_view.AffineInverse());
+
+    entry.m_vertexCount = vertex.m_count;
+    entry.m_worldBounds = emitter->m_worldBounds;
+    entry.m_renderedParticles = emitter->m_renderedParticles;
+    emitter->m_worldBounds = worldBounds;
+    emitter->m_renderedParticles = renderedParticles;
 }

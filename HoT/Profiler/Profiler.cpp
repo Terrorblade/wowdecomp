@@ -22,6 +22,7 @@
 #include "HoT/Platform/Time.h"
 #include "HoT/Profiler/GpuTiming.h"
 #include "HoT/Profiler/ProfilerUI.h"
+#include "HoT/Profiler/Sampler.h"
 #include "HoT/Runtime/LuaRuntime.h"
 
 namespace HoT::Profiler {
@@ -31,6 +32,7 @@ static const size_t COUNTER_COUNT = static_cast<size_t>(Counter::Count);
 static const size_t STACK_DEPTH = 64;
 static const size_t HISTORY_SIZE = 240;
 static const size_t TOP_COUNT = 15;
+static const size_t SAMPLE_TOP_COUNT = 80;
 static const size_t HITCH_KEEP = 8;
 
 enum ZoneFlags : uint8_t {
@@ -110,6 +112,22 @@ static const ZoneInfo s_zones[ZONE_COUNT] = {
     { "Ribbon update", Zone::Frame, ZONE_FLAT },
     { "Particle draw", Zone::Frame, ZONE_DETAIL },
     { "Ribbon draw", Zone::Frame, ZONE_DETAIL },
+    { "Unit move and collide", Zone::Frame, ZONE_FLAT },
+    { "Unit move world update", Zone::Frame, ZONE_FLAT },
+    { "M2 animate threads", Zone::Frame, ZONE_FLAT },
+    { "M2 animate main thread (AnimateST)", Zone::Frame, ZONE_FLAT },
+    { "M2 model lighting", Zone::Frame, ZONE_FLAT },
+    { "Collision WMO facets", Zone::Frame, ZONE_FLAT },
+    { "Collision terrain and doodad facets", Zone::Frame, ZONE_FLAT },
+    { "Collision surface trace", Zone::Frame, ZONE_FLAT },
+    { "Particle vertex prebuild (threads)", Zone::Frame, ZONE_FLAT },
+    { "Collision WMO BSP triangle gather", Zone::Frame, ZONE_FLAT },
+    { "Collision WMO triangles to facets", Zone::Frame, ZONE_FLAT },
+    { "Collision doodad facets", Zone::Frame, ZONE_FLAT },
+    { "Gx draw submit (driver)", Zone::Frame, ZONE_FLAT },
+    { "M2 advance time", Zone::Frame, ZONE_FLAT },
+    { "M2 build draw elements", Zone::Frame, ZONE_FLAT },
+    { "M2 sort draw elements", Zone::Frame, ZONE_FLAT },
 };
 
 struct CounterInfo {
@@ -157,6 +175,10 @@ static const CounterInfo s_counters[COUNTER_COUNT] = {
     { "Units", "Players hidden by limit" },
     { "Loading", "M2 creates" },
     { "Loading", "Blocking load waits" },
+    { "Units", "Units moved" },
+    { "Units", "Collision queries" },
+    { "Units", "BSP digest rebuilds" },
+    { "Units", "Doodad collision mesh builds" },
 };
 
 struct ZoneFrame {
@@ -855,9 +877,11 @@ static void SetEnabled(bool enabled) {
         s_luaStatsWasOn = LuaRuntime::g_statsEnabled;
         LuaRuntime::g_statsEnabled = true;
         g_enabled = true;
+        Sampler::Start();
         return;
     }
 
+    Sampler::Stop();
     g_enabled = false;
     LuaRuntime::g_statsEnabled = s_luaStatsWasOn;
     EndGpuFrame();
@@ -944,6 +968,37 @@ static void WriteTop(FILE* file, const char* title, const std::vector<TopEntry>&
     }
 }
 
+static void WriteSampleList(FILE* file, const std::vector<Sampler::Entry>& entries, uint32_t total, bool inclusive) {
+    for (size_t i = 0; i < entries.size() && i < SAMPLE_TOP_COUNT; i++) {
+        const Sampler::Entry& entry = entries[i];
+        uint32_t count = inclusive ? entry.m_inclusive : entry.m_self;
+
+        if (!count) {
+            break;
+        }
+
+        fprintf(file, "  %6.2f%%  %6.2f%%  %s\n", 100.0 * entry.m_self / total, 100.0 * entry.m_inclusive / total, entry.m_name.c_str());
+    }
+}
+
+static void WriteSamples(FILE* file) {
+    std::vector<Sampler::Entry> entries;
+    uint32_t total = 0;
+    double seconds = 0;
+
+    if (!Sampler::Report(entries, total, seconds) || !total) {
+        return;
+    }
+
+    fprintf(file, "\nmain thread cpu samples since the profiler opened, %u samples over %.1f s\n", total, seconds);
+    fprintf(file, "\nby self time\n     self    incl  function\n");
+    WriteSampleList(file, entries, total, false);
+
+    std::sort(entries.begin(), entries.end(), [](const Sampler::Entry& a, const Sampler::Entry& b) { return a.m_inclusive > b.m_inclusive; });
+    fprintf(file, "\nby inclusive time\n     self    incl  function\n");
+    WriteSampleList(file, entries, total, true);
+}
+
 static std::string WriteReport() {
     std::string path = ReportPath();
     FILE* file = fopen(path.c_str(), "w");
@@ -994,6 +1049,7 @@ static std::string WriteReport() {
     WriteTop(file, "M2 models by CPU draw time (per frame)", data.m_models, true, false);
     WriteTop(file, "Pixel shaders by draw calls (per frame)", data.m_shaders, false, false);
     WriteTop(file, "Network opcodes by handler time (per window)", data.m_opcodes, true, true);
+    WriteSamples(file);
 
     for (auto it = s_hitches.rbegin(); it != s_hitches.rend(); ++it) {
         const Hitch& hitch = *it;

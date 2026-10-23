@@ -12,9 +12,9 @@
 #include <vector>
 
 #if defined(__GNUC__) || defined(__clang__)
-#define GXSHADER_PRINTF(format, args) __attribute__((format(printf, format, args)))
+#define GXSHADER_PRINTF(fmt, args) __attribute__((format(printf, fmt, args)))
 #else
-#define GXSHADER_PRINTF(format, args)
+#define GXSHADER_PRINTF(fmt, args)
 #endif
 
 namespace GxShader {

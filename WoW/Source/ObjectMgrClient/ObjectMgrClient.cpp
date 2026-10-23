@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstring>
+#include "HoT/Character/HD/HDCharacters.h"
 #include "HoT/Features/Units.h"
 #include <ctime>
 #include <malloc.h>
@@ -955,6 +956,11 @@ static int32_t FillInPartialObjectData(CGObject_C* object, WOWGUID guid, CDataSt
             value = 0;
         } else {
             continue;
+        }
+
+        // HoT: HDDisplaySwap rewrites a unit's display ids as they arrive, so every reader sees the HD display.
+        if (typeId == ID_UNIT) {
+            value = HoT::HD::SwapDisplayField(static_cast<CGUnit_C*>(object), i - typeBase, value);
         }
 
         object->SetBlock(i, value);

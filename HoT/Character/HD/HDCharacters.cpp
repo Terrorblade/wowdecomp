@@ -1,4 +1,5 @@
 #include <cctype>
+#include <cstddef>
 #include <cstring>
 #include <string>
 #include <unordered_map>
@@ -505,24 +506,23 @@ float UnitModelScale(const CGUnit_C* unit, const CreatureDisplayInfoRec* display
     return scale / baked;
 }
 
-void SwapDisplayIds(const CGUnit_C* unit, uint32_t& displayId, uint32_t& nativeDisplayId) {
+uint32_t SwapDisplayField(const CGUnit_C* unit, uint32_t unitBlock, uint32_t value) {
+    if (unitBlock != offsetof(CGUnitData, m_unitFieldDisplayid) / sizeof(uint32_t) && unitBlock != offsetof(CGUnitData, m_unitFieldNativedisplayid) / sizeof(uint32_t)) {
+        return value;
+    }
+
     if (!s_enabled || !NpcDisplay::HasSwaps()) {
-        return;
+        return value;
     }
 
-    uint32_t swap = NpcDisplay::Swap(displayId, IsPlayerUnit(unit));
+    uint32_t swap = NpcDisplay::Swap(value, IsPlayerUnit(unit));
 
-    if (!swap || swap == displayId) {
-        return;
+    if (!swap || swap == value) {
+        return value;
     }
 
-    LOG_DEBUG << "hd characters: display " << displayId << " rendered as " << swap;
-
-    if (nativeDisplayId == displayId) {
-        nativeDisplayId = swap;
-    }
-
-    displayId = swap;
+    LOG_DEBUG << "hd characters: display " << value << " arrives as " << swap;
+    return swap;
 }
 
 void ApplyNpcBake(const CGUnit_C* unit, ComponentData* data) {

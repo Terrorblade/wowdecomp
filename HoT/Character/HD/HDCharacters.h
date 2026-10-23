@@ -50,8 +50,8 @@ const char* UnitModelPath(const CGUnit_C* unit, const char* stockPath);
 // CGUnit_C::GetModelScale, divides out the scale an HD model already has baked in.
 float UnitModelScale(const CGUnit_C* unit, const CreatureDisplayInfoRec* displayInfo, const CreatureModelDataRec* modelData, float scale);
 
-// CGUnit_C::RefreshDataPointers, swaps the display ids it reads for their HDDisplaySwap replacement.
-void SwapDisplayIds(const CGUnit_C* unit, uint32_t& displayId, uint32_t& nativeDisplayId);
+// FillInPartialObjectData, the HDDisplaySwap replacement for a unit's display or native display field, value for any other field.
+uint32_t SwapDisplayField(const CGUnit_C* unit, uint32_t unitBlock, uint32_t value);
 
 // Before CCharacterComponent::Init on baked NPC data, unit may be null. Uses the HD bake or drops the bake so the sheet is composited.
 void ApplyNpcBake(const CGUnit_C* unit, ComponentData* data);

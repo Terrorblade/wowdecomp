@@ -9787,10 +9787,8 @@ void CGUnit_C::OnCollideFalling() {
 // VERIFY: 8cfa7612 auto
 // OFFSET: 0x0072D940
 void CGUnit_C::RefreshDataPointers() {
-    // HoT: HDDisplaySwap replaces the display ids read here without touching the update fields.
     uint32_t unitDisplayId = this->m_unit->m_unitFieldDisplayid;
     uint32_t unitNativeDisplayId = this->m_unit->m_unitFieldNativedisplayid;
-    HoT::HD::SwapDisplayIds(this, unitDisplayId, unitNativeDisplayId);
     int32_t displayId = this->m_displayId;
 
     if (!displayId || unitNativeDisplayId != unitDisplayId) {

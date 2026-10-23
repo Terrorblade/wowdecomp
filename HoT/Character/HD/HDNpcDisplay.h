@@ -13,6 +13,9 @@ namespace HoT::HD::NpcDisplay {
 const DB::HDNpcDisplayRec* Find(uint32_t displayExtraId);
 const char* BakePath(const DB::HDNpcDisplayRec* row);
 uint32_t Swap(uint32_t displayId, bool isPlayer);
+
+// The stock display id a swapped HD display id came from, 0 when no row swaps to it.
+uint32_t Unswap(uint32_t hdDisplayId, bool isPlayer);
 bool HasSwaps();
 void Report();
 

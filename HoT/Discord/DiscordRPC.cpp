@@ -7,6 +7,7 @@
 #include "HoT/Discord/DiscordRPC.h"
 #include "HoT/Discord/Host.h"
 #include "HoT/Discord/sdk/discord.h"
+#include "HoT/Platform/Process.h"
 
 namespace HoT::Discord::RPC {
 
@@ -14,10 +15,6 @@ static const discord::ClientId CLIENT_ID = 1420551644671901780;
 static const auto DETECT_INTERVAL = std::chrono::seconds(15);
 static const auto IDLE_SLEEP = std::chrono::milliseconds(500);
 static const auto CONNECTED_SLEEP = std::chrono::milliseconds(100);
-
-static bool IsWine() {
-    return true;
-}
 
 static const char* OrEmpty(const char* value) {
     return value ? value : "";
@@ -30,7 +27,7 @@ class Client {
     }
 
     bool Init() {
-        if (m_initialized || IsWine()) {
+        if (m_initialized || Platform::IsWine()) {
             return false;
         }
 

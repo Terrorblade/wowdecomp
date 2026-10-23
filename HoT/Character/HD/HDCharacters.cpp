@@ -278,10 +278,33 @@ static const char* RedirectTexture(const CCharacterComponent* component, int32_t
     return path;
 }
 
+static uint32_t ToggleDisplayId(const CGUnit_C* unit, uint32_t displayId) {
+    uint32_t swap = s_enabled ? NpcDisplay::Swap(displayId, IsPlayerUnit(unit)) : NpcDisplay::Unswap(displayId, IsPlayerUnit(unit));
+    return swap ? swap : displayId;
+}
+
+// Display fields already in the object were swapped as they arrived, so they follow the toggle here.
+static void ToggleDisplayFields(CGUnit_C* unit) {
+    if (!NpcDisplay::HasSwaps()) {
+        return;
+    }
+
+    CGUnitData* data = unit->m_unit;
+    uint32_t native = ToggleDisplayId(unit, data->m_unitFieldNativedisplayid);
+
+    if (unit->m_displayId && static_cast<uint32_t>(unit->m_displayId) == data->m_unitFieldNativedisplayid) {
+        unit->m_displayId = static_cast<int32_t>(native);
+    }
+
+    data->m_unitFieldDisplayid = ToggleDisplayId(unit, data->m_unitFieldDisplayid);
+    data->m_unitFieldNativedisplayid = native;
+}
+
 static int32_t RefreshUnitCallback(WOWGUID guid, void* param) {
-    CGObject_C* unit = ClntObjMgrObjectPtr(guid, static_cast<OBJECT_TYPE>(TYPE_UNIT | TYPE_PLAYER), __FILE__, __LINE__);
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, static_cast<OBJECT_TYPE>(TYPE_UNIT | TYPE_PLAYER), __FILE__, __LINE__));
 
     if (unit) {
+        ToggleDisplayFields(unit);
         unit->UpdateDisplayInfo(1);
         s_refreshed++;
     }

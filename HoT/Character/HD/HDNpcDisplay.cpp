@@ -30,26 +30,43 @@ const char* BakePath(const DB::HDNpcDisplayRec* row) {
     return *row->m_bakeTexture ? row->m_bakeTexture : nullptr;
 }
 
+static bool Applies(const DB::HDDisplaySwapRec* row, bool isPlayer) {
+    if (!row || !row->m_hdDisplayID) {
+        return false;
+    }
+
+    if ((row->m_flags & DB::HD_DISPLAY_SWAP_PLAYERS_ONLY) && !isPlayer) {
+        return false;
+    }
+
+    return !((row->m_flags & DB::HD_DISPLAY_SWAP_NPCS_ONLY) && isPlayer);
+}
+
 uint32_t Swap(uint32_t displayId, bool isPlayer) {
     if (!displayId) {
         return 0;
     }
 
     const DB::HDDisplaySwapRec* row = RowById(DB::g_hdDisplaySwapDB, displayId);
+    return Applies(row, isPlayer) ? row->m_hdDisplayID : 0;
+}
 
-    if (!row || !row->m_hdDisplayID) {
+uint32_t Unswap(uint32_t hdDisplayId, bool isPlayer) {
+    if (!hdDisplayId) {
         return 0;
     }
 
-    if ((row->m_flags & DB::HD_DISPLAY_SWAP_PLAYERS_ONLY) && !isPlayer) {
-        return 0;
+    int32_t count = RowCount(DB::g_hdDisplaySwapDB);
+
+    for (int32_t i = 0; i < count; i++) {
+        const DB::HDDisplaySwapRec* row = &DB::g_hdDisplaySwapDB.m_records[i];
+
+        if (row->m_hdDisplayID == hdDisplayId && Applies(row, isPlayer)) {
+            return static_cast<uint32_t>(row->m_id);
+        }
     }
 
-    if ((row->m_flags & DB::HD_DISPLAY_SWAP_NPCS_ONLY) && isPlayer) {
-        return 0;
-    }
-
-    return row->m_hdDisplayID;
+    return 0;
 }
 
 bool HasSwaps() {

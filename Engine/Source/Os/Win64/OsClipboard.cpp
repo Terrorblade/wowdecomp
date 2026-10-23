@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <malloc.h>
@@ -83,4 +82,3 @@ int32_t IOsClipboardPutString(const char* string, void* window) {
     return 1;
 }
 
-#endif

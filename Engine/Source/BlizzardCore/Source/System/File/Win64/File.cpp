@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cctype>
 #include <cstddef>
@@ -34,4 +33,3 @@ void System_File::Stacked::Throttle(int64_t bytes, int64_t elapsed) {
     }
 }
 
-#endif

@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cctype>
 #include <cstdint>
@@ -1103,4 +1102,3 @@ void LogMachineState(uint32_t logOptions, void (*logLineProc)(void*, const char*
     InterlockedDecrement(&sgRecursionLevel);
 }
 
-#endif

@@ -63,7 +63,7 @@ target_include_directories(HoT
 )
 
 # The Discord SDK is loaded at runtime, the client just needs it next to the exe.
-if (WIN32 AND WOWDECOMP_ARCH_64)
+if (WIN32)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Discord/redist/discord_game_sdk.dll" "${CMAKE_SOURCE_DIR}/bin/Win/discord_game_sdk_64.dll" COPYONLY)
 endif ()
 

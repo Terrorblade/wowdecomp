@@ -206,7 +206,11 @@ void CM2SceneRender::SetupLighting() {
     uint32_t shadow = this->m_curElement->m_shadowValue;
 
     this->m_curLocalLighting = localLighting;
-    CShaderEffect::SetLocalLighting(this->m_curLighting, localLighting, nullptr);
+
+    // FIX: plain and doodad batches reuse the previous batch's lighting setup when nothing it depends on changed
+    if (!((this->m_curType == 0 || this->m_curType == 2) && this->m_curType == this->m_prevType && this->m_curLighting == this->m_prevLighting && localLighting == this->m_prevLocalLighting)) {
+        CShaderEffect::SetLocalLighting(this->m_curLighting, localLighting, nullptr);
+    }
     CShaderEffect::s_shadowValue = shadow;
 
     uint32_t fogMode;
@@ -933,6 +937,18 @@ void CM2SceneRender::Draw(M2PASS pass, M2Element* elements, uint32_t* indices, u
         return;
     }
 
+    // FIX: forget the previous pass, its state was popped by RsPop so no batch may skip setting it
+    this->m_prevElement = nullptr;
+    this->m_prevType = -1;
+    this->m_prevModel = nullptr;
+    this->m_prevShared = nullptr;
+    this->m_prevLighting = nullptr;
+    this->m_prevLocalLighting = 0;
+    this->m_prevFogMode = 0xFFFFFFFF;
+    this->m_prevBatch = nullptr;
+    this->m_prevSkinSection = nullptr;
+    this->m_prevMaterial = nullptr;
+
     g_theGxDevicePtr->RsPush();
 
     CGxMatrixStack& viewStack = g_theGxDevicePtr->m_xforms[GxXform_View];
@@ -1023,7 +1039,8 @@ void CM2SceneRender::Draw(M2PASS pass, M2Element* elements, uint32_t* indices, u
         this->m_prevType = this->m_curType;
         this->m_prevModel = this->m_curModel;
         this->m_prevShared = this->m_curShared;
-        this->m_curLighting = this->m_prevLighting;
+        // FIX: the original copied prev into cur, so the lighting early-out in SetupLighting never hit
+        this->m_prevLighting = this->m_curLighting;
         this->m_prevLocalLighting = this->m_curLocalLighting;
         this->m_prevFogMode = this->m_curFogMode;
         this->m_prevBatch = this->m_curBatch;

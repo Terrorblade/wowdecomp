@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstring>
 #include <mbstring.h>
@@ -526,4 +525,3 @@ HidDevice& HidManagerImpl::GetDevice(DWORD devInst) {
     return const_cast<HidDevice&>(*it);
 }
 
-#endif

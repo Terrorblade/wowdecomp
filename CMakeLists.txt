@@ -56,22 +56,8 @@ function(wowdecomp_filter_platform_sources var)
     set(${var} ${${var}} PARENT_SCOPE)
 endfunction()
 
-# x64 is the target. Win32 stays buildable: it is the configuration whose struct layouts can be
-# checked against Wow.exe 3.3.5a (12340).
-if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(WOWDECOMP_ARCH_64 1)
-    add_compile_definitions(WOWDECOMP_ARCH_64=1)
-elseif (CMAKE_SIZEOF_VOID_P EQUAL 4)
-    set(WOWDECOMP_ARCH_32 1)
-    add_compile_definitions(WOWDECOMP_ARCH_32=1)
-    # x87 floating point like the VS2005 original; keeps Win32 code comparable with the binary (re/tools/verify.py).
-    if (MSVC)
-        add_compile_options(/arch:IA32 /fp:fast)
-    endif ()
-    # 32-bit time_t like the original build: time/localtime/mktime resolve to _time32/_localtime32/_mktime32.
-    add_compile_definitions(_USE_32BIT_TIME_T)
-else ()
-    message(FATAL_ERROR "Unsupported pointer size.")
+if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "wowdecomp builds 64-bit only.")
 endif ()
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -205,9 +191,7 @@ add_subdirectory(Controller)
 if (WIN32)
     add_subdirectory(Tools/WowClient)
 endif ()
-if (WOWDECOMP_ARCH_64)
-    add_subdirectory(Tools/XvidDecoder)
-endif ()
+add_subdirectory(Tools/XvidDecoder)
 
 foreach (target Wow WowClient MapViewer M2Viewer GxTest MpqTest BlpTest DbcTest AssetCheck)
     if (TARGET ${target})

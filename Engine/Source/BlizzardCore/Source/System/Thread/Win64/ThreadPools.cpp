@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdlib>
@@ -92,4 +91,3 @@ bool System_Thread::ThreadWorker::Start(Blizzard::Thread::ThreadPoolRecord* pool
     return true;
 }
 
-#endif

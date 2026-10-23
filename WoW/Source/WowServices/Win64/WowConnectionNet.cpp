@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <winsock2.h>
 #include <windows.h>
@@ -185,4 +184,3 @@ void WowConnectionNet::PlatformDestroy() {
     WSACleanup();
 }
 
-#endif

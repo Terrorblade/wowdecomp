@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdarg>
 #include <cstdint>
@@ -75,4 +74,3 @@ void SDebugPrintf(const char* format, ...) {
     OutputDebugStringA(buffer);
 }
 
-#endif

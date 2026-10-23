@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdlib>
@@ -42,4 +41,3 @@ bool Blizzard::Thread::WaitForever(ThreadRecord* thread) {
     return WaitForSingleObject(thread->m_handle, INFINITE) == WAIT_OBJECT_0;
 }
 
-#endif

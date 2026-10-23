@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cctype>
 #include <cmath>
@@ -604,4 +603,3 @@ int32_t CGxDevice::DeviceRenderAspect(float& aspect) {
     return 0;
 }
 
-#endif

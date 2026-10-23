@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdarg>
 #include <cstddef>
@@ -991,4 +990,3 @@ void OsNet::SLTCPCONN::AddToSelectSets(NETSELECTSETS* selectSets) {
     }
 }
 
-#endif

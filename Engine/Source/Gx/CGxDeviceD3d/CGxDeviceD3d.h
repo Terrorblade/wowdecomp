@@ -325,6 +325,21 @@ class CGxDeviceD3d : public CGxDevice {
     static void IUnloadD3dLib(HINSTANCE& d3dLib, LPDIRECT3D9& d3d);
     static LRESULT CALLBACK WindowProcD3d(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
 
+    // HoT: the OS side of the device, implemented in Win32/ and Linux/.
+    static bool IProbeLock(char* data, bool write);
+    int32_t IHwCursorCaps();
+    static ATOM IRegisterWindowClass();
+    void IUnregisterWindowClass();
+    void IHideWindow();
+    void IClientToScreen(POINT* points, uint32_t count);
+    void IDestroyWindow();
+    void IReadSystemGammaRamp();
+    void IStereoInit(const CGxFormat& format);
+    void IStereoCreateHandle();
+    void IStereoUpdate();
+    void IStereoDestroyHandle();
+    void IStereoRestore();
+
     CGxDeviceD3d();
     virtual ~CGxDeviceD3d();
     void DsSet(EDeviceState state, uint32_t value);

@@ -408,7 +408,6 @@ FodyWeavers.xsd
 !Engine/Source/BlizzardCore/Source/Packages/*
 !Engine/Source/BlizzardCore/Source/System/Debug/
 !Engine/Source/BlizzardCore/Source/System/Log/
-!ThirdParty/nvapi/x86/
 
 # Local Visual Studio CMake settings (absolute paths to re/tools)
 CMakeSettings.json

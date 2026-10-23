@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstring>
@@ -286,4 +285,3 @@ int32_t OsIMEGetCandidates(uint32_t listMask, uint32_t& pageStart, uint32_t& pag
     return 1;
 }
 
-#endif

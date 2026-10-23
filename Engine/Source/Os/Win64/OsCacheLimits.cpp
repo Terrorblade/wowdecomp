@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include "Engine/Source/Os/OsCacheLimits.h"
 
@@ -7,4 +6,3 @@ const OsCacheLimits& OsGetCacheLimits() {
     return s_limits;
 }
 
-#endif

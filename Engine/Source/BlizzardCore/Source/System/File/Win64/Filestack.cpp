@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <algorithm>
 #include <cctype>
@@ -1024,4 +1023,3 @@ void System_File::FromNativeName(char* buffer, uint32_t buffersize, const char* 
     Blizzard::Unicode::ConvertUTF16to8(buffer, buffersize, wide.m_data, -1, nullptr, nullptr);
 }
 
-#endif

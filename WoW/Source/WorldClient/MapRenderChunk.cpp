@@ -2677,10 +2677,6 @@ void CMapRenderChunk::RenderSinglePassPixelShader() {
     g_theGxDevicePtr->RsSet(static_cast<EGxRenderState>(GxRs_Texture0 + i), TextureGetGxTex(this->m_terrainBlendTexture, 1, nullptr));
     GxXformSet(static_cast<EGxXform>(GxXform_Tex0 + i), alphaMatrix);
     g_theGxDevicePtr->Draw(&this->m_batch, 1);
-
-    for (; i >= 0; i--) {
-        g_theGxDevicePtr->RsSet(static_cast<EGxRenderState>(GxRs_Texture0 + i), static_cast<CGxTex*>(nullptr));
-    }
 }
 
 // VERIFY: cad126b2 manual
@@ -2732,10 +2728,6 @@ void CMapRenderChunk::RenderSinglePassVertexPixelShader() {
             consts.m_texOffset[j].y = 0.0f;
             GxShaderConstantsSet(GxSh_Vertex, 13 + j, &consts.m_texOffset[j].x, 1);
         }
-    }
-
-    for (; i >= 0; i--) {
-        g_theGxDevicePtr->RsSet(static_cast<EGxRenderState>(GxRs_Texture0 + i), static_cast<CGxTex*>(nullptr));
     }
 }
 

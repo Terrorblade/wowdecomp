@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdarg>
 #include <cstdint>
@@ -472,4 +471,3 @@ void SLogWrite(HSLOG log, const char* format, ...) {
     va_end(arglist);
 }
 
-#endif

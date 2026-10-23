@@ -1,6 +1,11 @@
+#include <algorithm>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <thread>
+#include <vector>
 #include "HoT/Profiler/Profiler.h"
 #include <new>
 #include "Engine/Source/Model2/M2Cache.h"
@@ -47,38 +52,97 @@ void CM2Cache::ClearSharedHash() {
     }
 }
 
-// VERIFY: de6dcef8 auto
-// OFFSET: 0x0081BFA0
-void CM2Cache::BeginThread(void (*func)(void*), void* param) {
-    this->m_threadFunc = func;
-    this->m_threadParam = param;
-    this->m_threadStart.Set();
+// FIX: a pool of animation workers instead of one, so model animation scales with the cores
+namespace {
+
+struct AnimationWorkers {
+    std::vector<std::thread> m_threads;
+    std::mutex m_mutex;
+    std::condition_variable m_start;
+    std::condition_variable m_done;
+    void (*m_func)(void*) = nullptr;
+    void* m_param = nullptr;
+    uint64_t m_generation = 0;
+    uint32_t m_running = 0;
+    bool m_stop = false;
+};
+
+AnimationWorkers s_workers;
+
+void AnimationWorkerProc(HPROPCONTEXT context) {
+    PropSelectContext(context);
+
+    uint64_t generation = 0;
+    std::unique_lock<std::mutex> lock(s_workers.m_mutex);
+
+    for (;;) {
+        s_workers.m_start.wait(lock, [&] { return s_workers.m_stop || s_workers.m_generation != generation; });
+
+        if (s_workers.m_stop) {
+            return;
+        }
+
+        generation = s_workers.m_generation;
+        void (*func)(void*) = s_workers.m_func;
+        void* param = s_workers.m_param;
+
+        lock.unlock();
+        func(param);
+        lock.lock();
+
+        if (--s_workers.m_running == 0) {
+            s_workers.m_done.notify_one();
+        }
+    }
 }
 
-// VERIFY: b68bbc6f auto
-// OFFSET: 0x0081BFD0
-void CM2Cache::WaitThread() {
-    this->m_threadDone.Wait(0xFFFFFFFF);
+void StartAnimationWorkers(HPROPCONTEXT context) {
+    uint32_t cores = std::thread::hardware_concurrency();
+    uint32_t count = cores > 1 ? std::min(cores - 1, 7u) : 1;
+
+    s_workers.m_stop = false;
+
+    for (uint32_t i = 0; i < count; i++) {
+        s_workers.m_threads.emplace_back(AnimationWorkerProc, context);
+    }
 }
 
-// VERIFY: 7d58516f manual
-// OFFSET: 0x0081BFE0
-uint32_t STORMAPI CM2Cache::ThreadProc(void* param) {
-    CM2Cache* cache = static_cast<CM2Cache*>(param);
-
-    PropSelectContext(cache->m_propContext);
-    cache->m_flags |= 0x400;
-    cache->m_threadStart.Wait(0xFFFFFFFF);
-
-    while (!(cache->m_flags & 0x800)) {
-        cache->m_threadFunc(cache->m_threadParam);
-        cache->m_threadDone.Set();
-        cache->m_threadStart.Wait(0xFFFFFFFF);
+void StopAnimationWorkers() {
+    {
+        std::lock_guard<std::mutex> lock(s_workers.m_mutex);
+        s_workers.m_stop = true;
     }
 
-    cache->m_flags &= ~0x400u;
+    s_workers.m_start.notify_all();
 
-    return 0;
+    for (std::thread& thread : s_workers.m_threads) {
+        thread.join();
+    }
+
+    s_workers.m_threads.clear();
+}
+
+}
+
+void CM2Cache::RunThreads(void (*func)(void*), void* param) {
+    if (s_workers.m_threads.empty()) {
+        func(param);
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(s_workers.m_mutex);
+        s_workers.m_func = func;
+        s_workers.m_param = param;
+        s_workers.m_running = static_cast<uint32_t>(s_workers.m_threads.size());
+        s_workers.m_generation++;
+    }
+
+    s_workers.m_start.notify_all();
+    func(param);
+
+    std::unique_lock<std::mutex> lock(s_workers.m_mutex);
+    s_workers.m_done.wait(lock, [] { return s_workers.m_running == 0; });
 }
 
 // VERIFY: c0d77014 auto
@@ -121,10 +185,8 @@ int32_t CM2Cache::Initialize(uint32_t flags) {
 
     if (this->m_flags & 4) {
         this->m_flags &= ~0xC00u;
-        this->m_threadStart.Reset();
-        this->m_threadDone.Reset();
         this->m_propContext = PropGetSelectedContext();
-        SThread::Create(CM2Cache::ThreadProc, this, this->m_thread, const_cast<char*>("Model2"), 0);
+        StartAnimationWorkers(this->m_propContext);
     }
 
     if (flags & 8) {
@@ -199,11 +261,7 @@ void CM2Cache::GarbageCollect(int32_t force) {
 // VERIFY: 370cb080 auto
 // OFFSET: 0x0081C300
 void CM2Cache::Destroy() {
-    if (this->m_flags & 4) {
-        this->m_flags |= 0x800;
-        this->m_threadStart.Set();
-        this->m_thread.Wait(0xFFFFFFFF);
-    }
+    StopAnimationWorkers();
 
     while (this->m_freeList) {
         CM2Shared* shared = this->m_freeList;
@@ -436,14 +494,12 @@ CM2Cache::~CM2Cache() {
 
 // VERIFY: 902f5653 manual
 // OFFSET: 0x0081C900
-CM2Cache::CM2Cache() : m_threadStart(0, 0), m_threadDone(0, 0) {
+CM2Cache::CM2Cache() {
     this->m_freeList = nullptr;
     this->m_freeListTail = &this->m_freeList;
     this->m_initialized = 0;
     this->m_flags = 0;
     memset(this->m_shared, 0, sizeof(this->m_shared));
-    this->m_threadFunc = nullptr;
-    this->m_threadParam = nullptr;
     this->unused_101C[0] = '\0';
     this->unused_105C[0] = '\0';
 }

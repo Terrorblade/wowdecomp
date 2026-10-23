@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <windows.h>
 #include "Engine/Source/Os/Error.h"
@@ -15,4 +14,3 @@ void OsFreeLastErrorStr(char* str) {
     LocalFree(str);
 }
 
-#endif

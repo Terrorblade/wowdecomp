@@ -16,7 +16,7 @@
 #include <vector>
 #include "Engine/Source/Gx/CGxDeviceMetal/MetalFixedFunction.h"
 #include "Engine/Source/Gx/CGxDeviceMetal/MetalResources.h"
-#include "Engine/Source/Gx/CGxDeviceMetal/Shader/ShaderBytecode.h"
+#include "Engine/Source/Gx/Shader/ShaderBytecode.h"
 #include "Engine/Source/Gx/CGxDeviceMetal/Shader/ShaderTranslator.h"
 #include "Engine/Source/Gx/Types.h"
 

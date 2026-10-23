@@ -118,10 +118,10 @@ bool GenerateFixedVertexShader(const FixedVertexKey& key, std::string& source, s
     // Texture coordinates: generation, then the texture transform
     for (uint32_t i = 0; i < 8; i++) {
         uint32_t inputIndex = key.m_texcoordIndex[i] & 7;
-        uint32_t transform = key.m_transformCount[i] & 7;
+        uint32_t transform = key.m_transformCount[i] > 4 ? 4 : key.m_transformCount[i];
         uint32_t texcoordCount = key.m_texcoordComponents[inputIndex];
-        uint32_t count = 4;
         std::string value;
+        std::string padding;
 
         switch (key.m_texgen[i]) {
             case TexGen_ViewNormal:
@@ -138,14 +138,13 @@ bool GenerateFixedVertexShader(const FixedVertexKey& key, std::string& source, s
 
             default:
                 value = input(ATTRIB_TEXCOORD0 + inputIndex, "float4(0.0f, 0.0f, 0.0f, 1.0f)");
-                // The transform produces at most the components the input has
-                count = transform;
-                if (texcoordCount) {
-                    if (!count || count > texcoordCount) {
-                        count = texcoordCount;
-                    }
-                } else {
+                if (!texcoordCount) {
                     transform = 0;
+                }
+
+                // Before the transform the first missing component reads as 1 and the rest as 0
+                for (uint32_t j = texcoordCount; transform && j < 4; j++) {
+                    padding += Format("    tc%u.%c = %s;\n", i, kComponents[j], j > texcoordCount ? "0.0f" : "1.0f");
                 }
                 break;
         }
@@ -153,16 +152,12 @@ bool GenerateFixedVertexShader(const FixedVertexKey& key, std::string& source, s
         source += Format("    float4 tc%u = %s;\n", i, value.c_str());
 
         if (transform) {
-            // Before the transform the first missing component reads as 1 and the rest as 0
-            for (uint32_t j = count; j < 4; j++) {
-                source += Format("    tc%u.%c = %s;\n", i, kComponents[j], j > texcoordCount ? "0.0f" : "1.0f");
-            }
-
+            source += padding;
             source += Format("    tc%u = ff.texture[%u] * tc%u;\n", i, i, i);
 
             // Components past the count repeat the last one, the divisor of projected lookups
-            for (uint32_t j = count; j < 4; j++) {
-                source += Format("    tc%u.%c = tc%u.%c;\n", i, kComponents[j], i, kComponents[count - 1]);
+            for (uint32_t j = transform; j < 4; j++) {
+                source += Format("    tc%u.%c = tc%u.%c;\n", i, kComponents[j], i, kComponents[transform - 1]);
             }
         }
 
@@ -194,10 +189,11 @@ bool GenerateFixedVertexShader(const FixedVertexKey& key, std::string& source, s
                 source += "        float atten = d > light.range ? 0.0f : min(1.0f / (light.attenuation0 + d * (light.attenuation1 + d * light.attenuation2)), FLT_MAX);\n";
             }
 
-            source += "        float hitDot = saturate(dot(n, hitDir));\n";
+            // The dot products are not clamped to 1, which unnormalized normals exceed
+            source += "        float hitDot = max(dot(n, hitDir), 0.0f);\n";
             source += "        float3 mid = normalize(hitDir - normalize(vtx.xyz));\n";
-            source += "        float midDot = saturate(dot(n, mid));\n";
-            source += "        float specularness = midDot > 0.0f ? d3d_pow(midDot, ff.materialPower.x) * atten : 0.0f;\n";
+            source += "        float midDot = max(dot(n, mid), 0.0f);\n";
+            source += "        float specularness = hitDot > 0.0f && midDot > 0.0f ? d3d_pow(midDot, ff.materialPower.x) * atten : 0.0f;\n";
             source += "        ambientLight += light.ambient * atten;\n";
             source += "        diffuseLight += light.diffuse * (hitDot * atten);\n";
             source += "        specularLight += light.specular * specularness;\n";

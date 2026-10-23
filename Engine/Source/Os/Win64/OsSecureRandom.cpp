@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstring>
@@ -99,4 +98,3 @@ void OsSecureRandom(uint8_t* buffer, uint32_t size) {
     IOsSecureRandom(buffer, size);
 }
 
-#endif

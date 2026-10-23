@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -137,4 +136,3 @@ bool Blizzard::Version::GetFileVersion(const char* path, FileVersion& version) {
     return GetVersionInfo(path, version, 1);
 }
 
-#endif

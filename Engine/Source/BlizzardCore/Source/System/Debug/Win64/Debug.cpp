@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdio>
@@ -80,4 +79,3 @@ void System_Debug::ShutdownProc() {
     }
 }
 
-#endif

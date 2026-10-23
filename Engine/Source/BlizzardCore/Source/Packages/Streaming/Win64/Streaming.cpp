@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cctype>
 #include <cstdint>
@@ -1282,4 +1281,3 @@ void StopStreaming() {
     Blizzard::Streaming::ManifestInfo::s_instance = nullptr;
 }
 
-#endif

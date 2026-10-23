@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstring>
@@ -13,4 +12,3 @@ Blizzard::StringConversion_CodepageToUTF8::ToNative::ToNative(const char* str) :
     this->m_data[WideCharToMultiByte(CP_ACP, 0, reinterpret_cast<LPCWCH>(wide.m_data), length, this->m_data, this->m_count, "_", nullptr)] = '\0';
 }
 
-#endif

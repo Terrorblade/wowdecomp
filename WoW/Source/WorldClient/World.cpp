@@ -3681,6 +3681,10 @@ void CWorldScene::RenderChunksSinglePass() {
                             renderChunk->RenderSinglePassPixelShader();
                         }
                     } else {
+                        for (uint32_t stage = 0; stage <= 4; stage++) {
+                            g_theGxDevicePtr->RsSet(static_cast<EGxRenderState>(GxRs_Texture0 + stage), static_cast<CGxTex*>(nullptr));
+                        }
+
                         CMapRenderChunk::s_renderLayersFunc(renderChunk);
                     }
                 }
@@ -3696,6 +3700,11 @@ void CWorldScene::RenderChunksSinglePass() {
                 renderChunk = next;
             }
         }
+    }
+
+    // FIX: the shader chunk paths leave their textures bound so neighbours sharing a texture skip the rebind
+    for (uint32_t i = 0; i <= 4; i++) {
+        g_theGxDevicePtr->RsSet(static_cast<EGxRenderState>(GxRs_Texture0 + i), static_cast<CGxTex*>(nullptr));
     }
 
     g_theGxDevicePtr->RsSet(GxRs_VertexShader, static_cast<void*>(nullptr));

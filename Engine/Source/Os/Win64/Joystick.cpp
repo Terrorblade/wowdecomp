@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cmath>
 #include <cstdint>
@@ -676,4 +675,3 @@ void OsPollJoysticks(int32_t active) {
     }
 }
 
-#endif

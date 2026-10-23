@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdio>
@@ -624,4 +623,3 @@ uint64_t OsGetProcessorTicksPerSecond() {
     return s_cpuTicksPerSecond;
 }
 
-#endif

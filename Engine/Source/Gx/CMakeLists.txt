@@ -1,7 +1,9 @@
 file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp" "*.mm")
 wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 
-if (WOWDECOMP_PLATFORM_POSIX)
+if (WOWDECOMP_PLATFORM_LINUX)
+    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDeviceD3d9Ex/")
+elseif (WOWDECOMP_PLATFORM_MAC)
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDevice(D3d|D3d9Ex)/")
 elseif (NOT WIN32)
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDevice(D3d|D3d9Ex|OpenGL)/")
@@ -18,10 +20,17 @@ target_include_directories(Gx
 
 if (WOWDECOMP_PLATFORM_LINUX)
     find_package(OpenGL REQUIRED)
+    # The D3D9 device's windows.h layers the COM names dxvk's headers need on Compat.h.
+    target_include_directories(Gx
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/CGxDeviceD3d/Linux/Include
+    )
     target_link_libraries(Gx
         PUBLIC
             SDL2::SDL2
             OpenGL::GL
+        PRIVATE
+            dxvk_native
     )
 elseif (WOWDECOMP_PLATFORM_MAC)
     target_link_libraries(Gx

@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -148,4 +147,3 @@ void OsCallDestroyContext(void* context) {
     s_critsect.Leave();
 }
 
-#endif

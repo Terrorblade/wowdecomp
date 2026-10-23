@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdlib>
@@ -369,4 +368,3 @@ void System_Thread::InternalSetLocalStorage(const Blizzard::Thread::TLSSlot* slo
     }
 }
 
-#endif

@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstring>
@@ -270,4 +269,3 @@ int32_t STORMAPI SCreateProcess(const char* appName, char* commandLine, void (*c
     return 1;
 }
 
-#endif

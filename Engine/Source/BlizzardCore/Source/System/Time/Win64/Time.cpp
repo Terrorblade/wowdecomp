@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cmath>
 #include <cstdint>
@@ -267,4 +266,3 @@ int64_t Blizzard::Time::Milliseconds() {
     return static_cast<int64_t>(static_cast<double>(counter.QuadPart) * System_Time::timeScaleMilliseconds);
 }
 
-#endif

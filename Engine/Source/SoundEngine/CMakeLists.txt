@@ -103,55 +103,6 @@ if (MSVC)
     target_compile_options(fmodex PRIVATE /MP)
 endif ()
 
-if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-    target_compile_definitions(fmodex
-        PRIVATE
-            FLAC__CPU_IA32
-            FLAC__HAS_NASM
-            FLAC__USE_3DNOW
-    )
-
-    find_program(NASM_EXECUTABLE nasm)
-    if (NOT NASM_EXECUTABLE)
-        message(FATAL_ERROR
-            "NASM not found. The Win32 build assembles FMOD Ex and libFLAC .s/.nasm sources. "
-            "Put nasm on PATH or pass -DNASM_EXECUTABLE=<path to nasm.exe>."
-        )
-    endif ()
-
-    set(FMODEX_ASM_OBJECTS)
-
-    file(GLOB FMODEX_ASM_SOURCES CONFIGURE_DEPENDS "${FMODEX_DIR}/win32/src/*_asm.s")
-    foreach (src ${FMODEX_ASM_SOURCES})
-        get_filename_component(name ${src} NAME_WE)
-        set(obj ${CMAKE_CURRENT_BINARY_DIR}/fmodex_asm/${name}.obj)
-        add_custom_command(
-            OUTPUT ${obj}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/fmodex_asm
-            COMMAND ${NASM_EXECUTABLE} -f win32 -O0 -I${FMODEX_DIR}/win32/src/ -o ${obj} ${src}
-            DEPENDS ${src} ${FMODEX_DIR}/win32/src/c32.mac
-            VERBATIM
-        )
-        list(APPEND FMODEX_ASM_OBJECTS ${obj})
-    endforeach ()
-
-    foreach (name cpu_asm lpc_asm)
-        set(src ${FMODEX_FLAC_DIR}/src/libFLAC/ia32/${name}.nasm)
-        set(obj ${CMAKE_CURRENT_BINARY_DIR}/fmodex_asm/${name}.obj)
-        add_custom_command(
-            OUTPUT ${obj}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/fmodex_asm
-            COMMAND ${NASM_EXECUTABLE} -f win32 -O0 -dOBJ_FORMAT_win32 -I${FMODEX_FLAC_DIR}/src/libFLAC/ia32/ -o ${obj} ${src}
-            DEPENDS ${src} ${FMODEX_FLAC_DIR}/src/libFLAC/ia32/nasm.h
-            VERBATIM
-        )
-        list(APPEND FMODEX_ASM_OBJECTS ${obj})
-    endforeach ()
-
-    set_source_files_properties(${FMODEX_ASM_OBJECTS} PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
-    target_sources(fmodex PRIVATE ${FMODEX_ASM_OBJECTS})
-endif ()
-
 file(GLOB SOUNDENGINE_SOURCES CONFIGURE_DEPENDS "*.cpp")
 wowdecomp_filter_platform_sources(SOUNDENGINE_SOURCES)
 

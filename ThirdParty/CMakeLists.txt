@@ -59,11 +59,30 @@ if (WIN32)
             ${CMAKE_CURRENT_SOURCE_DIR}/nvapi
     )
 
-    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-        target_link_libraries(nvapi INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nvapi/amd64/nvapi64.lib)
-    else ()
-        target_link_libraries(nvapi INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nvapi/x86/nvapi.lib)
+    target_link_libraries(nvapi INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nvapi/amd64/nvapi64.lib)
+endif ()
+
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    # Linux renders Direct3D 9 on Vulkan through dxvk. The headers are vendored, the prebuilt library ships next
+    # to the client and is loaded at runtime.
+    add_library(dxvk_native INTERFACE)
+    target_include_directories(dxvk_native INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/dxvk-native/include)
+
+    set(DXVK_VERSION 3.1.1)
+    set(DXVK_ARCHIVE ${CMAKE_BINARY_DIR}/dxvk-native/dxvk-native-${DXVK_VERSION}-steamrt-sniper.tar.gz)
+    set(DXVK_D3D9_LIBRARY ${CMAKE_BINARY_DIR}/dxvk-native/usr/lib/libdxvk_d3d9.so.0.30101)
+
+    if (NOT EXISTS ${DXVK_D3D9_LIBRARY})
+        file(DOWNLOAD
+            https://github.com/doitsujin/dxvk/releases/download/v${DXVK_VERSION}/dxvk-native-${DXVK_VERSION}-steamrt-sniper.tar.gz
+            ${DXVK_ARCHIVE}
+            EXPECTED_HASH SHA256=506fa1ea5bb6ce9a89e11436f7ab5191bc0196e8a577e0cf0b16a45bbc9991b7
+            SHOW_PROGRESS
+        )
+        file(ARCHIVE_EXTRACT INPUT ${DXVK_ARCHIVE} DESTINATION ${CMAKE_BINARY_DIR}/dxvk-native PATTERNS usr/lib/libdxvk_d3d9.so.0.30101)
     endif ()
+
+    set(WOWDECOMP_DXVK_D3D9_LIBRARY ${DXVK_D3D9_LIBRARY} CACHE INTERNAL "")
 endif ()
 
 # FIX: HoT MSDF text needs a modern FreeType and msdfgen, the client's 2.0 copy stays in freetype/ unused.
@@ -190,43 +209,10 @@ target_include_directories(DivxDecoder
         ${CMAKE_CURRENT_SOURCE_DIR}/DivxDecoder
 )
 
-if (WOWDECOMP_ARCH_32)
-    set(DIVXDECODER_IMPORT_LIB ${CMAKE_CURRENT_BINARY_DIR}/DivxDecoder.lib)
-
-    execute_process(
-        COMMAND ${CMAKE_AR} /NOLOGO /MACHINE:X86 /DEF:${CMAKE_CURRENT_SOURCE_DIR}/DivxDecoder/DivxDecoder.def /OUT:${DIVXDECODER_IMPORT_LIB}
-        RESULT_VARIABLE DIVXDECODER_RESULT
-    )
-
-    if (NOT DIVXDECODER_RESULT EQUAL 0)
-        message(FATAL_ERROR "DivxDecoder: creating the import library failed")
-    endif ()
-
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/DivxDecoder/DivxDecoder.def)
-
-    target_link_libraries(DivxDecoder
-        INTERFACE
-            ${DIVXDECODER_IMPORT_LIB}
-    )
-
-    set(DIVXDECODER_DLL ${CMAKE_CURRENT_SOURCE_DIR}/DivxDecoder/DivxDecoder.dll)
-
-    if (EXISTS ${DIVXDECODER_DLL})
-        add_custom_target(DivxDecoderDll
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin/Win
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DIVXDECODER_DLL} ${CMAKE_SOURCE_DIR}/bin/Win/DivxDecoder.dll
-        )
-
-        add_dependencies(DivxDecoder DivxDecoderDll)
-    else ()
-        message(WARNING "DivxDecoder: ${DIVXDECODER_DLL} is missing. Copy DivxDecoder.dll from a 3.3.5a (12340) client there; Win32 builds need it next to the executables.")
-    endif ()
-else ()
-    target_link_libraries(DivxDecoder
-        INTERFACE
-            XvidDecoder
-    )
-endif ()
+target_link_libraries(DivxDecoder
+    INTERFACE
+        XvidDecoder
+)
 
 if (WIN32)
     add_library(lgLcd STATIC

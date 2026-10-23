@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cwchar>
@@ -60,4 +59,3 @@ CommandLineUTF8::~CommandLineUTF8() {
     delete[] m_commandLine;
 }
 
-#endif

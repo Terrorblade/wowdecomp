@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdarg>
 #include <cstdint>
@@ -1026,4 +1025,3 @@ void SErrDisplayAppFatalMessage(const char* message, const char* filename, int32
     SErrDisplayAppFatal("%s", message);
 }
 
-#endif

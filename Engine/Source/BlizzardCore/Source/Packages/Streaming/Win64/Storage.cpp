@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstring>
@@ -1242,4 +1241,3 @@ bool Blizzard::Storage::Initialize(const char* path, bool required) {
     return true;
 }
 
-#endif

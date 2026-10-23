@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdarg>
 #include <cstdint>
@@ -80,4 +79,3 @@ uint32_t System_Log::LogThread(void* param) {
     return 0;
 }
 
-#endif

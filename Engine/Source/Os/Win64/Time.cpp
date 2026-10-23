@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <ctime>
@@ -23,4 +22,3 @@ void OsGetTimeStamp(char* buffer, uint32_t size) {
     strftime(buffer, size, "%m%d%y_%H%M%S", _localtime32(&now));
 }
 
-#endif

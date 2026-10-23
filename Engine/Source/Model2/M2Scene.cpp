@@ -1,8 +1,11 @@
+#include <algorithm>
+#include <atomic>
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <new>
+#include <vector>
 #include <xmmintrin.h>
 #include "Engine/Source/Model2/M2Scene.h"
 #include "HoT/Profiler/Profiler.h"
@@ -38,7 +41,11 @@ uint32_t CM2Scene::s_optFlags = 0xFFFFFFFF;
 static const float s_lightGridScale = 0.05f;
 
 // STATIC: 0x00D40DA0
-static uint32_t s_doodadHash[251];
+// FIX: 1571 entries as in later clients, 251 fills up in doodad dense areas and every insert then probes the whole table
+static uint32_t s_doodadHash[1571];
+
+static std::vector<CM2Model*> s_animateRoots;
+static std::atomic<uint32_t> s_animateNext;
 
 // VERIFY: abe62346 auto
 // OFFSET: 0x0081C990
@@ -241,17 +248,11 @@ CM2Model* CM2ModelHeap::New() {
 // OFFSET: 0x0081CE70
 void CM2Scene::AnimateThread(void* param) {
     CM2Scene* scene = static_cast<CM2Scene*>(param);
+    uint32_t count = static_cast<uint32_t>(s_animateRoots.size());
 
-    for (CM2Model* model = scene->m_animateList; model; model = model->m_animateNext) {
-        model = model->m_animateNext;
-
-        if (!model) {
-            break;
-        }
-
-        if (model->m_attachParent) {
-            continue;
-        }
+    // FIX: workers take root models from one shared list instead of every other model of the animate list
+    for (uint32_t i = s_animateNext.fetch_add(1); i < count; i = s_animateNext.fetch_add(1)) {
+        CM2Model* model = s_animateRoots[i];
 
         if (model->m_fFlags & 0x1000) {
             model->AnimateMTSimple(&scene->m_view, C3Vector(1.0f, 1.0f, 1.0f), C3Vector(0.0f, 0.0f, 0.0f), 1.0f, 1.0f);
@@ -1058,27 +1059,26 @@ int32_t CM2Scene::SortOpaqueGeoBatches(M2Element* a, M2Element* b) {
             return 1;
         }
 
-        if (a->m_effect && b->m_effect) {
-            CGxShader* vertexA = a->m_effect->m_vertexShaders[a->m_vertexPermute];
-            CGxShader* pixelA = a->m_effect->m_pixelShaders[a->m_pixelPermute];
-            CGxShader* vertexB = b->m_effect->m_vertexShaders[b->m_vertexPermute];
-            CGxShader* pixelB = b->m_effect->m_pixelShaders[b->m_pixelPermute];
+        // FIX: an element without an effect sorts as null shaders, so the order stays consistent for std::sort
+        CGxShader* vertexA = a->m_effect ? a->m_effect->m_vertexShaders[a->m_vertexPermute] : nullptr;
+        CGxShader* pixelA = a->m_effect ? a->m_effect->m_pixelShaders[a->m_pixelPermute] : nullptr;
+        CGxShader* vertexB = b->m_effect ? b->m_effect->m_vertexShaders[b->m_vertexPermute] : nullptr;
+        CGxShader* pixelB = b->m_effect ? b->m_effect->m_pixelShaders[b->m_pixelPermute] : nullptr;
 
-            if (vertexA < vertexB) {
-                return -1;
-            }
+        if (vertexA < vertexB) {
+            return -1;
+        }
 
-            if (vertexA > vertexB) {
-                return 1;
-            }
+        if (vertexA > vertexB) {
+            return 1;
+        }
 
-            if (pixelA < pixelB) {
-                return -1;
-            }
+        if (pixelA < pixelB) {
+            return -1;
+        }
 
-            if (pixelA > pixelB) {
-                return 1;
-            }
+        if (pixelA > pixelB) {
+            return 1;
         }
 
         if (a->m_model->m_shared < b->m_model->m_shared) {
@@ -1235,7 +1235,8 @@ int32_t CM2Scene::SortOpaqueParticles(M2Element* a, M2Element* b) {
         return 1;
     }
 
-    return static_cast<int32_t>((reinterpret_cast<intptr_t>(emitterA->m_texture) - reinterpret_cast<intptr_t>(emitterB->m_texture)) >> 2);
+    // FIX: compares the pointers instead of truncating their 64-bit difference
+    return emitterA->m_texture < emitterB->m_texture ? -1 : emitterA->m_texture > emitterB->m_texture ? 1 : 0;
 }
 
 // VERIFY: 23fd3c71 auto
@@ -1442,7 +1443,8 @@ int32_t CM2Scene::SortAdditiveParticles(uint32_t a, uint32_t b, const void* para
         return 1;
     }
 
-    return static_cast<int32_t>((reinterpret_cast<intptr_t>(emitterA->m_texture) - reinterpret_cast<intptr_t>(emitterB->m_texture)) >> 2);
+    // FIX: compares the pointers instead of truncating their 64-bit difference
+    return emitterA->m_texture < emitterB->m_texture ? -1 : emitterA->m_texture > emitterB->m_texture ? 1 : 0;
 }
 
 // VERIFY: 44a0c3d0 manual
@@ -1711,27 +1713,21 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
     this->m_viewInv = this->m_view.Inverse(this->m_view.Determinant());
 
     if (this->m_cache->m_flags & 4) {
-        this->m_cache->BeginThread(&CM2Scene::AnimateThread, this);
+        s_animateRoots.clear();
 
-        for (CM2Model* model = this->m_animateList; model; ) {
+        for (CM2Model* model = this->m_animateList; model; model = model->m_animateNext) {
             if (!model->m_attachParent) {
-                if (model->m_fFlags & 0x1000) {
-                    model->AnimateMTSimple(&this->m_view, C3Vector(1.0f, 1.0f, 1.0f), C3Vector(0.0f, 0.0f, 0.0f), 1.0f, 1.0f);
-                } else {
-                    model->AnimateMT(&this->m_view, C3Vector(1.0f, 1.0f, 1.0f), C3Vector(0.0f, 0.0f, 0.0f), 1.0f, 1.0f);
-                }
+                s_animateRoots.push_back(model);
             }
-
-            CM2Model* next = model->m_animateNext;
-
-            if (!next) {
-                break;
-            }
-
-            model = next->m_animateNext;
         }
 
-        this->m_cache->WaitThread();
+        s_animateNext.store(0);
+
+        if (s_animateRoots.size() > 1) {
+            this->m_cache->RunThreads(&CM2Scene::AnimateThread, this);
+        } else {
+            CM2Scene::AnimateThread(this);
+        }
     } else {
         for (CM2Model* model = this->m_animateList; model; model = model->m_animateNext) {
             if (model->m_attachParent) {
@@ -2202,7 +2198,8 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
 
     this->m_doodadElements.SetCount(out);
 
-    M2HeapSort(&CM2Scene::SortOpaque, this->m_passElements[0].m_data, this->m_passElements[0].m_count, this);
+    // FIX: introsort for the opaque pass, its comparator is a consistent ordering
+    std::sort(this->m_passElements[0].m_data, this->m_passElements[0].m_data + this->m_passElements[0].m_count, [this](uint32_t a, uint32_t b) { return CM2Scene::SortOpaque(a, b, this) < 0; });
     M2HeapSort(&CM2Scene::SortTransparent, this->m_passElements[1].m_data, this->m_passElements[1].m_count, this);
     M2HeapSort(&CM2Scene::SortTransparent, this->m_passElements[2].m_data, this->m_passElements[2].m_count, this);
 

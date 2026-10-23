@@ -91,19 +91,11 @@ class ModernModel {
 
 // M2Array offsets are self-relative 32-bit values, so anything a header array points at must sit near the model.
 static void* AllocNear(const void* anchor, size_t size) {
-#if defined(WOWDECOMP_ARCH_64)
     return OsAllocNear(anchor, size);
-#else
-    return malloc(size);
-#endif
 }
 
 static void FreeNear(void* ptr) {
-#if defined(WOWDECOMP_ARCH_64)
     OsFreeNear(ptr);
-#else
-    free(ptr);
-#endif
 }
 
 ModernModel::~ModernModel() {

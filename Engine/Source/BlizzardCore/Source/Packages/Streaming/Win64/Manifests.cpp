@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <string>
@@ -214,4 +213,3 @@ bool Blizzard::Streaming::ManifestInfo::ReadIndirectFile(const char* url) {
     return result;
 }
 
-#endif

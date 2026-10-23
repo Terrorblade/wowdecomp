@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -67,4 +66,3 @@ void* Blizzard::Thread::RegisterLocalStorage(TLSSlot* slot, void* (*constructor)
     return value;
 }
 
-#endif

@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstring>
@@ -219,4 +218,3 @@ bool OsURLDownload(const char* url, OsURLDownloadCallback callback, void* param)
     return OsUrlDownload::DownloadString(url, callback, param, 5000);
 }
 
-#endif

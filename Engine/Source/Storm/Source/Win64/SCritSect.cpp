@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include "Engine/Source/Storm/H/SCritSect.h"
 
@@ -32,4 +31,3 @@ void CCritSect::Leave(int32_t fromwriting) {
     LeaveCriticalSection(&this->m_critsect);
 }
 
-#endif

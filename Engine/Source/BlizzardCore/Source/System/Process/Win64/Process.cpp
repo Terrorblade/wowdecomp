@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <algorithm>
 #include <cstdint>
@@ -153,4 +152,3 @@ void Blizzard::Process::Sleep(uint32_t milliseconds) {
     ::Sleep(milliseconds);
 }
 
-#endif

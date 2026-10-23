@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <windows.h>
 #include "Engine/Source/Storm/H/storm.h"
@@ -27,4 +26,3 @@ void SServerDestroy() {
     }
 }
 
-#endif

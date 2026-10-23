@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstddef>
 #include <cstdint>
@@ -383,4 +382,3 @@ IOUnbufferedFileUnit::~IOUnbufferedFileUnit() {
 
 }
 
-#endif

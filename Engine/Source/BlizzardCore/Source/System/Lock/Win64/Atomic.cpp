@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -14,4 +13,3 @@ int32_t Blizzard::Lock::Atomic::Decrement() {
     return InterlockedDecrement(reinterpret_cast<volatile LONG*>(&this->m_value));
 }
 
-#endif

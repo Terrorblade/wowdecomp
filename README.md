@@ -10,8 +10,7 @@ Every function is reconstructed from the original binary and keeps the address i
 `// OFFSET:` tag, so each one can be compared against the original. The source tree follows the layout
 of the original client (`Engine/Source/<Module>`, `WoW/Source/<Module>`, original file names).
 
-x64 is the main target. Win32 still builds and is used to check struct layouts against the 32-bit
-original.
+The client builds 64-bit only.
 
 ## Progress
 
@@ -39,9 +38,6 @@ parts of FMOD Ex).
 - Windows 10 or 11
 - Visual Studio 2022 with the **Desktop development with C++** workload (MSVC v143 and a Windows SDK)
 - CMake 3.10 or newer (the one that ships with Visual Studio works)
-- For Win32 builds only: [NASM](https://www.nasm.us/), on `PATH` or passed as `-DNASM_EXECUTABLE=<path>`, and
-  `DivxDecoder.dll` from your 3.3.5a client copied to `ThirdParty/DivxDecoder/` (the build copies it next to the
-  executables; the x64 build uses its own decoder instead)
 - A World of Warcraft **3.3.5a (12340)** client. No game data is included in this repository.
 
 ## Building
@@ -52,23 +48,18 @@ From a Developer PowerShell or any shell with `cmake` on `PATH`:
 git clone https://github.com/SatyPardus/wowdecomp.git
 cd wowdecomp
 
-# x64 (main target)
 cmake -S . -B build/x64 -G "Visual Studio 17 2022" -A x64
 cmake --build build/x64 --config Release --target WowClient --parallel
-
-# Win32 (optional, needs NASM)
-cmake -S . -B build/win32 -G "Visual Studio 17 2022" -A Win32
-cmake --build build/win32 --config Release --target WowClient --parallel
 ```
 
 In-source builds are refused, so keep the build directory separate (`build/` above).
 
 The client is written to `bin/Win/`:
 
-| Target | x64 | Win32 |
-|---|---|---|
-| `WowClient` | `WowClient64.exe` | `WowClient32.exe` |
-| `Wow` | `Wow64.exe` | `Wow32.exe` |
+| Target | Executable |
+|---|---|
+| `WowClient` | `WowClient64.exe` |
+| `Wow` | `Wow64.exe` |
 
 `WowClient` is the client with a crash logger: it opens a console window and writes
 `WowClient_crash.log` when the client crashes. `Wow` is the same client without it. You can also turn the
@@ -76,9 +67,11 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
 ### Linux (native)
 
-The client also builds as a native Linux x86_64 executable. It renders through the OpenGL device on an SDL2 window,
-plays sound through FMOD Ex's SDL2 output, and the `Win32/`/`Win64/` platform sources are replaced by the `Linux/`
-ones next to them. Requirements: clang, lld, CMake, Ninja, SDL2, the OpenGL headers and xvidcore. On Debian/Ubuntu:
+The client also builds as a native Linux x86_64 executable. It renders through the Direct3D 9 device on Vulkan, using
+[dxvk](https://github.com/doitsujin/dxvk)'s native `libdxvk_d3d9.so` on an SDL2 window, and falls back to the OpenGL
+device when no Vulkan driver is found (`SET gxApi "OpenGL"` picks it by hand). Sound goes through FMOD Ex's SDL2
+output, and the Windows platform sources are replaced by the `Linux/` ones next to them. Requirements:
+clang, lld, CMake, Ninja, SDL2, the OpenGL headers and xvidcore, plus a Vulkan driver to run it. On Debian/Ubuntu:
 
 ```sh
 sudo apt-get install clang lld cmake ninja-build libsdl2-dev libgl-dev libxvidcore-dev
@@ -87,7 +80,8 @@ cmake -S . -B build/linux -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_C
 cmake --build build/linux --target Wow
 ```
 
-The client is written to `bin/Linux/Wow64`. Copy the `Data` folder of your 3.3.5a client next to it; file names are
+The client is written to `bin/Linux/Wow64`, with `libdxvk_d3d9.so` next to it (CMake downloads the pinned dxvk
+release at configure time, the d3d9 headers are in `ThirdParty/dxvk-native`). Copy the `Data` folder of your 3.3.5a client next to it; file names are
 matched case-insensitively, so the folder can be copied as-is. Registry settings are kept in
 `~/.config/wowdecomp/registry.ini`.
 
@@ -120,7 +114,7 @@ files are in `cmake/toolchains/`. Mac bundles go to `bin/Mac-arm64/` and `bin/Ma
 | `WOWDECOMP_DISABLE_SIGNATURE_CHECKS` | `OFF` | Skip the MPQ file and `.toc.sig` signature checks, so modified game data and interface files load |
 | `WOWCLIENT_CRASH_LOG` | `ON` | Build `WowClient` with the crash logger |
 | `WOWCLIENT_FREEZE_DETECTOR` | `ON` | 64-bit `WowClient` force-crashes on the main thread when it hangs, so the dump shows where it was stuck. The `WOWCLIENT_FREEZE_SECONDS` env var changes the 10 second limit, 0 turns it off |
-| `WOWCLIENT_OUTPUT_OVERRIDE` | empty | Name the `WowClient` executable something other than `WowClient64` / `WowClient32` |
+| `WOWCLIENT_OUTPUT_OVERRIDE` | empty | Name the `WowClient` executable something other than `WowClient64` |
 
 ## Running
 

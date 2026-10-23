@@ -111,6 +111,7 @@ jobs:
               Copy-Item -Path "source\bin\Win\$f" -Destination "$dest\$f" -Force
             }
             Copy-Item -Path "source\bin\Linux\Wow64" -Destination "$dest\HoTClient64" -Force
+            Copy-Item -Path "source\bin\Linux\libdxvk_d3d9.so" -Destination "$dest\libdxvk_d3d9.so" -Force
             Copy-Item -Path "source\bin\Wow64-mac.tar.gz" -Destination "$dest\HoTClient64-mac.tar.gz" -Force
           }
 
@@ -143,7 +144,7 @@ jobs:
       - name: Commit and push
         run: |
           Push-Location "$env:CLIENTDIR"
-          git add _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64.exe _DO_NOT_PACKAGE\Assets\Binaries\discord_game_sdk_64.dll _DO_NOT_PACKAGE\Assets\Binaries\XvidDecoder.dll _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64 _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64-mac.tar.gz
+          git add _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64.exe _DO_NOT_PACKAGE\Assets\Binaries\discord_game_sdk_64.dll _DO_NOT_PACKAGE\Assets\Binaries\XvidDecoder.dll _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64 _DO_NOT_PACKAGE\Assets\Binaries\libdxvk_d3d9.so _DO_NOT_PACKAGE\Assets\Binaries\HoTClient64-mac.tar.gz
           git commit -m "Update HoTClient64 (Windows, Linux, macOS)"
           git push
           Pop-Location

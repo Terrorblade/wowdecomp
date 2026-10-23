@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstddef>
 #include <cstdint>
@@ -138,4 +137,3 @@ bool System_File::Stacked::stream_close(Blizzard::File::Filesystem* fs, FileParm
     return result && passed;
 }
 
-#endif

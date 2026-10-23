@@ -4,19 +4,13 @@ wowdecomp_filter_platform_sources(PRIVATE_SOURCES)
 if (WOWDECOMP_PLATFORM_POSIX)
     file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Linux/*.cpp" "Mac/*.cpp" "Mac/*.mm")
     wowdecomp_filter_platform_sources(PLATFORM_SOURCES)
-elseif (WOWDECOMP_ARCH_64)
-    file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Win64/*.cpp")
 else ()
-    file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Win32/*.cpp")
+    file(GLOB PLATFORM_SOURCES CONFIGURE_DEPENDS "Win64/*.cpp")
 endif ()
 
 add_executable(Wow WIN32 MACOSX_BUNDLE ${PRIVATE_SOURCES} ${PLATFORM_SOURCES})
 
-if (WOWDECOMP_ARCH_64)
-    set(WOW_OUTPUT_NAME Wow64)
-else ()
-    set(WOW_OUTPUT_NAME Wow32)
-endif ()
+set(WOW_OUTPUT_NAME Wow64)
 
 if (WOWDECOMP_PLATFORM_MAC)
     set(WOW_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/bin/Mac-${CMAKE_OSX_ARCHITECTURES})
@@ -40,6 +34,12 @@ target_include_directories(Wow
     PRIVATE
         ${CMAKE_SOURCE_DIR}
 )
+
+if (WOWDECOMP_PLATFORM_LINUX)
+    add_custom_command(TARGET Wow POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${WOWDECOMP_DXVK_D3D9_LIBRARY} ${WOW_OUTPUT_DIR}/libdxvk_d3d9.so
+    )
+endif ()
 
 if (WOWDECOMP_PLATFORM_WIN)
     target_link_options(Wow PRIVATE "/INCREMENTAL:NO" "/ENTRY:start")

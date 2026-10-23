@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -39,4 +38,3 @@ Blizzard::Lock::EventObject::~EventObject() {
     EventDestroy(this->m_event);
 }
 
-#endif

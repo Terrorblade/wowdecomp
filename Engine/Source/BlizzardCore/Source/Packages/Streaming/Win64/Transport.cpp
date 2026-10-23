@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdio>
@@ -564,4 +563,3 @@ bool Blizzard::Streaming::Transport::Read(Manifests::TransportItem* transport, s
     return result;
 }
 
-#endif

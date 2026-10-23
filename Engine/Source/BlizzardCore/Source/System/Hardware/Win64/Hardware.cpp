@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstring>
@@ -170,4 +169,3 @@ uint32_t Blizzard::Hardware::GetProcessorFeatures() {
     return System_Hardware::s_processorFeatures.m_features;
 }
 
-#endif

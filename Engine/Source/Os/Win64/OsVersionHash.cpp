@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstddef>
 #include <cstdint>
@@ -565,4 +564,3 @@ OsFileVersionInfo::OsFileVersionInfo(const char* filename) : m_fileVersion(), m_
     m_data.Clear();
 }
 
-#endif

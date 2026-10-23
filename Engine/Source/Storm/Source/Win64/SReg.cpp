@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdlib>
@@ -248,4 +247,3 @@ int32_t STORMAPI SRegSaveValue(const char* keyname, const char* valuename, uint3
     return InternalSaveEntry(keyname, valuename, flags, REG_DWORD, &value, sizeof(value));
 }
 
-#endif

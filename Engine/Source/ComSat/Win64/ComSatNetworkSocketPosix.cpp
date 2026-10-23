@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <winsock2.h>
 #include <windows.h>
@@ -65,4 +64,3 @@ bool ComSat::Network::SocketPosix::RecvFrom(ComSat::Network::Address& address, u
     return true;
 }
 
-#endif

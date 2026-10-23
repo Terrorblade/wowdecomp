@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstring>
 #include <intrin.h>
@@ -576,4 +575,3 @@ void CSRWLock::Enter(int32_t forwriting) {
     SRWLock::SURWLockEnter(&this->m_opaqueData, forwriting);
 }
 
-#endif

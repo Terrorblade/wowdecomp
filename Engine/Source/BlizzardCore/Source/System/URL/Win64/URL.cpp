@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdlib>
@@ -376,4 +375,3 @@ bool Blizzard::URL::DownloadURL(const char* url, DownloadCallback* callback) {
     return true;
 }
 
-#endif

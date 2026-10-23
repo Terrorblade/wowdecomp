@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <windows.h>
 #include "Engine/Source/Os/OsLibrary.h"
@@ -18,4 +17,3 @@ void* OsGetLibraryEntryPoint(void* module, const char* name) {
     return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(module), name));
 }
 
-#endif

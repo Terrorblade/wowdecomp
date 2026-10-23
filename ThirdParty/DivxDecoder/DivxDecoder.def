@@ -1,6 +1,0 @@
-LIBRARY DivxDecoder
-EXPORTS
-    DivxDecode
-    InitializeDivxDecoder
-    SetOutputFormat
-    UnInitializeDivxDecoder

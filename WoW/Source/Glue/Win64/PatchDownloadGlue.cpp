@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <windows.h>
 #include <shellapi.h>
@@ -33,4 +32,3 @@ bool CGlueMgr::PatchDownloadExecuteCommand(const char* path, const char* argumen
     return ShellExecuteRunAs(path, arguments);
 }
 
-#endif

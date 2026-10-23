@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include "WoW/Source/Game/GameClient/WardenClient.h"
 #include "Engine/Source/Base/CDataStore.h"
@@ -111,4 +110,3 @@ void WardenCachedModule::Unpack(CDataStore* msg) {
     }
 }
 
-#endif

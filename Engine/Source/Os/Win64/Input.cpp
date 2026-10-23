@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -1674,4 +1673,3 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
 void OsInputEnableSecureMode(int32_t enable) {
 }
 
-#endif

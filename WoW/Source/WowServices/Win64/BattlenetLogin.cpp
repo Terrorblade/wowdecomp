@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <winsock2.h>
 #include <windows.h>
@@ -71,4 +70,3 @@ uint32_t BattlenetApplication::Resolve(uint32_t token, const char* hostname) {
     return 0;
 }
 
-#endif

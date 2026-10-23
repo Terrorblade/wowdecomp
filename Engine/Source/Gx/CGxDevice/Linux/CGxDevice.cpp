@@ -7,6 +7,7 @@
 #include <cstring>
 #include <SDL.h>
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Engine/Source/Gx/CGxDeviceD3d/CGxDeviceD3d.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "HoT/Runtime/Display.h"
 
@@ -253,14 +254,88 @@ int32_t CGxDevice::AdapterDesktopMode(CGxMonitorMode& mode) {
     return 1;
 }
 
-// The Direct3D devices are not built on Linux; CreateGxDevice creates the OpenGL device for those APIs, so they
-// offer the OpenGL formats.
-int32_t CGxDevice::D3dAdapterFormats(TSGrowableArray<CGxFormat>& formats) {
-    return CGxDevice::OpenGlAdapterFormats(formats);
+static const D3DFORMAT s_d3dAdapterFormats[] = { D3DFMT_R5G6B5, D3DFMT_X8R8G8B8, D3DFMT_A8R8G8B8 };
+static const D3DFORMAT s_d3dDepthFormats[] = { D3DFMT_D16, D3DFMT_D24X8, D3DFMT_D24S8, D3DFMT_D32 };
+static const CGxFormat::Format s_gxDepthFormats[] = { CGxFormat::Fmt_Ds160, CGxFormat::Fmt_Ds24X, CGxFormat::Fmt_Ds248, CGxFormat::Fmt_Ds320 };
+static const uint32_t s_multisampleCounts[] = { 1, 2, 4, 6, 8, 10, 12, 14, 16 };
+
+static D3DMULTISAMPLE_TYPE MultisampleType(uint32_t count) {
+    return count == 1 ? D3DMULTISAMPLE_NONE : static_cast<D3DMULTISAMPLE_TYPE>(count);
 }
 
+// The same enumeration as the Windows D3D9 device, answered by dxvk.
+int32_t CGxDevice::D3dAdapterFormats(TSGrowableArray<CGxFormat>& formats) {
+    HINSTANCE d3dLib = nullptr;
+    LPDIRECT3D9 d3d = nullptr;
+
+    if (!CGxDeviceD3d::ILoadD3dLib(d3dLib, d3d)) {
+        return 0;
+    }
+
+    for (D3DFORMAT adapterFormat : s_d3dAdapterFormats) {
+        uint32_t modeCount = d3d->GetAdapterModeCount(0, adapterFormat);
+
+        for (uint32_t mode = 0; mode < modeCount; mode++) {
+            D3DDISPLAYMODE displayMode;
+
+            if (d3d->EnumAdapterModes(0, adapterFormat, mode, &displayMode) != D3D_OK) {
+                continue;
+            }
+
+            CGxFormat format;
+            memset(&format, 0, sizeof(format));
+
+            switch (displayMode.Format) {
+                case D3DFMT_A8R8G8B8:
+                    format.m_colorFormat = CGxFormat::Fmt_Argb8888;
+                    break;
+
+                case D3DFMT_X8R8G8B8:
+                    format.m_colorFormat = CGxFormat::Fmt_ArgbX888;
+                    break;
+
+                case D3DFMT_R5G6B5:
+                    format.m_colorFormat = CGxFormat::Fmt_Rgb565;
+                    break;
+
+                default:
+                    continue;
+            }
+
+            for (uint32_t depth = 0; depth < 4; depth++) {
+                if (FAILED(d3d->CheckDeviceFormat(0, D3DDEVTYPE_HAL, displayMode.Format, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_SURFACE, s_d3dDepthFormats[depth]))) {
+                    continue;
+                }
+
+                format.m_depthFormat = s_gxDepthFormats[depth];
+
+                for (uint32_t samples : s_multisampleCounts) {
+                    if (FAILED(d3d->CheckDeviceMultiSampleType(0, D3DDEVTYPE_HAL, displayMode.Format, FALSE, MultisampleType(samples), nullptr))) {
+                        continue;
+                    }
+
+                    if (FAILED(d3d->CheckDeviceMultiSampleType(0, D3DDEVTYPE_HAL, s_d3dDepthFormats[depth], FALSE, MultisampleType(samples), nullptr))) {
+                        continue;
+                    }
+
+                    format.m_multisampleCount = samples;
+
+                    if (!CGxDevice::FormatExists(formats, format)) {
+                        *formats.New() = format;
+                    }
+                }
+            }
+        }
+    }
+
+    CGxDeviceD3d::IUnloadD3dLib(d3dLib, d3d);
+
+    return formats.Count() != 0;
+}
+
+// The Direct3D 9Ex device is not built here.
 int32_t CGxDevice::D3d9ExAdapterFormats(TSGrowableArray<CGxFormat>& formats) {
-    return CGxDevice::OpenGlAdapterFormats(formats);
+    return 0;
 }
 
 int32_t CGxDevice::AdapterMonitorModes(TSGrowableArray<CGxMonitorMode>& modes) {
@@ -305,16 +380,34 @@ int32_t CGxDevice::DeviceRenderAspect(float& aspect) {
     return 0;
 }
 
-// The OpenGL device stands in for every graphics API.
+// Direct3D 9 through dxvk when it finds a Vulkan adapter, the OpenGL device otherwise.
+static bool D3dAvailable() {
+    static int32_t s_available = -1;
+
+    if (s_available < 0) {
+        HINSTANCE d3dLib = nullptr;
+        LPDIRECT3D9 d3d = nullptr;
+        s_available = CGxDeviceD3d::ILoadD3dLib(d3dLib, d3d);
+        CGxDeviceD3d::IUnloadD3dLib(d3dLib, d3d);
+        CGxDevice::Log("Direct3D 9 through dxvk: %s", s_available ? "available" : "unavailable, using OpenGL");
+    }
+
+    return s_available != 0;
+}
+
 EGxApi GxPosixDefaultApi() {
-    return GxApi_OpenGl;
+    return D3dAvailable() ? GxApi_D3d9 : GxApi_OpenGl;
 }
 
 int32_t GxPosixApiSupported(EGxApi api) {
-    return api == GxApi_OpenGl;
+    return api == GxApi_OpenGl || (api == GxApi_D3d9 && D3dAvailable());
 }
 
 CGxDevice* GxPosixCreateDevice(EGxApi api) {
+    if (api == GxApi_D3d9 && D3dAvailable()) {
+        return CreateCGxDeviceD3d();
+    }
+
     return CreateCGxDeviceOpenGl();
 }
 

@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <winsock2.h>
 #include <windows.h>
@@ -733,4 +732,3 @@ bool WowConnection::Connect(const char* host, uint16_t port, int32_t timeout) {
     return true;
 }
 
-#endif

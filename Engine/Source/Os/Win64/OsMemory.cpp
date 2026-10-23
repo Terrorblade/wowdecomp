@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <atomic>
 #include <cstdint>
@@ -343,4 +342,3 @@ void OsFreeNear(void* ptr) {
     }
 }
 
-#endif

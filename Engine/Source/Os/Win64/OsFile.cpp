@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -300,4 +299,3 @@ int32_t OsFileList(const char* dir, const char* pattern, OsFileListCallback call
     return Blizzard::File::ProcessDirFast(path, &list, OsFileList_Internal::Callback, false);
 }
 
-#endif

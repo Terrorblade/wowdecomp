@@ -46,12 +46,10 @@ static uint32_t s_sequenceSize;
 
 // HoT: model data lives in the near model region on x64 and falls back to the A16 heap when it is full.
 static void FreeModelBuffer(void* buffer) {
-#if defined(WOWDECOMP_ARCH_64)
     if (OsIsNear(buffer)) {
         OsFreeNear(buffer);
         return;
     }
-#endif
 
     SIMD::FreeA16(buffer);
 }
@@ -64,29 +62,19 @@ static void AsyncFileReadFreeA16(CAsyncObject* object) {
     FreeModelBuffer(buffer);
 }
 
-#if defined(WOWDECOMP_ARCH_64)
 static void AsyncFileReadFreeNear(CAsyncObject* object) {
     void* buffer = object->m_buffer;
     AsyncFileReadDestroyObject(object);
     OsFreeNear(buffer);
 }
-#endif
 
 // Header arrays hold 32-bit self-relative offsets, so a block they point at must sit near the header.
 static void* AllocNear(const void* anchor, uint32_t size) {
-#if defined(WOWDECOMP_ARCH_64)
     return OsAllocNear(anchor, size);
-#else
-    return SMemAlloc(size, __FILE__, __LINE__, 0);
-#endif
 }
 
 static void FreeNear(void* ptr) {
-#if defined(WOWDECOMP_ARCH_64)
     OsFreeNear(ptr);
-#else
-    SMemFree(ptr, __FILE__, __LINE__, 0);
-#endif
 }
 
 // VERIFY: d89467e7 manual
@@ -1248,15 +1236,11 @@ int32_t CM2Shared::InitializeSkinProfile() {
             delete[] vertices;
         } else {
             this->m_flags |= 8;
-#if defined(WOWDECOMP_ARCH_64)
             uint32_t bytes = sizeof(M2Vertex) * this->m_skinData->m_vertices.m_count;
             M2Vertex* buffer = static_cast<M2Vertex*>(OsAllocNear(this->m_data, bytes));
             memcpy(buffer, vertices, bytes);
             delete[] vertices;
             this->m_data->m_vertices.Set(buffer);
-#else
-            this->m_data->m_vertices.Set(vertices);
-#endif
         }
 
         this->m_data->m_vertices.m_count = this->m_skinData->m_vertices.m_count;
@@ -1907,15 +1891,11 @@ CM2SequenceLoad::~CM2SequenceLoad() {
 int32_t CM2Shared::Load(SFileImpl* file, int32_t flags, CAaBox* boundingBox) {
     this->m_flags = (this->m_flags & ~4u) | (flags ? 4 : 0);
     this->m_fileSize = SFileGetFileSize(file, nullptr);
-#if defined(WOWDECOMP_ARCH_64)
     this->m_data = static_cast<M2Data*>(OsAllocModel(this->m_fileSize));
 
     if (!this->m_data) {
         this->m_data = static_cast<M2Data*>(SIMD::AllocA16(this->m_fileSize, __FILE__, __LINE__));
     }
-#else
-    this->m_data = static_cast<M2Data*>(SIMD::AllocA16(this->m_fileSize, __FILE__, __LINE__));
-#endif
 
     if (!this->m_data) {
         return 0;
@@ -1949,11 +1929,7 @@ int32_t CM2Shared::Load(SFileImpl* file, int32_t flags, CAaBox* boundingBox) {
 void CM2Shared::CancelAllDeferredSequences() {
     for (CM2SequenceLoad* load = this->m_sequenceLoads.Head(); !this->m_sequenceLoads.IsEnd(load); load = this->m_sequenceLoads.RawNext(load)) {
         if (load->m_asyncObject) {
-#if defined(WOWDECOMP_ARCH_64)
             if (!AsyncFile::Cancel(load->m_asyncObject, AsyncFileReadFreeNear)) {
-#else
-            if (!AsyncFile::Cancel(load->m_asyncObject, AsyncFileReadFreeA16)) {
-#endif
                 this->m_lowPrioritySequenceBuffers[load->m_sequenceBufferIndex] = nullptr;
             }
 
@@ -2019,11 +1995,7 @@ CM2Shared::~CM2Shared() {
 
     if (this->m_lowPrioritySequenceCapacity) {
         for (uint32_t i = 0; i < this->m_lowPrioritySequenceCount; i++) {
-#if defined(WOWDECOMP_ARCH_64)
             OsFreeNear(this->m_lowPrioritySequenceBuffers[i]);
-#else
-            SIMD::FreeA16(this->m_lowPrioritySequenceBuffers[i]);
-#endif
         }
 
         SMemFree(this->m_lowPrioritySequenceBuffers, __FILE__, __LINE__, 0);
@@ -2032,11 +2004,7 @@ CM2Shared::~CM2Shared() {
     }
 
     if (this->m_flags & 8) {
-#if defined(WOWDECOMP_ARCH_64)
         OsFreeNear(this->m_data->m_vertices.Data());
-#else
-        delete[] this->m_data->m_vertices.Data();
-#endif
     }
 
     if (this->m_flags & 1) {
@@ -2157,11 +2125,7 @@ CM2SequenceLoad* CM2Shared::LoadLowPrioritySequence(uint16_t sequenceIndex) {
     }
 
     uint32_t size = SFileGetFileSize(file, nullptr);
-#if defined(WOWDECOMP_ARCH_64)
     uint8_t* buffer = static_cast<uint8_t*>(OsAllocNear(this->m_data, size));
-#else
-    uint8_t* buffer = static_cast<uint8_t*>(SIMD::AllocA16(size, __FILE__, __LINE__));
-#endif
 
     if (!buffer) {
         this->m_sequenceLoads.DeleteNode(load);
@@ -2173,11 +2137,7 @@ CM2SequenceLoad* CM2Shared::LoadLowPrioritySequence(uint16_t sequenceIndex) {
 
     if (!load->m_asyncObject) {
         SFileCloseFile(file);
-#if defined(WOWDECOMP_ARCH_64)
         OsFreeNear(buffer);
-#else
-        SIMD::FreeA16(buffer);
-#endif
         this->m_sequenceLoads.DeleteNode(load);
         return nullptr;
     }

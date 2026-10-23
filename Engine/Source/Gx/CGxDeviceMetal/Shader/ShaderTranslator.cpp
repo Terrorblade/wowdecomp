@@ -130,29 +130,6 @@ static inline float4 d3d_fog(constant D3DPixelState& state, float4 color, float 
 }
 )MSL";
 
-int32_t AttributeIndex(uint32_t usage, uint32_t usageIndex) {
-    switch (usage) {
-        case USAGE_POSITION:
-            return usageIndex == 0 ? ATTRIB_POSITION : -1;
-        case USAGE_BLENDWEIGHT:
-            return usageIndex == 0 ? ATTRIB_BLENDWEIGHT : -1;
-        case USAGE_BLENDINDICES:
-            return usageIndex == 0 ? ATTRIB_BLENDINDICES : -1;
-        case USAGE_NORMAL:
-            return usageIndex == 0 ? ATTRIB_NORMAL : -1;
-        case USAGE_COLOR:
-            return usageIndex < 2 ? ATTRIB_COLOR0 + static_cast<int32_t>(usageIndex) : -1;
-        case USAGE_TEXCOORD:
-            return usageIndex < 8 ? ATTRIB_TEXCOORD0 + static_cast<int32_t>(usageIndex) : -1;
-        default:
-            return -1;
-    }
-}
-
-bool VertexInputSignature::operator==(const VertexInputSignature& other) const {
-    return memcmp(this->m_class, other.m_class, sizeof(this->m_class)) == 0;
-}
-
 bool PixelShaderVariant::operator==(const PixelShaderVariant& other) const {
     return this->m_samplerKinds == other.m_samplerKinds && this->m_projected == other.m_projected && this->m_pointSprite == other.m_pointSprite;
 }

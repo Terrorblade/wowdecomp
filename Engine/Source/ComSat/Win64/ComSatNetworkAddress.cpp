@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <winsock2.h>
 #include <cstdlib>
@@ -31,4 +30,3 @@ void ComSat::Network::Address::SetAddress(const char* address) {
     }
 }
 
-#endif

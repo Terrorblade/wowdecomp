@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -238,4 +237,3 @@ void OsSleep(uint32_t milliseconds) {
     Sleep(milliseconds);
 }
 
-#endif

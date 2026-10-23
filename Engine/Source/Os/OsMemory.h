@@ -3,11 +3,9 @@
 
 #include <cstddef>
 
-#if defined(WOWDECOMP_ARCH_64)
 void* OsAllocModel(size_t size);
 void* OsAllocNear(const void* anchor, size_t size);
 bool OsIsNear(const void* ptr);
 void OsFreeNear(void* ptr);
-#endif
 
 #endif

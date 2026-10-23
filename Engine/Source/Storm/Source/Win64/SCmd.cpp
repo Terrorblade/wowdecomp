@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <cstdlib>
@@ -101,4 +100,3 @@ int32_t STORMAPI SCmdProcessCommandLine(int32_t (STORMAPI* extracallback)(const 
     return SCmdProcess(GetCommandLineA(), 1, extracallback, errorcallback);
 }
 
-#endif

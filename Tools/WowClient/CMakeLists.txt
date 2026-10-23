@@ -1,15 +1,10 @@
 file(GLOB CLIENT_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/WoW/Source/*.cpp")
 wowdecomp_filter_platform_sources(CLIENT_SOURCES)
 
-if (WOWDECOMP_ARCH_64)
-    file(GLOB CLIENT_PLATFORM_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/WoW/Source/Win64/*.cpp")
-    set(WOWCLIENT_OUTPUT_NAME WowClient64)
-else ()
-    file(GLOB CLIENT_PLATFORM_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/WoW/Source/Win32/*.cpp")
-    set(WOWCLIENT_OUTPUT_NAME WowClient32)
-endif ()
+file(GLOB CLIENT_PLATFORM_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/WoW/Source/Win64/*.cpp")
+set(WOWCLIENT_OUTPUT_NAME WowClient64)
 
-set(WOWCLIENT_OUTPUT_OVERRIDE "" CACHE STRING "WowClient executable name instead of WowClient64/WowClient32 (re/tools/build sets Waystone / WaystoneDev)")
+set(WOWCLIENT_OUTPUT_OVERRIDE "" CACHE STRING "WowClient executable name instead of WowClient64 (re/tools/build sets Waystone / WaystoneDev)")
 if (WOWCLIENT_OUTPUT_OVERRIDE)
     set(WOWCLIENT_OUTPUT_NAME ${WOWCLIENT_OUTPUT_OVERRIDE})
 endif ()

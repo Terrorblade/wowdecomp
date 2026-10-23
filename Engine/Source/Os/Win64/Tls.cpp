@@ -1,4 +1,3 @@
-#if defined(WOWDECOMP_ARCH_64)
 
 #include <cstdint>
 #include <windows.h>
@@ -24,4 +23,3 @@ int32_t OsTlsSetValue(uint32_t index, void* value) {
     return TlsSetValue(index, value);
 }
 
-#endif

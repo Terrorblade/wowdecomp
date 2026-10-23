@@ -938,7 +938,7 @@ void CGxDeviceMetalNative::ITexForceRecreation(int32_t all) {
         const void* texels = nullptr;
 
         if (texId->m_userFunc) {
-            texId->m_userFunc(GxTex_3, texId->m_width, texId->m_height, 0, 0, texId->m_userArg, texelStrideInBytes, texels);
+            texId->m_userFunc(GxTex_Recreate, texId->m_width, texId->m_height, 0, 0, texId->m_userArg, texelStrideInBytes, texels);
         }
     }
 
@@ -1618,7 +1618,7 @@ void CGxDeviceMetalNative::IRsSendToHw(EGxRenderState which) {
             this->m_stagesDirty = 1;
             break;
 
-        case Unk84: {
+        case GxRs_BlendFactor: {
             uint32_t factor = static_cast<uint32_t>(value.m_data.f[0] * 255.0f);
             ColorFloats((factor << 24) | (factor << 16) | (factor << 8) | factor, this->m_hw.m_blendColor);
             break;
@@ -1731,8 +1731,8 @@ void CGxDeviceMetalNative::ISetTexCoordIndex(uint32_t tmu, int32_t texGen, uint3
             stage.m_texcoordIndex = static_cast<uint8_t>(coord & 0x7);
             break;
         case GxTexGen_ObjectLinear:
-        case GxTexGen_EyeLinear:
-        case GxTexGen_Unk3:
+        case GxTexGen_World:
+        case GxTexGen_View:
             stage.m_texGen = GxMetal::TexGen_ViewPosition;
             break;
         case GxTexGen_ReflectionMap:
@@ -1761,7 +1761,7 @@ void CGxDeviceMetalNative::ISetTexGen(uint32_t tmu, int32_t texGen) {
     C44Matrix matrix;
     EGxTexGen gen = static_cast<EGxTexGen>(texGen);
 
-    if (gen == GxTexGen_ObjectLinear || gen == GxTexGen_EyeLinear) {
+    if (gen == GxTexGen_ObjectLinear || gen == GxTexGen_World) {
         matrix = this->m_xforms[GxXform_View].m_mtx[this->m_xforms[GxXform_View].m_level].AffineInverse();
 
         if (gen == GxTexGen_ObjectLinear) {

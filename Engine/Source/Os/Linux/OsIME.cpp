@@ -106,9 +106,9 @@ int32_t OsIMEProcessSdlEvent(const SDL_Event* event) {
     }
 }
 
-int32_t OsIMEGetLanguageMode() {
+OS_IME_LANGUAGEMODE OsIMEGetLanguageMode() {
     // No way to query the conversion mode of an external IME.
-    return 0;
+    return OS_IME_MODE_ROMAN;
 }
 
 int32_t OsIMEGetCompositionString(char* buffer, uint32_t bufferSize) {

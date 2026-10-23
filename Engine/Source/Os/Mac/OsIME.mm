@@ -72,16 +72,16 @@ void OsMacIMEEndComposition() {
     OsQueuePut(OS_INPUT_IME, 6, 0, 0, 0);
 }
 
-int32_t OsIMEGetLanguageMode() {
+OS_IME_LANGUAGEMODE OsIMEGetLanguageMode() {
     // Native input of an input method: 1 Japanese, 2 Korean, 3 traditional Chinese, 0 otherwise
     // (simplified Chinese included), as the Windows version reads the keyboard layout.
     TISInputSourceRef source = TISCopyCurrentKeyboardInputSource();
 
     if (!source) {
-        return 0;
+        return OS_IME_MODE_ROMAN;
     }
 
-    int32_t mode = 0;
+    OS_IME_LANGUAGEMODE mode = OS_IME_MODE_ROMAN;
     CFStringRef type = static_cast<CFStringRef>(TISGetInputSourceProperty(source, kTISPropertyInputSourceType));
     CFArrayRef languages = static_cast<CFArrayRef>(TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages));
 
@@ -91,11 +91,11 @@ int32_t OsIMEGetLanguageMode() {
         NSString* language = (__bridge NSString*)CFArrayGetValueAtIndex(languages, 0);
 
         if ([language hasPrefix:@"ja"]) {
-            mode = 1;
+            mode = OS_IME_MODE_JAPANESE;
         } else if ([language hasPrefix:@"ko"]) {
-            mode = 2;
+            mode = OS_IME_MODE_KOREAN;
         } else if ([language hasPrefix:@"zh-Hant"]) {
-            mode = 3;
+            mode = OS_IME_MODE_CHINESE;
         }
     }
 

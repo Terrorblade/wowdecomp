@@ -11,8 +11,8 @@
 namespace HoT::Editor::TemplateSearch {
 
 static constexpr int8_t kRequiredSecurityLevel = 3;
-static constexpr uint8_t kKinds = 4;
-static const char* const kKindNames[kKinds] = { "creature", "gameobject", "quest", "item" };
+static constexpr uint8_t kKinds = 6;
+static const char* const kKindNames[kKinds] = { "creature", "gameobject", "quest", "item", "loot", "lootuse" };
 
 struct Hit {
     uint32_t m_entry = 0;
@@ -95,7 +95,7 @@ static int32_t Packet_SMSG_EDITOR_TEMPLATE_RESULTS(void* param, NETMESSAGE msgId
     return 1;
 }
 
-// TemplateSearch_Query("creature" | "gameobject" | "quest" | "item", query [, limit]) returns the request id, an entry number matches exactly.
+// TemplateSearch_Query("creature" | "gameobject" | "quest" | "item" | "loot" | "lootuse", query [, limit]) returns the request id, an entry number matches exactly.
 static int32_t Script_Query(lua_State* L) {
     int kind = KindFromLua(L, 1);
     const char* query = lua_tostring(L, 2);

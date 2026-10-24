@@ -23,4 +23,5 @@ Light\Light.xml
 Model\Model.xml
 Vehicle\Vehicle.xml
 Item\Item.xml
+Loot\Loot.xml
 GameEditor.xml

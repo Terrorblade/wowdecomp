@@ -7,8 +7,8 @@ local Common = GameEditorObject;
 local Inspector = {};
 GameObject.Inspector = Inspector;
 
-local TAB_NAMES = { "Template", "Spawn", "Addon", "Spawn Addon" };
-local TEMPLATE, SPAWN, TEMPLATE_ADDON, SPAWN_ADDON = 1, 2, 3, 4;
+local TAB_NAMES = { "Template", "Spawn", "Addon", "Spawn Addon", "Loot" };
+local TEMPLATE, SPAWN, TEMPLATE_ADDON, SPAWN_ADDON, LOOT = 1, 2, 3, 4, 5;
 
 local SCOPE_TEMPLATE, SCOPE_SPAWN, SCOPE_TEMPLATE_ADDON, SCOPE_SPAWN_ADDON = 0, 1, 2, 3;
 
@@ -316,6 +316,7 @@ local function Build(parent)
 		"Faction, flags, loot gold and art kits for every spawn of the entry.");
 	pages[SPAWN_ADDON] = BuildAddonPage(container, "gameobject_addon", SCOPE_SPAWN_ADDON, "guid", { parent_rotation3 = 1 },
 		"Parent rotation and invisibility of this spawn only.");
+	pages[LOOT] = GameEditorLoot.CreateGameObjectPage(container, UpdateDirty);
 
 	for _, page in pairs(pages) do
 		page:SetAllPoints(container);
@@ -523,6 +524,8 @@ ShowData = function(data)
 		pages[SPAWN_ADDON]:SetAvailable(false, "This gameobject is not a database spawn, so it can not have a gameobject_addon row.");
 		pages[SPAWN_ADDON].state:SetText("");
 	end
+
+	pages[LOOT]:Load(data);
 
 	shownEntry = data.entry;
 	shownSpawn = spawnKey;

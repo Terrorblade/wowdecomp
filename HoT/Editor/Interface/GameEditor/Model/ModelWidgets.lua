@@ -553,10 +553,8 @@ function Form:Ref(key, label, ref, tooltip, low, high)
 	if ( GameEditor_CanSearchRef(ref) ) then
 		local pick = Common.Button(item.frame, "...", 26, function()
 			if ( self.data ) then
-				GameEditor_PickValue(label, nil, Num(self.data[key]), function(value)
+				GameEditor_PickRef(label, ref, Num(self.data[key]), function(value)
 					self:Set(key, value);
-				end, function(text)
-					return GameEditor_SearchRef(ref, text);
 				end);
 			end
 		end, "Search for one");

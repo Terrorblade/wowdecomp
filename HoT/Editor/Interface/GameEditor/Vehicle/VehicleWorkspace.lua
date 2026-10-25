@@ -126,7 +126,7 @@ local function VehicleIds()
 					end
 				end
 
-				table.insert(vehicleIds, { value = id, text = format("%d  %d seat%s", id, seats, seats == 1 and "" or "s") });
+				table.insert(vehicleIds, { value = id, text = format("%d seat%s", seats, seats == 1 and "" or "s") });
 			end
 		end
 	end
@@ -135,65 +135,14 @@ local function VehicleIds()
 end
 
 local function BrowseVehicles()
-	GameEditor_PickValue("Vehicles", nil, VE.vehicleId, function(value)
+	GameEditor_PickValue("Vehicles", VehicleIds, VE.vehicleId, function(value)
 		OpenVehicle(value);
-	end, function(text)
-		local items = {};
-		text = strtrim(text or "");
-
-		for _, item in ipairs(VehicleIds()) do
-			if ( text == "" or string.find(tostring(item.value), text, 1, true) ) then
-				table.insert(items, item);
-
-				if ( #items >= 300 ) then
-					break;
-				end
-			end
-		end
-
-		return items;
 	end);
 end
 
-local function DisplayItem(id)
-	local display = ME.Row("CreatureDisplayInfo", id);
-	local modelData = display and ME.Row("CreatureModelData", display.m_modelID);
-	return { value = id, text = format("%d  %s", id, modelData and modelData.m_modelName or "no model") };
-end
-
--- A typed number finds that display, text searches the CreatureModelData names and lists the displays using them.
 local function BrowseDisplays()
-	GameEditor_PickValue("Creature displays", nil, VE.displayId, function(value)
+	GameEditor_PickRef("Creature displays", "dbc:CreatureDisplayInfo", VE.displayId, function(value)
 		ShowDisplay(value);
-	end, function(text)
-		local items = {};
-		text = strtrim(text or "");
-
-		if ( tonumber(text) ) then
-			if ( ME.Row("CreatureDisplayInfo", tonumber(text)) ) then
-				table.insert(items, DisplayItem(tonumber(text)));
-			end
-
-			return items;
-		end
-
-		if ( string.len(text) < 2 ) then
-			return items;
-		end
-
-		for _, modelRow in ipairs(ME.Find("CreatureModelData", nil, text, 40)) do
-			local rows = ME.Quiet("DbcEditor_Filter", "CreatureDisplayInfo", { text = "", where = { { columns = { "m_modelID" }, value = modelRow.id } } }, 20);
-
-			for _, row in ipairs(type(rows) == "table" and rows or {}) do
-				table.insert(items, DisplayItem(row.id));
-			end
-
-			if ( #items >= 200 ) then
-				break;
-			end
-		end
-
-		return items;
 	end);
 end
 

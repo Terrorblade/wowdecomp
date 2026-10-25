@@ -16,6 +16,7 @@ GameEditor.lua
 Widgets\PropertyGrid.lua
 Widgets\DbcDocs.lua
 Widgets\WorldRow.lua
+Widgets\TemplateLists.lua
 Map\Map.xml
 Creature\Creature.xml
 GameObject\GameObject.xml

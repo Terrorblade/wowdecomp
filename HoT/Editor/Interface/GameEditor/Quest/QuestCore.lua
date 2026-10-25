@@ -112,6 +112,7 @@ function Q.Remember(id, title, meta)
 
 	if ( title and title ~= "" ) then
 		Q.names[id] = title;
+		GameEditor_TemplateListPut("quest", id, title, meta and { maxLevel = meta.level, minLevel = meta.minLevel, type = meta.info });
 	end
 
 	if ( meta ) then
@@ -124,8 +125,27 @@ function Q.Remember(id, title, meta)
 end
 
 function Q.NameOf(id)
-	return Q.names[tonumber(id) or 0];
+	id = tonumber(id) or 0;
+	return Q.names[id] or GameEditor_TemplateName("quest", id);
 end
+
+-- Level and sort of a quest, from its rows or from the quest list.
+function Q.MetaOf(id)
+	id = tonumber(id) or 0;
+	local row = not Q.meta[id] and GameEditor_TemplateRow("quest", id);
+	return Q.meta[id] or (row and { level = row.maxLevel, minLevel = row.minLevel, info = row.type, sort = Q.Signed(row.displayId) }) or nil;
+end
+
+GameEditor_OnTemplateList("quest", function()
+	local items = GameEditor_TemplateList("quest");
+	local last = items[#items];
+
+	if ( last and last.value > Q.maxSeen ) then
+		Q.maxSeen = last.value;
+	end
+
+	Q.Fire("NAMES", "quest");
+end);
 
 function Q.RememberRecent(id)
 	for index = #Q.recent, 1, -1 do
@@ -141,22 +161,21 @@ function Q.RememberRecent(id)
 	end
 end
 
--- Template searches share one pending request per kind in the client, so lookups wait for the others.
-local search = {};
+-- Name lookups go out one at a time per kind.
 local lookups = { creature = {}, gameobject = {}, quest = {} };
 local asked = { creature = {}, gameobject = {}, quest = {} };
 local pendingLookup = {};
 
 local function KnownName(kind, id)
 	if ( kind == "quest" ) then
-		return Q.names[id];
+		return Q.NameOf(id);
 	end
 
 	return GameEditorObject and GameEditorObject.NameOf(kind, id);
 end
 
 local function PumpLookup(kind)
-	if ( pendingLookup[kind] or (kind == "quest" and search.requestId) or not TemplateSearch_Query ) then
+	if ( pendingLookup[kind] or not TemplateSearch_Query ) then
 		return;
 	end
 
@@ -188,45 +207,10 @@ function Q.QueueLookup(kind, id)
 	PumpLookup(kind);
 end
 
--- Q.Search(text, callback) searches quest titles and ids on the server, callback(rows, truncated) or callback(nil) when dropped.
-function Q.Search(text, callback)
-	text = strtrim(text or "");
-
-	if ( text == "" or not TemplateSearch_Query ) then
-		return false;
-	end
-
-	local requestId = TemplateSearch_Query("quest", text, 500);
-
-	if ( not requestId ) then
-		return false;
-	end
-
-	-- The client keeps one pending search per kind, an older search gets told it was dropped.
-	if ( search.callback ) then
-		pcall(search.callback, nil);
-	end
-
-	-- A search replaces the pending quest lookup in the client, that id goes back in the queue.
-	if ( pendingLookup.quest ) then
-		table.insert(lookups.quest, 1, pendingLookup.quest.id);
-		pendingLookup.quest = nil;
-	end
-
-	search.requestId = requestId;
-	search.callback = callback;
-	search.expires = GetTime() + LOOKUP_TIMEOUT * 2;
-	return true;
-end
-
-function Q.IsSearching()
-	return search.requestId ~= nil;
-end
-
 local function OnTemplateResults(kind, requestId)
 	local data = TemplateSearch_GetResults and TemplateSearch_GetResults(kind);
 
-	if ( not data or (kind ~= "quest" and not pendingLookup[kind]) ) then
+	if ( not data or not pendingLookup[kind] or pendingLookup[kind].requestId ~= requestId ) then
 		return;
 	end
 
@@ -238,19 +222,7 @@ local function OnTemplateResults(kind, requestId)
 		end
 	end
 
-	if ( kind == "quest" and search.requestId == requestId ) then
-		local callback = search.callback;
-		search.requestId = nil;
-		search.callback = nil;
-
-		if ( callback ) then
-			pcall(callback, data.rows or {}, data.truncated);
-		end
-	end
-
-	if ( pendingLookup[kind] and pendingLookup[kind].requestId == requestId ) then
-		pendingLookup[kind] = nil;
-	end
+	pendingLookup[kind] = nil;
 
 	Q.Fire("NAMES", kind);
 	PumpLookup(kind);
@@ -265,99 +237,32 @@ local function UpdateLookups()
 			PumpLookup(kind);
 		end
 	end
-
-	if ( search.requestId and search.expires and now > search.expires ) then
-		local callback = search.callback;
-		search.requestId = nil;
-		search.callback = nil;
-
-		if ( callback ) then
-			pcall(callback, nil);
-		end
-
-		PumpLookup("quest");
-	end
 end
 
 -- Ref pickers ------------------------------------------------------------------------------------------------
 
-local lastRefSearch;
+local combined, combinedFrom = nil, {};
 
-local function QuestRefSearch(text)
-	text = strtrim(text or "");
-	local items = {};
-	local number = tonumber(text);
+-- Creatures as they are and gameobjects as negative entries, the way quest columns store them.
+local function CreatureOrObjectList()
+	local creatures, loadingCreatures = GameEditor_TemplateList("creature");
+	local objects, loadingObjects = GameEditor_TemplateList("gameobject");
 
-	if ( number ) then
-		table.insert(items, { value = number, text = Q.NameOf(number) or "" });
-		return items;
-	end
+	if ( not combined or combinedFrom[1] ~= creatures or combinedFrom[2] ~= objects or combinedFrom[3] ~= #creatures + #objects ) then
+		combined = {};
 
-	local lower = string.lower(text);
-
-	for id, name in pairs(Q.names) do
-		if ( lower == "" or string.find(string.lower(name), lower, 1, true) ) then
-			table.insert(items, { value = id, text = name });
+		for _, item in ipairs(creatures) do
+			table.insert(combined, item);
 		end
-	end
 
-	table.sort(items, function(a, b) return a.value < b.value; end);
-
-	while ( #items > 300 ) do
-		table.remove(items);
-	end
-
-	if ( string.len(text) >= 3 and lastRefSearch ~= text ) then
-		lastRefSearch = text;
-		Q.Search(text, function()
-			if ( GameEditorPicker and GameEditorPicker:IsShown() ) then
-				GameEditorPicker.pendingSearch = 0.2;
-			end
-		end);
-	end
-
-	return items;
-end
-
-local function ObjectRefSearch(kind, text)
-	local searcher = GameEditor_RefSearchers and GameEditor_RefSearchers[kind];
-
-	if ( not searcher ) then
-		local number = tonumber(text);
-		return number and { { value = number, text = "" } } or {};
-	end
-
-	local ok, items = pcall(searcher, text);
-	return ok and items or {};
-end
-
--- Searches any ref token the way the property grid does, a plain number always works.
-function Q.SearchRef(ref, text)
-	text = text or "";
-
-	if ( GameEditor_RefSearchers[ref] ) then
-		local ok, items = pcall(GameEditor_RefSearchers[ref], text);
-		return ok and items or {};
-	end
-
-	local items = {};
-	local number = tonumber(strtrim(text));
-
-	if ( number ) then
-		table.insert(items, { value = number, text = GameEditor_ResolveRef(ref, number) or "" });
-	end
-
-	local _, _, tableName = string.find(ref or "", "^dbc:(.+)$");
-
-	if ( tableName and DbcEditor_Find and not number ) then
-		local ok, rows = pcall(DbcEditor_Find, tableName, text, 200);
-
-		for _, row in ipairs(ok and type(rows) == "table" and rows or {}) do
-			table.insert(items, { value = row.id, text = row.name or "" });
+		for _, item in ipairs(objects) do
+			table.insert(combined, { value = -item.value, text = "object: "..(item.text or "") });
 		end
+
+		combinedFrom = { creatures, objects, #creatures + #objects };
 	end
 
-	return items;
+	return combined, loadingCreatures or loadingObjects;
 end
 
 GameEditor_RefResolvers = GameEditor_RefResolvers or {};
@@ -376,10 +281,6 @@ if ( not GameEditor_RefResolvers["quest"] ) then
 	end;
 end
 
-if ( not GameEditor_RefSearchers["quest"] ) then
-	GameEditor_RefSearchers["quest"] = QuestRefSearch;
-end
-
 if ( not GameEditor_RefResolvers["creature_or_gameobject"] ) then
 	GameEditor_RefResolvers["creature_or_gameobject"] = function(value)
 		value = tonumber(value) or 0;
@@ -394,23 +295,7 @@ if ( not GameEditor_RefResolvers["creature_or_gameobject"] ) then
 	end;
 end
 
-if ( not GameEditor_RefSearchers["creature_or_gameobject"] ) then
-	GameEditor_RefSearchers["creature_or_gameobject"] = function(text)
-		local items = {};
-
-		for _, item in ipairs(ObjectRefSearch("creature", text)) do
-			table.insert(items, { value = item.value, text = item.text });
-		end
-
-		if ( not tonumber(strtrim(text or "")) ) then
-			for _, item in ipairs(ObjectRefSearch("gameobject", text)) do
-				table.insert(items, { value = -item.value, text = "object: "..(item.text or "") });
-			end
-		end
-
-		return items;
-	end;
-end
+GameEditor_RefLists["creature_or_gameobject"] = CreatureOrObjectList;
 
 if ( not GameEditor_RefResolvers["quest_sort"] ) then
 	GameEditor_RefResolvers["quest_sort"] = function(value)
@@ -418,38 +303,22 @@ if ( not GameEditor_RefResolvers["quest_sort"] ) then
 	end;
 end
 
-if ( not GameEditor_RefSearchers["quest_sort"] ) then
-	GameEditor_RefSearchers["quest_sort"] = function(text)
-		text = strtrim(text or "");
-		local items = {};
-		local number = tonumber(text);
+-- Quest sorts as negative values, then every zone.
+GameEditor_RefLists["quest_sort"] = function()
+	local items = {};
 
-		if ( number ) then
-			table.insert(items, { value = number, text = Q.SortText(number) });
-			return items;
-		end
+	for id, name in pairs(Data.Enums and Data.Enums.QuestSort or {}) do
+		table.insert(items, { value = -id, text = "sort: "..name });
+	end
 
-		local lower = string.lower(text);
+	table.sort(items, function(a, b) return a.value > b.value; end);
 
-		for id, name in pairs(Data.Enums and Data.Enums.QuestSort or {}) do
-			if ( lower == "" or string.find(string.lower(name), lower, 1, true) ) then
-				table.insert(items, { value = -id, text = "sort: "..name });
-			end
-		end
+	for _, item in ipairs(GameEditor_DbcList("AreaTable")) do
+		table.insert(items, { value = item.value, text = "zone: "..item.text });
+	end
 
-		table.sort(items, function(a, b) return a.value > b.value; end);
-
-		if ( DbcEditor_Find and text ~= "" ) then
-			local ok, rows = pcall(DbcEditor_Find, "AreaTable", text, 200);
-
-			for _, row in ipairs(ok and type(rows) == "table" and rows or {}) do
-				table.insert(items, { value = row.id, text = "zone: "..(row.name or "") });
-			end
-		end
-
-		return items;
-	end;
-end
+	return items;
+end;
 
 -- World table state -------------------------------------------------------------------------------------------
 
@@ -688,7 +557,7 @@ function Q.FindFreeId(start, callback)
 		return;
 	end
 
-	while ( Q.names[start] ) do
+	while ( Q.NameOf(start) ) do
 		start = start + 1;
 	end
 
@@ -723,7 +592,7 @@ local function OnProbeRows(key)
 
 	probe.id = key + 1;
 
-	while ( Q.names[probe.id] ) do
+	while ( Q.NameOf(probe.id) ) do
 		probe.id = probe.id + 1;
 	end
 

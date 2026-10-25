@@ -10,7 +10,6 @@ local NPC_FLAG_VENDOR = 128;
 local MAX_ITEMS = 150;
 
 local itemNames = {};
-local itemSearch;
 
 local QUALITY_COLORS = {
 	[0] = "ff9d9d9d", [1] = "ffffffff", [2] = "ff1eff00", [3] = "ff0070dd", [4] = "ffa335ee", [5] = "ffff8000", [6] = "ffe6cc80", [7] = "ffe6cc80",
@@ -33,6 +32,12 @@ local function ItemName(id)
 	if ( name ) then
 		local color = QUALITY_COLORS[quality or 1] or QUALITY_COLORS[1];
 		return format("|c%s%s|r", color, name), true;
+	end
+
+	local row = GameEditor_TemplateRow("item", id);
+
+	if ( row and not itemNames[id] ) then
+		itemNames[id] = format("|c%s%s|r", QUALITY_COLORS[row.type or 1] or QUALITY_COLORS[1], row.name or "");
 	end
 
 	if ( itemNames[id] ) then
@@ -59,58 +64,6 @@ local function ItemText(id)
 
 	local name = ItemName(id);
 	return name or (id > 0 and format("|cff7f7f7fitem %d|r", id) or "|cff7f7f7fno item|r");
-end
-
--- Name search through the server, the picker refreshes when the answer comes in.
-local function SearchItems(text)
-	text = strtrim(text or "");
-	local items = {};
-	local number = tonumber(text);
-
-	if ( number ) then
-		table.insert(items, { value = number, text = ItemName(number) or "" });
-		return items;
-	end
-
-	if ( string.len(text) >= 3 and TemplateSearch_Query and (not itemSearch or itemSearch.text ~= text) ) then
-		itemSearch = { text = text, requestId = TemplateSearch_Query("item", text, 300) };
-	end
-
-	if ( itemSearch and itemSearch.text == text and itemSearch.results ) then
-		for _, item in ipairs(itemSearch.results) do
-			table.insert(items, item);
-		end
-	end
-
-	return items;
-end
-
-GameEditor_RefSearchers = GameEditor_RefSearchers or {};
-
-if ( not GameEditor_RefSearchers["item"] ) then
-	GameEditor_RefSearchers["item"] = SearchItems;
-end
-
-local function OnItemResults(requestId)
-	local data = TemplateSearch_GetResults and TemplateSearch_GetResults("item");
-
-	if ( not itemSearch or not data or itemSearch.requestId ~= requestId ) then
-		return;
-	end
-
-	local results = {};
-
-	for _, row in ipairs(data.rows or {}) do
-		local color = QUALITY_COLORS[row.type or 1] or QUALITY_COLORS[1];
-		itemNames[row.entry] = format("|c%s%s|r", color, row.name or "");
-		table.insert(results, { value = row.entry, text = format("%s  (ilvl %d)", row.name or "", row.maxLevel or 0) });
-	end
-
-	itemSearch.results = results;
-
-	if ( GameEditorPicker and GameEditorPicker:IsShown() ) then
-		GameEditorPicker.pendingSearch = 0.1;
-	end
 end
 
 -- Page ----------------------------------------------------------------------------------------------------------
@@ -245,10 +198,10 @@ function Creature.CreateVendorPage(parent, onDirty)
 	addId:SetScript("OnEnterPressed", AddTyped);
 
 	local addByName = Common.Button(addBar, "Find item...", 90, function()
-		GameEditor_PickValue("Add item to the vendor", {}, nil, function(value)
+		GameEditor_PickRef("Add item to the vendor", "item", nil, function(value)
 			page:AddItem(value);
-		end, SearchItems);
-	end, "Search items by name on the server, type at least 3 letters");
+		end, { anyNumber = true });
+	end, "Pick from every item, type to filter by name or entry");
 	addByName:SetPoint("LEFT", addById, "RIGHT", 4, 0);
 
 	local clear = Common.Button(addBar, "Remove all", 80, function()
@@ -642,18 +595,7 @@ function Creature.CreateVendorPage(parent, onDirty)
 	local events = CreateFrame("Frame", nil, page);
 	events:RegisterEvent("WORLD_TABLE_ROWS");
 	events:RegisterEvent("WORLD_TABLE_RESULT");
-	events:RegisterEvent("EDITOR_TEMPLATE_RESULTS");
 	events:SetScript("OnEvent", function(_, event, ...)
-		if ( event == "EDITOR_TEMPLATE_RESULTS" ) then
-			local kind, requestId = ...;
-
-			if ( kind == "item" ) then
-				OnItemResults(tonumber(requestId));
-			end
-
-			return;
-		end
-
 		if ( event == "WORLD_TABLE_ROWS" ) then
 			local tableName, key, ok, message = ...;
 

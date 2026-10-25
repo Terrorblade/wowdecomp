@@ -26,9 +26,7 @@ local function CopyItem()
 end
 
 local function OpenByName()
-	GameEditor_PickValue("Open item", nil, I.entry, function(value) I.OpenItem(value); end, function(text)
-		return GameEditor_RefSearchers["item"] and GameEditor_RefSearchers["item"](text) or {};
-	end);
+	GameEditor_PickRef("Open item", "item", I.entry, function(value) I.OpenItem(value); end, { anyNumber = true });
 end
 
 local function SaveAll()

@@ -500,13 +500,12 @@ local function ListAll(tableName, describe)
 	end
 
 	local items = {};
-	local maxId = min(SE.MaxId(tableName), 50000);
 
-	for id = 1, maxId do
-		local row = SE.GetRow(tableName, id);
+	for _, item in ipairs(GameEditor_DbcList(tableName)) do
+		local row = SE.GetRow(tableName, item.value);
 
 		if ( row ) then
-			table.insert(items, { value = id, text = describe(row, id) or "" });
+			table.insert(items, { value = item.value, text = describe(row, item.value) or "" });
 		end
 	end
 
@@ -514,28 +513,9 @@ local function ListAll(tableName, describe)
 	return items;
 end
 
-local function FilterList(items, text)
-	text = SE.Lower(strtrim(text or ""));
-
-	if ( text == "" ) then
-		return items;
-	end
-
-	local number = tonumber(text);
-	local result = {};
-
-	for _, item in ipairs(items) do
-		if ( (number and item.value == number) or string.find(SE.Lower(item.text), text, 1, true) ) then
-			table.insert(result, item);
-		end
-	end
-
-	return result;
-end
-
 local function RegisterList(ref, tableName, describe)
-	GameEditor_RefSearchers[ref] = function(text)
-		return FilterList(ListAll(tableName, describe), text);
+	GameEditor_RefLists[ref] = function()
+		return ListAll(tableName, describe);
 	end;
 end
 
@@ -636,26 +616,9 @@ function SE.RegisterResolvers()
 		return text;
 	end);
 
-	GameEditor_RefSearchers["dbc:SpellIcon"] = function(text)
-		local items = {};
-
-		for _, row in ipairs(SE.Find("SpellIcon", text, 300)) do
-			table.insert(items, { value = row.id, text = SE.IconShortName(row.name) });
-		end
-
-		return items;
-	end;
-
-	GameEditor_RefSearchers["spell"] = GameEditor_RefSearchers["spell"] or function(text)
-		local items = {};
-
-		for _, row in ipairs(SE.Find(SE.TABLE, text, 200)) do
-			local _, rank = GetSpellInfo(row.id);
-			table.insert(items, { value = row.id, text = (rank and rank ~= "") and (row.name.." ("..rank..")") or row.name });
-		end
-
-		return items;
-	end;
+	RegisterList("dbc:SpellIcon", "SpellIcon", function(row)
+		return SE.IconShortName(row.m_textureFilename);
+	end);
 end
 
 -- Events --------------------------------------------------------------------------------------------------

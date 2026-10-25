@@ -8,9 +8,6 @@ local LEFT_OFFSET = 56;
 local BROWSER_WIDTH = 320;
 
 local root, browser, generator, searchBox, list, status;
-local results;
-local truncated = false;
-local searching = false;
 
 I.view = "items";
 
@@ -44,32 +41,44 @@ end
 -- Browser ----------------------------------------------------------------------------------------------------
 
 local function Item(entry, tag)
-	local meta = I.meta[entry];
+	local meta = I.MetaOf(entry);
 	local name, _, quality, itemLevel = GetItemInfo(entry);
 
 	return {
 		value = entry,
-		text = name or I.names[entry] or "",
+		text = name or I.NameOf(entry) or "",
 		quality = quality or (meta and meta.quality) or 1,
 		level = itemLevel or (meta and meta.itemLevel) or 0,
-		tag = entry == I.entry and "open" or tag,
+		tag = tag,
 	};
 end
 
+-- Every item, recently opened ones first while nothing is typed.
 local function Items()
 	local text = strtrim(searchBox and searchBox:GetText() or "");
-	local items = {};
+	local all = GameEditor_TemplateList("item");
 
-	if ( text == "" or not results ) then
-		for _, entry in ipairs(I.recent) do
-			table.insert(items, Item(entry, "recent"));
-		end
-
-		return items;
+	if ( text ~= "" ) then
+		return GameEditor_FilterList(all, text);
 	end
 
-	for _, row in ipairs(results) do
-		table.insert(items, Item(row.entry));
+	local items, seen = {}, {};
+
+	for _, entry in ipairs(I.recent) do
+		if ( not seen[entry] ) then
+			seen[entry] = true;
+			table.insert(items, Item(entry, "recent"));
+		end
+	end
+
+	if ( #items == 0 ) then
+		return all;
+	end
+
+	for _, item in ipairs(all) do
+		if ( not seen[item.value] ) then
+			table.insert(items, item);
+		end
 	end
 
 	return items;
@@ -93,45 +102,24 @@ function I.RefreshBrowser(keepSelection)
 
 	NoggitListBox_Refresh(list);
 
-	local text = strtrim(searchBox:GetText() or "");
+	local all, loading = GameEditor_TemplateList("item");
 
-	if ( searching ) then
-		status:SetText("Searching the server...");
-	elseif ( text == "" or not results ) then
-		status:SetText(#items > 0 and "Recently opened items" or "Type a name or an entry and press Enter");
+	if ( loading ) then
+		status:SetText(#all > 0 and format("%d of %d, still loading", #items, #all) or "Loading the item list from the server");
+	elseif ( #items == #all ) then
+		status:SetText(format("%d items", #all));
 	else
-		status:SetText(format("%d found%s", #items, truncated and ", showing the first ones" or ""));
+		status:SetText(format("%d of %d", #items, #all));
 	end
 end
 
-local function RunSearch()
-	local text = strtrim(searchBox:GetText() or "");
-
-	if ( text == "" ) then
-		results = nil;
-		I.RefreshBrowser();
-		return;
-	end
-
-	searching = I.Search(text, function(rows, isTruncated)
-		searching = false;
-
-		if ( not rows ) then
-			I.RefreshBrowser(true);
-			return;
-		end
-
-		results = rows;
-		truncated = isTruncated and true or false;
-		I.RefreshBrowser();
-	end);
-
-	if ( not searching ) then
-		GameEditor_Notify("Item search needs TemplateSearch_Query in this client build", "error");
-	end
-
+local function FilterBrowser()
 	I.RefreshBrowser();
 end
+
+GameEditor_OnTemplateList("item", function()
+	I.RefreshBrowser(true);
+end);
 
 function I.FocusSearch()
 	if ( I.view ~= "items" ) then
@@ -159,7 +147,10 @@ local function BuildBrowser(parent)
 	local new = Common.Button(frame, "New item", 80, function() I.ShowNewDialog(); end, "Create an item with a new entry (Ctrl+N)");
 	new:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -6);
 
-	local searchButton = Common.Button(frame, "Search", 64, RunSearch, "Search the item names on the server, a number opens that entry");
+	local searchButton = Common.Button(frame, "Reload", 64, function()
+		GameEditor_ReloadTemplateList("item");
+		I.RefreshBrowser(true);
+	end, "Ask the server for the item list again");
 	searchButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -34);
 
 	searchBox = NoggitLineEdit_Create(frame, 200);
@@ -184,18 +175,13 @@ local function BuildBrowser(parent)
 		if ( number ) then
 			I.OpenItem(number);
 		end
-
-		RunSearch();
 	end);
 	searchBox:SetScript("OnEscapePressed", function(self)
 		self:SetText("");
 		self:ClearFocus();
 	end);
-	searchBox:SetScript("OnTextChanged", function(self)
-		if ( strtrim(self:GetText() or "") == "" ) then
-			results = nil;
-			I.RefreshBrowser();
-		end
+	searchBox:SetScript("OnTextChanged", function()
+		GameEditor_Debounce(FilterBrowser, #GameEditor_TemplateList("item"));
 	end);
 
 	status = Common.Label(frame, "", nil, NOGGIT_COLOR_DISABLED);
@@ -215,16 +201,19 @@ local function BuildBrowser(parent)
 		row.name:SetPoint("LEFT", row, "LEFT", 58, 0);
 		row.name:SetPoint("RIGHT", row.level, "LEFT", -4, 0);
 	end, function(row, item)
+		local hit = item.row;
+		local name = hit and hit.name or item.text;
+		local level = hit and hit.maxLevel or item.level;
 		row.entry:SetText(tostring(item.value));
 
-		if ( item.text ~= "" ) then
-			row.name:SetText((item.tag == "open" and "> " or "")..I.Colored(item.text, item.quality));
+		if ( name and name ~= "" ) then
+			row.name:SetText((item.value == I.entry and "> " or "")..I.Colored(name, hit and hit.type or item.quality));
 		else
 			row.name:SetText("|cff7f7f7fname unknown|r");
 		end
 
-		if ( (tonumber(item.level) or 0) > 0 ) then
-			row.level:SetText(format("[%d]", item.level));
+		if ( (tonumber(level) or 0) > 0 ) then
+			row.level:SetText(format("[%d]", level));
 		else
 			row.level:SetText(item.tag == "recent" and "recent" or "");
 		end

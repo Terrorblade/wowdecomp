@@ -9,8 +9,11 @@ local Data = GameEditorData or {};
 -- Name lookups for ref columns, keyed by the ref token ("spell", "item", "dbc:SpellIcon"). Workspaces may add more.
 GameEditor_RefResolvers = GameEditor_RefResolvers or {};
 
--- Searches for ref pickers, resolver(text) returns { { value =, text = } ... }.
+-- Searches for ref pickers, resolver(text) returns { { value =, text = } ... }. Prefer GameEditor_RefLists.
 GameEditor_RefSearchers = GameEditor_RefSearchers or {};
+
+-- Full lists for ref pickers, list() returns { { value =, text = } ... } and true while it is still loading.
+GameEditor_RefLists = GameEditor_RefLists or {};
 
 -- Jumps for ref columns, opener(value) shows the referenced row in the workspace that edits it.
 GameEditor_RefOpeners = GameEditor_RefOpeners or {};
@@ -121,30 +124,97 @@ function GameEditor_ResolveRef(ref, value)
 	end
 end
 
-function GameEditor_SearchRef(ref, text)
+-- Every row of a DBC table as picker items, cached until the table changes.
+local dbcLists = {};
+local derivedLists = {};
+
+function GameEditor_DbcList(tableName)
+	if ( dbcLists[tableName] ) then
+		return dbcLists[tableName];
+	end
+
+	local items = {};
+	local ok, rows = false, nil;
+
+	if ( DbcEditor_Filter ) then
+		ok, rows = pcall(DbcEditor_Filter, tableName, { text = "" }, 200000);
+	end
+
+	for _, row in ipairs(ok and type(rows) == "table" and rows or {}) do
+		table.insert(items, { value = row.id, text = row.name or "" });
+	end
+
+	dbcLists[tableName] = items;
+	return items;
+end
+
+local spellList;
+
+function GameEditor_InvalidateDbcList(tableName)
+	if ( tableName ) then
+		dbcLists[tableName] = nil;
+	else
+		dbcLists = {};
+	end
+
+	if ( not tableName or tableName == "Spell" ) then
+		spellList = nil;
+	end
+
+	derivedLists = {};
+end
+
+GameEditor_RefLists["spell"] = function()
+	if ( spellList ) then
+		return spellList;
+	end
+
+	spellList = {};
+
+	for _, item in ipairs(GameEditor_DbcList("Spell")) do
+		local _, rank = GetSpellInfo(item.value);
+		table.insert(spellList, { value = item.value, text = (rank and rank ~= "") and (item.text.." ("..rank..")") or item.text });
+	end
+
+	return spellList;
+end;
+
+-- The full picker list of a ref and whether it is still loading.
+function GameEditor_RefList(ref)
+	local list = GameEditor_RefLists[ref];
+
+	if ( list ) then
+		local ok, items, loading = pcall(list);
+		return ok and type(items) == "table" and items or {}, ok and loading or false;
+	end
+
 	local searcher = GameEditor_RefSearchers[ref];
 
 	if ( searcher ) then
-		local ok, items = pcall(searcher, text);
-		return ok and items or {};
+		local ok, items = pcall(searcher, "");
+		return ok and type(items) == "table" and items or {}, false;
 	end
 
 	local _, _, tableName = string.find(ref or "", "^dbc:(.+)$");
 
-	if ( tableName and DbcEditor_Find ) then
-		local items = {};
-		local found = DbcEditor_Find(tableName, text ~= "" and text or "", 200);
-
-		for _, row in ipairs(found or {}) do
-			table.insert(items, { value = row.id, text = row.name or "" });
-		end
-
-		return items;
+	if ( tableName ) then
+		return GameEditor_DbcList(tableName), false;
 	end
+
+	return {}, false;
+end
+
+function GameEditor_SearchRef(ref, text)
+	return GameEditor_FilterList((GameEditor_RefList(ref)), text);
 end
 
 function GameEditor_CanSearchRef(ref)
-	return ref and (GameEditor_RefSearchers[ref] ~= nil or (string.find(ref, "^dbc:") ~= nil and DbcEditor_Find ~= nil));
+	return ref and (GameEditor_RefLists[ref] ~= nil or GameEditor_RefSearchers[ref] ~= nil or (string.find(ref, "^dbc:") ~= nil and DbcEditor_Filter ~= nil));
+end
+
+-- Shows the full list of a ref, onPick(value, item).
+function GameEditor_PickRef(title, ref, current, onPick, options)
+	GameEditor_PickValue(title, function() return GameEditor_RefList(ref); end, current, onPick, nil, options);
 end
 
 -- Tables with no name of their own borrow one from the table a column points at.
@@ -152,26 +222,26 @@ local DERIVED_REFS = {
 	FactionTemplate = { column = "m_faction", target = "Faction" },
 	GemProperties = { column = "m_enchantID", target = "SpellItemEnchantment" },
 	Holidays = { column = "m_holidayNameID", target = "HolidayNames" },
+	CreatureDisplayInfo = { column = "m_modelID", target = "CreatureModelData" },
 };
-
-local derivedLists = {};
 
 local function DerivedList(tableName, info)
 	if ( derivedLists[tableName] ) then
 		return derivedLists[tableName];
 	end
 
+	local names = {};
+
+	for _, item in ipairs(GameEditor_DbcList(info.target)) do
+		names[item.value] = item.text;
+	end
+
 	local items = {};
-	local maxId = min(DbcEditor_GetMaxId and DbcEditor_GetMaxId(tableName) or 0, 100000);
 
-	for id = 1, maxId do
-		local row = DbcEditor_GetRow(tableName, id);
-
-		if ( type(row) == "table" ) then
-			local target = tonumber(row[info.column]) or 0;
-			local text = target ~= 0 and ResolveDbc(info.target, target) or nil;
-			table.insert(items, { value = id, text = text and text ~= "exists" and text or "" });
-		end
+	for _, item in ipairs(GameEditor_DbcList(tableName)) do
+		local row = DbcEditor_GetRow(tableName, item.value);
+		local target = type(row) == "table" and tonumber(row[info.column]) or 0;
+		table.insert(items, { value = item.value, text = target ~= 0 and names[target] or "" });
 	end
 
 	derivedLists[tableName] = items;
@@ -181,7 +251,7 @@ end
 local derivedWatcher = CreateFrame("Frame");
 derivedWatcher:RegisterEvent("DBC_RECORD_UPDATED");
 derivedWatcher:SetScript("OnEvent", function(_, _, tableName)
-	derivedLists = {};
+	GameEditor_InvalidateDbcList(tableName or "");
 end);
 
 for tableName, info in pairs(DERIVED_REFS) do
@@ -199,26 +269,8 @@ for tableName, info in pairs(DERIVED_REFS) do
 		return text or "exists";
 	end;
 
-	GameEditor_RefSearchers[ref] = GameEditor_RefSearchers[ref] or function(text)
-		if ( not DbcEditor_GetRow ) then
-			return {};
-		end
-
-		text = string.lower(strtrim(text or ""));
-		local number = tonumber(text);
-		local result = {};
-
-		for _, item in ipairs(DerivedList(tableName, info)) do
-			if ( text == "" or item.value == number or string.find(string.lower(item.text), text, 1, true) ) then
-				table.insert(result, item);
-
-				if ( #result >= 200 ) then
-					break;
-				end
-			end
-		end
-
-		return result;
+	GameEditor_RefLists[ref] = GameEditor_RefLists[ref] or function()
+		return DbcEditor_GetRow and DerivedList(tableName, info) or {};
 	end;
 end
 
@@ -314,22 +366,147 @@ end
 -- Shared picker window -----------------------------------------------------------------------------------
 
 local picker;
+local SLOW_LIST = 4000;
 
-local function PickerFilter()
-	local text = string.lower(picker.search:GetText() or "");
-	local items = {};
+-- Keeps the items whose text holds the text or whose id starts with it, exact ids first.
+function GameEditor_FilterList(items, text)
+	text = string.lower(strtrim(text or ""));
+	items = items or {};
 
-	if ( picker.searchFunc ) then
-		items = picker.searchFunc(picker.search:GetText() or "") or {};
-	else
-		for _, item in ipairs(picker.items) do
-			if ( text == "" or string.find(string.lower(item.text or ""), text, 1, true) or tostring(item.value) == text ) then
-				table.insert(items, item);
+	if ( text == "" ) then
+		return items;
+	end
+
+	local number = tonumber(text);
+	local exact, result = {}, {};
+	local find, lower = string.find, string.lower;
+
+	for _, item in ipairs(items) do
+		local name = item.lower;
+
+		if ( not name ) then
+			name = lower(item.text or "");
+			item.lower = name;
+		end
+
+		if ( number and item.value == number ) then
+			table.insert(exact, item);
+		elseif ( find(name, text, 1, true) ) then
+			table.insert(result, item);
+		elseif ( number ) then
+			local key = item.key;
+
+			if ( not key ) then
+				key = tostring(item.value);
+				item.key = key;
+			end
+
+			if ( find(key, text, 1, true) == 1 ) then
+				table.insert(result, item);
 			end
 		end
 	end
 
+	if ( #exact == 0 ) then
+		return result;
+	end
+
+	for _, item in ipairs(result) do
+		table.insert(exact, item);
+	end
+
+	return exact;
+end
+
+local debounced = {};
+local debounceFrame = CreateFrame("Frame");
+debounceFrame:SetScript("OnUpdate", function(_, elapsed)
+	for func, left in pairs(debounced) do
+		left = left - elapsed;
+
+		if ( left <= 0 ) then
+			debounced[func] = nil;
+			local ok, err = pcall(func);
+
+			if ( not ok ) then
+				GameEditor_Print("List filter failed: "..tostring(err), 1, 0.3, 0.3);
+			end
+		else
+			debounced[func] = left;
+		end
+	end
+end);
+
+-- Runs func on a later frame, a long list waits until typing pauses. Calling again restarts the wait.
+function GameEditor_Debounce(func, count)
+	debounced[func] = (count or 0) > SLOW_LIST and 0.15 or 0;
+end
+
+local function PickerLoad()
+	local source = picker.source;
+	local items, loading = source, false;
+
+	if ( type(source) == "function" ) then
+		local ok;
+		ok, items, loading = pcall(source);
+
+		if ( not ok ) then
+			GameEditor_Print("Picker list failed: "..tostring(items), 1, 0.3, 0.3);
+			items, loading = nil, false;
+		end
+	end
+
+	picker.all = type(items) == "table" and items or {};
+	picker.loading = loading and true or false;
+	picker.lastText, picker.lastResult = nil, nil;
+end
+
+local function PickerStatus(shown)
+	local total = #picker.all;
+
+	if ( picker.searchFunc ) then
+		picker.status:SetText(format("%d found", shown));
+	elseif ( picker.loading ) then
+		picker.status:SetText(total > 0 and format("%d of %d, still loading from the server", shown, total) or "Loading the list from the server");
+	elseif ( shown == total ) then
+		picker.status:SetText(tostring(total));
+	else
+		picker.status:SetText(format("%d of %d", shown, total));
+	end
+end
+
+local function PickerFilter()
+	local raw = strtrim(picker.search:GetText() or "");
+	local items;
+
+	if ( picker.searchFunc ) then
+		items = picker.searchFunc(raw) or {};
+	else
+		local text = string.lower(raw);
+		local base = picker.all;
+
+		-- A longer text only narrows the previous result.
+		if ( picker.lastText and picker.lastText ~= "" and string.sub(text, 1, string.len(picker.lastText)) == picker.lastText ) then
+			base = picker.lastResult;
+		end
+
+		items = GameEditor_FilterList(base, text);
+		picker.lastText, picker.lastResult = text, items;
+		local number = picker.options.anyNumber and raw ~= "" and GameEditor_ParseNumber(raw);
+
+		if ( number and not (items[1] and items[1].value == number) ) then
+			local typed = { { value = number, text = "|cff808080not in the list, use this id|r" } };
+
+			for _, item in ipairs(items) do
+				table.insert(typed, item);
+			end
+
+			items = typed;
+		end
+	end
+
 	NoggitListBox_SetItems(picker.list, items);
+	PickerStatus(#items);
 
 	for index, item in ipairs(items) do
 		if ( item.value == picker.current ) then
@@ -352,6 +529,8 @@ local function CreatePicker()
 	picker.search:SetScript("OnTextChanged", function()
 		if ( picker.searchFunc ) then
 			picker.pendingSearch = 0.3;
+		elseif ( #picker.all > SLOW_LIST ) then
+			picker.pendingSearch = 0.15;
 		else
 			PickerFilter();
 		end
@@ -359,11 +538,15 @@ local function CreatePicker()
 	picker.search:SetScript("OnEscapePressed", function(self) self:ClearFocus(); end);
 	picker.search:SetScript("OnEnterPressed", function(self)
 		self:ClearFocus();
+
+		if ( picker.pendingSearch ) then
+			picker.pendingSearch = nil;
+			PickerFilter();
+		end
+
 		local item = picker.list.items[picker.list.selected or 1];
 
-		if ( picker.searchFunc ) then
-			PickerFilter();
-		elseif ( item ) then
+		if ( item ) then
 			picker.onPick(item.value, item);
 			GameEditor_HideWindow(picker);
 		end
@@ -379,6 +562,12 @@ local function CreatePicker()
 		end
 	end);
 
+	picker.status = NoggitUI_FontString(content, "");
+	picker.status:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 2, 0);
+	picker.status:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -2, 0);
+	picker.status:SetJustifyH("LEFT");
+	NoggitText_SetColor(picker.status, NOGGIT_COLOR_DISABLED);
+
 	picker.list = NoggitListBox_Create(content, 20, function(row)
 		row.value = NoggitUI_FontString(row, "");
 		row.value:SetPoint("LEFT", row, "LEFT", 6, 0);
@@ -392,28 +581,48 @@ local function CreatePicker()
 		row.text:SetText(item.text or "");
 	end);
 	picker.list:SetPoint("TOPLEFT", picker.search, "BOTTOMLEFT", 0, -6);
-	picker.list:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", 0, 0);
+	picker.list:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", 0, 18);
 	picker.list.onDoubleClick = function(item)
 		picker.onPick(item.value, item);
 		GameEditor_HideWindow(picker);
 	end;
 end
 
--- GameEditor_PickValue(title, items or nil, current, onPick, searchFunc) shows a searchable list.
-function GameEditor_PickValue(title, items, current, onPick, searchFunc)
+-- GameEditor_PickValue(title, items, current, onPick, searchFunc, options) shows the whole list and filters it as the text changes.
+-- items is a table or a function returning the table and true while it still loads. options.anyNumber offers a typed id that is not listed.
+function GameEditor_PickValue(title, items, current, onPick, searchFunc, options)
 	if ( not picker ) then
 		CreatePicker();
 	end
 
 	picker:SetTitle(title or "Pick a value");
-	picker.items = items or {};
+	picker.source = items;
 	picker.current = current;
 	picker.onPick = onPick;
 	picker.searchFunc = searchFunc;
+	picker.options = options or {};
+	PickerLoad();
 	picker.search:SetText("");
+	picker.pendingSearch = nil;
 	GameEditor_ShowWindow(picker);
 	PickerFilter();
 	picker.search:SetFocus();
+end
+
+-- Lists that finish loading call this so an open picker shows the new rows.
+function GameEditor_RefreshPicker()
+	if ( not picker or not picker:IsShown() or type(picker.source) ~= "function" ) then
+		return;
+	end
+
+	local offset, selected = picker.list.offset, picker.list.selected;
+	PickerLoad();
+	PickerFilter();
+
+	if ( strtrim(picker.search:GetText() or "") == "" ) then
+		picker.list.offset, picker.list.selected = offset, selected;
+		NoggitListBox_Refresh(picker.list);
+	end
 end
 
 function GameEditor_EnumItems(enumName)
@@ -825,10 +1034,8 @@ local function OpenPicker(grid, row)
 	end
 
 	if ( field.ref ) then
-		GameEditor_PickValue(title, nil, tonumber(grid.values[column]), function(value)
+		GameEditor_PickRef(title, field.ref, tonumber(grid.values[column]), function(value)
 			grid:SetValue(column, value);
-		end, function(text)
-			return GameEditor_SearchRef(field.ref, text);
 		end);
 	end
 end

@@ -101,6 +101,7 @@ end
 
 local function ApplyLocal(tableName, id, values)
 	local ok, result = Invoke("DbcEditor_ApplyLocal", tableName, id, values);
+	GameEditor_InvalidateDbcList(tableName);
 	return ok and result;
 end
 

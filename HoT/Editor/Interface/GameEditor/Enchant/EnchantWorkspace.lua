@@ -97,23 +97,8 @@ function EN.OpenCondition(id)
 end
 
 local function Browse()
-	GameEditor_PickValue("Enchants", nil, EN.enchantId, function(value)
+	GameEditor_PickValue("Enchants", function() return GameEditor_DbcList(EN.TABLE); end, EN.enchantId, function(value)
 		EN.Open(value);
-	end, function(text)
-		text = strtrim(text or "");
-
-		if ( tonumber(text) ) then
-			local name = EN.Name(tonumber(text));
-			return name and { { value = tonumber(text), text = name } } or {};
-		end
-
-		local items = {};
-
-		for _, row in ipairs(ME.Find(EN.TABLE, nil, text, 300)) do
-			table.insert(items, { value = row.id, text = row.name or "" });
-		end
-
-		return items;
 	end);
 end
 

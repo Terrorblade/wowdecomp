@@ -335,7 +335,11 @@ local function IconPage()
 end
 
 local function IconSearch()
-	iconWindow.items = SE.Find("SpellIcon", iconWindow.search:GetText() or "", 8000);
+	iconWindow.items = {};
+
+	for _, item in ipairs(GameEditor_FilterList(GameEditor_DbcList("SpellIcon"), iconWindow.search:GetText())) do
+		table.insert(iconWindow.items, { id = item.value, name = item.text });
+	end
 	iconWindow.page = 1;
 
 	for index, item in ipairs(iconWindow.items) do
@@ -354,7 +358,7 @@ local function CreateIconWindow()
 	local content = iconWindow.content;
 
 	iconWindow.search = SE.SearchBox(content, 200, "Search icon file name or id", function()
-		iconWindow.pending = 0.3;
+		iconWindow.pending = 0.15;
 	end);
 	iconWindow.search:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0);
 	iconWindow.search:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, 0);
@@ -683,20 +687,21 @@ function SE.CreateDbcEditor(parent, tableName, options)
 	SE.Tooltip(editor.idEdit, "Type a row id and press Enter to open it");
 
 	local pick = SE.GlyphButton(frame, 0xF002, "Search rows", function()
-		GameEditor_PickValue(tableName, nil, editor.id, function(value)
+		GameEditor_PickValue(tableName, function()
+			local items = GameEditor_RefList("dbc:"..tableName);
+			local named = {};
+
+			for index, item in ipairs(items) do
+				named[index] = item.text ~= "" and item or { value = item.value, text = GameEditor_ResolveRef("dbc:"..tableName, item.value) or "" };
+			end
+
+			return named;
+		end, editor.id, function(value)
 			editor:Load(value);
 
 			if ( options.onIdEntered ) then
 				options.onIdEntered(editor, value);
 			end
-		end, function(text)
-			local items = {};
-
-			for _, row in ipairs(SE.Find(tableName, text, 300)) do
-				table.insert(items, { value = row.id, text = row.name ~= "" and row.name or GameEditor_ResolveRef("dbc:"..tableName, row.id) or "" });
-			end
-
-			return items;
 		end);
 	end);
 	pick:SetPoint("LEFT", editor.idEdit, "RIGHT", 3, 0);

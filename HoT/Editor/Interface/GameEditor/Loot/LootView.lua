@@ -285,11 +285,11 @@ local function BuildRowEditor(view, parent)
 			return;
 		end
 
-		GameEditor_PickValue("Item of this loot row", {}, nil, function(value)
+		L.PickItem("Item of this loot row", function(value)
 			L.SetValue(line.set, line.row, "Item", Num(value));
 			view:FillEditor(true);
-		end, L.SearchItems);
-	end, "Search items by name on the server, type at least 3 letters");
+		end);
+	end, "Pick from every item, type to filter by name or entry");
 	editor.find:SetPoint("LEFT", editor.item, "RIGHT", 4, 0);
 
 	editor.quest = NoggitCheckBox_Create(editor, "Quest item", false, function(_, checked)
@@ -472,10 +472,10 @@ local function BuildCategoryEditor(view, parent)
 			return;
 		end
 
-		GameEditor_PickValue("Add item to "..CategoryTitle(category), {}, nil, function(value)
+		L.PickItem("Add item to "..CategoryTitle(category), function(value)
 			view:AddToSelected({ Item = Num(value) });
-		end, L.SearchItems);
-	end, "Search items by name on the server, type at least 3 letters");
+		end);
+	end, "Pick from every item, type to filter by name or entry");
 	editor.findItem:SetPoint("LEFT", editor.addRef, "RIGHT", 4, 0);
 
 	editor.create = Button(addBar, "Create loot id", 110, function()

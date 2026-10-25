@@ -64,66 +64,16 @@ local function DisplayText(id)
 	return format("%d  %s", id, modelData and modelData.m_modelName or "no model");
 end
 
--- Creature displays with a model data row whose path matches the text, or the one display a number names.
-local function DisplaySearch(text)
-	local items = {};
-	text = strtrim(text or "");
-
-	if ( tonumber(text) ) then
-		if ( ME.Row("CreatureDisplayInfo", tonumber(text)) ) then
-			table.insert(items, { value = tonumber(text), text = DisplayText(tonumber(text)) });
-		end
-
-		return items;
-	end
-
-	if ( string.len(text) < 2 ) then
-		return items;
-	end
-
-	for _, modelRow in ipairs(ME.Find("CreatureModelData", nil, text, 40)) do
-		local rows = ME.Quiet("DbcEditor_Filter", "CreatureDisplayInfo", { text = "", where = { { columns = { "m_modelID" }, value = modelRow.id } } }, 20);
-
-		for _, row in ipairs(type(rows) == "table" and rows or {}) do
-			table.insert(items, { value = row.id, text = DisplayText(row.id) });
-		end
-
-		if ( #items >= 200 ) then
-			break;
-		end
-	end
-
-	return items;
-end
-
-local function PathSearch(tableName)
-	return function(text)
-		text = strtrim(text or "");
-		local items = {};
-
-		if ( tonumber(text) ) then
-			local row = ME.Row(tableName, tonumber(text));
-			return row and { { value = tonumber(text), text = row.m_modelName or "" } } or {};
-		end
-
-		for _, row in ipairs(ME.Find(tableName, nil, text, 300)) do
-			table.insert(items, { value = row.id, text = row.name or "" });
-		end
-
-		return items;
-	end;
-end
-
-local SEARCHES = {
-	creature = DisplaySearch,
-	model = PathSearch("CreatureModelData"),
-	object = PathSearch("GameObjectDisplayInfo"),
+local LISTS = {
+	creature = function() return GameEditor_RefList("dbc:CreatureDisplayInfo"); end,
+	model = function() return GameEditor_DbcList("CreatureModelData"); end,
+	object = function() return GameEditor_DbcList("GameObjectDisplayInfo"); end,
 };
 
 local function Browse(kind)
-	GameEditor_PickValue(DE.KINDS[kind].title.."s", nil, DE.ids[kind], function(value)
+	GameEditor_PickValue(DE.KINDS[kind].title.."s", LISTS[kind], DE.ids[kind], function(value)
 		DE.Open(kind, value);
-	end, SEARCHES[kind]);
+	end);
 end
 
 local function CreatureDisplays(data)
@@ -578,7 +528,7 @@ GameEditor_RefOpeners["dbc:CreatureDisplayInfo"] = function(id) DE.Open("creatur
 GameEditor_RefOpeners["dbc:CreatureModelData"] = function(id) DE.Open("model", id); end;
 GameEditor_RefOpeners["dbc:GameObjectDisplayInfo"] = function(id) DE.Open("object", id); end;
 
-GameEditor_RefResolvers["dbc:CreatureDisplayInfo"] = GameEditor_RefResolvers["dbc:CreatureDisplayInfo"] or function(value)
+GameEditor_RefResolvers["dbc:CreatureDisplayInfo"] = function(value)
 	local display = ME.Row("CreatureDisplayInfo", value);
 	local modelData = display and ME.Row("CreatureModelData", display.m_modelID);
 	return display and (modelData and ME.FileName(modelData.m_modelName or "") or "no model") or nil;

@@ -116,7 +116,7 @@ function Creature.CreateAddonPage(parent, scope, onDirty)
 	add:SetPoint("LEFT", page.auraEdit, "RIGHT", 4, 0);
 
 	local pick = Common.Button(addRow, "Find...", 60, function()
-		GameEditor_PickValue("Aura spell", nil, nil, function(value) page:AddAura(value); end, Common.SpellSearch);
+		GameEditor_PickRef("Aura spell", "spell", nil, function(value) page:AddAura(value); end);
 	end, "Search a spell by name");
 	pick:SetPoint("LEFT", add, "RIGHT", 4, 0);
 	page.pick = pick;

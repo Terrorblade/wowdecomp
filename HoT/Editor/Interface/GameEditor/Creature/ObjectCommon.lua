@@ -6,7 +6,6 @@ local Common = GameEditorObject;
 local Data = GameEditorData or {};
 
 local RECENT_MAX = 15;
-local LOOKUP_TIME = 3;
 
 Common.names = { creature = {}, gameobject = {} };
 Common.recent = { creature = {}, gameobject = {} };
@@ -15,7 +14,6 @@ Common.templateEditors = Common.templateEditors or {};
 
 local NOUN = { creature = "creature", gameobject = "gameobject" };
 
-local LOOKUP_COMMAND = { creature = ".lookup creature ", gameobject = ".lookup object " };
 local LOOKUP_LINK = {
 	creature = "|Hcreature_entry:(%d+)|h%[(.-)%]|h",
 	gameobject = "|Hgameobject_entry:(%d+)|h%[(.-)%]|h",
@@ -142,25 +140,8 @@ function Common.SpellText(spellId)
 	return name;
 end
 
--- Spell search for aura pickers, nil when nothing can search spells.
-function Common.SpellSearch(text)
-	if ( GameEditor_RefSearchers and GameEditor_RefSearchers["spell"] ) then
-		return GameEditor_RefSearchers["spell"](text);
-	end
-
-	if ( DbcEditor_Find ) then
-		local items = {};
-
-		for _, row in ipairs(DbcEditor_Find("Spell", text or "", 200) or {}) do
-			table.insert(items, { value = row.id, text = row.name or "" });
-		end
-
-		return items;
-	end
-end
-
 function Common.CanSearchSpells()
-	return (GameEditor_RefSearchers and GameEditor_RefSearchers["spell"] ~= nil) or DbcEditor_Find ~= nil;
+	return GameEditor_CanSearchRef("spell") and true or false;
 end
 
 -- Grid values from the server, edits survive when the server value of that column did not change.
@@ -186,70 +167,13 @@ function Common.RememberName(kind, entry, name)
 
 	if ( entry and entry > 0 and name and name ~= "" and Common.names[kind] ) then
 		Common.names[kind][entry] = name;
+		GameEditor_TemplateListPut(kind, entry, name);
 	end
 end
 
 function Common.NameOf(kind, entry)
-	return Common.names[kind] and Common.names[kind][tonumber(entry) or 0];
-end
-
-local lookup = {};
-
-local searches = {};
-
--- Searches the templates by name or entry, callback(results, done) runs when the server answers.
-function Common.Lookup(kind, text, callback)
-	text = strtrim(text or "");
-
-	if ( text == "" or not LOOKUP_COMMAND[kind] ) then
-		return false;
-	end
-
-	if ( TemplateSearch_Query ) then
-		local requestId = TemplateSearch_Query(kind, text, 500);
-
-		if ( requestId ) then
-			searches[kind] = { requestId = requestId, callback = callback };
-			return true;
-		end
-	end
-
-	lookup.kind = kind;
-	lookup.results = {};
-	lookup.seen = {};
-	lookup.callback = callback;
-	lookup.expires = GetTime() + LOOKUP_TIME;
-	SendChatMessage(LOOKUP_COMMAND[kind]..text, "SAY");
-	return true;
-end
-
-local function OnTemplateResults(kind, requestId)
-	local search = searches[kind];
-	local data = TemplateSearch_GetResults and TemplateSearch_GetResults(kind);
-
-	if ( not search or not data or search.requestId ~= requestId ) then
-		return;
-	end
-
-	searches[kind] = nil;
-	local results = {};
-
-	for _, row in ipairs(data.rows or {}) do
-		Common.RememberName(kind, row.entry, row.name);
-		local text = row.name or "";
-
-		if ( row.subName and row.subName ~= "" ) then
-			text = format("%s <%s>", text, row.subName);
-		end
-
-		table.insert(results, { value = row.entry, text = text, row = row });
-	end
-
-	results.truncated = data.truncated;
-
-	if ( search.callback ) then
-		pcall(search.callback, results, true);
-	end
+	entry = tonumber(entry) or 0;
+	return Common.names[kind] and Common.names[kind][entry] or GameEditor_TemplateName(kind, entry);
 end
 
 local function OnSystemMessage(message)
@@ -261,64 +185,8 @@ local function OnSystemMessage(message)
 		for entry, name in string.gmatch(message, pattern) do
 			entry = tonumber(entry);
 			Common.RememberName(kind, entry, name);
-
-			if ( lookup.kind == kind and lookup.expires and GetTime() <= lookup.expires and not lookup.seen[entry] ) then
-				lookup.seen[entry] = true;
-				table.insert(lookup.results, { value = entry, text = name });
-
-				if ( lookup.callback ) then
-					pcall(lookup.callback, lookup.results);
-				end
-			end
 		end
 	end
-end
-
-local function CachedMatches(kind, text, items, seen)
-	local lower = string.lower(text or "");
-	local found = {};
-
-	for entry, name in pairs(Common.names[kind]) do
-		if ( not seen[entry] and (lower == "" or string.find(string.lower(name), lower, 1, true)) ) then
-			table.insert(found, { value = entry, text = name });
-		end
-	end
-
-	table.sort(found, function(a, b) return a.value < b.value; end);
-
-	for index = 1, min(#found, 200) do
-		seen[found[index].value] = true;
-		table.insert(items, found[index]);
-	end
-end
-
-local lastRefSearch = {};
-
-local function RefSearcher(kind)
-	return function(text)
-		text = strtrim(text or "");
-		local items = {};
-		local seen = {};
-		local number = tonumber(text);
-
-		if ( number ) then
-			seen[number] = true;
-			table.insert(items, { value = number, text = Common.NameOf(kind, number) or "" });
-		else
-			CachedMatches(kind, text, items, seen);
-
-			if ( string.len(text) >= 3 and lastRefSearch[kind] ~= text ) then
-				lastRefSearch[kind] = text;
-				Common.Lookup(kind, text, function()
-					if ( GameEditorPicker and GameEditorPicker:IsShown() ) then
-						GameEditorPicker.pendingSearch = 0.2;
-					end
-				end);
-			end
-		end
-
-		return items;
-	end;
 end
 
 GameEditor_RefResolvers = GameEditor_RefResolvers or {};
@@ -331,9 +199,9 @@ for kind in pairs(NOUN) do
 		end;
 	end
 
-	if ( not GameEditor_RefSearchers[kind] ) then
-		GameEditor_RefSearchers[kind] = RefSearcher(kind);
-	end
+	GameEditor_RefLists[kind] = function()
+		return GameEditor_TemplateList(kind);
+	end;
 end
 
 -- Spawning and deleting ------------------------------------------------------------------------------------
@@ -453,41 +321,41 @@ local function SpawnItems()
 	local window = spawnWindow;
 	local kind = window.kind;
 	local text = strtrim(window.search:GetText() or "");
-	local items = {};
-	local seen = {};
-	local number = tonumber(text);
+	local all = GameEditor_TemplateList(kind);
 
-	local function Add(entry, name, tag)
-		if ( entry and not seen[entry] ) then
+	if ( text ~= "" ) then
+		return GameEditor_FilterList(all, text);
+	end
+
+	-- Recent entries lead the full list.
+	local items, seen = {}, {};
+	local recent = window.editMode and Common.edited[kind] or Common.recent[kind];
+
+	for _, entry in ipairs(recent) do
+		if ( not seen[entry] ) then
 			seen[entry] = true;
-			table.insert(items, { value = entry, text = name or Common.NameOf(kind, entry) or "", tag = tag });
+			table.insert(items, { value = entry, text = Common.NameOf(kind, entry) or "", tag = window.editMode and "edited" or "spawned" });
 		end
 	end
 
-	if ( text == "" ) then
-		local recent = window.editMode and Common.edited[kind] or Common.recent[kind];
+	if ( #items == 0 ) then
+		return all;
+	end
 
-		for _, entry in ipairs(recent) do
-			Add(entry, nil, window.editMode and "edited" or "spawned");
+	for _, item in ipairs(all) do
+		if ( not seen[item.value] ) then
+			table.insert(items, item);
 		end
-
-		return items;
 	end
 
-	if ( number ) then
-		Add(number);
-		return items;
-	end
-
-	for _, result in ipairs(window.results or {}) do
-		Add(result.value, result.text);
-	end
-
-	CachedMatches(kind, text, items, seen);
 	return items;
 end
 
 local function SpawnRefresh(keepSelection)
+	if ( not spawnWindow ) then
+		return;
+	end
+
 	local items = SpawnItems();
 	NoggitListBox_SetItems(spawnWindow.list, items, keepSelection);
 
@@ -496,38 +364,27 @@ local function SpawnRefresh(keepSelection)
 		NoggitListBox_Refresh(spawnWindow.list);
 	end
 
-	local text = strtrim(spawnWindow.search:GetText() or "");
+	local all, loading = GameEditor_TemplateList(spawnWindow.kind);
 
-	if ( text == "" ) then
-		spawnWindow.status:SetText(#items > 0 and (spawnWindow.editMode and "Recently edited" or "Recently spawned") or "Type a name or an entry");
-	elseif ( spawnWindow.searching ) then
-		spawnWindow.status:SetText(format("Searching the server... %d found", #items));
+	if ( loading ) then
+		spawnWindow.status:SetText(#all > 0 and format("%d of %d, still loading", #items, #all) or "Loading the list from the server");
+	elseif ( #items == #all ) then
+		spawnWindow.status:SetText(format("%d templates", #all));
 	else
-		spawnWindow.status:SetText(format("%d found", #items));
+		spawnWindow.status:SetText(format("%d of %d", #items, #all));
 	end
 end
 
-local function SpawnSearch()
-	local text = strtrim(spawnWindow.search:GetText() or "");
-
-	if ( text == "" ) then
-		SpawnRefresh();
-		return;
-	end
-
-	spawnWindow.results = {};
-	spawnWindow.searching = true;
-	spawnWindow.searchUntil = GetTime() + LOOKUP_TIME;
-	Common.Lookup(spawnWindow.kind, text, function(results, done)
-		spawnWindow.results = results;
-
-		if ( done ) then
-			spawnWindow.searching = false;
-		end
-
-		SpawnRefresh(true);
-	end);
+local function SpawnFilter()
 	SpawnRefresh();
+end
+
+for kind in pairs(NOUN) do
+	GameEditor_OnTemplateList(kind, function()
+		if ( spawnWindow and spawnWindow.kind == kind and spawnWindow:IsShown() ) then
+			SpawnRefresh(true);
+		end
+	end);
 end
 
 local function SelectedEntry()
@@ -552,8 +409,8 @@ local function UseEntry(entry)
 	end
 end
 
-local HINT_SPAWN = "Type part of a name and press Enter to search the server, or type an entry number and press Enter to spawn it. Double click a row to spawn it.";
-local HINT_EDIT = "Type part of a name and press Enter to search the server, or type an entry number and press Enter to edit its template. Double click a row to edit it, no spawn is needed.";
+local HINT_SPAWN = "Type part of a name or an entry to filter the list, Enter spawns the selected row or the typed entry. Double click a row to spawn it.";
+local HINT_EDIT = "Type part of a name or an entry to filter the list, Enter edits the selected row or the typed entry. Double click a row to edit it, no spawn is needed.";
 
 local function SetEditMode(editMode)
 	spawnWindow.editMode = editMode and true or false;
@@ -570,7 +427,10 @@ local function CreateSpawnWindow()
 	spawnWindow = GameEditor_CreateWindow("GameEditorSpawnWindow", "Spawn", 400, 480, true);
 	local content = spawnWindow.content;
 
-	local searchButton = Common.Button(content, "Search", 70, SpawnSearch, "Ask the server for every template whose name contains the text");
+	local searchButton = Common.Button(content, "Reload", 70, function()
+		GameEditor_ReloadTemplateList(spawnWindow.kind);
+		SpawnRefresh(true);
+	end, "Ask the server for the template list again");
 	searchButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, 0);
 
 	spawnWindow.search = NoggitLineEdit_Create(content, 200);
@@ -584,13 +444,15 @@ local function CreateSpawnWindow()
 		if ( tonumber(text) ) then
 			UseEntry(tonumber(text));
 		else
-			SpawnSearch();
+			SpawnRefresh();
+
+			if ( SelectedEntry() ) then
+				UseEntry(SelectedEntry());
+			end
 		end
 	end);
 	spawnWindow.search:SetScript("OnTextChanged", function()
-		spawnWindow.results = {};
-		spawnWindow.searching = false;
-		SpawnRefresh();
+		GameEditor_Debounce(SpawnFilter, #GameEditor_TemplateList(spawnWindow.kind));
 	end);
 
 	local hint = Common.Paragraph(content, HINT_SPAWN);
@@ -645,13 +507,6 @@ local function CreateSpawnWindow()
 	spawnWindow.list.onDoubleClick = function(item)
 		UseEntry(item.value);
 	end;
-
-	spawnWindow:SetScript("OnUpdate", function(self)
-		if ( self.searching and GetTime() > (self.searchUntil or 0) ) then
-			self.searching = false;
-			SpawnRefresh(true);
-		end
-	end);
 end
 
 local function ShowTemplateWindow(kind, editMode)
@@ -661,7 +516,6 @@ local function ShowTemplateWindow(kind, editMode)
 
 	if ( spawnWindow.kind ~= kind ) then
 		spawnWindow.kind = kind;
-		spawnWindow.results = {};
 		spawnWindow.search:SetText("");
 	end
 
@@ -1086,7 +940,6 @@ local WORKSPACE_TOOLS = {
 local watcher = CreateFrame("Frame", "GameEditorObjectWatcher");
 watcher:RegisterEvent("GAME_EDITOR_SELECTION_CHANGED");
 watcher:RegisterEvent("CHAT_MSG_SYSTEM");
-watcher:RegisterEvent("EDITOR_TEMPLATE_RESULTS");
 watcher:RegisterEvent("GAME_EDITOR_MODE_CHANGED");
 watcher:SetScript("OnEvent", function(_, event, kind, ...)
 	if ( event == "GAME_EDITOR_MODE_CHANGED" ) then
@@ -1101,11 +954,6 @@ watcher:SetScript("OnEvent", function(_, event, kind, ...)
 
 	if ( event == "CHAT_MSG_SYSTEM" ) then
 		OnSystemMessage(kind);
-		return;
-	end
-
-	if ( event == "EDITOR_TEMPLATE_RESULTS" ) then
-		OnTemplateResults(kind, ...);
 		return;
 	end
 

@@ -125,6 +125,12 @@ function L.ItemInfo(id)
 	end
 
 	local remembered = searchNames[id];
+
+	if ( not remembered ) then
+		local row = GameEditor_TemplateRow("item", id);
+		remembered = row and { name = row.name, quality = row.type };
+	end
+
 	L.CacheItem(id);
 	return remembered and remembered.name, remembered and remembered.quality or 1, icon or L.UNKNOWN_ICON, false;
 end
@@ -143,51 +149,9 @@ function L.ItemText(id)
 	return format("|cff7f7f7fitem %d|r", Num(id));
 end
 
--- Item name search for the pickers, the item search also fills the item cache.
-local itemSearch;
-
-function L.SearchItems(text)
-	text = strtrim(text or "");
-	local items = {};
-	local number = tonumber(text);
-
-	if ( number ) then
-		table.insert(items, { value = number, text = L.ItemText(number) });
-		return items;
-	end
-
-	if ( string.len(text) >= 3 and TemplateSearch_Query and (not itemSearch or itemSearch.text ~= text) ) then
-		itemSearch = { text = text, requestId = TemplateSearch_Query("item", text, 300) };
-	end
-
-	if ( itemSearch and itemSearch.text == text and itemSearch.results ) then
-		for _, item in ipairs(itemSearch.results) do
-			table.insert(items, item);
-		end
-	end
-
-	return items;
-end
-
-local function OnItemResults(requestId)
-	local data = TemplateSearch_GetResults and TemplateSearch_GetResults("item");
-
-	if ( not itemSearch or not data or itemSearch.requestId ~= requestId ) then
-		return;
-	end
-
-	local results = {};
-
-	for _, row in ipairs(data.rows or {}) do
-		L.RememberItem(row.entry, row.name, row.type);
-		table.insert(results, { value = row.entry, text = format("%s  (ilvl %d)", L.Colored(row.name, row.type), row.maxLevel or 0) });
-	end
-
-	itemSearch.results = results;
-
-	if ( GameEditorPicker and GameEditorPicker:IsShown() ) then
-		GameEditorPicker.pendingSearch = 0.1;
-	end
+-- Item picker over the whole item list.
+function L.PickItem(title, onPick)
+	GameEditor_PickRef(title, "item", nil, onPick, { anyNumber = true });
 end
 
 -- Source names ------------------------------------------------------------------------------------------------
@@ -690,41 +654,6 @@ local function OnUseResults(requestId)
 	search.callback(hits, data.truncated);
 end
 
--- Source search for the browser, callback(rows, truncated) with the raw hits.
-local sourceSearch;
-
-function L.SearchSources(text, callback)
-	if ( not TemplateSearch_Query ) then
-		return false;
-	end
-
-	sourceSearch = { callback = callback, requestId = TemplateSearch_Query("loot", text, 600) };
-	return sourceSearch.requestId ~= nil;
-end
-
-local function OnSourceResults(requestId)
-	local data = TemplateSearch_GetResults and TemplateSearch_GetResults("loot");
-
-	if ( not sourceSearch or not data or sourceSearch.requestId ~= requestId ) then
-		return;
-	end
-
-	local search = sourceSearch;
-	sourceSearch = nil;
-
-	for _, row in ipairs(data.rows or {}) do
-		local info = L.TABLES[row.type or -1];
-
-		if ( info and (info.source == "creature" or info.source == "gameobject") and GameEditorObject ) then
-			GameEditorObject.RememberName(info.source, row.entry, row.name);
-		elseif ( info and info.source == "item" ) then
-			L.RememberItem(row.entry, row.name, 1);
-		end
-	end
-
-	search.callback(data.rows or {}, data.truncated);
-end
-
 local events = CreateFrame("Frame", "GameEditorLootEvents");
 events:RegisterEvent("WORLD_TABLE_ROWS");
 events:RegisterEvent("WORLD_TABLE_RESULT");
@@ -734,12 +663,8 @@ events:SetScript("OnEvent", function(_, event, ...)
 		local kind, requestId = ...;
 		requestId = tonumber(requestId);
 
-		if ( kind == "item" ) then
-			OnItemResults(requestId);
-		elseif ( kind == "lootuse" ) then
+		if ( kind == "lootuse" ) then
 			OnUseResults(requestId);
-		elseif ( kind == "loot" ) then
-			OnSourceResults(requestId);
 		end
 
 		return;

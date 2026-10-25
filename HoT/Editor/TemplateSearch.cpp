@@ -1,6 +1,7 @@
 #include "HoT/Editor/TemplateSearch.h"
 #include <cstring>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "HoT/Game/Session.h"
 #include "HoT/Lua/Script.h"
@@ -32,8 +33,12 @@ struct Results {
     std::vector<Hit> m_hits;
 };
 
+static constexpr uint8_t kFlagTruncated = 1;
+static constexpr uint8_t kFlagMore = 2;
+static constexpr size_t kMaxPending = 8;
+
 static Results s_results[kKinds];
-static std::string s_pendingQuery[kKinds];
+static std::unordered_map<uint32_t, Results> s_pending[kKinds];
 static uint32_t s_nextRequestId = 1;
 
 static const char* KindName(uint8_t kind) {
@@ -62,16 +67,22 @@ static int32_t Packet_SMSG_EDITOR_TEMPLATE_RESULTS(void* param, NETMESSAGE msgId
     uint8_t kind = packet.GetUInt8();
     uint32_t requestId = packet.GetUInt32();
 
-    if (kind >= kKinds || requestId != s_results[kind].m_requestId) {
+    if (kind >= kKinds) {
         return 1;
     }
 
-    Results& results = s_results[kind];
-    results.m_truncated = packet.GetUInt8() != 0;
-    results.m_hits.clear();
+    auto pending = s_pending[kind].find(requestId);
+
+    if (pending == s_pending[kind].end()) {
+        return 1;
+    }
+
+    Results& results = pending->second;
+    uint8_t flags = packet.GetUInt8();
+    results.m_truncated = results.m_truncated || (flags & kFlagTruncated) != 0;
 
     uint16_t count = packet.GetUInt16();
-    results.m_hits.reserve(count);
+    results.m_hits.reserve(results.m_hits.size() + count);
 
     for (uint16_t i = 0; i < count && packet.CanRead(4); i++) {
         Hit hit;
@@ -87,15 +98,20 @@ static int32_t Packet_SMSG_EDITOR_TEMPLATE_RESULTS(void* param, NETMESSAGE msgId
         results.m_hits.push_back(std::move(hit));
     }
 
-    results.m_query = s_pendingQuery[kind];
+    if (flags & kFlagMore) {
+        return 1;
+    }
+
     results.m_received = true;
+    s_results[kind] = std::move(results);
+    s_pending[kind].erase(pending);
 
     Lua::SignalEvent("EDITOR_TEMPLATE_RESULTS", "%s%d%d%b", KindName(kind), static_cast<int32_t>(requestId),
-        static_cast<int32_t>(results.m_hits.size()), results.m_truncated ? 1 : 0);
+        static_cast<int32_t>(s_results[kind].m_hits.size()), s_results[kind].m_truncated ? 1 : 0);
     return 1;
 }
 
-// TemplateSearch_Query("creature" | "gameobject" | "quest" | "item" | "loot" | "lootuse", query [, limit]) returns the request id, an entry number matches exactly.
+// TemplateSearch_Query("creature" | "gameobject" | "quest" | "item" | "loot" | "lootuse", query [, limit]) returns the request id, an entry number matches exactly, an empty query with limit 65535 lists everything.
 static int32_t Script_Query(lua_State* L) {
     int kind = KindFromLua(L, 1);
     const char* query = lua_tostring(L, 2);
@@ -108,8 +124,22 @@ static int32_t Script_Query(lua_State* L) {
     uint16_t limit = lua_isnumber(L, 3) ? static_cast<uint16_t>(lua_tonumber(L, 3)) : 200;
     uint32_t requestId = s_nextRequestId++;
 
-    s_results[kind].m_requestId = requestId;
-    s_pendingQuery[kind] = query;
+    // Requests the server never answers would pile up, the oldest goes first.
+    if (s_pending[kind].size() >= kMaxPending) {
+        auto oldest = s_pending[kind].begin();
+
+        for (auto it = s_pending[kind].begin(); it != s_pending[kind].end(); ++it) {
+            if (it->first < oldest->first) {
+                oldest = it;
+            }
+        }
+
+        s_pending[kind].erase(oldest);
+    }
+
+    Results& pending = s_pending[kind][requestId];
+    pending.m_requestId = requestId;
+    pending.m_query = query;
 
     Net::Packet(Net::CMSG_EDITOR_TEMPLATE_SEARCH)
         .PutUInt8(static_cast<uint8_t>(kind))
@@ -191,7 +221,7 @@ void Apply() {
 void OnGameDestroy() {
     for (uint8_t kind = 0; kind < kKinds; kind++) {
         s_results[kind] = Results();
-        s_pendingQuery[kind].clear();
+        s_pending[kind].clear();
     }
 }
 

@@ -8,9 +8,6 @@ local LEFT_OFFSET = 56;
 local BROWSER_WIDTH = 320;
 
 local root, searchBox, list, status;
-local results;
-local truncated = false;
-local searching = false;
 
 -- Opening ----------------------------------------------------------------------------------------------------
 
@@ -49,20 +46,32 @@ local function LevelText(meta)
 	return level > 0 and tostring(level) or "";
 end
 
+-- Every quest, recently opened ones first while nothing is typed.
 local function Items()
 	local text = strtrim(searchBox and searchBox:GetText() or "");
-	local items = {};
+	local all = GameEditor_TemplateList("quest");
 
-	if ( text == "" or not results ) then
-		for _, id in ipairs(Q.recent) do
-			table.insert(items, { value = id, text = Q.NameOf(id) or "", level = LevelText(Q.meta[id]), tag = id == Q.id and "open" or "recent" });
-		end
-
-		return items;
+	if ( text ~= "" ) then
+		return GameEditor_FilterList(all, text);
 	end
 
-	for _, row in ipairs(results) do
-		table.insert(items, { value = row.entry, text = row.name or "", level = LevelText(Q.meta[row.entry]), tag = row.entry == Q.id and "open" or nil });
+	local items, seen = {}, {};
+
+	for _, id in ipairs(Q.recent) do
+		if ( not seen[id] ) then
+			seen[id] = true;
+			table.insert(items, { value = id, text = Q.NameOf(id) or "", tag = "recent" });
+		end
+	end
+
+	if ( #items == 0 ) then
+		return all;
+	end
+
+	for _, item in ipairs(all) do
+		if ( not seen[item.value] ) then
+			table.insert(items, item);
+		end
 	end
 
 	return items;
@@ -86,49 +95,24 @@ function Q.RefreshBrowser(keepSelection)
 
 	NoggitListBox_Refresh(list);
 
-	local text = strtrim(searchBox:GetText() or "");
+	local all, loading = GameEditor_TemplateList("quest");
 
-	if ( text == "" or not results ) then
-		if ( searching ) then
-			status:SetText("Searching the server...");
-		else
-			status:SetText(#items > 0 and "Recently opened quests" or "Type a title or a quest ID and press Enter");
-		end
-	elseif ( searching ) then
-		status:SetText("Searching the server...");
+	if ( loading ) then
+		status:SetText(#all > 0 and format("%d of %d, still loading", #items, #all) or "Loading the quest list from the server");
+	elseif ( #items == #all ) then
+		status:SetText(format("%d quests", #all));
 	else
-		status:SetText(format("%d found%s", #items, truncated and ", showing the first ones" or ""));
+		status:SetText(format("%d of %d", #items, #all));
 	end
 end
 
-local function RunSearch()
-	local text = strtrim(searchBox:GetText() or "");
-
-	if ( text == "" ) then
-		results = nil;
-		Q.RefreshBrowser();
-		return;
-	end
-
-	searching = Q.Search(text, function(rows, isTruncated)
-		searching = false;
-
-		if ( not rows ) then
-			Q.RefreshBrowser(true);
-			return;
-		end
-
-		results = rows;
-		truncated = isTruncated and true or false;
-		Q.RefreshBrowser();
-	end);
-
-	if ( not searching ) then
-		GameEditor_Notify("Quest search needs TemplateSearch_Query in this client build", "error");
-	end
-
+local function FilterBrowser()
 	Q.RefreshBrowser();
 end
+
+GameEditor_OnTemplateList("quest", function()
+	Q.RefreshBrowser(true);
+end);
 
 function Q.FocusSearch()
 	if ( searchBox ) then
@@ -152,7 +136,10 @@ local function BuildMain(parent)
 	local new = Common.Button(root, "New quest", 80, function() Q.ShowNewDialog(); end, "Create a quest with a new ID (Ctrl+N)");
 	new:SetPoint("TOPRIGHT", root, "TOPRIGHT", -8, -6);
 
-	local searchButton = Common.Button(root, "Search", 64, RunSearch, "Search the quest titles on the server, a number opens that quest ID");
+	local searchButton = Common.Button(root, "Reload", 64, function()
+		GameEditor_ReloadTemplateList("quest");
+		Q.RefreshBrowser(true);
+	end, "Ask the server for the quest list again");
 	searchButton:SetPoint("TOPRIGHT", root, "TOPRIGHT", -8, -34);
 
 	searchBox = NoggitLineEdit_Create(root, 200);
@@ -178,18 +165,13 @@ local function BuildMain(parent)
 		if ( number ) then
 			Q.OpenQuest(number);
 		end
-
-		RunSearch();
 	end);
 	searchBox:SetScript("OnEscapePressed", function(self)
 		self:SetText("");
 		self:ClearFocus();
 	end);
-	searchBox:SetScript("OnTextChanged", function(self)
-		if ( strtrim(self:GetText() or "") == "" ) then
-			results = nil;
-			Q.RefreshBrowser();
-		end
+	searchBox:SetScript("OnTextChanged", function()
+		GameEditor_Debounce(FilterBrowser, #GameEditor_TemplateList("quest"));
 	end);
 
 	status = Common.Label(root, "", nil, NOGGIT_COLOR_DISABLED);
@@ -209,12 +191,14 @@ local function BuildMain(parent)
 		row.name:SetPoint("LEFT", row, "LEFT", 54, 0);
 		row.name:SetPoint("RIGHT", row.level, "LEFT", -4, 0);
 	end, function(row, item)
+		local name = item.row and item.row.name or Q.NameOf(item.value) or item.text;
+		local level = LevelText(Q.MetaOf(item.value));
 		row.entry:SetText(tostring(item.value));
-		row.name:SetText(item.text ~= "" and item.text or "|cff7f7f7ftitle unknown|r");
-		NoggitText_SetColor(row.name, item.tag == "open" and NOGGIT_COLOR_GOLD or NOGGIT_COLOR_TEXT);
+		row.name:SetText(name and name ~= "" and name or "|cff7f7f7ftitle unknown|r");
+		NoggitText_SetColor(row.name, item.value == Q.id and NOGGIT_COLOR_GOLD or NOGGIT_COLOR_TEXT);
 
-		if ( item.level ~= "" ) then
-			row.level:SetText("["..item.level.."]");
+		if ( level ~= "" ) then
+			row.level:SetText("["..level.."]");
 		else
 			row.level:SetText(item.tag == "recent" and "recent" or "");
 		end

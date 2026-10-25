@@ -68,36 +68,47 @@ end
 
 local existsWatcher = CreateFrame("Frame");
 existsWatcher:RegisterEvent("MODEL_EDITOR_SAVED");
+local modelList;
+existsWatcher:RegisterEvent("DBC_RECORD_UPDATED");
 existsWatcher:SetScript("OnEvent", function()
 	modelExists = {};
+	modelList = nil;
 end);
 
+-- Every model path the display DBCs name and the client has, one row per path.
+local function ModelList()
+	if ( modelList ) then
+		return modelList;
+	end
+
+	modelList = {};
+	local seen = {};
+
+	local function Add(prefix, id, path, source)
+		local key = string.lower(ME.CleanPath(path or ""));
+
+		if ( key ~= "" and not seen[key] and ModelExists(path) ) then
+			seen[key] = true;
+			table.insert(modelList, { value = prefix..id, text = path, path = path, source = source });
+		end
+	end
+
+	for _, item in ipairs(GameEditor_DbcList("CreatureModelData")) do
+		Add("M", item.value, item.text, { kind = "creature", modelDataId = item.value });
+	end
+
+	for _, item in ipairs(GameEditor_DbcList("GameObjectDisplayInfo")) do
+		Add("G", item.value, item.text, { kind = "gameobject", displayId = item.value });
+	end
+
+	return modelList;
+end
+
 local function BrowseModels()
-	GameEditor_PickValue("Models in the display DBCs", nil, nil, function(_, item)
+	GameEditor_PickValue("Models in the display DBCs", ModelList, nil, function(_, item)
 		if ( item and item.path ) then
 			ME.Open(item.path, item.source);
 		end
-	end, function(text)
-		local items = {};
-		text = strtrim(text or "");
-
-		if ( string.len(text) < 2 ) then
-			return items;
-		end
-
-		for _, row in ipairs(ME.Find("CreatureModelData", nil, text, 200)) do
-			if ( ModelExists(row.name) ) then
-				table.insert(items, { value = "M"..row.id, text = row.name or "", path = row.name, source = { kind = "creature", modelDataId = row.id } });
-			end
-		end
-
-		for _, row in ipairs(ME.Find("GameObjectDisplayInfo", nil, text, 200)) do
-			if ( ModelExists(row.name) ) then
-				table.insert(items, { value = "G"..row.id, text = row.name or "", path = row.name, source = { kind = "gameobject", displayId = row.id } });
-			end
-		end
-
-		return items;
 	end);
 end
 

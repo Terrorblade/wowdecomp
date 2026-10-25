@@ -20,9 +20,7 @@ local function CopyQuest()
 end
 
 local function OpenById()
-	GameEditor_PickValue("Open quest", nil, Q.id, function(value) Q.OpenQuest(value); end, function(text)
-		return GameEditor_RefSearchers["quest"] and GameEditor_RefSearchers["quest"](text) or {};
-	end);
+	GameEditor_PickRef("Open quest", "quest", Q.id, function(value) Q.OpenQuest(value); end, { anyNumber = true });
 end
 
 local function GoTo(index)

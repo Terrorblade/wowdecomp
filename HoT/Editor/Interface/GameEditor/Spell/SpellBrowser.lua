@@ -14,18 +14,6 @@ local function EffectColumns(prefix)
 	return { prefix.."[0]", prefix.."[1]", prefix.."[2]" };
 end
 
-local function DbcSearch(tableName)
-	return function(text)
-		local items = {};
-
-		for _, row in ipairs(SE.Find(tableName, text or "", 300)) do
-			table.insert(items, { value = row.id, text = row.name or "" });
-		end
-
-		return items;
-	end;
-end
-
 -- Laid out in the same two columns as the Personal Spell Editor, left column first.
 local FILTERS = {
 	{ key = "category", label = "Filter Category:", columns = { "m_category" }, ref = "dbc:SpellCategory", side = 2, row = 1 },
@@ -237,9 +225,9 @@ local CONTEXT_MENU = {
 
 -- Opens a spell picker with search, used by Spell > Open by id.
 function SE.PickSpell(title, onPick)
-	GameEditor_PickValue(title or "Open spell", nil, SE.CurrentId(), function(value)
+	GameEditor_PickRef(title or "Open spell", "spell", SE.CurrentId(), function(value)
 		onPick(tonumber(value));
-	end, GameEditor_RefSearchers["spell"]);
+	end, { anyNumber = true });
 end
 
 local function BuildList(parent)
@@ -359,7 +347,7 @@ local function BuildFilters(parent)
 			};
 		else
 			options = {
-				search = DbcSearch(string.sub(filter.ref, 5)),
+				items = function() return (GameEditor_RefList(filter.ref)); end,
 				text = function(value) return GameEditor_ResolveRef(filter.ref, value); end,
 			};
 		end

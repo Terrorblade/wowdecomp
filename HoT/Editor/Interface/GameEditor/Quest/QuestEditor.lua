@@ -558,9 +558,7 @@ local function CreateGiverList(parent, spec, onChange)
 			return;
 		end
 
-		GameEditor_PickValue(spec.title, nil, nil, function(value) Add(value); end, function(text)
-			return Q.SearchRef(block.kind, text);
-		end);
+		GameEditor_PickRef(spec.title, block.kind, nil, function(value) Add(value); end, { anyNumber = true });
 	end, "Pick one by name or type its entry");
 	add:SetHeight(20);
 	add:SetPoint("BOTTOMLEFT", block, "BOTTOMLEFT", 0, 0);

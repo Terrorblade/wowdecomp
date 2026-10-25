@@ -5,7 +5,6 @@ local I = GameEditorItem;
 local Data = GameEditorData or {};
 
 local RECENT_MAX = 20;
-local SEARCH_TIMEOUT = 10;
 local PROBE_MAX = 200;
 
 -- The server sends every row of a listable table for this key, -2^63 is exact as a Lua number.
@@ -106,6 +105,7 @@ function I.Remember(entry, name, meta)
 
 	if ( name and name ~= "" ) then
 		I.names[entry] = name;
+		GameEditor_TemplateListPut("item", entry, name, meta and { type = meta.quality, maxLevel = meta.itemLevel, minLevel = meta.requiredLevel, displayId = meta.displayId });
 	end
 
 	if ( meta ) then
@@ -119,7 +119,7 @@ end
 
 function I.NameOf(entry)
 	entry = tonumber(entry) or 0;
-	return I.names[entry] or (GetItemInfo(entry));
+	return I.names[entry] or GameEditor_TemplateName("item", entry) or (GetItemInfo(entry));
 end
 
 function I.RememberRecent(entry)
@@ -165,56 +165,22 @@ end
 
 -- Item search ------------------------------------------------------------------------------------------------
 
-local search = {};
-
--- I.Search(text, callback) searches item names and entries on the server, callback(rows, truncated) or callback(nil) when dropped.
-function I.Search(text, callback)
-	text = strtrim(text or "");
-
-	if ( text == "" or not TemplateSearch_Query ) then
-		return false;
-	end
-
-	local requestId = TemplateSearch_Query("item", text, 500);
-
-	if ( not requestId ) then
-		return false;
-	end
-
-	if ( search.callback ) then
-		pcall(search.callback, nil);
-	end
-
-	search.requestId = tonumber(requestId);
-	search.callback = callback;
-	search.expires = GetTime() + SEARCH_TIMEOUT;
-	return true;
+function I.MetaOf(entry)
+	entry = tonumber(entry) or 0;
+	local row = not I.meta[entry] and GameEditor_TemplateRow("item", entry);
+	return I.meta[entry] or (row and MetaOfHit(row)) or nil;
 end
 
-local function OnTemplateResults(requestId)
-	local data = TemplateSearch_GetResults and TemplateSearch_GetResults("item");
+GameEditor_OnTemplateList("item", function()
+	local items = GameEditor_TemplateList("item");
+	local last = items[#items];
 
-	if ( not data ) then
-		return;
-	end
-
-	-- Hits of any item search name entries, the vendor page shares this kind.
-	for _, row in ipairs(data.rows or {}) do
-		I.Remember(row.entry, row.name, MetaOfHit(row));
-	end
-
-	if ( search.requestId and search.requestId == tonumber(requestId) ) then
-		local callback = search.callback;
-		search.requestId = nil;
-		search.callback = nil;
-
-		if ( callback ) then
-			pcall(callback, data.rows or {}, data.truncated);
-		end
+	if ( last and last.value > I.maxSeen ) then
+		I.maxSeen = last.value;
 	end
 
 	I.Fire("NAMES");
-end
+end);
 
 -- World table row sets ---------------------------------------------------------------------------------------
 
@@ -654,18 +620,11 @@ end
 local events = CreateFrame("Frame", "GameEditorItemEvents");
 events:RegisterEvent("WORLD_TABLE_ROWS");
 events:RegisterEvent("WORLD_TABLE_RESULT");
-events:RegisterEvent("EDITOR_TEMPLATE_RESULTS");
 events:SetScript("OnEvent", function(_, event, ...)
 	if ( event == "WORLD_TABLE_ROWS" ) then
 		OnRows(...);
 	elseif ( event == "WORLD_TABLE_RESULT" ) then
 		OnResult(...);
-	elseif ( event == "EDITOR_TEMPLATE_RESULTS" ) then
-		local kind, requestId = ...;
-
-		if ( kind == "item" ) then
-			OnTemplateResults(requestId);
-		end
 	end
 end);
 
@@ -686,15 +645,5 @@ events:SetScript("OnUpdate", function(_, elapsed)
 	elseif ( I.waitingInfo and GetItemInfo(I.waitingInfo) ) then
 		I.waitingInfo = nil;
 		I.Fire("ITEM_INFO");
-	end
-
-	if ( search.requestId and search.expires and GetTime() > search.expires ) then
-		local callback = search.callback;
-		search.requestId = nil;
-		search.callback = nil;
-
-		if ( callback ) then
-			pcall(callback, nil);
-		end
 	end
 end);

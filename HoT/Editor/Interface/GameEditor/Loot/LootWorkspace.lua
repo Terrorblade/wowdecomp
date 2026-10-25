@@ -11,9 +11,6 @@ local Num = L.Num;
 
 local view;
 local searchBox, filterCombo, list, status, tableCombo, idBox;
-local results;
-local truncated = false;
-local searching = false;
 local recent = {};
 
 L.current = L.current or { roots = {}, title = nil };
@@ -145,24 +142,97 @@ local function GroupTitle(group)
 	return format("%s %d%s", source and source.title or group.source, group.entry, name ~= "" and ("  "..name) or "");
 end
 
-local function Items()
-	local items = {};
-	local text = strtrim(searchBox and searchBox:GetText() or "");
+local grouped, groupedFrom, groupedCount;
 
-	if ( text == "" or not results ) then
-		for _, entry in ipairs(recent) do
-			table.insert(items, { recent = true, roots = entry.roots, title = entry.title or "", tag = "recent" });
+-- Every source with loot as browser lines, rebuilt when the loot list changes.
+local function AllSources()
+	local rows, loading = GameEditor_TemplateList("loot");
+
+	if ( not grouped or groupedFrom ~= rows or groupedCount ~= #rows ) then
+		local hits = {};
+
+		for index, item in ipairs(rows) do
+			hits[index] = item.row;
+		end
+
+		grouped = {};
+
+		for _, group in ipairs(GroupResults(hits)) do
+			local title = GroupTitle(group);
+			table.insert(grouped, { group = group, roots = group.roots, title = title, text = title, tag = table.concat(group.tags, ", ") });
+		end
+
+		groupedFrom, groupedCount = rows, #rows;
+	end
+
+	return grouped, loading;
+end
+
+-- Loot ids of one table that some source uses, for the open by id picker.
+local function TableIds(index)
+	local items, seen = {}, {};
+
+	for _, item in ipairs((GameEditor_TemplateList("loot"))) do
+		local row = item.row;
+
+		if ( row.type == index and not seen[row.displayId] ) then
+			seen[row.displayId] = true;
+			table.insert(items, { value = row.displayId, text = row.name or "" });
+		end
+	end
+
+	table.sort(items, function(a, b) return a.value < b.value; end);
+	return items, select(2, GameEditor_TemplateList("loot"));
+end
+
+local function Items()
+	local text = strtrim(searchBox and searchBox:GetText() or "");
+	local filter = FilterValue();
+	local all = AllSources();
+	local items = {};
+
+	if ( filter ) then
+		for _, item in ipairs(all) do
+			if ( item.group.source == filter ) then
+				table.insert(items, item);
+			end
+		end
+
+		all = items;
+		items = {};
+	end
+
+	if ( text ~= "" ) then
+		local number = tonumber(text);
+		local found = GameEditor_FilterList(all, text);
+
+		if ( not number or number <= 0 or (filter and filter ~= "mail" and filter ~= "reference") ) then
+			return found;
+		end
+
+		-- Mail and reference ids have no source, a typed number offers them directly.
+		for _, index in ipairs({ L.REFERENCE - 1, L.REFERENCE }) do
+			local info = L.TABLES[index];
+			table.insert(items, { roots = { { table = info.table, key = number, label = info.title } }, title = format("%s %d", info.title, number), tag = info.short });
+		end
+
+		for _, item in ipairs(found) do
+			table.insert(items, item);
 		end
 
 		return items;
 	end
 
-	local filter = FilterValue();
+	for _, entry in ipairs(recent) do
+		table.insert(items, { recent = true, roots = entry.roots, title = entry.title or "", tag = "recent" });
+	end
 
-	for _, group in ipairs(results) do
-		if ( not filter or group.source == filter ) then
-			table.insert(items, { group = group, roots = group.roots, title = GroupTitle(group), tag = table.concat(group.tags, ", ") });
-		end
+	if ( #items == 0 ) then
+		return all;
+	end
+
+	for _, item in ipairs(all) do
+		table.insert(items, item);
 	end
 
 	return items;
@@ -186,39 +256,22 @@ function L.RefreshBrowser(keepSelection)
 
 	NoggitListBox_Refresh(list);
 
-	local text = strtrim(searchBox:GetText() or "");
+	local all, loading = AllSources();
 
-	if ( searching ) then
-		status:SetText("Searching the server...");
-	elseif ( text == "" or not results ) then
-		status:SetText(#items > 0 and "Recently opened loot" or "Type a name or an id and press Enter");
+	if ( loading ) then
+		status:SetText(#all > 0 and format("%d of %d, still loading", #items, #all) or "Loading every source with loot from the server");
 	else
-		status:SetText(format("%d source%s with loot%s", #items, #items == 1 and "" or "s", truncated and ", showing the first ones" or ""));
+		status:SetText(format("%d of %d sources with loot", #items, #all));
 	end
 end
 
-local function RunSearch()
-	local text = strtrim(searchBox:GetText() or "");
-
-	if ( text == "" ) then
-		results = nil;
-		L.RefreshBrowser();
-		return;
-	end
-
-	searching = L.SearchSources(text, function(rows, isTruncated)
-		searching = false;
-		results = GroupResults(rows);
-		truncated = isTruncated and true or false;
-		L.RefreshBrowser();
-	end);
-
-	if ( not searching ) then
-		GameEditor_Notify("Loot search needs TemplateSearch_Query in this client build", "error");
-	end
-
+local function FilterBrowser()
 	L.RefreshBrowser();
 end
+
+GameEditor_OnTemplateList("loot", function()
+	L.RefreshBrowser(true);
+end);
 
 function L.FocusSearch()
 	if ( searchBox ) then
@@ -242,7 +295,10 @@ local function BuildBrowser(parent)
 	filterCombo = NoggitComboBox_Create(frame, 130, FILTERS, 1, function() L.RefreshBrowser(); end);
 	filterCombo:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -6);
 
-	local searchButton = Common().Button(frame, "Search", 64, RunSearch, "Search creatures, objects, items, fishing areas and spells that have loot, a number also finds mail and reference ids");
+	local searchButton = Common().Button(frame, "Reload", 64, function()
+		GameEditor_ReloadTemplateList("loot");
+		L.RefreshBrowser(true);
+	end, "Ask the server for every source with loot again");
 	searchButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -34);
 
 	searchBox = NoggitLineEdit_Create(frame, 200);
@@ -262,17 +318,18 @@ local function BuildBrowser(parent)
 	end);
 	searchBox:SetScript("OnEnterPressed", function(self)
 		self:ClearFocus();
-		RunSearch();
+		local item = list.items[list.selected or 1];
+
+		if ( item ) then
+			L.OpenRoots(item.roots, item.title);
+		end
 	end);
 	searchBox:SetScript("OnEscapePressed", function(self)
 		self:SetText("");
 		self:ClearFocus();
 	end);
-	searchBox:SetScript("OnTextChanged", function(self)
-		if ( strtrim(self:GetText() or "") == "" ) then
-			results = nil;
-			L.RefreshBrowser();
-		end
+	searchBox:SetScript("OnTextChanged", function()
+		GameEditor_Debounce(FilterBrowser, #AllSources());
 	end);
 
 	local openBar = CreateFrame("Frame", nil, frame);
@@ -411,10 +468,7 @@ local function BuildMenus()
 	for index = 0, L.REFERENCE do
 		local info = L.TABLES[index];
 		table.insert(openMenu, { text = info.title.." id...", onClick = function()
-			GameEditor_PickValue("Open "..string.lower(info.title), {}, nil, function(value) L.OpenTable(index, value); end, function(text)
-				local number = tonumber(strtrim(text or ""));
-				return number and { { value = number, text = format("%s %d", info.title, number) } } or {};
-			end);
+			GameEditor_PickValue("Open "..string.lower(info.title), function() return TableIds(index); end, nil, function(value) L.OpenTable(index, value); end, nil, { anyNumber = true });
 		end });
 	end
 

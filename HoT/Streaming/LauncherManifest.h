@@ -6,6 +6,8 @@
 
 namespace HoT::Streaming {
 
+constexpr int kManifestLevel = 2;
+
 struct ManifestFile {
     // Forward slash and client relative, like "Data/patch-4.MPQ".
     std::string m_path;
@@ -16,6 +18,7 @@ struct ManifestFile {
     bool m_hd = false;
     // "linux" or "macos" for a native build only that OS takes, empty for every client.
     std::string m_platform;
+    int m_requiredLevel = 0;
 };
 
 // An MPQ that carries a (hotmanifest), so it can be brought up to date file by file.

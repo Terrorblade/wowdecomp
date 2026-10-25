@@ -29,7 +29,7 @@ std::filesystem::path ExecutablePath() {
     return std::filesystem::path(resolved);
 }
 
-// Inside Wow64.app/Contents/MacOS the game data sits next to the bundle, like the original Mac client.
+// Inside HoTClient64.app/Contents/MacOS the game data sits next to the bundle, like the original Mac client.
 std::filesystem::path GameDirectory() {
     std::filesystem::path exe = ExecutablePath();
 

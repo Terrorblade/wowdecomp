@@ -192,7 +192,7 @@ bool ParseManifest(const std::string& json, Manifest& out) {
     ManifestFile mf;
 
     auto flushFile = [&] {
-        if (!mf.m_path.empty()) {
+        if (!mf.m_path.empty() && mf.m_requiredLevel <= kManifestLevel) {
             out.m_files.push_back(std::move(mf));
         }
 
@@ -212,6 +212,8 @@ bool ParseManifest(const std::string& json, Manifest& out) {
             mf.m_hd = (json.compare(v, 4, "true") == 0);
         } else if (key == "platform") {
             ParseStr(json, v, mf.m_platform);
+        } else if (key == "requires") {
+            mf.m_requiredLevel = std::atoi(json.c_str() + v);
         } else {
             return false;
         }

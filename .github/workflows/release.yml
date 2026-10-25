@@ -90,7 +90,7 @@ jobs:
         run: |
           $fresh = @()
           if ('${{ github.event.inputs.fresh }}' -eq 'true') { $fresh = @('--fresh') }
-          python source\Tools\Cross\cross.py build linux --config Release --build-dir "$env:PERSIST_DIR\build-linux" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
+          python source\Tools\Cross\cross.py build linux --name HoTClient64 --config Release --build-dir "$env:PERSIST_DIR\build-linux" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
           if ($LASTEXITCODE -ne 0) { throw "linux build failed with exit code $LASTEXITCODE" }
 
       - name: Build macOS
@@ -98,10 +98,10 @@ jobs:
           $fresh = @()
           if ('${{ github.event.inputs.fresh }}' -eq 'true') { $fresh = @('--fresh') }
           foreach ($arch in "arm64", "x86_64") {
-            python source\Tools\Cross\cross.py build "macos-$arch" --config Release --build-dir "$env:PERSIST_DIR\build-macos-$arch" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
+            python source\Tools\Cross\cross.py build "macos-$arch" --name HoTClient64 --config Release --build-dir "$env:PERSIST_DIR\build-macos-$arch" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
             if ($LASTEXITCODE -ne 0) { throw "macos-$arch build failed with exit code $LASTEXITCODE" }
           }
-          python source\Tools\Cross\cross.py package macos --no-build
+          python source\Tools\Cross\cross.py package macos --name HoTClient64 --no-build
           if ($LASTEXITCODE -ne 0) { throw "macos package failed with exit code $LASTEXITCODE" }
 
       - name: Copy binaries
@@ -110,9 +110,9 @@ jobs:
             foreach ($f in "HoTClient64.exe", "discord_game_sdk_64.dll", "XvidDecoder.dll") {
               Copy-Item -Path "source\bin\Win\$f" -Destination "$dest\$f" -Force
             }
-            Copy-Item -Path "source\bin\Linux\Wow64" -Destination "$dest\HoTClient64" -Force
-            Copy-Item -Path "source\bin\Linux\libdxvk_d3d9.so" -Destination "$dest\libdxvk_d3d9.so" -Force
-            Copy-Item -Path "source\bin\Wow64-mac.tar.gz" -Destination "$dest\HoTClient64-mac.tar.gz" -Force
+            foreach ($f in "Linux\HoTClient64", "Linux\libdxvk_d3d9.so", "HoTClient64-mac.tar.gz") {
+              Copy-Item -Path "source\bin\$f" -Destination "$dest\$(Split-Path $f -Leaf)" -Force
+            }
           }
 
       - name: Run manifest tool

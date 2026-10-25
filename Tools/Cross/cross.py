@@ -9,8 +9,9 @@
   python Tools/Cross/cross.py package macos [--no-build]
 
 The Linux sysroot and the macOS dependencies live in .cross/, the macOS SDK is the ThirdParty/macos-sdk submodule,
-build trees go to build/cross-<name>/. package builds both Mac architectures and writes a universal Wow64.app to
-bin/Wow64-mac.tar.gz. WOWDECOMP_CROSS_DIR (read here and by the toolchains) moves .cross/ somewhere else.
+build trees go to build/cross-<name>/. Every build is named HoTClient64 (--name changes it), so Linux writes
+bin/Linux/HoTClient64 and package builds both Mac architectures and writes a universal HoTClient64.app to
+bin/HoTClient64-mac.tar.gz. WOWDECOMP_CROSS_DIR (read here and by the toolchains) moves .cross/ somewhere else.
 """
 
 import argparse
@@ -31,6 +32,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CROSS = Path(os.environ.get("WOWDECOMP_CROSS_DIR", ROOT / ".cross"))
 CACHE = CROSS / "cache"
+CLIENT_NAME = "HoTClient64"
 
 DEBIAN_MIRROR = "https://deb.debian.org/debian"
 DEBIAN_SUITE = "bookworm"
@@ -424,6 +426,7 @@ def build(args):
         f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake' / 'toolchains' / toolchain}",
         f"-DCMAKE_BUILD_TYPE={args.config}",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        f"-DWOW_OUTPUT_OVERRIDE={args.name_override}",
     ] + extra + args.cmake_args
 
     if subprocess.run(configure).returncode != 0:
@@ -441,11 +444,11 @@ def build(args):
     sys.exit(subprocess.run(command).returncode)
 
 
-MACOS_TESTER_README = """Wow64 for macOS (universal, Apple Silicon and Intel)
+MACOS_TESTER_README = """{name} for macOS (universal, Apple Silicon and Intel)
 
-1. Put Wow64.app in your World of Warcraft 3.3.5a folder, next to Data and WTF.
+1. Put {name}.app in your World of Warcraft 3.3.5a folder, next to Data and WTF.
 2. The app is not notarized, so macOS blocks the first launch. Run this once in Terminal from that folder:
-       xattr -dr com.apple.quarantine Wow64.app
+       xattr -dr com.apple.quarantine {name}.app
    or open it, then allow it under System Settings > Privacy & Security > Open Anyway.
 3. Crash logs are written to the Errors folder next to the app.
 """
@@ -494,26 +497,27 @@ def package_macos(args):
 
     if not args.no_build:
         for arch in archs:
-            if subprocess.run([sys.executable, __file__, "build", f"macos-{arch}"]).returncode != 0:
+            if subprocess.run([sys.executable, __file__, "build", f"macos-{arch}", "--name", args.name_override]).returncode != 0:
                 sys.exit(1)
 
-    apps = [ROOT / "bin" / f"Mac-{arch}" / "Wow64.app" for arch in archs]
+    name = args.name_override
+    apps = [ROOT / "bin" / f"Mac-{arch}" / f"{name}.app" for arch in archs]
 
     for app in apps:
-        if not (app / "Contents" / "MacOS" / "Wow64").exists():
+        if not (app / "Contents" / "MacOS" / name).exists():
             sys.exit(f"missing {app}, build it first")
 
-    binary = universal_binary([(app / "Contents" / "MacOS" / "Wow64").read_bytes() for app in apps])
-    out = ROOT / "bin" / "Wow64-mac.tar.gz"
+    binary = universal_binary([(app / "Contents" / "MacOS" / name).read_bytes() for app in apps])
+    out = ROOT / "bin" / f"{name}-mac.tar.gz"
 
     with tarfile.open(out, "w:gz", format=tarfile.PAX_FORMAT) as tar:
-        tar_add(tar, "Wow64", directory=True)
-        tar_add(tar, "Wow64/README.txt", MACOS_TESTER_README.encode())
-        tar_add(tar, "Wow64/Wow64.app", directory=True)
-        tar_add(tar, "Wow64/Wow64.app/Contents", directory=True)
-        tar_add(tar, "Wow64/Wow64.app/Contents/Info.plist", (apps[0] / "Contents" / "Info.plist").read_bytes())
-        tar_add(tar, "Wow64/Wow64.app/Contents/MacOS", directory=True)
-        tar_add(tar, "Wow64/Wow64.app/Contents/MacOS/Wow64", binary, 0o755)
+        tar_add(tar, name, directory=True)
+        tar_add(tar, f"{name}/README.txt", MACOS_TESTER_README.format(name=name).encode())
+        tar_add(tar, f"{name}/{name}.app", directory=True)
+        tar_add(tar, f"{name}/{name}.app/Contents", directory=True)
+        tar_add(tar, f"{name}/{name}.app/Contents/Info.plist", (apps[0] / "Contents" / "Info.plist").read_bytes())
+        tar_add(tar, f"{name}/{name}.app/Contents/MacOS", directory=True)
+        tar_add(tar, f"{name}/{name}.app/Contents/MacOS/{name}", binary, 0o755)
 
     log(f"  {out} ({out.stat().st_size // 1048576} MB)")
 
@@ -533,11 +537,13 @@ def main():
     b.add_argument("--build-dir", help="build tree, default build/cross-<name>")
     b.add_argument("--configure-only", action="store_true")
     b.add_argument("--keep-going", type=int, default=1, help="ninja -k, 0 keeps going past every failure")
+    b.add_argument("--name", dest="name_override", default=CLIENT_NAME, help=f"executable and bundle name, default {CLIENT_NAME}")
     b.add_argument("cmake_args", nargs="*", help="extra -D options for the configure step")
 
     p = sub.add_parser("package")
     p.add_argument("platform", choices=["macos"])
     p.add_argument("--no-build", action="store_true", help="package the existing bin/Mac-<arch> bundles")
+    p.add_argument("--name", dest="name_override", default=CLIENT_NAME, help=f"executable and bundle name, default {CLIENT_NAME}")
 
     args = parser.parse_args()
 

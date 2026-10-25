@@ -9,7 +9,7 @@ bool IsDiscordLibrary(const std::string& path) {
     return name == "discord_game_sdk_64.dll" || name == "discord_game_sdk.so";
 }
 
-// The manifest describes the Windows install, its PE executables and DLLs have no use next to bin/Linux/Wow64.
+// The manifest describes the Windows install, its PE executables and DLLs have no use next to bin/Linux/HoTClient64.
 bool IsForeignBinary(const std::string& path) {
     size_t dot = path.find_last_of('.');
     size_t slash = path.find_last_of("/\\");

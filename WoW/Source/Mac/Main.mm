@@ -11,7 +11,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/Client.h"
 
-// Finder starts a bundle with "/" as the working directory, so the game data is looked up next to Wow64.app.
+// Finder starts a bundle with "/" as the working directory, so the game data is looked up next to HoTClient64.app.
 static void EnterGameDirectory() {
     char path[4096];
 

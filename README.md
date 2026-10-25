@@ -80,7 +80,8 @@ cmake -S . -B build/linux -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_C
 cmake --build build/linux --target Wow
 ```
 
-The client is written to `bin/Linux/Wow64`, with `libdxvk_d3d9.so` next to it (CMake downloads the pinned dxvk
+The client is written to `bin/Linux/Wow64` (`bin/Linux/HoTClient64` with `-DWOW_OUTPUT_OVERRIDE=HoTClient64`, which
+`cross.py` always sets), with `libdxvk_d3d9.so` next to it (CMake downloads the pinned dxvk
 release at configure time, the d3d9 headers are in `ThirdParty/dxvk-native`). Copy the `Data` folder of your 3.3.5a client next to it; file names are
 matched case-insensitively, so the folder can be copied as-is. Registry settings are kept in
 `~/.config/wowdecomp/registry.ini`.
@@ -99,13 +100,15 @@ python Tools/Cross/cross.py build linux
 python Tools/Cross/cross.py build macos-arm64
 python Tools/Cross/cross.py build macos-x86_64
 
-python Tools/Cross/cross.py package macos    # both Mac builds merged into a universal app, bin/Wow64-mac.tar.gz
+python Tools/Cross/cross.py package macos    # both Mac builds merged into a universal app, bin/HoTClient64-mac.tar.gz
 ```
 
 The macOS SDK is the `ThirdParty/macos-sdk` submodule. It is marked `update = none` because the repo holds every SDK
 since 10.1, so `git submodule update --init` skips it and `sysroot macos` checks out only `MacOSX26.5.sdk`. On
 Windows that checkout needs symlink support (Developer Mode). Build trees go to `build/cross-<name>/`. The toolchain
-files are in `cmake/toolchains/`. Mac bundles go to `bin/Mac-arm64/` and `bin/Mac-x86_64/`.
+files are in `cmake/toolchains/`. Mac bundles go to `bin/Mac-arm64/` and `bin/Mac-x86_64/`. Every cross build is named
+`HoTClient64` (`bin/Linux/HoTClient64`, `HoTClient64.app/Contents/MacOS/HoTClient64`), the name the launcher and the
+patch server expect. `--name` on `build` and `package` changes it.
 
 ### Options
 
@@ -115,6 +118,7 @@ files are in `cmake/toolchains/`. Mac bundles go to `bin/Mac-arm64/` and `bin/Ma
 | `WOWCLIENT_CRASH_LOG` | `ON` | Build `WowClient` with the crash logger |
 | `WOWCLIENT_FREEZE_DETECTOR` | `ON` | 64-bit `WowClient` force-crashes on the main thread when it hangs, so the dump shows where it was stuck. The `WOWCLIENT_FREEZE_SECONDS` env var changes the 10 second limit, 0 turns it off |
 | `WOWCLIENT_OUTPUT_OVERRIDE` | empty | Name the `WowClient` executable something other than `WowClient64` |
+| `WOW_OUTPUT_OVERRIDE` | empty | Name the `Wow` executable and Mac bundle something other than `Wow64`. `cross.py` sets `HoTClient64` |
 
 ## Running
 

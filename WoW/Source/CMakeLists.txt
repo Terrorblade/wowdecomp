@@ -12,6 +12,11 @@ add_executable(Wow WIN32 MACOSX_BUNDLE ${PRIVATE_SOURCES} ${PLATFORM_SOURCES})
 
 set(WOW_OUTPUT_NAME Wow64)
 
+set(WOW_OUTPUT_OVERRIDE "" CACHE STRING "Wow executable and Mac bundle name instead of Wow64 (cross.py sets HoTClient64)")
+if (WOW_OUTPUT_OVERRIDE)
+    set(WOW_OUTPUT_NAME ${WOW_OUTPUT_OVERRIDE})
+endif ()
+
 if (WOWDECOMP_PLATFORM_MAC)
     set(WOW_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/bin/Mac-${CMAKE_OSX_ARCHITECTURES})
 elseif (WOWDECOMP_PLATFORM_LINUX)
@@ -95,10 +100,10 @@ target_link_libraries(Wow
 )
 
 if (WOWDECOMP_PLATFORM_MAC)
-    # bin/Mac-<arch>/Wow64.app, the game data sits next to the bundle like the original Mac client's. The bundle only
-    # uses system frameworks. cross.py package merges the two architectures into one.
+    # bin/Mac-<arch>/<WOW_OUTPUT_NAME>.app, the game data sits next to the bundle like the original Mac client's. The
+    # bundle only uses system frameworks. cross.py package merges the two architectures into one.
     set_target_properties(Wow PROPERTIES
-        MACOSX_BUNDLE_BUNDLE_NAME "World of Warcraft"
+        MACOSX_BUNDLE_BUNDLE_NAME ${WOW_OUTPUT_NAME}
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.houroftwilight.wow"
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Mac/Info.plist.in
         BUILD_RPATH "@executable_path/../Frameworks"

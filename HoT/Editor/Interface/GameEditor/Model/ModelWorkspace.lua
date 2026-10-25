@@ -599,7 +599,8 @@ end
 GameEditor_RegisterWorkspace({
 	key = "model",
 	title = "Models",
-	order = 7,
+	category = "Visuals",
+	order = 9,
 	dockWidth = 520,
 	tools = {
 		{ key = "select", name = "Models", icon = 0xF8B8, build = Build },

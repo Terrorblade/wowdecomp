@@ -515,6 +515,83 @@ function Form:Path(key, label, tooltip)
 	return item;
 end
 
+-- Plain text, Enter or leaving the field applies it.
+function Form:Text(key, label, tooltip)
+	local item = self:Item(ROW);
+	RowLabel(item, label);
+	local edit = NoggitLineEdit_Create(item.frame, self.width - LABEL_WIDTH);
+	edit:SetHeight(22);
+	edit:SetPoint("TOPLEFT", item.frame, "TOPLEFT", LABEL_WIDTH, 0);
+	edit:SetMaxLetters(0);
+	Common.Tooltip(edit, tooltip);
+
+	edit:SetScript("OnEnterPressed", function(box) box:ClearFocus(); end);
+	edit:SetScript("OnEditFocusLost", function(box)
+		if ( self.data and box:GetText() ~= tostring(self.data[key] or "") ) then
+			self:Set(key, box:GetText());
+		end
+	end);
+	edit:SetScript("OnEscapePressed", function(box)
+		box:SetText(self.data and tostring(self.data[key] or "") or "");
+		box:ClearFocus();
+	end);
+	item.refresh = function(data)
+		if ( not edit:HasFocus() ) then
+			edit:SetText(data and tostring(data[key] or "") or "");
+		end
+
+		edit:EnableMouse(data ~= nil);
+	end;
+	return item;
+end
+
+-- An id of a row somewhere else, the hint names it, ... searches and Go opens it where it is edited.
+function Form:Ref(key, label, ref, tooltip, low, high)
+	local item = self:Number(key, label, low or 0, high or 2147483647, 1, 0, tooltip);
+	local anchor = item.spin;
+
+	if ( GameEditor_CanSearchRef(ref) ) then
+		local pick = Common.Button(item.frame, "...", 26, function()
+			if ( self.data ) then
+				GameEditor_PickValue(label, nil, Num(self.data[key]), function(value)
+					self:Set(key, value);
+				end, function(text)
+					return GameEditor_SearchRef(ref, text);
+				end);
+			end
+		end, "Search for one");
+		pick:SetPoint("LEFT", anchor, "RIGHT", 4, 0);
+		anchor = pick;
+	end
+
+	local go = Common.Button(item.frame, "Go", 32, function()
+		if ( self.data ) then
+			GameEditor_OpenRef(ref, self.data[key]);
+		end
+	end, "Open it in the workspace that edits it");
+	go:SetPoint("LEFT", anchor, "RIGHT", 4, 0);
+
+	item.hint:ClearAllPoints();
+	item.hint:SetPoint("LEFT", go, "RIGHT", 8, 0);
+	item.hint:SetPoint("RIGHT", item.frame, "RIGHT", 0, 0);
+	item.hintFunc = function(value)
+		return GameEditor_ResolveRef(ref, value) or "";
+	end;
+
+	local refresh = item.refresh;
+	item.refresh = function(data, info)
+		refresh(data, info);
+		if ( GameEditor_CanOpenRef(ref) ) then
+			go:Show();
+		else
+			go:Hide();
+		end
+
+		ME.SetEnabled(go, data ~= nil and Num(data[key]) ~= 0);
+	end;
+	return item;
+end
+
 -- Animated track: the value inline while it is constant, Keys opens the key window.
 function Form:Track(key, label, kind, tooltip)
 	local item = self:Item(ROW);

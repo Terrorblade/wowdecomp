@@ -1340,7 +1340,8 @@ end
 GameEditor_RegisterWorkspace({
 	key = "light",
 	title = "Lights",
-	order = 6,
+	category = "Visuals",
+	order = 11,
 	dockWidth = 470,
 	tools = {
 		{ key = "select", name = "Lights", icon = 0xF8A3, build = Build },

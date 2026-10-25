@@ -142,10 +142,13 @@ local function Status()
 	return cells;
 end
 
+GameEditor_RefOpeners["item"] = I.OpenItem;
+
 GameEditor_RegisterWorkspace({
 	key = "item",
 	title = "Items",
-	order = 8,
+	category = "Items",
+	order = 6,
 	dockWidth = 600,
 	tools = {
 		{ key = "select", name = "Item editor", icon = 0xF8A4, build = Editor.Build },

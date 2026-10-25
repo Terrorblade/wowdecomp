@@ -414,6 +414,7 @@ const std::vector<Store>& Stores() {
         Make(g_spellFocusObjectDB, "SpellFocusObject"),
         Make(g_spellIconDB, "SpellIcon"),
         Make(g_spellItemEnchantmentDB, "SpellItemEnchantment"),
+        Make(g_spellItemEnchantmentConditionDB, "SpellItemEnchantmentCondition"),
         Make(g_spellMechanicDB, "SpellMechanic"),
         Make(g_spellMissileDB, "SpellMissile"),
         Make(g_spellMissileMotionDB, "SpellMissileMotion"),

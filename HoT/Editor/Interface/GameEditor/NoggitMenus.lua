@@ -11,6 +11,7 @@ local contextMenus = {};
 local menuBarButtons = {};
 local idleTime = 0;
 local mouseWasDown = false;
+local dismissed;
 
 local function CloseSubmenus(menu)
 	if ( menu.openSubmenu ) then
@@ -214,6 +215,35 @@ function NoggitContextMenu_Show(key, definition)
 	contextMenu = menu;
 end
 
+-- Same as a context menu but under anchor, showing it again while it is open closes it.
+function NoggitDropdownMenu_Show(key, definition, anchor)
+	local menu = contextMenus[key];
+
+	if ( menu and contextMenu == menu ) then
+		NoggitMenu_CloseAll();
+		return;
+	end
+
+	-- The press on the anchor already closed it, the click that follows must not open it again.
+	if ( menu and dismissed and dismissed.menu == menu and GetTime() - dismissed.time < 0.5 ) then
+		dismissed = nil;
+		return;
+	end
+
+	NoggitMenu_CloseAll();
+
+	if ( not menu ) then
+		menu = BuildMenu(definition, EditorParent);
+		contextMenus[key] = menu;
+	end
+
+	RefreshMenu(menu);
+	menu:ClearAllPoints();
+	menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, 0);
+	menu:Show();
+	contextMenu = menu;
+end
+
 function NoggitMenu_OnUpdate(elapsed)
 	local mouseDown = EditorIsMouseButtonDown();
 	local pressed = mouseDown and not mouseWasDown;
@@ -221,6 +251,7 @@ function NoggitMenu_OnUpdate(elapsed)
 
 	if ( contextMenu ) then
 		if ( pressed and not IsOverMenuChain(contextMenu) ) then
+			dismissed = { menu = contextMenu, time = GetTime() };
 			NoggitMenu_CloseAll();
 		end
 

@@ -112,15 +112,9 @@ VE.LABELS = {
 	m_field33512213055 = "Camera seat zoom max",
 };
 
-VE.docs = VE.docs or {};
-VE.listeners = VE.listeners or {};
-
 local Num = ME.Num;
 VE.Num = Num;
-
-local function Key(tableName, id)
-	return tableName..":"..id;
-end
+VE.store = GameEditor_CreateDbcDocs("Vehicle editor", VE.TABLES);
 
 function VE.Label(column)
 	if ( VE.LABELS[column] ) then
@@ -142,239 +136,44 @@ function VE.SeatColumn(slot)
 	return "m_seatID["..slot.."]";
 end
 
--- Listeners -------------------------------------------------------------------------------------------
+-- Documents -------------------------------------------------------------------------------------------
 
 function VE.OnChanged(func)
-	table.insert(VE.listeners, func);
+	VE.store:OnChanged(func);
 end
 
 function VE.Changed()
-	for _, func in ipairs(VE.listeners) do
-		local ok, err = pcall(func);
-
-		if ( not ok ) then
-			GameEditor_Print("Vehicle editor: "..tostring(err), 1, 0.3, 0.3);
-		end
-	end
-end
-
--- Documents -------------------------------------------------------------------------------------------
-
-local function ApplyLocal(tableName, id, values)
-	return ME.Quiet("DbcEditor_ApplyLocal", tableName, id, values);
+	VE.store:Changed();
 end
 
 function VE.Row(tableName, id)
 	return ME.Row(tableName, id);
 end
 
-function VE.FindDoc(tableName, id)
-	id = tonumber(id);
-	return id and VE.docs[Key(tableName, id)];
-end
-
--- The open document of a row, loaded from the client the first time, nil when the row does not exist.
 function VE.Doc(tableName, id)
-	id = tonumber(id);
-
-	if ( not id or id <= 0 ) then
-		return nil;
-	end
-
-	local doc = VE.docs[Key(tableName, id)];
-
-	if ( doc ) then
-		return doc;
-	end
-
-	local row = VE.Row(tableName, id);
-
-	if ( not row ) then
-		return nil;
-	end
-
-	doc = { tableName = tableName, id = id, values = row, original = ME.Copy(row) };
-	VE.docs[Key(tableName, id)] = doc;
-	return doc;
+	return VE.store:Doc(tableName, id);
 end
 
--- A new row copied from values, it only exists in this client until it is saved.
 function VE.CreateDoc(tableName, values)
-	local id = ME.MaxId(tableName) + 1;
-
-	for _, doc in pairs(VE.docs) do
-		if ( doc.tableName == tableName and doc.id >= id ) then
-			id = doc.id + 1;
-		end
-	end
-
-	values = ME.Copy(values or {});
-	values.m_id = id;
-
-	local doc = { tableName = tableName, id = id, values = values, original = ME.Copy(values), isNew = true };
-	VE.docs[Key(tableName, id)] = doc;
-	ApplyLocal(tableName, id, values);
-	return doc;
-end
-
-local function Same(a, b)
-	if ( type(a) == "number" and type(b) == "number" ) then
-		return math.abs(a - b) < 0.00001;
-	end
-
-	return tostring(a or "") == tostring(b or "");
+	return VE.store:Create(tableName, values);
 end
 
 function VE.IsDirty(doc)
-	if ( not doc ) then
-		return false;
-	end
-
-	if ( doc.isNew ) then
-		return true;
-	end
-
-	for column, value in pairs(doc.values) do
-		if ( not Same(value, doc.original[column]) ) then
-			return true;
-		end
-	end
-
-	return false;
+	return VE.store:IsDirty(doc);
 end
 
 function VE.SetMany(doc, values)
-	local changes = {};
-	local any = false;
-
-	for column, value in pairs(values) do
-		if ( not Same(doc.values[column], value) ) then
-			doc.values[column] = value;
-			changes[column] = value;
-			any = true;
-		end
-	end
-
-	if ( any ) then
-		ApplyLocal(doc.tableName, doc.id, changes);
-		VE.Changed();
-	end
-
-	return any;
+	return VE.store:SetMany(doc, values);
 end
 
 function VE.DirtyDocs()
-	local list = {};
-
-	for _, doc in pairs(VE.docs) do
-		if ( VE.IsDirty(doc) ) then
-			table.insert(list, doc);
-		end
-	end
-
-	table.sort(list, function(a, b)
-		if ( a.tableName == b.tableName ) then
-			return a.id < b.id;
-		end
-
-		return a.tableName < b.tableName;
-	end);
-
-	return list;
+	return VE.store:Dirty();
 end
 
 function VE.SaveAll()
-	local sent = 0;
-
-	for _, doc in ipairs(VE.DirtyDocs()) do
-		if ( not doc.saving ) then
-			if ( ME.Call("DbcEditor_Save", doc.tableName, doc.id, doc.values) ) then
-				doc.saving = ME.Copy(doc.values);
-				sent = sent + 1;
-			else
-				GameEditor_Notify(format("Could not send %s %d", doc.tableName, doc.id), "error");
-			end
-		end
-	end
-
-	if ( sent == 0 ) then
-		GameEditor_Notify("Nothing to save", "info");
-	end
-
-	VE.Changed();
-	return sent;
+	return VE.store:SaveAll();
 end
 
 function VE.RevertAll()
-	local count = 0;
-
-	for _, doc in ipairs(VE.DirtyDocs()) do
-		if ( doc.isNew ) then
-			VE.docs[Key(doc.tableName, doc.id)] = nil;
-		else
-			if ( not ME.Quiet("DbcEditor_RevertLocal", doc.tableName, doc.id) ) then
-				ApplyLocal(doc.tableName, doc.id, doc.original);
-			end
-
-			local row = VE.Row(doc.tableName, doc.id);
-			doc.values = row or ME.Copy(doc.original);
-			doc.original = ME.Copy(doc.values);
-		end
-
-		count = count + 1;
-	end
-
-	VE.Changed();
-	return count;
+	return VE.store:RevertAll();
 end
-
--- Events ------------------------------------------------------------------------------------------------
-
-local function OnResult(ok, tableName, id)
-	local doc = VE.TABLES[tableName] and VE.FindDoc(tableName, id);
-
-	if ( not doc or not doc.saving ) then
-		return;
-	end
-
-	if ( ok == true or ok == 1 ) then
-		doc.original = doc.saving;
-		doc.isNew = false;
-	end
-
-	doc.saving = nil;
-	VE.Changed();
-end
-
-local function OnRecordUpdated(tableName, id)
-	local doc = VE.TABLES[tableName] and VE.FindDoc(tableName, id);
-
-	if ( not doc or doc.saving ) then
-		return;
-	end
-
-	if ( VE.IsDirty(doc) ) then
-		ApplyLocal(tableName, doc.id, doc.values);
-		GameEditor_Notify(format("%s %d was changed elsewhere, Save overwrites it and Revert loads it", tableName, doc.id), "info");
-	else
-		local row = VE.Row(tableName, doc.id);
-
-		if ( row ) then
-			doc.values = row;
-			doc.original = ME.Copy(row);
-		end
-	end
-
-	VE.Changed();
-end
-
-local events = CreateFrame("Frame", "GameEditorVehicleEvents");
-events:RegisterEvent("DBC_EDITOR_RESULT");
-events:RegisterEvent("DBC_RECORD_UPDATED");
-events:SetScript("OnEvent", function(_, event, ...)
-	if ( event == "DBC_EDITOR_RESULT" ) then
-		OnResult(...);
-	else
-		OnRecordUpdated(...);
-	end
-end);

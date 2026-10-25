@@ -546,7 +546,6 @@ end
 local function BuildEffects(parent)
 	local frame = CreateFrame("Frame", "GameEditorSpellEffects", parent);
 	frame.selected = 1;
-	frame.showAll = false;
 	frame.pages = {};
 	frame.grids = {};
 
@@ -556,15 +555,6 @@ local function BuildEffects(parent)
 	tabHolder:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0);
 	frame.tabs = NoggitTabs_Create(tabHolder, { "Spell Effect 1", "Spell Effect 2", "Spell Effect 3" }, 1, function(index) frame:Select(index); end);
 	frame.tabs[1]:SetPoint("BOTTOMLEFT", tabHolder, "BOTTOMLEFT", 0, 0);
-
-	local showAll = NoggitCheckBox_Create(tabHolder, "Show unused fields", false, function(_, checked)
-		frame.showAll = checked;
-
-		for _, grid in ipairs(frame.grids) do
-			grid:Layout();
-		end
-	end);
-	showAll:SetPoint("RIGHT", tabHolder, "RIGHT", 0, 0);
 
 	local card = SE.Box(frame, "GameEditorSpellEffectCard", NOGGIT_COLOR_DARK, NOGGIT_COLOR_MID);
 	card:SetPoint("TOPLEFT", tabHolder, "BOTTOMLEFT", 0, -6);
@@ -642,38 +632,13 @@ local function BuildEffects(parent)
 		copyMenus[from] = definition;
 	end
 
-	local function Visible(index)
-		local effectColumn = "m_effect["..(index - 1).."]";
-		local auraColumn = "m_effectAura["..(index - 1).."]";
-
-		return function(column, values)
-			if ( frame.showAll or column == effectColumn ) then
-				return true;
-			end
-
-			local zero = (tonumber(values[column]) or 0) == 0;
-			local effect = SE.Number(values[effectColumn]);
-
-			if ( effect == 0 ) then
-				return not zero;
-			end
-
-			if ( column == auraColumn ) then
-				local info = Data.MiscValue and Data.MiscValue.Effect and Data.MiscValue.Effect[effect];
-				return not zero or (info and info.usesAura) or false;
-			end
-
-			return true;
-		end;
-	end
-
 	local function BuildPage(index)
 		local page = CreateFrame("Frame", NoggitUI_NewName("GameEditorSpellEffectPage"), frame);
 		page:SetPoint("TOPLEFT", card, "BOTTOMLEFT", 0, -8);
 		page:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0);
 
 		local left = Pane(page);
-		local leftGrid = SE.FieldColumn(left, EffectLeft(index), { labelWidth = 150, editWidth = 80, visible = Visible(index) });
+		local leftGrid = SE.FieldColumn(left, EffectLeft(index), { labelWidth = 150, editWidth = 80 });
 		leftGrid.frame:SetPoint("TOPLEFT", left, "TOPLEFT", 0, 0);
 		leftGrid.frame:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", 0, 34);
 
@@ -702,7 +667,7 @@ local function BuildEffects(parent)
 
 		local right = Pane(page);
 		local rightSpec = EffectRight(index);
-		local rightGrid = SE.FieldColumn(right, rightSpec, { labelWidth = 160, editWidth = 80, visible = Visible(index) });
+		local rightGrid = SE.FieldColumn(right, rightSpec, { labelWidth = 160, editWidth = 80 });
 		rightGrid.frame:SetPoint("TOPLEFT", right, "TOPLEFT", 0, 0);
 		rightGrid.frame:SetPoint("TOPRIGHT", right, "TOPRIGHT", 0, 0);
 		rightGrid.frame:SetHeight(#rightSpec * 24 + 6);

@@ -12,6 +12,30 @@ GameEditor_RefResolvers = GameEditor_RefResolvers or {};
 -- Searches for ref pickers, resolver(text) returns { { value =, text = } ... }.
 GameEditor_RefSearchers = GameEditor_RefSearchers or {};
 
+-- Jumps for ref columns, opener(value) shows the referenced row in the workspace that edits it.
+GameEditor_RefOpeners = GameEditor_RefOpeners or {};
+
+function GameEditor_CanOpenRef(ref)
+	return ref ~= nil and GameEditor_RefOpeners[ref] ~= nil;
+end
+
+function GameEditor_OpenRef(ref, value)
+	value = tonumber(value);
+	local opener = ref and GameEditor_RefOpeners[ref];
+
+	if ( not opener or not value or value == 0 ) then
+		return false;
+	end
+
+	local ok, err = pcall(opener, value);
+
+	if ( not ok ) then
+		GameEditor_Notify(format("Could not open %s %d: %s", ref, value, tostring(err)), "error");
+	end
+
+	return ok;
+end
+
 GameEditor_RefResolvers["spell"] = GameEditor_RefResolvers["spell"] or function(value)
 	local name, rank = GetSpellInfo(value);
 
@@ -97,7 +121,7 @@ function GameEditor_ResolveRef(ref, value)
 	end
 end
 
-local function RefSearch(ref, text)
+function GameEditor_SearchRef(ref, text)
 	local searcher = GameEditor_RefSearchers[ref];
 
 	if ( searcher ) then
@@ -701,6 +725,17 @@ local function RefreshRow(grid, row)
 		row.pick:Hide();
 	end
 
+	row.info:ClearAllPoints();
+	row.info:SetPoint("RIGHT", row, "RIGHT", -4, 0);
+
+	if ( field.ref and GameEditor_CanOpenRef(field.ref) and (tonumber(grid.values[row.column]) or 0) ~= 0 ) then
+		row.open:Show();
+		row.info:SetPoint("LEFT", row.open, "RIGHT", 6, 0);
+	else
+		row.open:Hide();
+		row.info:SetPoint("LEFT", row.pick, "RIGHT", 6, 0);
+	end
+
 	if ( grid.readOnly[row.column] ) then
 		row.edit:EnableMouse(false);
 		row.edit:SetTextColor(NOGGIT_COLOR_DISABLED[1], NOGGIT_COLOR_DISABLED[2], NOGGIT_COLOR_DISABLED[3]);
@@ -793,7 +828,7 @@ local function OpenPicker(grid, row)
 		GameEditor_PickValue(title, nil, tonumber(grid.values[column]), function(value)
 			grid:SetValue(column, value);
 		end, function(text)
-			return RefSearch(field.ref, text);
+			return GameEditor_SearchRef(field.ref, text);
 		end);
 	end
 end
@@ -847,6 +882,21 @@ local function CreateRow(grid, column)
 	end);
 	row.pick:SetHeight(20);
 	row.pick:SetPoint("LEFT", row.edit, "RIGHT", 3, 0);
+
+	row.open = NoggitPushButton_Create(row, "Go", 30, function()
+		GameEditor_OpenRef(row.field and row.field.ref, grid.values[column]);
+	end);
+	row.open:SetHeight(20);
+	row.open:SetPoint("LEFT", row.pick, "RIGHT", 3, 0);
+	row.open:SetScript("OnEnter", function(self)
+		NoggitButton_SetHover(self, true);
+		NoggitTooltip_Show(self, "Open it in the workspace that edits it");
+	end);
+	row.open:SetScript("OnLeave", function(self)
+		NoggitButton_SetHover(self, false);
+		NoggitTooltip_Hide();
+	end);
+	row.open:Hide();
 
 	row.info = NoggitUI_FontString(row, "");
 	row.info:SetPoint("LEFT", row.pick, "RIGHT", 6, 0);

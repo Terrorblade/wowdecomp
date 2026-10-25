@@ -987,6 +987,14 @@ local function Status()
 	return cells;
 end
 
+GameEditor_RefOpeners["spell"] = function(id)
+	if ( GameEditor_GetWorkspace() ~= "spell" ) then
+		GameEditor_SetWorkspace("spell");
+	end
+
+	SE.Open(id);
+end;
+
 GameEditor_RegisterWorkspace({
 	key = "spell",
 	title = "Spells",

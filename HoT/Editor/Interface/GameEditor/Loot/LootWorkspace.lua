@@ -467,7 +467,8 @@ end
 GameEditor_RegisterWorkspace({
 	key = "loot",
 	title = "Loot",
-	order = 10,
+	category = "Items",
+	order = 8,
 	dockWidth = 600,
 	tools = {
 		{ key = "select", name = "Loot editor", icon = 0xF8A4, build = BuildDock },

@@ -882,26 +882,111 @@ function GameEditor_SelectTool(key)
 	SafeCall(workspace.key, workspace.onToolSelected, key);
 end
 
-local function RefreshWorkspaceTabs()
-	for _, workspace in ipairs(ordered) do
-		local tab = workspace.tab;
+-- Workspaces with a category share one tab that opens a list of them, the rest get a tab each.
+local function TabEntries()
+	local entries = {};
+	local byCategory = {};
 
-		if ( tab ) then
-			local selected = workspace == activeWorkspace;
-			NoggitBox_Set(tab, selected and NOGGIT_COLOR_ACCENT or (tab.hover and NOGGIT_COLOR_HOVER or NOGGIT_COLOR_BASE), nil);
+	for _, workspace in ipairs(SortedWorkspaces()) do
+		local category = workspace.category;
+
+		if ( category ) then
+			local entry = byCategory[category];
+
+			if ( not entry ) then
+				entry = { title = category, workspaces = {} };
+				byCategory[category] = entry;
+				table.insert(entries, entry);
+			end
+
+			table.insert(entry.workspaces, workspace);
+		else
+			table.insert(entries, { title = workspace.title or workspace.key, workspace = workspace });
+		end
+	end
+
+	return entries;
+end
+
+local function WorkspaceShortcut(workspace)
+	for index, candidate in ipairs(SortedWorkspaces()) do
+		if ( candidate == workspace ) then
+			return index <= 9 and ("Ctrl+"..index) or nil;
 		end
 	end
 end
 
+local function WorkspaceMenuItem(workspace)
+	return {
+		text = workspace.title or workspace.key,
+		shortcut = WorkspaceShortcut(workspace),
+		checked = function() return activeWorkspace == workspace; end,
+		onClick = function() GameEditor_SetWorkspace(workspace.key); end,
+	};
+end
+
+local tabEntries = {};
+
+local function RefreshWorkspaceTabs()
+	local width = 0;
+
+	for _, entry in ipairs(tabEntries) do
+		local tab = entry.tab;
+		local active = entry.workspace == activeWorkspace;
+
+		if ( entry.workspaces ) then
+			local shown;
+
+			for _, workspace in ipairs(entry.workspaces) do
+				if ( workspace == activeWorkspace ) then
+					shown = workspace;
+				end
+			end
+
+			active = shown ~= nil;
+			tab.text:SetText(shown and (entry.title..": "..(shown.title or shown.key)) or entry.title);
+			tab:SetWidth(tab.text:GetStringWidth() + 38);
+		end
+
+		NoggitBox_Set(tab, active and NOGGIT_COLOR_ACCENT or (tab.hover and NOGGIT_COLOR_HOVER or NOGGIT_COLOR_BASE), nil);
+		width = width + tab:GetWidth() + 2;
+	end
+
+	EditorWorkspaceTabs:SetWidth(max(10, width));
+end
+
 local function BuildWorkspaceTabs()
 	local previous;
+	tabEntries = TabEntries();
 
-	for _, workspace in ipairs(SortedWorkspaces()) do
+	for _, entry in ipairs(tabEntries) do
 		local tab = CreateFrame("Button", NoggitUI_NewName("GameEditorWorkspaceTab"), EditorWorkspaceTabs, "NoggitBoxTemplate");
 		tab:SetHeight(22);
-		local text = NoggitUI_FontString(tab, workspace.title or workspace.key, nil, "CENTER");
-		text:SetPoint("CENTER", tab, "CENTER", 0, 0);
-		tab:SetWidth(text:GetStringWidth() + 24);
+		tab.text = NoggitUI_FontString(tab, entry.title, nil, "CENTER");
+
+		if ( entry.workspaces ) then
+			tab.text:SetPoint("LEFT", tab, "LEFT", 12, 0);
+			local caret = NoggitUI_CreateCaret(tab, 10);
+			caret:SetOpen(true);
+			caret:SetPoint("RIGHT", tab, "RIGHT", -10, 0);
+
+			local items = {};
+
+			for _, workspace in ipairs(entry.workspaces) do
+				table.insert(items, WorkspaceMenuItem(workspace));
+			end
+
+			tab:SetScript("OnClick", function(self)
+				NoggitDropdownMenu_Show("GameEditorCategory"..entry.title, items, self);
+			end);
+		else
+			tab.text:SetPoint("CENTER", tab, "CENTER", 0, 0);
+			tab:SetScript("OnClick", function()
+				GameEditor_SetWorkspace(entry.workspace.key);
+			end);
+		end
+
+		tab:SetWidth(tab.text:GetStringWidth() + 24);
 
 		if ( previous ) then
 			tab:SetPoint("LEFT", previous, "RIGHT", 2, 0);
@@ -917,21 +1002,12 @@ local function BuildWorkspaceTabs()
 			self.hover = false;
 			RefreshWorkspaceTabs();
 		end);
-		tab:SetScript("OnClick", function()
-			GameEditor_SetWorkspace(workspace.key);
-		end);
 
-		workspace.tab = tab;
+		entry.tab = tab;
 		previous = tab;
 	end
 
-	local width = 0;
-
-	for _, workspace in ipairs(ordered) do
-		width = width + workspace.tab:GetWidth() + 2;
-	end
-
-	EditorWorkspaceTabs:SetWidth(max(10, width));
+	RefreshWorkspaceTabs();
 end
 
 function GameEditor_SetWorkspace(key, toolKey)
@@ -1031,13 +1107,18 @@ local function BuildShellMenus()
 	local separator = { separator = true };
 	local workspaceItems = {};
 
-	for index, workspace in ipairs(SortedWorkspaces()) do
-		table.insert(workspaceItems, {
-			text = workspace.title or workspace.key,
-			shortcut = index <= 9 and ("Ctrl+"..index) or nil,
-			checked = function() return activeWorkspace == workspace; end,
-			onClick = function() GameEditor_SetWorkspace(workspace.key); end,
-		});
+	for _, entry in ipairs(TabEntries()) do
+		if ( entry.workspaces ) then
+			local items = {};
+
+			for _, workspace in ipairs(entry.workspaces) do
+				table.insert(items, WorkspaceMenuItem(workspace));
+			end
+
+			table.insert(workspaceItems, { text = entry.title, submenu = items });
+		else
+			table.insert(workspaceItems, WorkspaceMenuItem(entry.workspace));
+		end
 	end
 
 	NoggitMenuBar_Build(shellMenuStrip, {

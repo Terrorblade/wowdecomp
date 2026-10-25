@@ -836,7 +836,8 @@ end
 GameEditor_RegisterWorkspace({
 	key = "vehicle",
 	title = "Vehicles",
-	order = 9,
+	category = "Visuals",
+	order = 12,
 	dockWidth = 520,
 	tools = {
 		{ key = "select", name = "Vehicles", icon = 0xF8C0, build = Build },

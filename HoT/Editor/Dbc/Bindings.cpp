@@ -51,6 +51,7 @@
 #include "WoW/Source/DB/Rec/SpellFocusObjectRec.h"
 #include "WoW/Source/DB/Rec/SpellIconRec.h"
 #include "WoW/Source/DB/Rec/SpellItemEnchantmentRec.h"
+#include "WoW/Source/DB/Rec/SpellItemEnchantmentConditionRec.h"
 #include "WoW/Source/DB/Rec/SpellMechanicRec.h"
 #include "WoW/Source/DB/Rec/SpellMissileRec.h"
 #include "WoW/Source/DB/Rec/SpellMissileMotionRec.h"
@@ -689,6 +690,41 @@ static void BindSpellItemEnchantment(Builder& builder) {
     DBC_VALUE(m_requiredSkillID);
     DBC_VALUE(m_requiredSkillRank);
     DBC_VALUE(m_minLevel);
+}
+
+static void BindSpellItemEnchantmentCondition(Builder& builder) {
+    using Rec = SpellItemEnchantmentConditionRec;
+    DBC_VALUE(m_id);
+    DBC_VALUE(m_ltOperandType[0]);
+    DBC_VALUE(m_ltOperandType[1]);
+    DBC_VALUE(m_ltOperandType[2]);
+    DBC_VALUE(m_ltOperandType[3]);
+    DBC_VALUE(m_ltOperandType[4]);
+    DBC_VALUE(m_ltOperand[0]);
+    DBC_VALUE(m_ltOperand[1]);
+    DBC_VALUE(m_ltOperand[2]);
+    DBC_VALUE(m_ltOperand[3]);
+    DBC_VALUE(m_ltOperand[4]);
+    DBC_VALUE(m_operator[0]);
+    DBC_VALUE(m_operator[1]);
+    DBC_VALUE(m_operator[2]);
+    DBC_VALUE(m_operator[3]);
+    DBC_VALUE(m_operator[4]);
+    DBC_VALUE(m_rtOperandType[0]);
+    DBC_VALUE(m_rtOperandType[1]);
+    DBC_VALUE(m_rtOperandType[2]);
+    DBC_VALUE(m_rtOperandType[3]);
+    DBC_VALUE(m_rtOperandType[4]);
+    DBC_VALUE(m_rtOperand[0]);
+    DBC_VALUE(m_rtOperand[1]);
+    DBC_VALUE(m_rtOperand[2]);
+    DBC_VALUE(m_rtOperand[3]);
+    DBC_VALUE(m_rtOperand[4]);
+    DBC_VALUE(m_logic[0]);
+    DBC_VALUE(m_logic[1]);
+    DBC_VALUE(m_logic[2]);
+    DBC_VALUE(m_logic[3]);
+    DBC_VALUE(m_logic[4]);
 }
 
 static void BindSpellMechanic(Builder& builder) {
@@ -1460,6 +1496,7 @@ static const Binding s_bindings[] = {
     { "SpellFocusObject", sizeof(SpellFocusObjectRec), BindSpellFocusObject },
     { "SpellIcon", sizeof(SpellIconRec), BindSpellIcon },
     { "SpellItemEnchantment", sizeof(SpellItemEnchantmentRec), BindSpellItemEnchantment },
+    { "SpellItemEnchantmentCondition", sizeof(SpellItemEnchantmentConditionRec), BindSpellItemEnchantmentCondition },
     { "SpellMechanic", sizeof(SpellMechanicRec), BindSpellMechanic },
     { "SpellMissile", sizeof(SpellMissileRec), BindSpellMissile },
     { "SpellMissileMotion", sizeof(SpellMissileMotionRec), BindSpellMissileMotion },

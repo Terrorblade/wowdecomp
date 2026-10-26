@@ -201,6 +201,11 @@ Texture* Texture::CreateTarget(Context* context, const FormatInfo& format, uint3
         return nullptr;
     }
 
+    // Metal aborts on a sample count the GPU lacks, and a gxMultisample of 8 from a Windows config is one on Apple GPUs
+    while (samples > 1 && ![context->m_device supportsTextureSampleCount:samples]) {
+        samples--;
+    }
+
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:format.m_pixelFormat width:width height:height mipmapped:NO];
     descriptor.storageMode = MTLStorageModePrivate;
     // Targets stay shader readable, multisampled ones too, so code drawing with Metal itself (mods) can read

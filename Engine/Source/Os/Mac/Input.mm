@@ -419,6 +419,12 @@ void OsMacInputScrollWheel(NSView* view, NSEvent* event) {
     OsQueuePut(OS_INPUT_MOUSE_WHEEL, notches * 120, x, y, 0);
 }
 
+bool OsMacInputCursorDetached() {
+    return s_cursorDetached;
+}
+
+// The system cursor stays shown, since hide/unhide can switch the fullscreen Metal presentation mode. CurrentCursor
+// picks a transparent cursor while detached instead.
 static void DetachCursor(bool detach) {
     if (detach == s_cursorDetached) {
         return;
@@ -426,13 +432,7 @@ static void DetachCursor(bool detach) {
 
     s_cursorDetached = detach;
     CGAssociateMouseAndMouseCursorPosition(detach ? false : true);
-
-    if (detach) {
-        [NSCursor hide];
-    } else {
-        [NSCursor unhide];
-        OsMacRefreshGameCursor();
-    }
+    OsMacRefreshGameCursor();
 }
 
 // Window

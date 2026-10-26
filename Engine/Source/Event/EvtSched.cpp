@@ -8,6 +8,7 @@
 #include "Engine/Source/Event/EvtSched.h"
 #include "Engine/Source/Event/EvtThread.h"
 #include "Engine/Source/Event/EvtTimer.h"
+#include "Engine/Source/Os/OsAutorelease.h"
 #include "Engine/Source/Os/OsCall.h"
 #include "Engine/Source/Os/OsTcp.h"
 #include "Engine/Source/Os/System.h"
@@ -557,6 +558,8 @@ void PutContext(uint32_t nextWakeTime, uint32_t newSmoothWeight, EvtContext* con
 // VERIFY: 6f17c9b6 manual
 // OFFSET: 0x0047EFF0
 int32_t SchedulerThreadProcProcess(uint32_t hThread, int32_t* watchdogStarted) {
+    OsAutoreleaseScope pool;
+
     if (SGetCurrentThreadPriority() != Event::s_originalThreadPriority) {
         SSetCurrentThreadPriority(Event::s_originalThreadPriority);
     }

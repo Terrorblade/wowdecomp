@@ -32,6 +32,12 @@
 #define STORM_WIN_ERROR_ALREADY_EXISTS 183
 #define STORM_WIN_ERROR_CANTOPEN 1011
 
+// MessageBox results.
+#define SERR_IDOK 1
+#define SERR_IDCANCEL 2
+#define SERR_IDYES 6
+#define SERR_IDNO 7
+
 // Windows thread priorities (SSetCurrentThreadPriority / SGetCurrentThreadPriority take and return these).
 #define STORM_THREAD_PRIORITY_IDLE (-15)
 #define STORM_THREAD_PRIORITY_LOWEST (-2)
@@ -74,6 +80,21 @@ namespace StormLinux {
 
     // Full path of the running executable ("" if unknown).
     void GetExePath(char* buffer, size_t buffersize);
+
+    // The folder holding Data, WTF and Errors, with a trailing '/' ("" if unknown). On macOS it is the folder around
+    // the .app bundle.
+    void GetGameDirectory(char* buffer, size_t buffersize);
+
+    enum ErrorDialogButtons {
+        ERROR_DIALOG_OK,
+        ERROR_DIALOG_OK_CANCEL,
+        ERROR_DIALOG_YES_NO,
+        ERROR_DIALOG_YES_NO_CANCEL,
+    };
+
+    // The message box of SErrDisplayError. Returns the SERR_ID* of the chosen button, or defaultResult where no box
+    // can be shown.
+    int32_t ShowErrorDialog(const char* title, const char* text, ErrorDialogButtons buttons, int32_t defaultResult);
 
     // Maps a Windows-style path ('\\' separators, optional drive letter, case-insensitive) onto the Linux
     // filesystem. Existing components are matched case-insensitively; with forCreate a missing last component is

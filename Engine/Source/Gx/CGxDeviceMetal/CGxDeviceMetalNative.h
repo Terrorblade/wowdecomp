@@ -131,8 +131,8 @@ class CGxDeviceMetalNative : public CGxDevice {
         uint32_t m_vertexOffsets[16] = {};
         id<MTLTexture> m_textures[16] = {};
         id<MTLSamplerState> m_samplers[16] = {};
-        uint64_t m_vertexFunction;
-        uint64_t m_fragmentFunction;
+        uint64_t m_vertexFunction = 0;
+        uint64_t m_fragmentFunction = 0;
     };
 
     void* m_hwnd;
@@ -148,10 +148,10 @@ class CGxDeviceMetalNative : public CGxDevice {
     uint8_t m_samplerDirty[16];
     // The integer and boolean constant files the translated shaders declare; the client never sets
     // them, but every generated function takes them
-    int32_t m_vsIntConstants[16 * 4];
-    uint8_t m_vsBoolConstants[16];
-    int32_t m_psIntConstants[16 * 4];
-    uint8_t m_psBoolConstants[16];
+    int32_t m_vsIntConstants[16 * 4] = {};
+    uint32_t m_vsBoolConstants[16] = {};
+    int32_t m_psIntConstants[16 * 4] = {};
+    uint32_t m_psBoolConstants[16] = {};
     bool m_vsConstantsDirty;
     bool m_psConstantsDirty;
     bool m_vertexStateDirty;

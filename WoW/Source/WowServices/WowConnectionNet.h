@@ -11,7 +11,7 @@
 
 class WowConnectionNet {
     public:
-#pragma pack(push, 1)
+    // Not packed like the 32-bit original: that put m_lock's mutex at an odd offset, which faults on arm64.
     struct WORKER {
         /* 0000 */ WowConnectionNet* m_owner;
         /* 0004 */ SThread m_thread;
@@ -25,7 +25,6 @@ class WowConnectionNet {
 
         WORKER();
     };
-#pragma pack(pop)
 
     /* 0000 */ SThread m_thread;
     /* 0004 */ SEvent m_stopEvent;

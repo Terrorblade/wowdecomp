@@ -370,6 +370,49 @@ int32_t CGxDevice::AdapterMonitorModes(TSGrowableArray<CGxMonitorMode>& modes) {
         }
     }
 
+    // Wayland and some X11 setups report only the native mode. The client's default formats are 4:3 sizes such as
+    // 1024x768, and the gxResolution callback rejects a default missing from this list, so the standard sizes the
+    // display fits are added as on Windows.
+    static const int32_t s_standard[][2] = {
+        { 640, 480 }, { 800, 600 }, { 1024, 768 }, { 1152, 864 }, { 1280, 720 }, { 1280, 800 },
+        { 1280, 960 }, { 1280, 1024 }, { 1366, 768 }, { 1440, 900 }, { 1600, 900 }, { 1600, 1200 },
+        { 1680, 1050 }, { 1920, 1080 }, { 1920, 1200 }, { 2560, 1440 }, { 2560, 1600 },
+    };
+
+    int32_t maxWidth = 0;
+    int32_t maxHeight = 0;
+    uint32_t refreshRate = 60;
+
+    for (uint32_t i = 0; i < modes.Count(); i++) {
+        if (modes[i].m_size.x * modes[i].m_size.y > maxWidth * maxHeight) {
+            maxWidth = modes[i].m_size.x;
+            maxHeight = modes[i].m_size.y;
+            refreshRate = modes[i].m_refreshRate ? modes[i].m_refreshRate : 60;
+        }
+    }
+
+    uint32_t reported = modes.Count();
+
+    for (const auto& size : s_standard) {
+        if (size[0] > maxWidth || size[1] > maxHeight) {
+            continue;
+        }
+
+        bool listed = false;
+
+        for (uint32_t i = 0; i < reported && !listed; i++) {
+            listed = modes[i].m_size.x == size[0] && modes[i].m_size.y == size[1];
+        }
+
+        if (!listed) {
+            CGxMonitorMode* mode = modes.New();
+            mode->m_size.x = size[0];
+            mode->m_size.y = size[1];
+            mode->m_bpp = 32;
+            mode->m_refreshRate = refreshRate;
+        }
+    }
+
     qsort(modes.Ptr(), modes.Count(), sizeof(CGxMonitorMode), CGxMonitorModeSort);
     HoT::Display::CacheMonitorModes(modes);
 

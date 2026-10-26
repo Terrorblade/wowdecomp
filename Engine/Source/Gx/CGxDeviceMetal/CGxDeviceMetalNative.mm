@@ -45,6 +45,7 @@ CGxDeviceMetalNative::CGxDeviceMetalNative() {
     this->m_inScene = 0;
     this->m_backBuffer = nullptr;
     this->m_depthBuffer = nullptr;
+    this->m_textureDepthBuffer = nullptr;
     this->m_samples = 1;
     this->m_savedDepthTarget = GxMetal::Target();
     this->m_hwCursorDirty = 0;
@@ -106,6 +107,7 @@ void CGxDeviceMetalNative::IDestroyMetal() {
     if (this->m_metal) {
         this->m_metal->EndEncoders();
         this->m_metal->Flush(true);
+        this->m_bound = Bound{};
         delete this->m_metal;
         this->m_metal = nullptr;
     }
@@ -2563,19 +2565,19 @@ bool CGxDeviceMetalNative::IDrawPrepare(const CGxBatch* batch) {
         return false;
     }
 
-    id<MTLRenderCommandEncoder> encoder = this->m_metal->RenderEncoder();
-
-    if (!encoder) {
-        return false;
-    }
-
-    
     for (uint32_t i = 0; i < 16; i++) {
         GxMetal::Texture* texture = this->m_hw.m_textures[i];
 
         if (texture && texture->m_mipsDirty) {
             this->m_metal->GenerateMipmaps(texture);
         }
+    }
+
+    // Mipmap generation can end the render encoder, so take it only after the blits.
+    id<MTLRenderCommandEncoder> encoder = this->m_metal->RenderEncoder();
+
+    if (!encoder) {
+        return false;
     }
 
     if (this->m_metal->PassId() != this->m_bound.m_passId) {
@@ -2824,7 +2826,7 @@ bool CGxDeviceMetalNative::IDrawPrepare(const CGxBatch* batch) {
         memcpy(block.m_fogColor, this->m_hw.m_fogColor, sizeof(block.m_fogColor));
         bool fog = this->m_hw.m_fog && (!this->m_hw.m_pixelShader || pixelInfo.m_major < 3);
         block.m_flags[0] = fog ? 1 : 0;
-        block.m_flags[1] = GxMetal::SHADERCOMPARE_GREATEREQUAL;
+        block.m_flags[1] = this->m_hw.m_alphaTest ? GxMetal::SHADERCOMPARE_GREATEREQUAL : GxMetal::SHADERCOMPARE_ALWAYS;
         block.m_flags[2] = this->m_hw.m_alphaRef;
         block.m_textureFactor[0] = 1.0f;
         block.m_textureFactor[1] = 1.0f;
@@ -2872,7 +2874,9 @@ void CGxDeviceMetalNative::IDrawBindTextures(const GxMetal::ShaderInfo* pixelInf
         }
 
         id<MTLTexture> bound = (texture && texture->Kind() == expected) ? texture->SampleTexture() : this->m_metal->DummyTexture(expected);
-        id<MTLSamplerState> sampler = this->m_pipelines->Sampler(this->m_hw.m_samplers[i]);
+        GxMetal::SamplerKey samplerKey = this->m_hw.m_samplers[i];
+        samplerKey.m_compare = expected == GxMetal::SAMPLERKIND_DEPTH ? 1 : 0;
+        id<MTLSamplerState> sampler = this->m_pipelines->Sampler(samplerKey);
 
         if (this->m_samplerDirty[i] || this->m_bound.m_textures[i] != bound) {
             [encoder setFragmentTexture:bound atIndex:i];

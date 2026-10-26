@@ -691,7 +691,10 @@ void CM2Shared::SubstituteSimpleShaders() {
             uint32_t ops[2] = { M2COMBINER_OPAQUE, M2COMBINER_OPAQUE };
             batch->m_shader = 0;
 
-            for (uint32_t j = 0; j < batch->m_textureCount; j++) {
+            // The shader id holds two combiners, even for modern batches with three or four textures.
+            uint32_t opCount = batch->m_textureCount < 2 ? batch->m_textureCount : 2;
+
+            for (uint32_t j = 0; j < opCount; j++) {
                 uint32_t op = this->m_data->m_textureCombinerCombos[combiner + j];
 
                 if (j == 0 && material->m_blendMode == M2BLEND_OPAQUE) {
@@ -705,7 +708,7 @@ void CM2Shared::SubstituteSimpleShaders() {
                     ops[j] = op | M2COMBINER_ENVMAP;
                 }
 
-                if (coord == 1 && j + 1 == batch->m_textureCount) {
+                if (coord == 1 && j + 1 == opCount) {
                     batch->m_shader |= 0x4000;
                 }
             }
@@ -1726,8 +1729,11 @@ int32_t CM2Shared::LoadSkinProfile(uint32_t profile) {
 
 // INLINED
 uint32_t CM2Shared::GetSkinProfileIndex(uint32_t maxBones) {
-    for (uint32_t i = 0; i < this->m_data->m_numSkinProfiles; i++) {
-        if (s_skinProfileBoneCounts[4 - this->m_data->m_numSkinProfiles + i] <= maxBones) {
+    // The table has four entries, more profiles than that read before it.
+    uint32_t profiles = this->m_data->m_numSkinProfiles < 4 ? this->m_data->m_numSkinProfiles : 4;
+
+    for (uint32_t i = 0; i < profiles; i++) {
+        if (s_skinProfileBoneCounts[4 - profiles + i] <= maxBones) {
             return i;
         }
     }

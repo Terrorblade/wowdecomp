@@ -663,7 +663,7 @@ void RenderPortraitTexture(CSimpleTexture* texture, CGUnit_C* unit) {
         UNITPORTRAIT* portrait = s_unitPortraits.Ptr(displayId, HASHKEY_DWORD{ displayId });
 
         if (!portrait) {
-            portrait = s_unitPortraits.InternalNewNode(displayId, 0, 0);
+            portrait = s_unitPortraits.New(displayId, HASHKEY_DWORD{ displayId }, 0, 0);
         }
 
         cache = &portrait->m_cache;

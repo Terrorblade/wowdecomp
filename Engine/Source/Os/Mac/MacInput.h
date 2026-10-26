@@ -23,6 +23,7 @@ void OsMacInputCharacter(uint32_t character);
 void OsMacInputFocus(bool active);
 void OsMacInputResized();
 void OsMacInputClose();
+bool OsMacInputCursorDetached();
 
 // IME: text being composed (marked text in Cocoa terms) and the selection inside it, in UTF-16 units.
 void OsMacIMEBeginComposition();

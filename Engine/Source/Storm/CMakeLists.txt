@@ -16,3 +16,10 @@ target_link_libraries(Storm
         bzip2
         zlib
 )
+
+if (WOWDECOMP_PLATFORM_MAC)
+    target_link_libraries(Storm
+        PUBLIC
+            "-framework CoreFoundation"
+    )
+endif ()

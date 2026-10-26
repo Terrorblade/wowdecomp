@@ -410,6 +410,16 @@ void GetExePath(char* buffer, size_t buffersize) {
     OsPosixExecutablePath(buffer, buffersize);
 }
 
+void GetGameDirectory(char* buffer, size_t buffersize) {
+    if (!buffer || !buffersize) {
+        return;
+    }
+
+    if (!OsPosixGameDirectory(buffer, buffersize)) {
+        buffer[0] = 0;
+    }
+}
+
 static bool AppendComponent(char* out, size_t outSize, size_t* length, const char* component, size_t componentLength) {
     bool needSlash = *length > 0 && out[*length - 1] != '/';
 

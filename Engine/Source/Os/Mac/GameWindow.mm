@@ -21,7 +21,7 @@ static bool s_gameCursorVisible = true;
 static NSCursor* CurrentCursor() {
     static NSCursor* s_emptyCursor;
 
-    if (!s_gameCursorVisible) {
+    if (!s_gameCursorVisible || OsMacInputCursorDetached()) {
         if (!s_emptyCursor) {
             NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
             s_emptyCursor = [[NSCursor alloc] initWithImage:image hotSpot:NSZeroPoint];

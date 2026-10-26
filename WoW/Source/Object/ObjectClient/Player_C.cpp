@@ -1285,10 +1285,15 @@ uint32_t CGPlayer_C::GetProficiency(uint8_t itemClass) {
 // VERIFY: 340d9418 auto
 // OFFSET: 0x006CDEB0
 int32_t Packet_SMSG_SET_PROFICIENCY(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t itemClass;
-    uint32_t mask;
+    uint8_t itemClass = 0;
+    uint32_t mask = 0;
     msg->Get(itemClass);
     msg->Get(mask);
+
+    if (msg->m_read > msg->m_size || itemClass >= sizeof(s_proficiency) / sizeof(s_proficiency[0])) {
+        return 1;
+    }
+
     s_proficiency[itemClass] = mask;
     ConsolePrintf("Proficiency in item class %d set to %08x", itemClass, mask);
 

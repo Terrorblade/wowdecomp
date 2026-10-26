@@ -17,10 +17,9 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Storm/H/storm.h"
 
-// Error reporting as on Windows: the same text, the same "Errors/<date> Error.txt" / "Crash.txt" log next to the
-// executable, the same handler chain and exit codes. Where Windows shows a message box the text goes to stderr and
-// the box's default button is taken (Storm does not link SDL, and nothing can be clicked). Unhandled exceptions are
-// fatal signals routed through the same path.
+// Error reporting as on Windows: the same text, the same "Errors/<date> Error.txt" / "Crash.txt" log in the game
+// directory, the same handler chain and exit codes. Where Windows shows a message box StormLinux::ShowErrorDialog
+// takes over. Unhandled exceptions are fatal signals routed through the same path.
 
 #define STORM_FACILITY 0x510
 #define DDRAW_FACILITY 0x876
@@ -44,12 +43,6 @@
 #define SERR_STR_ACCESS_VIOLATION 15
 #define SERR_STR_READ 16
 #define SERR_STR_WRITTEN 17
-
-// MessageBox results.
-#define SERR_IDOK 1
-#define SERR_IDCANCEL 2
-#define SERR_IDYES 6
-#define SERR_IDNO 7
 
 struct APPFATINFO {
     const char* filename;
@@ -216,19 +209,14 @@ static int32_t MakeDirectory(const char* path) {
 
 static int32_t CreateErrorLogFile(const char* suffix, const char* ext, char* logpath, uint32_t logpathchars, const MACHINESTATETIME* time) {
     char logfilename[MAX_PATH];
-    char exefullpath[MAX_PATH * 4];
 
     if (!suffix) {
         suffix = " Log";
     }
 
-    StormLinux::GetExePath(exefullpath, sizeof(exefullpath));
-    SStrCopy(logpath, exefullpath, logpathchars);
-
-    // The executable's directory, or the current directory if it is unknown.
-    char* slash = SStrChrR(logpath, '/');
-    size_t baseLength = slash ? static_cast<size_t>(slash - logpath) + 1 : 0;
-    logpath[baseLength] = 0;
+    // The game directory, or the current directory if it is unknown.
+    StormLinux::GetGameDirectory(logpath, logpathchars);
+    size_t baseLength = SStrLen(logpath);
 
     SStrPack(logpath, "Errors/", logpathchars);
 
@@ -692,6 +680,7 @@ int32_t STORMAPI SErrDisplayError(uint32_t errorcode, const char* filename, int3
     int32_t defaultresult;
     int32_t keeprunning;
     int32_t breakresult;
+    StormLinux::ErrorDialogButtons buttons;
 
     if (!CanBreakToDebugger()) {
         if (recoverable) {
@@ -699,11 +688,13 @@ int32_t STORMAPI SErrDisplayError(uint32_t errorcode, const char* filename, int3
             defaultresult = SERR_IDCANCEL;
             keeprunning = SERR_IDOK;
             breakresult = 0;
+            buttons = StormLinux::ERROR_DIALOG_OK_CANCEL;
         } else {
             outptr += SStrCopy(outptr, GetErrorString(SERR_STR_TERMINATE), outend - outptr);
             defaultresult = SERR_IDOK;
             keeprunning = 0;
             breakresult = 0;
+            buttons = StormLinux::ERROR_DIALOG_OK;
         }
     } else {
         if (!recoverable) {
@@ -711,11 +702,13 @@ int32_t STORMAPI SErrDisplayError(uint32_t errorcode, const char* filename, int3
             defaultresult = SERR_IDNO;
             keeprunning = 0;
             breakresult = SERR_IDYES;
+            buttons = StormLinux::ERROR_DIALOG_YES_NO;
         } else {
             outptr += SStrCopy(outptr, GetErrorString(SERR_STR_BREAK_OR_RUN), outend - outptr);
             defaultresult = SERR_IDNO;
             keeprunning = SERR_IDCANCEL;
             breakresult = SERR_IDYES;
+            buttons = StormLinux::ERROR_DIALOG_YES_NO_CANCEL;
         }
     }
 
@@ -733,10 +726,7 @@ int32_t STORMAPI SErrDisplayError(uint32_t errorcode, const char* filename, int3
     }
 
     if (!handler) {
-        // The message box: print it and take its default button.
-        fprintf(stderr, "\n%s\n%s\n\n", appname, outstr);
-        fflush(stderr);
-        result = defaultresult;
+        result = StormLinux::ShowErrorDialog(appname, outstr, buttons, defaultresult);
     }
 
     InternalLeaveCriticalSection(&s_critsect);
@@ -787,15 +777,7 @@ void STORMAPI SErrReportNamedResourceLeak(const char* handlename, const char* re
 
 static void WriteExceptionFailed(const char* buffer, const char* message) {
     char path[MAX_PATH * 4];
-    StormLinux::GetExePath(path, sizeof(path));
-    char* slash = SStrChrR(path, '/');
-
-    if (slash) {
-        slash[1] = 0;
-    } else {
-        path[0] = 0;
-    }
-
+    StormLinux::GetGameDirectory(path, sizeof(path));
     SStrPack(path, "Errors/exception-failed.txt", sizeof(path));
 
     int32_t file = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
@@ -850,7 +832,7 @@ static void ExceptionFilterLinux(int32_t signo, siginfo_t* info, void* ucontext)
     uint32_t code = GetExceptionNameLinux(info, exceptionname, sizeof(exceptionname));
     SStrPrintf(s_exceptionBuffer, sizeof(s_exceptionBuffer), "0x%08X (%s) at %04X:%p", code, exceptionname, OsPosixContextCodeSegment(exception.context), address);
 
-    if (signo == SIGSEGV) {
+    if (signo == SIGSEGV || signo == SIGBUS) {
         int32_t written = OsPosixContextWriteFault(exception.context);
         char format[256];
         SStrCopy(format, GetErrorString(SERR_STR_ACCESS_VIOLATION), sizeof(format));
@@ -925,7 +907,7 @@ void STORMAPI SErrCatchUnhandledExceptions() {
     action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
     sigemptyset(&action.sa_mask);
 
-    static const int32_t signals[] = { SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT };
+    static const int32_t signals[] = { SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT, SIGTRAP, SIGSYS };
 
     for (int32_t signo : signals) {
         sigaction(signo, &action, nullptr);

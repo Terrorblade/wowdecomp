@@ -427,8 +427,8 @@ static bool WriteBugReport(const char* arg) {
         return false;
     }
 
-    char exePath[260];
-    OsGetExePath(exePath, sizeof(exePath));
+    char exePath[1024];
+    OsGetGameDirectory(exePath, sizeof(exePath));
     std::filesystem::path root(exePath);
 
     time_t now = time(nullptr);

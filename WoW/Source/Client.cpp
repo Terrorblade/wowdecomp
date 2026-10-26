@@ -588,10 +588,10 @@ void SetPaths() {
     SFile::EnableDirectAccess(0);
 
     const char* path = CmdLineGetString(CMD_DATA_DIR);
-    char buffer[260];
+    char buffer[1024];
 
     if (!*path) {
-        OsGetExePath(buffer, sizeof(buffer));
+        OsGetGameDirectory(buffer, sizeof(buffer));
         path = buffer;
     }
 

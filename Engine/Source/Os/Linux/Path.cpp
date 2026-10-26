@@ -37,6 +37,21 @@ uint32_t GetModuleFileNameUTF8(void* module, char* path, uint32_t size) {
     return written;
 }
 
+void OsGetGameDirectory(char* path, uint32_t size) {
+    if (!size) {
+        return;
+    }
+
+    char directory[4096];
+
+    if (!OsPosixGameDirectory(directory, sizeof(directory))) {
+        OsGetExePath(path, size);
+        return;
+    }
+
+    SStrCopy(path, directory, size);
+}
+
 CommandLineUTF8::CommandLineUTF8() {
     const char* commandLine = OsGetCommandLine();
 

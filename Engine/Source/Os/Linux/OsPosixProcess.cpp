@@ -19,6 +19,21 @@ bool OsPosixExecutablePath(char* buffer, size_t size) {
     return length > 0;
 }
 
+bool OsPosixGameDirectory(char* buffer, size_t size) {
+    if (!OsPosixExecutablePath(buffer, size)) {
+        return false;
+    }
+
+    char* slash = strrchr(buffer, '/');
+
+    if (!slash) {
+        return false;
+    }
+
+    slash[1] = '\0';
+    return true;
+}
+
 int32_t OsPosixProcessArguments(char** argv, int32_t maxArgs, char* buffer, size_t size) {
     int fd = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
 

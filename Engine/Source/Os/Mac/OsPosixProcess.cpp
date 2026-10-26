@@ -32,6 +32,27 @@ bool OsPosixExecutablePath(char* buffer, size_t size) {
     return true;
 }
 
+bool OsPosixGameDirectory(char* buffer, size_t size) {
+    if (!OsPosixExecutablePath(buffer, size)) {
+        return false;
+    }
+
+    char* bundle = strstr(buffer, ".app/Contents/MacOS/");
+
+    if (bundle) {
+        *bundle = '\0';
+    }
+
+    char* slash = strrchr(buffer, '/');
+
+    if (!slash) {
+        return false;
+    }
+
+    slash[1] = '\0';
+    return true;
+}
+
 int32_t OsPosixProcessArguments(char** argv, int32_t maxArgs, char* buffer, size_t size) {
     int32_t count = *_NSGetArgc();
     char** args = *_NSGetArgv();

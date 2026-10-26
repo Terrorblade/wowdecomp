@@ -59,3 +59,7 @@ CommandLineUTF8::~CommandLineUTF8() {
     delete[] m_commandLine;
 }
 
+void OsGetGameDirectory(char* path, uint32_t size) {
+    OsGetExePath(path, size);
+}
+

@@ -1,7 +1,6 @@
 #if defined(WOWDECOMP_PLATFORM_MAC)
 
 #include <csignal>
-#include <cstring>
 #include <pthread/qos.h>
 #include <unistd.h>
 #import <Foundation/Foundation.h>
@@ -15,22 +14,8 @@
 static void EnterGameDirectory() {
     char path[4096];
 
-    if (!OsPosixExecutablePath(path, sizeof(path))) {
-        return;
-    }
-
-    char* bundle = strstr(path, ".app/Contents/MacOS/");
-
-    if (!bundle) {
-        return;
-    }
-
-    *bundle = '\0';
-    char* slash = strrchr(path, '/');
-
-    if (slash) {
-        *slash = '\0';
-        chdir(path[0] ? path : "/");
+    if (OsPosixGameDirectory(path, sizeof(path))) {
+        chdir(path);
     }
 }
 

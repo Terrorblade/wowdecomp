@@ -72,6 +72,7 @@ void OsPosixWakeDestroy(OsPosixWake* wake);
 
 // Process.
 bool OsPosixExecutablePath(char* buffer, size_t size);
+bool OsPosixGameDirectory(char* buffer, size_t size);
 int32_t OsPosixProcessArguments(char** argv, int32_t maxArgs, char* buffer, size_t size);
 bool OsPosixDebuggerAttached();
 const char* OsPosixErrorString(int32_t error, char* buffer, size_t size);

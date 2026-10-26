@@ -102,8 +102,13 @@ target_link_libraries(Wow
 if (WOWDECOMP_PLATFORM_MAC)
     # bin/Mac-<arch>/<WOW_OUTPUT_NAME>.app, the game data sits next to the bundle like the original Mac client's. The
     # bundle only uses system frameworks. cross.py package merges the two architectures into one.
+    set(WOW_ICNS ${CMAKE_CURRENT_SOURCE_DIR}/Mac/waystone.icns)
+    target_sources(Wow PRIVATE ${WOW_ICNS})
+    set_source_files_properties(${WOW_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+
     set_target_properties(Wow PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME ${WOW_OUTPUT_NAME}
+        MACOSX_BUNDLE_ICON_FILE waystone.icns
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.houroftwilight.wow"
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Mac/Info.plist.in
         BUILD_RPATH "@executable_path/../Frameworks"

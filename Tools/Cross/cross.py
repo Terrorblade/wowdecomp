@@ -518,6 +518,10 @@ def package_macos(args):
         tar_add(tar, f"{name}/{name}.app/Contents/Info.plist", (apps[0] / "Contents" / "Info.plist").read_bytes())
         tar_add(tar, f"{name}/{name}.app/Contents/MacOS", directory=True)
         tar_add(tar, f"{name}/{name}.app/Contents/MacOS/{name}", binary, 0o755)
+        tar_add(tar, f"{name}/{name}.app/Contents/Resources", directory=True)
+
+        for resource in sorted((apps[0] / "Contents" / "Resources").iterdir()):
+            tar_add(tar, f"{name}/{name}.app/Contents/Resources/{resource.name}", resource.read_bytes())
 
     log(f"  {out} ({out.stat().st_size // 1048576} MB)")
 

@@ -1,4 +1,4 @@
--- Displays workspace, one tool per table: creature displays with their creature_model_info row, creature model data and gameobject displays.
+-- Displays workspace, one tool per table: creature displays with their creature_model_info row, character displays, creature model data and gameobject displays.
 
 local DE = GameEditorDisplay;
 local ME = GameEditorModel;
@@ -64,8 +64,28 @@ local function DisplayText(id)
 	return format("%d  %s", id, modelData and modelData.m_modelName or "no model");
 end
 
+local extraList;
+
+local function ExtraList()
+	if ( extraList ) then
+		return extraList;
+	end
+
+	extraList = {};
+
+	for _, item in ipairs(GameEditor_DbcList("CreatureDisplayInfoExtra")) do
+		local row = ME.Row("CreatureDisplayInfoExtra", item.value);
+		table.insert(extraList, { value = item.value, text = row and DE.ExtraText(row) or "" });
+	end
+
+	return extraList;
+end
+
+store:OnChanged(function() extraList = nil; end);
+
 local LISTS = {
 	creature = function() return GameEditor_RefList("dbc:CreatureDisplayInfo"); end,
+	extra = ExtraList,
 	model = function() return GameEditor_DbcList("CreatureModelData"); end,
 	object = function() return GameEditor_DbcList("GameObjectDisplayInfo"); end,
 };
@@ -124,15 +144,37 @@ local function FromSelection(kind)
 	end
 
 	local function Use(displayId)
+		local display = ME.Row("CreatureDisplayInfo", displayId);
+
 		if ( kind == "model" ) then
-			local display = ME.Row("CreatureDisplayInfo", displayId);
 			DE.Open("model", display and display.m_modelID);
+		elseif ( kind == "extra" ) then
+			DE.Open("extra", display and display.m_extendedDisplayInfoID);
 		else
 			DE.Open("creature", displayId);
 		end
 	end
 
 	local ids = CreatureDisplays(data);
+
+	if ( kind == "extra" ) then
+		local dressed = {};
+
+		for _, id in ipairs(ids) do
+			local display = ME.Row("CreatureDisplayInfo", id);
+
+			if ( display and Num(display.m_extendedDisplayInfoID) > 0 ) then
+				table.insert(dressed, id);
+			end
+		end
+
+		if ( #ids > 0 and #dressed == 0 ) then
+			GameEditor_Notify("The creature has no character style display", "error");
+			return;
+		end
+
+		ids = dressed;
+	end
 
 	if ( #ids == 0 ) then
 		GameEditor_Notify("The creature has no display id in its spawn or template", "error");
@@ -179,6 +221,11 @@ local function OpenInModelEditor(kind)
 		return;
 	end
 
+	if ( kind == "extra" ) then
+		GameEditor_Notify("A character display has no model of its own, open a creature display that uses it", "info");
+		return;
+	end
+
 	GameEditor_SetWorkspace("model");
 
 	if ( kind == "creature" ) then
@@ -212,6 +259,53 @@ local function DisplaysOfModel()
 	GameEditor_PickValue(format("Displays using model data %d", doc.id), items, nil, function(value)
 		DE.Open("creature", value);
 	end);
+end
+
+local function DisplaysOfExtra()
+	local doc = Doc("extra");
+
+	if ( not doc ) then
+		return;
+	end
+
+	local rows = ME.Quiet("DbcEditor_Filter", "CreatureDisplayInfo", { text = "", where = { { columns = { "m_extendedDisplayInfoID" }, value = doc.id } } }, 300);
+	local items = {};
+
+	for _, row in ipairs(type(rows) == "table" and rows or {}) do
+		table.insert(items, { value = row.id, text = DisplayText(row.id) });
+	end
+
+	if ( #items == 0 ) then
+		GameEditor_Notify(format("No creature display uses character display %d, New display makes one", doc.id), "info");
+		return;
+	end
+
+	GameEditor_PickValue(format("Displays using character display %d", doc.id), items, nil, function(value)
+		DE.Open("creature", value);
+	end);
+end
+
+-- A creature display for the character display, copied from the display ChrRaces gives the race and sex.
+local function NewDisplayOfExtra()
+	local doc = Doc("extra");
+
+	if ( not doc ) then
+		return;
+	end
+
+	local race = ME.Row("ChrRaces", doc.values.m_displayRaceID);
+	local raceDisplayId = race and (Num(doc.values.m_displaySexID) == 1 and race.m_femaleDisplayID or race.m_maleDisplayID);
+	local source = ME.Row("CreatureDisplayInfo", raceDisplayId);
+
+	if ( not source ) then
+		GameEditor_Notify("The race has no display for this sex in ChrRaces", "error");
+		return;
+	end
+
+	local display = store:Create("CreatureDisplayInfo", source);
+	store:SetMany(display, { m_extendedDisplayInfoID = doc.id });
+	DE.Open("creature", display.id);
+	GameEditor_Notify(format("CreatureDisplayInfo %d made for character display %d, it is not on the server until you save", display.id, doc.id), "info");
 end
 
 local function Save()
@@ -355,6 +449,7 @@ end
 
 local EMPTY_TEXT = {
 	creature = "Type a CreatureDisplayInfo id, search by model name, or take the display of the selected creature.",
+	extra = "Type a CreatureDisplayInfoExtra id, search by race or baked texture, or take the character display of the selected creature.",
 	model = "Type a CreatureModelData id, search by model path, or take the model of the selected creature.",
 	object = "Type a GameObjectDisplayInfo id, search by model path, or take the display of the selected gameobject.",
 };
@@ -379,7 +474,7 @@ local function BuildPanel(parent, kind)
 	panel.idEdit:SetScript("OnEscapePressed", function(self) self:ClearFocus(); end);
 	Common.Tooltip(panel.idEdit, info.table.." id, Enter opens it");
 
-	local browse = Common.Button(row, "Browse", 60, function() Browse(kind); end, "Search by id or model name");
+	local browse = Common.Button(row, "Browse", 60, function() Browse(kind); end, kind == "extra" and "Search by id, race or baked texture" or "Search by id or model name");
 	browse:SetPoint("LEFT", panel.idEdit, "RIGHT", 4, 0);
 	local new = Common.Button(row, "New", 46, function() NewRow(kind); end, "Make a new row, a copy of the open one when there is one");
 	new:SetPoint("LEFT", browse, "RIGHT", 4, 0);
@@ -399,6 +494,23 @@ local function BuildPanel(parent, kind)
 
 	local modelEditor = Common.Button(actions, "Model editor", 96, function() OpenInModelEditor(kind); end, "Open the model in the model editor for textures, particles and attachments");
 	modelEditor:SetPoint("LEFT", actions, "LEFT", 0, 0);
+
+	if ( kind == "extra" ) then
+		modelEditor:Hide();
+		local displays = Common.Button(actions, "Displays", 70, DisplaysOfExtra, "List the creature displays that use this character display");
+		displays:SetPoint("LEFT", actions, "LEFT", 0, 0);
+		local newDisplay = Common.Button(actions, "New display", 90, NewDisplayOfExtra, "Make a creature display of the race model that uses this character display");
+		newDisplay:SetPoint("LEFT", displays, "RIGHT", 4, 0);
+	end
+
+	if ( kind == "creature" or kind == "extra" ) then
+		panel.ignoreBake = NoggitCheckBox_Create(actions, "Ignore bake", DE.ignoreBake, function(_, checked)
+			DE.ignoreBake = checked and true or false;
+			store:Changed();
+		end);
+		panel.ignoreBake:SetPoint("RIGHT", actions, "RIGHT", 0, 0);
+		Common.Tooltip(panel.ignoreBake, "Preview the looks and items instead of the baked texture, the game still uses the bake");
+	end
 
 	if ( kind == "creature" ) then
 		local modelData = Common.Button(actions, "Model data", 84, function()
@@ -493,7 +605,25 @@ local function BuildPanel(parent, kind)
 			tab:Show();
 		end
 
-		self.preview:Show(DE.PreviewOf(kind, doc.values));
+		local extraId = kind == "extra" and doc.id or (kind == "creature" and Num(doc.values.m_extendedDisplayInfoID) or 0);
+		local extra = extraId > 0 and (store:Find("CreatureDisplayInfoExtra", extraId) or {}).values or ME.Row("CreatureDisplayInfoExtra", extraId);
+
+		if ( self.ignoreBake ) then
+			NoggitCheckBox_SetChecked(self.ignoreBake, DE.ignoreBake);
+
+			if ( extra ) then
+				self.ignoreBake:Show();
+			else
+				self.ignoreBake:Hide();
+			end
+		end
+
+		if ( extra ) then
+			local scale = kind == "creature" and Num(doc.values.m_creatureModelScale) > 0 and Num(doc.values.m_creatureModelScale) or 1;
+			self.preview:ShowExtra(extraId, DE.ExtraKey(extraId, extra, DE.ignoreBake), DE.ignoreBake, scale);
+		else
+			self.preview:Show(DE.PreviewOf(kind, doc.values));
+		end
 
 		for index, page in ipairs(self.pages) do
 			if ( index == self.tabs.current ) then
@@ -525,7 +655,20 @@ end);
 -- Refs -------------------------------------------------------------------------------------------------------------
 
 GameEditor_RefOpeners["dbc:CreatureDisplayInfo"] = function(id) DE.Open("creature", id); end;
+GameEditor_RefOpeners["dbc:CreatureDisplayInfoExtra"] = function(id) DE.Open("extra", id); end;
 GameEditor_RefOpeners["dbc:CreatureModelData"] = function(id) DE.Open("model", id); end;
+GameEditor_RefLists["dbc:CreatureDisplayInfoExtra"] = ExtraList;
+
+GameEditor_RefResolvers["dbc:CreatureDisplayInfoExtra"] = function(value)
+	local row = ME.Row("CreatureDisplayInfoExtra", value);
+	return row and DE.ExtraText(row) or nil;
+end;
+
+GameEditor_OnTemplateList("item", function()
+	if ( panels.extra ) then
+		panels.extra:Refresh();
+	end
+end);
 GameEditor_RefOpeners["dbc:GameObjectDisplayInfo"] = function(id) DE.Open("object", id); end;
 
 GameEditor_RefResolvers["dbc:CreatureDisplayInfo"] = function(value)
@@ -555,6 +698,7 @@ local function BuildMenus()
 			{ text = "Revert", onClick = Revert },
 			separator,
 			{ text = "Open in the model editor", onClick = function() OpenInModelEditor(ActiveKind()); end },
+			{ text = "New display of the character display", onClick = NewDisplayOfExtra },
 		},
 	};
 end
@@ -579,6 +723,7 @@ GameEditor_RegisterWorkspace({
 	dockWidth = 520,
 	tools = {
 		{ key = "creature", name = "Creature displays", icon = 0xF8DB, build = function(parent) return BuildPanel(parent, "creature"); end },
+		{ key = "extra", name = "Character displays", icon = 0xF8DA, build = function(parent) return BuildPanel(parent, "extra"); end },
 		{ key = "model", name = "Creature model data", icon = 0xF8B8, build = function(parent) return BuildPanel(parent, "model"); end },
 		{ key = "object", name = "Gameobject displays", icon = 0xF8C0, build = function(parent) return BuildPanel(parent, "object"); end },
 	},

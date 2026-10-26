@@ -155,6 +155,17 @@ function Docs:Create(tableName, values)
 	return doc;
 end
 
+-- Forgets a row made by Create that was never sent, the client keeps whatever was applied to it locally.
+function Docs:Drop(doc)
+	if ( not doc or not doc.isNew or doc.saving ) then
+		return false;
+	end
+
+	self.docs[Key(doc.tableName, doc.id)] = nil;
+	self:Changed();
+	return true;
+end
+
 function Docs:IsDirty(doc)
 	if ( not doc ) then
 		return false;

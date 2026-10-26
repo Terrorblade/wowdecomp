@@ -7,6 +7,7 @@
 #include "WoW/Source/DB/Rec/AreaTableRec.h"
 #include "WoW/Source/DB/Rec/AuctionHouseRec.h"
 #include "WoW/Source/DB/Rec/CharTitlesRec.h"
+#include "WoW/Source/DB/Rec/ChrRacesRec.h"
 #include "WoW/Source/DB/Rec/CinematicCameraRec.h"
 #include "WoW/Source/DB/Rec/CreatureDisplayInfoRec.h"
 #include "WoW/Source/DB/Rec/CreatureDisplayInfoExtraRec.h"
@@ -38,6 +39,7 @@
 #include "WoW/Source/DB/Rec/PowerDisplayRec.h"
 #include "WoW/Source/DB/Rec/SkillLineRec.h"
 #include "WoW/Source/DB/Rec/SkillLineAbilityRec.h"
+#include "WoW/Source/DB/Rec/SkillLineCategoryRec.h"
 #include "WoW/Source/DB/Rec/SoundEntriesRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/DB/Rec/SpellCastTimesRec.h"
@@ -1469,6 +1471,38 @@ static void BindVehicleSeat(Builder& builder) {
     DBC_VALUE(m_field33512213055);
 }
 
+static void BindChrRaces(Builder& builder) {
+    using Rec = ChrRacesRec;
+    DBC_VALUE(m_id);
+    DBC_VALUE(m_flags);
+    DBC_VALUE(m_factionID);
+    DBC_VALUE(m_explorationSoundID);
+    DBC_VALUE(m_maleDisplayID);
+    DBC_VALUE(m_femaleDisplayID);
+    DBC_VALUE(m_clientPrefix);
+    DBC_VALUE(m_baseLanguage);
+    DBC_VALUE(m_creatureType);
+    DBC_VALUE(m_resSicknessSpellID);
+    DBC_VALUE(m_splashSoundID);
+    DBC_VALUE(m_clientFileString);
+    DBC_VALUE(m_cinematicSequenceID);
+    DBC_VALUE(m_alliance);
+    DBC_LOCALE(m_name);
+    DBC_LOCALE(m_nameFemale);
+    DBC_LOCALE(m_nameMale);
+    DBC_VALUE(m_facialHairCustomization[0]);
+    DBC_VALUE(m_facialHairCustomization[1]);
+    DBC_VALUE(m_hairCustomization);
+    DBC_VALUE(m_requiredExpansion);
+}
+
+static void BindSkillLineCategory(Builder& builder) {
+    using Rec = SkillLineCategoryRec;
+    DBC_VALUE(m_id);
+    DBC_LOCALE(m_name);
+    DBC_VALUE(m_sortIndex);
+}
+
 static const Binding s_bindings[] = {
     { "AnimationData", sizeof(AnimationDataRec), BindAnimationData },
     { "CreatureDisplayInfo", sizeof(CreatureDisplayInfoRec), BindCreatureDisplayInfo },
@@ -1538,6 +1572,8 @@ static const Binding s_bindings[] = {
     { "TotemCategory", sizeof(TotemCategoryRec), BindTotemCategory },
     { "Vehicle", sizeof(VehicleRec), BindVehicle },
     { "VehicleSeat", sizeof(VehicleSeatRec), BindVehicleSeat },
+    { "ChrRaces", sizeof(ChrRacesRec), BindChrRaces },
+    { "SkillLineCategory", sizeof(SkillLineCategoryRec), BindSkillLineCategory },
 };
 
 const Binding* FindBinding(const char* table) {

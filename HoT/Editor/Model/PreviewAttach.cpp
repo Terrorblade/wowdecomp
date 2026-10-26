@@ -48,6 +48,7 @@ struct Slot {
 using Slots = std::map<uint32_t, Slot>;
 
 static std::map<CSimpleModel*, Slots> s_frames;
+static std::map<CSimpleModel*, CCharacterComponent*> s_dressed;
 static std::map<uint32_t, Slots> s_world;
 static std::map<std::string, bool> s_animExists;
 static bool (*s_hasAccess)() = nullptr;
@@ -95,7 +96,19 @@ static void FreeSlots(Slots& slots) {
     }
 }
 
+static void FreeDressed(CSimpleModel* frame) {
+    auto it = s_dressed.find(frame);
+
+    if (it == s_dressed.end()) {
+        return;
+    }
+
+    CCharacterComponent::FreeComponent(it->second);
+    s_dressed.erase(it);
+}
+
 static void FreeFrame(CSimpleModel* frame) {
+    FreeDressed(frame);
     auto it = s_frames.find(frame);
 
     if (it == s_frames.end()) {
@@ -426,6 +439,99 @@ static int32_t Script_SetPreviewSkin(lua_State* L) {
     return 1;
 }
 
+// ModelEditor_SetPreviewExtra(frame, extraId [, ignoreBake]) -> ok, model path. Loads the race model and dresses it like CGDressUpModelFrame dresses an NPC.
+static int32_t Script_SetPreviewExtra(lua_State* L) {
+    CSimpleModel* frame = FrameArg(L);
+    CreatureDisplayInfoExtraRec* extra = lua_isnumber(L, 2) ? g_creatureDisplayInfoExtraDB.GetRecord(static_cast<int32_t>(lua_tonumber(L, 2))) : nullptr;
+    bool ignoreBake = lua_toboolean(L, 3) != 0;
+
+    if (!frame) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    FreeDressed(frame);
+
+    // GetModelDataRec is fatal on a bad sex and crashes on a missing race display, edited rows can have either.
+    ChrRacesRec* race = extra ? g_chrRacesDB.GetRecord(extra->m_displayRaceID) : nullptr;
+    int32_t displayId = !race ? 0 : extra->m_displaySexID == 0 ? race->m_maleDisplayID : extra->m_displaySexID == 1 ? race->m_femaleDisplayID : 0;
+    CreatureDisplayInfoRec* displayRec = displayId ? g_creatureDisplayInfoDB.GetRecord(displayId) : nullptr;
+    CreatureModelDataRec* modelRec = displayRec ? g_creatureModelDataDB.GetRecord(displayRec->m_modelID) : nullptr;
+
+    if (!modelRec || !modelRec->m_modelName || !*modelRec->m_modelName) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    const char* path = HoT::HD::GlueModelPath(modelRec->m_modelName);
+    frame->SetModel(path);
+    CCharacterComponent* component = frame->m_model ? CCharacterComponent::AllocComponent() : nullptr;
+
+    if (!component) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    ComponentData data;
+    data.m_preferences.m_raceID = extra->m_displayRaceID;
+    data.m_preferences.m_sexID = extra->m_displaySexID;
+    data.m_preferences.m_classId = 1;
+    data.m_preferences.m_skinID = extra->m_skinID;
+    data.m_preferences.m_faceId = extra->m_faceID;
+    data.m_preferences.m_hairStyleId = extra->m_hairStyleID;
+    data.m_preferences.m_hairColorId = extra->m_hairColorID;
+    data.m_preferences.m_facialHairId = extra->m_facialHairID;
+    data.m_model = frame->m_model;
+
+    if (!ignoreBake && extra->m_bakeName && *extra->m_bakeName) {
+        data.m_flags |= 0x1;
+        snprintf(data.m_npcSkinTexture, sizeof(data.m_npcSkinTexture), "Textures\\BakedNpcTextures\\%s", extra->m_bakeName);
+    } else {
+        CCharacterComponent::ValidateComponentData(&data, COMPONENT_CONTEXT_2);
+    }
+
+    data.m_model->m_refCount++;
+    HoT::HD::ApplyNpcBake(nullptr, &data);
+    component->Init(&data, nullptr);
+
+    for (uint32_t i = 0; i < 11; i++) {
+        if (extra->m_npcitemDisplay[i]) {
+            component->AddItem(static_cast<ITEM_SLOT>(i), extra->m_npcitemDisplay[i], 0);
+        }
+    }
+
+    s_dressed[frame] = component;
+    lua_pushboolean(L, true);
+    lua_pushstring(L, path);
+    return 2;
+}
+
+// ModelEditor_UpdatePreviewExtra(frame) -> ready, call it every frame while a dressed preview shows.
+static int32_t Script_UpdatePreviewExtra(lua_State* L) {
+    CSimpleModel* frame = FrameArg(L);
+    auto it = frame ? s_dressed.find(frame) : s_dressed.end();
+
+    if (it == s_dressed.end()) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    CCharacterComponent* component = it->second;
+    CM2Model* model = component->m_data.m_model;
+
+    if (model != frame->m_model) {
+        FreeDressed(frame);
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    uint32_t ready = component->RenderPrep(0) & 1;
+    model->m_fFlags = (model->m_fFlags & ~0x8u) | (ready << 3);
+    model->m_fFlags = (model->m_fFlags & ~0x10000u) | (ready << 16);
+    lua_pushboolean(L, ready != 0);
+    return 1;
+}
+
 // ModelEditor_GetPreviewAttachments(frame) -> { { index, id, bone, position }, ... } of the loaded model, nil until it loads.
 static int32_t Script_GetPreviewAttachments(lua_State* L) {
     CM2Model* model = LoadedModel(FrameArg(L), L, 2);
@@ -550,6 +656,8 @@ void Apply(bool (*hasAccess)()) {
     Lua::RegisterFunction("ModelEditor_UpdatePreviewAttach", Gated<Script_UpdatePreviewAttach>);
     Lua::RegisterFunction("ModelEditor_ClearPreviewAttach", Gated<Script_ClearPreviewAttach>);
     Lua::RegisterFunction("ModelEditor_SetPreviewSkin", Gated<Script_SetPreviewSkin>);
+    Lua::RegisterFunction("ModelEditor_SetPreviewExtra", Gated<Script_SetPreviewExtra>);
+    Lua::RegisterFunction("ModelEditor_UpdatePreviewExtra", Gated<Script_UpdatePreviewExtra>);
     Lua::RegisterFunction("ModelEditor_GetPreviewAttachments", Gated<Script_GetPreviewAttachments>);
     Lua::RegisterFunction("ModelEditor_GetPreviewSequences", Gated<Script_GetPreviewSequences>);
 }
@@ -557,6 +665,10 @@ void Apply(bool (*hasAccess)()) {
 void OnGameDestroy() {
     while (!s_frames.empty()) {
         FreeFrame(s_frames.begin()->first);
+    }
+
+    while (!s_dressed.empty()) {
+        FreeDressed(s_dressed.begin()->first);
     }
 
     for (auto& pair : s_world) {
@@ -569,7 +681,7 @@ void OnGameDestroy() {
 }
 
 void OnFrameDestroyed(CSimpleModel* frame) {
-    if (!s_frames.empty()) {
+    if (!s_frames.empty() || !s_dressed.empty()) {
         FreeFrame(frame);
     }
 }

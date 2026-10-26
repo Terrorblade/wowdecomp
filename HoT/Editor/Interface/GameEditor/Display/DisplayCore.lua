@@ -1,18 +1,20 @@
--- Displays workspace data, CreatureDisplayInfo, CreatureModelData and GameObjectDisplayInfo rows, creature_model_info and a model preview.
+-- Displays workspace data, CreatureDisplayInfo, CreatureDisplayInfoExtra, CreatureModelData and GameObjectDisplayInfo rows, creature_model_info and a model preview.
 
 GameEditorDisplay = GameEditorDisplay or {};
 local DE = GameEditorDisplay;
 local ME = GameEditorModel;
 local Common = GameEditorObject;
 local Data = GameEditorData;
+local I = GameEditorItem;
 
 DE.KINDS = {
 	creature = { table = "CreatureDisplayInfo", title = "Creature display" },
+	extra = { table = "CreatureDisplayInfoExtra", title = "Character display" },
 	model = { table = "CreatureModelData", title = "Creature model" },
 	object = { table = "GameObjectDisplayInfo", title = "Object display" },
 };
 
-DE.store = GameEditor_CreateDbcDocs("Display editor", { CreatureDisplayInfo = true, CreatureModelData = true, GameObjectDisplayInfo = true });
+DE.store = GameEditor_CreateDbcDocs("Display editor", { CreatureDisplayInfo = true, CreatureDisplayInfoExtra = true, CreatureModelData = true, GameObjectDisplayInfo = true });
 DE.ids = DE.ids or {};
 
 local Num = ME.Num;
@@ -24,7 +26,27 @@ for bit = 0, 31 do
 	table.insert(DE.MODEL_FLAGS, { bit = bit, name = format("Flag 0x%X", 2 ^ bit) });
 end
 
--- Column specs of the forms, kind is int, float, text, path, ref or flags, anything not listed is an int or float.
+-- The 11 npc item slots in ITEM_SLOT order, types are the inventory types an item worn there has.
+DE.NPC_ITEM_SLOTS = {
+	{ label = "Head", types = { 1 } },
+	{ label = "Shoulders", types = { 3 } },
+	{ label = "Shirt", types = { 4 } },
+	{ label = "Chest", types = { 5, 20 } },
+	{ label = "Waist", types = { 6 } },
+	{ label = "Legs", types = { 7 } },
+	{ label = "Feet", types = { 8 } },
+	{ label = "Wrists", types = { 9 } },
+	{ label = "Hands", types = { 10 } },
+	{ label = "Tabard", types = { 19 } },
+	{ label = "Back", types = { 16 } },
+};
+
+DE.SEXES = { [0] = "Male", [1] = "Female" };
+
+local LOOK_TIP = "Index into the CharSections of the race, the barber shop number minus one";
+local BAKE_TIP = "Texture in Textures\\BakedNpcTextures that replaces the skin, looks and armor textures. Clear it, or tick Ignore bake, to see look and item changes";
+
+-- Column specs of the forms, kind is int, float, text, path, ref, combo, item or flags, anything not listed is an int or float.
 DE.COLUMNS = {
 	CreatureDisplayInfo = {
 		m_modelID = { kind = "ref", ref = "dbc:CreatureModelData", label = "Model data", tip = "CreatureModelData row with the M2 path, Go opens it" },
@@ -42,6 +64,17 @@ DE.COLUMNS = {
 		m_particleColorID = { label = "Particle color" },
 		m_creatureGeosetData = { label = "Geoset data", tip = "Geoset group values packed 4 bits each" },
 		m_objectEffectPackageID = { label = "Object effect package" },
+	},
+	CreatureDisplayInfoExtra = {
+		m_displayRaceID = { kind = "ref", ref = "dbc:ChrRaces", label = "Race", tip = "ChrRaces row, picks the character model" },
+		m_displaySexID = { kind = "combo", items = ME.EnumItems(DE.SEXES, 0, 1), label = "Sex" },
+		m_skinID = { label = "Skin color", low = 0, high = 255, tip = LOOK_TIP },
+		m_faceID = { label = "Face", low = 0, high = 255, tip = LOOK_TIP },
+		m_hairStyleID = { label = "Hair style", low = 0, high = 255, tip = LOOK_TIP },
+		m_hairColorID = { label = "Hair color", low = 0, high = 255, tip = LOOK_TIP },
+		m_facialHairID = { label = "Facial hair", low = 0, high = 255, tip = LOOK_TIP },
+		m_flags = { kind = "flags", flags = DE.MODEL_FLAGS, header = "Other" },
+		m_bakeName = { kind = "text", label = "Baked texture", tip = BAKE_TIP },
 	},
 	CreatureModelData = {
 		m_modelName = { kind = "path", label = "Model", tip = "M2 path, .mdx is fine" },
@@ -66,6 +99,10 @@ DE.COLUMNS = {
 	},
 };
 
+for slot, info in ipairs(DE.NPC_ITEM_SLOTS) do
+	DE.COLUMNS.CreatureDisplayInfoExtra["m_npcitemDisplay["..(slot - 1).."]"] = { kind = "item", slot = slot - 1, label = info.label, header = slot == 1 and "Items" or nil };
+end
+
 for slot = 0, 9 do
 	DE.COLUMNS.GameObjectDisplayInfo["m_sound["..slot.."]"] = { kind = "ref", ref = "dbc:SoundEntries", label = "Sound "..(slot + 1) };
 end
@@ -88,6 +125,113 @@ function DE.Label(column)
 	return string.upper(string.sub(name, 1, 1))..string.lower(string.sub(name, 2));
 end
 
+-- Npc item slots ------------------------------------------------------------------------------------------
+
+local slotLists, slotNames = {}, {};
+
+local function InventoryTypeOf(row)
+	local _, _, inventoryType = string.find(tostring(row.subName or ""), "(%-?%d+)$");
+	return tonumber(inventoryType);
+end
+
+-- Items worn in the slot as picker items whose value is the item display id, plus the item name of each display.
+local function SlotList(slot)
+	if ( slotLists[slot] ) then
+		return slotLists[slot], false, slotNames[slot];
+	end
+
+	local items, loading = GameEditor_TemplateList("item");
+	local wanted = {};
+
+	for _, inventoryType in ipairs(DE.NPC_ITEM_SLOTS[slot + 1].types) do
+		wanted[inventoryType] = true;
+	end
+
+	local list, names = {}, {};
+
+	for _, entry in ipairs(items) do
+		local row = entry.row;
+		local displayId = row and Num(row.displayId) or 0;
+
+		if ( displayId > 0 and wanted[InventoryTypeOf(row) or -1] ) then
+			local name = I and I.Colored and I.Colored(row.name, row.type) or (row.name or "");
+			table.insert(list, { value = displayId, text = format("%s  |cff808080item %d|r", name, row.entry) });
+			names[displayId] = names[displayId] or name;
+		end
+	end
+
+	if ( not loading ) then
+		slotLists[slot], slotNames[slot] = list, names;
+	end
+
+	return list, loading, names;
+end
+
+GameEditor_OnTemplateList("item", function()
+	slotLists, slotNames = {}, {};
+end);
+
+function DE.PickSlotItem(slot, current, onPick)
+	GameEditor_PickValue(DE.NPC_ITEM_SLOTS[slot + 1].label.." items", function()
+		local list, loading = SlotList(slot);
+		return list, loading;
+	end, current, onPick, nil, { anyNumber = true });
+end
+
+-- An item that uses the display, else what the ItemDisplayInfo row shows.
+function DE.ItemDisplayText(slot, value)
+	value = Num(value);
+
+	if ( value <= 0 ) then
+		return "";
+	end
+
+	local _, _, names = SlotList(slot);
+
+	if ( names and names[value] ) then
+		return names[value];
+	end
+
+	local row = ME.Row("ItemDisplayInfo", value);
+
+	if ( not row ) then
+		return "|cffff6060no ItemDisplayInfo row|r";
+	end
+
+	local text = row["m_inventoryIcon[0]"] or "";
+	return text ~= "" and text or (row["m_modelName[0]"] or "exists");
+end
+
+-- An item display id with a picker of the items worn in the slot.
+local function ItemSlotRow(form, key, label, slot)
+	local item = form:Number(key, label, 0, 2147483647, 1, 0, "ItemDisplayInfo id, ... picks it from the items worn in this slot");
+	local pick = Common.Button(item.frame, "...", 26, function()
+		if ( form.data ) then
+			DE.PickSlotItem(slot, Num(form.data[key]), function(value) form:Set(key, value); end);
+		end
+	end, "Pick an item worn in this slot, its display id goes in");
+	pick:SetPoint("LEFT", item.spin, "RIGHT", 4, 0);
+	local clear = Common.Button(item.frame, "x", 22, function()
+		if ( form.data ) then
+			form:Set(key, 0);
+		end
+	end, "Take the item off");
+	clear:SetPoint("LEFT", pick, "RIGHT", 4, 0);
+
+	item.hint:ClearAllPoints();
+	item.hint:SetPoint("LEFT", clear, "RIGHT", 8, 0);
+	item.hint:SetPoint("RIGHT", item.frame, "RIGHT", 0, 0);
+	item.hintFunc = function(value) return DE.ItemDisplayText(slot, value); end;
+
+	local refresh = item.refresh;
+	item.refresh = function(data, info)
+		refresh(data, info);
+		ME.SetEnabled(pick, data ~= nil);
+		ME.SetEnabled(clear, data ~= nil and Num(data[key]) ~= 0);
+	end;
+	return item;
+end
+
 -- Every stored column of the table as a form row, the specs above pick the widget.
 function DE.AddColumns(form, tableName)
 	local specs = DE.COLUMNS[tableName] or {};
@@ -103,18 +247,26 @@ function DE.AddColumns(form, tableName)
 			kind = nil;
 		end
 
+		if ( kind and spec.header ) then
+			form:Header(spec.header);
+		end
+
 		if ( kind == "ref" ) then
 			form:Ref(name, label, spec.ref, spec.tip);
 		elseif ( kind == "text" ) then
 			form:Text(name, label, spec.tip);
 		elseif ( kind == "path" ) then
 			form:Path(name, label, spec.tip);
+		elseif ( kind == "combo" ) then
+			form:Combo(name, label, spec.items, spec.tip);
+		elseif ( kind == "item" ) then
+			ItemSlotRow(form, name, label, spec.slot);
 		elseif ( kind == "flags" ) then
 			form:Flags(name, label, spec.flags, 32, spec.tip);
 		elseif ( kind == "float" ) then
 			form:Float(name, label, spec.tip);
 		elseif ( kind == "int" ) then
-			form:Int(name, label, column.type == "uint" and 0 or -2147483648, column.type == "uint" and 4294967295 or 2147483647, spec.tip);
+			form:Int(name, label, spec.low or (column.type == "uint" and 0 or -2147483648), spec.high or (column.type == "uint" and 4294967295 or 2147483647), spec.tip);
 		end
 	end
 end
@@ -130,6 +282,49 @@ function DE.PreviewOf(kind, values)
 	end
 
 	return values.m_modelName or "", nil, 1;
+end
+
+-- Character displays ----------------------------------------------------------------------------------------
+
+local raceNames = {};
+
+function DE.RaceName(race)
+	race = Num(race);
+
+	if ( raceNames[race] == nil ) then
+		local row = ME.Row("ChrRaces", race);
+		local name = row and row[GameEditor_DbcNameColumn("ChrRaces") or "m_name[0]"];
+		raceNames[race] = name and name ~= "" and name or false;
+	end
+
+	return raceNames[race] or format("race %d", race);
+end
+
+function DE.ExtraText(values)
+	local text = format("%s %s", DE.RaceName(values.m_displayRaceID), DE.SEXES[Num(values.m_displaySexID)] or "?");
+
+	if ( values.m_bakeName and values.m_bakeName ~= "" ) then
+		text = text.."  "..values.m_bakeName;
+	end
+
+	return text;
+end
+
+local EXTRA_KEYS = { "m_displayRaceID", "m_displaySexID", "m_skinID", "m_faceID", "m_hairStyleID", "m_hairColorID", "m_facialHairID", "m_bakeName" };
+
+for slot = 0, 10 do
+	table.insert(EXTRA_KEYS, "m_npcitemDisplay["..slot.."]");
+end
+
+-- Changes whenever anything the dressed preview shows changes.
+function DE.ExtraKey(id, values, ignoreBake)
+	local parts = { tostring(id), ignoreBake and "1" or "0" };
+
+	for _, key in ipairs(EXTRA_KEYS) do
+		table.insert(parts, tostring(values[key] or ""));
+	end
+
+	return table.concat(parts, ":");
 end
 
 -- Preview -------------------------------------------------------------------------------------------------------
@@ -175,8 +370,17 @@ function Preview:ApplyView()
 end
 
 -- Shows path skinned with the CreatureDisplayInfo skin, the same values again keep the camera.
+-- Back to a plain model after a dressed character.
+function Preview:Undress()
+	if ( self.extra ) then
+		ME.Quiet("ModelEditor_SetPreviewExtra", self.model, 0);
+		self.extra, self.extraKey, self.path = nil, nil, nil;
+	end
+end
+
 function Preview:Show(path, skin, scale, message)
 	path = path or "";
+	self:Undress();
 
 	if ( path == "" ) then
 		self:Try("ClearModel");
@@ -204,6 +408,33 @@ function Preview:Show(path, skin, scale, message)
 		self.retries = 0;
 	end
 
+	self.message:SetText("");
+	self:ApplyView();
+	self.reapplyIn = 0.3;
+end
+
+-- The race model dressed by a CreatureDisplayInfoExtra row, key from DE.ExtraKey skips rebuilding the same look.
+function Preview:ShowExtra(id, key, ignoreBake, scale)
+	if ( self.extra and key == self.extraKey and not self.dirty ) then
+		return;
+	end
+
+	local ok, path = ME.Quiet("ModelEditor_SetPreviewExtra", self.model, id, ignoreBake);
+
+	if ( not ok ) then
+		self:Undress();
+		self:Try("ClearModel");
+		self.path, self.extra, self.extraKey, self.dirty = nil, true, key, false;
+		self.message:SetText("No character model for this race and sex");
+		return;
+	end
+
+	if ( path ~= self.path ) then
+		self.retries = 0;
+	end
+
+	self.path, self.skin, self.scale, self.dirty = path, nil, scale or 1, false;
+	self.extra, self.extraKey = true, key;
 	self.message:SetText("");
 	self:ApplyView();
 	self.reapplyIn = 0.3;
@@ -246,6 +477,10 @@ function DE.CreatePreview(holder)
 	end);
 	model:SetScript("OnUpdate", function(self, elapsed)
 		local drag = preview.drag;
+
+		if ( preview.extra and preview.path ) then
+			ME.Quiet("ModelEditor_UpdatePreviewExtra", self);
+		end
 
 		if ( drag ) then
 			if ( not EditorIsMouseButtonDown(drag.button) ) then

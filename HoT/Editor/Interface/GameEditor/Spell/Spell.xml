@@ -8,6 +8,7 @@
 	<Script file="SpellBrowser.lua"/>
 	<Script file="SpellVisuals.lua"/>
 	<Script file="SpellServer.lua"/>
+	<Script file="SpellSkills.lua"/>
 	<Script file="SpellPreview.lua"/>
 	<Script file="SpellWorkspace.lua"/>
 </Ui>

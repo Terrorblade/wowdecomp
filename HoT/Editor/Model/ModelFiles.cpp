@@ -182,12 +182,27 @@ bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std:
         }
     }
 
+    if (!WriteDisk(path.wstring(), data, size)) {
+        error = "could not write " + gamePath;
+        return false;
+    }
+
+    return true;
+}
+
+bool WriteDisk(const std::wstring& diskPath, const void* data, size_t size) {
+    std::filesystem::path path(diskPath);
+    std::error_code code;
+
+    if (path.has_parent_path()) {
+        std::filesystem::create_directories(path.parent_path(), code);
+    }
+
     std::filesystem::path temp = path;
     temp += ".tmp";
     FILE* file = Platform::OpenStdioFile(temp, "wb");
 
     if (!file) {
-        error = "could not write " + gamePath;
         return false;
     }
 
@@ -196,7 +211,6 @@ bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std:
 
     if (!ok || !Platform::RenameReplacing(temp, path)) {
         Platform::RemoveFile(temp);
-        error = "could not write " + gamePath;
         return false;
     }
 

@@ -12,6 +12,7 @@
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Shared.h"
+#include "Engine/Source/Model2/Types.h"
 #include "HoT/Character/HD/HDCharacters.h"
 #include "HoT/Editor/Model/ModelFiles.h"
 #include "HoT/Lua/Script.h"
@@ -439,6 +440,29 @@ static int32_t Script_SetPreviewSkin(lua_State* L) {
     return 1;
 }
 
+// ModelEditor_SetPreviewTexture(frame, type, path) puts a texture on a replaceable texture type of the frame model.
+static int32_t Script_SetPreviewTexture(lua_State* L) {
+    CSimpleModel* frame = FrameArg(L);
+    std::string path;
+    std::string error;
+
+    if (!frame || !frame->m_model || !lua_isnumber(L, 2) || lua_type(L, 3) != LUA_TSTRING || !Files::NormalizeGamePath(lua_tostring(L, 3), path, error)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    int32_t type = static_cast<int32_t>(lua_tonumber(L, 2));
+
+    if (type <= 0 || type > M2TEX_ITEM_ICON || !Files::GameFileExists(path)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    frame->ReplaceTexture(static_cast<uint32_t>(type), path.c_str());
+    lua_pushboolean(L, true);
+    return 1;
+}
+
 // ModelEditor_SetPreviewExtra(frame, extraId [, ignoreBake]) -> ok, model path. Loads the race model and dresses it like CGDressUpModelFrame dresses an NPC.
 static int32_t Script_SetPreviewExtra(lua_State* L) {
     CSimpleModel* frame = FrameArg(L);
@@ -656,6 +680,7 @@ void Apply(bool (*hasAccess)()) {
     Lua::RegisterFunction("ModelEditor_UpdatePreviewAttach", Gated<Script_UpdatePreviewAttach>);
     Lua::RegisterFunction("ModelEditor_ClearPreviewAttach", Gated<Script_ClearPreviewAttach>);
     Lua::RegisterFunction("ModelEditor_SetPreviewSkin", Gated<Script_SetPreviewSkin>);
+    Lua::RegisterFunction("ModelEditor_SetPreviewTexture", Gated<Script_SetPreviewTexture>);
     Lua::RegisterFunction("ModelEditor_SetPreviewExtra", Gated<Script_SetPreviewExtra>);
     Lua::RegisterFunction("ModelEditor_UpdatePreviewExtra", Gated<Script_UpdatePreviewExtra>);
     Lua::RegisterFunction("ModelEditor_GetPreviewAttachments", Gated<Script_GetPreviewAttachments>);

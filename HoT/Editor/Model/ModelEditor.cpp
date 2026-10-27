@@ -20,12 +20,14 @@
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Services/Camera.h"
 #include "Engine/Source/Services/CameraInt.h"
+#include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Shared.h"
 #include "HoT/Core/Log.h"
 #include "HoT/Editor/Model/ModelDoc.h"
 #include "HoT/Editor/Model/ModelFiles.h"
 #include "HoT/Editor/Model/PreviewAttach.h"
+#include "HoT/Editor/Model/TextureExport.h"
 #include "HoT/Editor/Model/TextureImport.h"
 #include "HoT/Editor/Resources.h"
 #include "HoT/Game/Session.h"
@@ -37,6 +39,7 @@
 namespace HoT::Editor::ModelEditor {
 
 namespace Files = Model::Files;
+namespace TextureExport = Model::TextureExport;
 namespace TextureImport = Model::TextureImport;
 using Model::ModelDoc;
 using Model::PartTrack;
@@ -2660,6 +2663,8 @@ static int32_t Script_GetPreviewPath(lua_State* L) {
     std::string path = base + ".m2";
     Resources::AddPreviewFile(path, std::make_shared<const std::vector<uint8_t>>(doc.Build()), doc.Path());
     Resources::AddPreviewRedirect(base, Files::StripExtension(doc.Path()));
+    std::string folder = Files::Folder(doc.Path());
+    Resources::AddPreviewTextureRedirect(dir, folder.empty() ? folder : folder + "\\");
     entry->m_previewDirs.push_back(dir);
 
     while (entry->m_previewDirs.size() > kPreviewsKept) {
@@ -2960,31 +2965,84 @@ static std::wstring ImportDirectory() {
     return Files::DiskPath("Import");
 }
 
-// ModelEditor_ListImportFiles() -> { "name.png", ... } from the Import folder.
+static std::wstring ExportDirectory() {
+    return Files::DiskPath("Export");
+}
+
+struct ImportFile {
+    std::string name;
+    std::string source;
+    std::string dest;
+};
+
+static void PushImportFiles(lua_State* L, std::vector<ImportFile>& files) {
+    std::sort(files.begin(), files.end(), [](const ImportFile& a, const ImportFile& b) { return _stricmp(a.name.c_str(), b.name.c_str()) < 0; });
+    lua_createtable(L, static_cast<int32_t>(files.size()), 0);
+
+    for (size_t i = 0; i < files.size(); i++) {
+        lua_createtable(L, 0, 3);
+        SetString(L, "name", files[i].name);
+        SetString(L, "source", files[i].source);
+
+        if (!files[i].dest.empty()) {
+            SetString(L, "dest", files[i].dest);
+        }
+
+        lua_rawseti(L, -2, static_cast<int32_t>(i + 1));
+    }
+}
+
+// ModelEditor_ListImportFiles() -> { { name, source, dest }, ... } from the Import folder and the edited images of the Export folder.
 static int32_t Script_ListImportFiles(lua_State* L) {
-    std::vector<std::string> names;
+    std::vector<ImportFile> files;
     std::error_code error;
 
     for (std::filesystem::directory_iterator it(std::filesystem::path(ImportDirectory()), error); !error && it != std::filesystem::directory_iterator(); it.increment(error)) {
         std::wstring name = it->path().filename().wstring();
 
         if (!it->is_directory(error) && TextureImport::IsImportExtension(name)) {
-            names.push_back(Files::Narrow(name));
+            files.push_back({ Files::Narrow(name), Files::Narrow(it->path().wstring()), std::string() });
         }
     }
 
-    std::sort(names.begin(), names.end(), [](const std::string& a, const std::string& b) { return _stricmp(a.c_str(), b.c_str()) < 0; });
-    lua_createtable(L, static_cast<int32_t>(names.size()), 0);
+    std::filesystem::path exportRoot(ExportDirectory());
+    error.clear();
 
-    for (size_t i = 0; i < names.size(); i++) {
-        lua_pushstring(L, names[i].c_str());
-        lua_rawseti(L, -2, static_cast<int32_t>(i + 1));
+    for (std::filesystem::recursive_directory_iterator it(exportRoot, error); !error && it != std::filesystem::recursive_directory_iterator(); it.increment(error)) {
+        std::wstring name = it->path().filename().wstring();
+
+        if (it->is_directory(error) || !TextureImport::IsImportExtension(name) || Files::EndsWith(Files::Narrow(name), ".blp")) {
+            continue;
+        }
+
+        std::string relative = Files::Narrow(it->path().lexically_relative(exportRoot).wstring());
+        std::replace(relative.begin(), relative.end(), '/', '\\');
+        std::string dest;
+        std::string pathError;
+
+        if (!Files::NormalizeGamePath(Files::StripExtension(relative) + ".blp", dest, pathError)) {
+            dest.clear();
+        }
+
+        files.push_back({ "Export\\" + relative, Files::Narrow(it->path().wstring()), dest });
     }
 
+    PushImportFiles(L, files);
     return 1;
 }
 
-// ModelEditor_ImportTexture(sourceName, destPath) -> ok, message or false, err.
+// Makes new loads of a texture read the file again and gives every open doc a fresh preview name so its preview picks it up.
+static uint32_t ReloadTexture(const std::string& gamePath) {
+    uint32_t forgotten = TextureCacheForget(gamePath.c_str());
+
+    for (auto& pair : s_docs) {
+        pair.second->m_previewPath.clear();
+    }
+
+    return forgotten;
+}
+
+// ModelEditor_ImportTexture(sourceName, destPath) -> ok, message, dest or false, err.
 static int32_t Script_ImportTexture(lua_State* L) {
     if (lua_type(L, 1) != LUA_TSTRING || lua_type(L, 2) != LUA_TSTRING) {
         return PushFalseError(L, "expected a source name and a destination path");
@@ -3028,9 +3086,15 @@ static int32_t Script_ImportTexture(lua_State* L) {
 
     Files::RefreshLooseIndex();
     message = "Wrote " + dest + ", " + message;
+
+    if (ReloadTexture(dest)) {
+        message += ". Previews reload it, models already in the world keep the old one";
+    }
+
     lua_pushboolean(L, 1);
     lua_pushstring(L, message.c_str());
-    return 2;
+    lua_pushstring(L, dest.c_str());
+    return 3;
 }
 
 // ModelEditor_GetTextureInfo(path) -> { width, height, format, alphaBits, mips } or nil.
@@ -3051,6 +3115,214 @@ static int32_t Script_GetTextureInfo(lua_State* L) {
     SetNumber(L, "alphaBits", info.m_alphaBits);
     SetNumber(L, "mips", info.m_mips);
     return 1;
+}
+
+struct ExportFile {
+    std::string path;
+    std::vector<uint8_t> data;
+};
+
+static bool HasExport(const std::vector<ExportFile>& files, const std::string& path) {
+    std::string key = Files::Lower(path);
+
+    for (const ExportFile& file : files) {
+        if (Files::Lower(file.path) == key) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Reads a side file by its name next to the model, or by its file data id for modern models.
+static bool ReadSideFile(const std::string& path, uint32_t fileDataId, std::vector<ExportFile>& files, uint32_t& missing) {
+    ExportFile file;
+
+    if (Files::ReadGameFile(path, file.data)) {
+        file.path = path;
+    } else {
+        const char* resolved = fileDataId ? Models::Fdid::ResolveModel(fileDataId) : nullptr;
+        std::string error;
+
+        if (!resolved || !Files::NormalizeGamePath(resolved, file.path, error) || !Files::ReadGameFile(file.path, file.data)) {
+            missing++;
+            return false;
+        }
+    }
+
+    if (!HasExport(files, file.path)) {
+        files.push_back(std::move(file));
+    }
+
+    return true;
+}
+
+// ModelEditor_Export(doc, { textures = { extra paths }, png = true }) -> ok, message, folder, the edited model with its side files and textures go under Export by game path.
+static int32_t Script_Export(lua_State* L) {
+    Entry* entry = DocArg(L, 1);
+
+    if (!entry) {
+        return PushFalseError(L, "unknown document");
+    }
+
+    lua_settop(L, 2);
+    bool png = true;
+
+    if (lua_type(L, 2) == LUA_TTABLE) {
+        lua_getfield(L, 2, "png");
+        png = lua_isnil(L, -1) || lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    const ModelDoc& doc = entry->m_doc;
+    std::string base = Files::StripExtension(doc.Path());
+    std::vector<ExportFile> files;
+    uint32_t missing = 0;
+
+    files.push_back({ doc.Path(), doc.Build() });
+    uint32_t profiles = (std::min)(doc.Count(Model::HEADER_SKIN_PROFILES), kMaxSkinProfiles);
+
+    for (uint32_t i = 0; i < profiles; i++) {
+        char suffix[16];
+        snprintf(suffix, sizeof(suffix), "%02u.skin", i);
+        ReadSideFile(base + suffix, doc.IsModern() ? doc.SkinFileDataId(i) : 0, files, missing);
+    }
+
+    uint32_t sequences = doc.Count(Model::HEADER_SEQUENCES);
+
+    for (uint32_t i = 0; i < sequences; i++) {
+        uint32_t pos = doc.RecordPos(Model::HEADER_SEQUENCES, Model::SEQUENCE_STRIDE, i);
+        uint16_t id = 0;
+        uint16_t variation = 0;
+        uint32_t flags = 0;
+        doc.Get(pos, id);
+        doc.Get(pos + 2, variation);
+        doc.Get(pos + 0x0C, flags);
+
+        if (flags & (Model::SEQUENCE_FLAG_INLINE | Model::SEQUENCE_FLAG_ALIAS)) {
+            continue;
+        }
+
+        char suffix[32];
+        snprintf(suffix, sizeof(suffix), "%04u-%02u.anim", id, variation);
+        ReadSideFile(base + suffix, doc.AnimFileDataId(id, variation), files, missing);
+    }
+
+    std::vector<std::string> textures;
+    uint32_t count = doc.Count(Model::HEADER_TEXTURES);
+    uint32_t unresolved = 0;
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t fileDataId = 0;
+        std::string path = TexturePath(doc, i, fileDataId);
+
+        if (!path.empty()) {
+            textures.push_back(path);
+        } else if (fileDataId) {
+            unresolved++;
+        }
+    }
+
+    if (lua_type(L, 2) == LUA_TTABLE) {
+        lua_getfield(L, 2, "textures");
+
+        if (lua_type(L, -1) == LUA_TTABLE) {
+            for (int32_t i = 1; ; i++) {
+                lua_rawgeti(L, -1, i);
+
+                if (lua_type(L, -1) != LUA_TSTRING) {
+                    lua_pop(L, 1);
+                    break;
+                }
+
+                textures.push_back(lua_tostring(L, -1));
+                lua_pop(L, 1);
+            }
+        }
+
+        lua_pop(L, 1);
+    }
+
+    uint32_t textureCount = 0;
+    uint32_t pngCount = 0;
+    std::string notes;
+    std::vector<std::string> unreadable;
+
+    for (const std::string& input : textures) {
+        std::string path;
+        std::string error;
+
+        if (!Files::NormalizeGamePath(input, path, error)) {
+            continue;
+        }
+
+        if (Files::StripExtension(path) == path) {
+            path += ".blp";
+        }
+
+        if (HasExport(files, path)) {
+            continue;
+        }
+
+        ExportFile file;
+        file.path = path;
+
+        if (!Files::ReadGameFile(path, file.data)) {
+            if (std::find(unreadable.begin(), unreadable.end(), Files::Lower(path)) == unreadable.end()) {
+                unreadable.push_back(Files::Lower(path));
+            }
+
+            continue;
+        }
+
+        textureCount++;
+
+        if (png && Files::EndsWith(path, ".blp")) {
+            ExportFile image;
+            image.path = Files::StripExtension(path) + ".png";
+
+            if (TextureExport::BlpToPng(file.data, image.data, error)) {
+                files.push_back(std::move(image));
+                pngCount++;
+            } else {
+                notes += " No png for " + path + ": " + error + ".";
+            }
+        }
+
+        files.push_back(std::move(file));
+    }
+
+    for (const ExportFile& file : files) {
+        if (!Files::WriteDisk(Files::DiskPath("Export\\" + file.path), file.data.data(), file.data.size())) {
+            return PushFalseError(L, "could not write Export\\" + file.path);
+        }
+    }
+
+    std::string modelFolder = Files::Folder(doc.Path());
+    std::string folder = Files::Narrow(modelFolder.empty() ? ExportDirectory() : Files::DiskPath("Export\\" + modelFolder));
+    std::string message = "Exported " + std::to_string(files.size()) + " files (" + std::to_string(textureCount) + " textures, " + std::to_string(pngCount) + " png) to " + folder + ".";
+
+    if (doc.Dirty()) {
+        message += " The model includes the unsaved edits.";
+    }
+
+    if (missing) {
+        message += " " + std::to_string(missing) + " skin or anim files were not found.";
+    }
+
+    if (unresolved) {
+        message += " " + std::to_string(unresolved) + " textures have file data ids without a known path.";
+    }
+
+    if (!unreadable.empty()) {
+        message += " " + std::to_string(unreadable.size()) + " referenced textures were not found, for example " + unreadable.front() + ".";
+    }
+
+    message += notes;
+    lua_pushboolean(L, 1);
+    lua_pushstring(L, message.c_str());
+    lua_pushstring(L, folder.c_str());
+    return 3;
 }
 
 template <lua_CFunction Function>
@@ -3087,6 +3359,7 @@ void Apply() {
     Lua::RegisterFunction("ModelEditor_ListImportFiles", Gated<Script_ListImportFiles>);
     Lua::RegisterFunction("ModelEditor_ImportTexture", Gated<Script_ImportTexture>);
     Lua::RegisterFunction("ModelEditor_GetTextureInfo", Gated<Script_GetTextureInfo>);
+    Lua::RegisterFunction("ModelEditor_Export", Gated<Script_Export>);
     Lua::RegisterFunction("ModelEditor_GetAttachment", Gated<Script_GetAttachment>);
     Lua::RegisterFunction("ModelEditor_SetAttachment", Gated<Script_SetAttachment>);
     Lua::RegisterFunction("ModelEditor_AddAttachment", Gated<Script_AddAttachment>);

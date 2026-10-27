@@ -175,6 +175,7 @@ struct PreviewFile {
 struct PreviewRedirect {
     std::string prefix;
     std::string target;
+    bool textures = false;
 };
 
 static std::mutex s_previewLock;
@@ -203,6 +204,11 @@ static bool IsSideFileSuffix(const char* rest) {
     return length == 12 && IsDigits(rest, 4) && rest[4] == '-' && IsDigits(rest + 5, 2) && SamePath(rest + 7, ".anim");
 }
 
+static bool IsTextureSuffix(const char* rest) {
+    size_t length = strlen(rest);
+    return length > 4 && SamePath(rest + length - 4, ".blp");
+}
+
 // Finds the preview bytes or the redirect target for a name, false when the name is not a preview.
 static bool FindPreview(const char* name, std::shared_ptr<const std::vector<uint8_t>>& data, std::string& target) {
     if (!name || !StartsWith(name, kPreviewPrefix)) {
@@ -221,8 +227,10 @@ static bool FindPreview(const char* name, std::shared_ptr<const std::vector<uint
     size_t length = strlen(name);
 
     for (const PreviewRedirect& redirect : s_previewRedirects) {
-        if (length > redirect.prefix.size() && StartsWith(name, redirect.prefix.c_str()) && IsSideFileSuffix(name + redirect.prefix.size())) {
-            target = redirect.target + (name + redirect.prefix.size());
+        const char* rest = name + redirect.prefix.size();
+
+        if (length > redirect.prefix.size() && StartsWith(name, redirect.prefix.c_str()) && (redirect.textures ? IsTextureSuffix(rest) : IsSideFileSuffix(rest))) {
+            target = redirect.target + rest;
             return true;
         }
     }
@@ -253,7 +261,12 @@ std::string PreviewSource(const char* name) {
 
 void AddPreviewRedirect(const std::string& prefix, const std::string& target) {
     std::lock_guard<std::mutex> lock(s_previewLock);
-    s_previewRedirects.push_back({ prefix, target });
+    s_previewRedirects.push_back({ prefix, target, false });
+}
+
+void AddPreviewTextureRedirect(const std::string& prefix, const std::string& target) {
+    std::lock_guard<std::mutex> lock(s_previewLock);
+    s_previewRedirects.push_back({ prefix, target, true });
 }
 
 void RemovePreviews(const std::string& prefix) {

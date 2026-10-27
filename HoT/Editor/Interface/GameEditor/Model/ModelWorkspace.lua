@@ -401,6 +401,82 @@ local function Save()
 	end
 end
 
+-- Adds the skins, portraits and NPC bakes of every CreatureDisplayInfo row using the model to textures, returns how many rows there were.
+local function DisplayTextures(entry, textures)
+	local modelIds = ME.FindByModelName("CreatureModelData", entry.path);
+	local displayIds = {};
+	local count = 0;
+
+	if ( entry.source and entry.source.modelDataId ) then
+		table.insert(modelIds, entry.source.modelDataId);
+	end
+
+	if ( entry.source and entry.source.kind == "creature" and entry.source.displayId ) then
+		displayIds[Num(entry.source.displayId)] = true;
+	end
+
+	for _, modelId in ipairs(modelIds) do
+		local rows = ME.Quiet("DbcEditor_Filter", "CreatureDisplayInfo", { text = "", where = { { columns = { "m_modelID" }, value = modelId } } }, 5000);
+
+		for _, row in ipairs(type(rows) == "table" and rows or {}) do
+			displayIds[Num(row.id)] = true;
+		end
+	end
+
+	for id in pairs(displayIds) do
+		local display = ME.Row("CreatureDisplayInfo", id);
+		local modelData = display and ME.Row("CreatureModelData", display.m_modelID);
+		local folder = ME.Folder(ME.CleanPath(modelData and modelData.m_modelName or entry.path));
+
+		if ( display ) then
+			count = count + 1;
+
+			for index = 0, 2 do
+				local name = display[format("m_textureVariation[%d]", index)];
+
+				if ( name and name ~= "" ) then
+					table.insert(textures, (folder ~= "" and (folder.."\\") or "")..name..".blp");
+				end
+			end
+
+			if ( (display.m_portraitTextureName or "") ~= "" ) then
+				table.insert(textures, "Interface\\Icons\\"..display.m_portraitTextureName);
+			end
+
+			local extra = ME.Row("CreatureDisplayInfoExtra", display.m_extendedDisplayInfoID);
+
+			if ( extra and (extra.m_bakeName or "") ~= "" ) then
+				table.insert(textures, "Textures\\BakedNpcTextures\\"..extra.m_bakeName);
+			end
+		end
+	end
+
+	return count;
+end
+
+-- Writes the model as edited, its skins, anims and every texture (plus a png of each) under <game folder>\Export\.
+local function Export()
+	local entry = ME.Current();
+
+	if ( not entry ) then
+		ME.Notice("Open a model first", "info");
+		return;
+	end
+
+	local textures = {};
+
+	for _, path in pairs(ME.PreviewTextures(entry)) do
+		table.insert(textures, path);
+	end
+
+	local displays = DisplayTextures(entry, textures);
+	local ok, message = ME.Do("ModelEditor_Export", entry.doc, { textures = textures, png = true });
+
+	if ( ok ) then
+		GameEditor_Notify(tostring(message or "Exported")..(displays > 0 and format(" Textures of %d creature displays included.", displays) or ""), "ok");
+	end
+end
+
 local function ReloadPreview()
 	if ( ME.current ) then
 		ME.Invalidate(ME.current);
@@ -513,9 +589,11 @@ local function Build(parent)
 	saveButton:SetPoint("RIGHT", bar, "RIGHT", 0, 0);
 	local saveAs = Common.Button(bar, "Save as...", 80, function() tabs:Select(TAB_SAVE); end, "Save a copy and add it to the DBCs on the Save tab");
 	saveAs:SetPoint("RIGHT", saveButton, "LEFT", -4, 0);
+	local export = Common.Button(bar, "Export", 60, Export, "Write the model, its skins, anims and textures with a png of each under <game folder>\\Export\\, edited pngs show up in Import image");
+	export:SetPoint("RIGHT", saveAs, "LEFT", -4, 0);
 	statusText = Common.Label(bar, "", nil, NOGGIT_COLOR_DISABLED);
 	statusText:SetPoint("LEFT", bar, "LEFT", 2, 0);
-	statusText:SetPoint("RIGHT", saveAs, "LEFT", -4, 0);
+	statusText:SetPoint("RIGHT", export, "LEFT", -4, 0);
 
 	tabs = Common.CreateTabs(frame, TAB_NAMES, ShowPage);
 	tabs.tabs[1]:SetPoint("TOPLEFT", tabAnchor, "TOPLEFT", 0, 0);
@@ -563,6 +641,7 @@ local function BuildMenus()
 			{ text = "Save as copy...", onClick = function() tabs:Select(TAB_SAVE); end },
 			{ text = "Close model", onClick = CloseCurrent },
 			separator,
+			{ text = "Export model and textures", onClick = Export },
 			{ text = "Import image...", onClick = function()
 				local entry = ME.Current();
 				ME.ShowImport(entry and entry.sel.texture);

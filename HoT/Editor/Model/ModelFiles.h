@@ -35,6 +35,9 @@ bool ReadGameFile(const std::string& gamePath, std::vector<uint8_t>& data, uint3
 // Writes the file under the game folder through a temp file, an existing file is copied to .bak once.
 bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std::string& error);
 
+// Writes any disk path through a temp file, no backup.
+bool WriteDisk(const std::wstring& diskPath, const void* data, size_t size);
+
 // New loose files are only seen once the loose file index is rebuilt.
 void RefreshLooseIndex();
 

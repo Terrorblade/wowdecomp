@@ -80,12 +80,14 @@ local function ImportRefresh()
 	local files = ME.Call("ModelEditor_ListImportFiles");
 	local items = {};
 
-	for _, name in ipairs(type(files) == "table" and files or {}) do
-		table.insert(items, { name = name });
+	for _, file in ipairs(type(files) == "table" and files or {}) do
+		if ( type(file) == "table" and file.source ) then
+			table.insert(items, file);
+		end
 	end
 
 	NoggitListBox_SetItems(importWindow.list, items);
-	importWindow.status:SetText(#items > 0 and format("%d images in the Import folder of the game", #items) or "Put png, jpg, bmp, tga or blp files into <game folder>\\Import\\ and press Refresh");
+	importWindow.status:SetText(#items > 0 and format("%d images in the Import and Export folders of the game", #items) or "Put png, jpg, bmp, tga or blp files into <game folder>\\Import\\ and press Refresh");
 end
 
 local function SuggestImportPath(name)
@@ -93,6 +95,37 @@ local function SuggestImportPath(name)
 	local folder = entry and ME.Folder(entry.path) or "";
 	local base = ME.StripExtension(name or "texture");
 	return (folder ~= "" and (folder.."\\") or "")..base..".blp";
+end
+
+-- Puts the imported texture on the selected slot unless the model or its display already uses that path, replaceable slots only change the preview.
+local function UseImported(target, dest)
+	local info = ME.Info(target.doc);
+
+	for _, texture in ipairs(info and info.textures or {}) do
+		if ( Num(texture.type) == 0 and ME.SamePath(texture.path, dest) ) then
+			return;
+		end
+	end
+
+	for _, path in pairs(ME.PreviewTextures(ME.Entry(target.doc))) do
+		if ( ME.SamePath(path, dest) ) then
+			return;
+		end
+	end
+
+	local texture = TextureRecord(info, target.index);
+
+	if ( not texture ) then
+		return;
+	end
+
+	local kind = Num(texture.type);
+
+	if ( kind ~= 0 ) then
+		ME.SetPreviewTexture(target.doc, kind, dest);
+	elseif ( not ME.SamePath(texture.path, dest) ) then
+		ME.Edit("ModelEditor_SetTexture", target.doc, target.index, { path = dest });
+	end
 end
 
 local function DoImport()
@@ -111,7 +144,7 @@ local function DoImport()
 		return;
 	end
 
-	local ok, message = ME.Do("ModelEditor_ImportTexture", item.name, dest);
+	local ok, message = ME.Do("ModelEditor_ImportTexture", item.source, dest);
 
 	if ( not ok ) then
 		return;
@@ -119,9 +152,11 @@ local function DoImport()
 
 	GameEditor_Notify(message and tostring(message) ~= "" and tostring(message) or format("Imported %s to %s", item.name, dest), "ok");
 
-	if ( importWindow.useIt.checked and importWindow.target and Doc() == importWindow.target.doc ) then
-		ME.Edit("ModelEditor_SetTexture", importWindow.target.doc, importWindow.target.index, { path = dest });
+	if ( importWindow.useIt.checked and importWindow.target and ME.Entry(importWindow.target.doc) ) then
+		UseImported(importWindow.target, dest);
 	end
+
+	ME.PreviewReload(true);
 end
 
 local function ShowImport(index)
@@ -166,7 +201,7 @@ local function ShowImport(index)
 		importWindow.list:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -28);
 		importWindow.list:SetPoint("BOTTOMRIGHT", bottom, "TOPRIGHT", 0, 6);
 		importWindow.list.onSelect = function(item)
-			importWindow.dest:SetText(SuggestImportPath(item.name));
+			importWindow.dest:SetText(item.dest or SuggestImportPath(item.name));
 		end;
 		importWindow.list.onDoubleClick = DoImport;
 	end

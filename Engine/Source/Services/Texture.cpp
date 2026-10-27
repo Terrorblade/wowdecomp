@@ -1,3 +1,4 @@
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -1384,6 +1385,46 @@ CTexture* TextureCacheGetTexture(const char* fileName) {
     }
 
     return reinterpret_cast<CTexture*>(HandleCreate(texture, "HTEXTURE"));
+}
+
+static void TextureCacheKeyName(const char* fileName, char* out, size_t size) {
+    SStrCopy(out, fileName, size);
+    char* extension = OsPathFindExtensionWithDot(out);
+
+    if (extension) {
+        *extension = '\0';
+    }
+
+    for (char* c = out; *c; c++) {
+        *c = *c == '/' ? '\\' : static_cast<char>(tolower(static_cast<unsigned char>(*c)));
+    }
+}
+
+// Takes cached textures of that file out of the cache so the next TextureCreate reads the file again, holders keep theirs.
+uint32_t TextureCacheForget(const char* fileName) {
+    if (!fileName || !*fileName) {
+        return 0;
+    }
+
+    char wanted[260];
+    TextureCacheKeyName(fileName, wanted, sizeof(wanted));
+    CTexture* found[64];
+    uint32_t count = 0;
+
+    for (CTexture* texture = s_textureCache.Head(); texture && count < 64; texture = s_textureCache.Next(texture)) {
+        char name[260];
+        TextureCacheKeyName(texture->m_filename, name, sizeof(name));
+
+        if (!strcmp(name, wanted)) {
+            found[count++] = texture;
+        }
+    }
+
+    for (uint32_t i = 0; i < count; i++) {
+        s_textureCache.Unlink(found[i]);
+    }
+
+    return count;
 }
 
 // VERIFY: 841c7f74 auto

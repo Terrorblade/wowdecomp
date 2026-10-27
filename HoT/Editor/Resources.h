@@ -32,6 +32,9 @@ std::string PreviewSource(const char* name);
 // A name of prefix plus a NN.skin or NNNN-NN.anim suffix loads target plus that suffix.
 void AddPreviewRedirect(const std::string& prefix, const std::string& target);
 
+// A name of prefix plus anything ending in .blp loads target plus that rest, so creature skins next to a preview model resolve.
+void AddPreviewTextureRedirect(const std::string& prefix, const std::string& target);
+
 // Drops every preview file and redirect whose name starts with prefix.
 void RemovePreviews(const std::string& prefix);
 

@@ -132,6 +132,7 @@ void TextureCacheNewTexture(CTexture* texture, CGxTexFlags texFlags);
 void TextureCacheNewTexture(CTexture* texture, const CImVector& color);
 uint32_t TextureCacheGetMaxSize();
 CTexture* TextureCacheGetTexture(const char* fileName);
+uint32_t TextureCacheForget(const char* fileName);
 uint32_t TextureCalcGxTexSize(EGxTexFormat format, uint32_t width, uint32_t height, EGxTexFilter filter);
 int32_t TextureCalcMipCount(uint32_t width, uint32_t height);
 int32_t TextureCanUpdate(CTexture* texture);

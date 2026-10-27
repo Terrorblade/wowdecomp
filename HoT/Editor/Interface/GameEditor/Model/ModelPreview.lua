@@ -76,7 +76,54 @@ local function ApplyLocal(tableName, id, values)
 	return ok and result;
 end
 
-local function WorldDisplay(source, path)
+local SKIN_TYPES = { 11, 12, 13 };
+
+-- Replaceable texture paths the preview shows, the creature display skins next to the model plus textures imported for a slot.
+function ME.PreviewTextures(entry)
+	local textures = {};
+
+	if ( not entry ) then
+		return textures;
+	end
+
+	local source = entry.source or {};
+	local display = source.kind == "creature" and ME.Row("CreatureDisplayInfo", source.displayId);
+	local folder = ME.Folder(entry.path);
+
+	for index, kind in ipairs(SKIN_TYPES) do
+		local name = display and display[format("m_textureVariation[%d]", index - 1)];
+
+		if ( name and name ~= "" ) then
+			textures[kind] = (folder ~= "" and (folder.."\\") or "")..name..".blp";
+		end
+	end
+
+	for kind, path in pairs(entry.previewTextures or {}) do
+		textures[kind] = path;
+	end
+
+	return textures;
+end
+
+-- The skin name a display row needs for a texture, relative to the model folder without extension, nil when it lies elsewhere.
+local function SkinName(entry, path)
+	local folder = string.lower(ME.Folder(entry.path));
+	local lower = string.lower(ME.CleanPath(path));
+
+	if ( folder ~= "" ) then
+		if ( string.sub(lower, 1, #folder + 1) ~= folder.."\\" ) then
+			return nil;
+		end
+
+		path = string.sub(ME.CleanPath(path), #folder + 2);
+	end
+
+	return ME.StripExtension(path);
+end
+
+local function WorldDisplay(entry, path)
+	local source = entry.source or {};
+
 	if ( source.kind == "gameobject" ) then
 		local id = TempId("GameObjectDisplayInfo");
 
@@ -109,6 +156,17 @@ local function WorldDisplay(source, path)
 		displayChanges.m_creatureModelAlpha = 255;
 	end
 
+	for index, kind in ipairs(SKIN_TYPES) do
+		local imported = entry.previewTextures and entry.previewTextures[kind];
+		local name = imported and SkinName(entry, imported);
+
+		if ( name ) then
+			displayChanges[format("m_textureVariation[%d]", index - 1)] = name;
+		elseif ( imported ) then
+			ME.Notice("In world preview: skins have to be in the model folder, the model frame still shows "..imported, "info");
+		end
+	end
+
 	if ( not ApplyLocal("CreatureDisplayInfo", displayId, CopyRow("CreatureDisplayInfo", source.displayId, displayChanges)) ) then
 		return nil;
 	end
@@ -138,10 +196,18 @@ local function SyncWorld()
 	local source = entry.source or {};
 	local signature = shownPath..":"..tostring(source.kind)..":"..tostring(source.displayId);
 
+	for kind = 1, 14 do
+		local path = entry.previewTextures and entry.previewTextures[kind];
+
+		if ( path ) then
+			signature = signature..":"..kind.."="..path;
+		end
+	end
+
 	if ( signature ~= worldShown ) then
 		ME.Quiet("WorldPreview_Remove", WORLD_SLOT);
 		worldShown = nil;
-		local kind, displayId = WorldDisplay(source, shownPath);
+		local kind, displayId = WorldDisplay(entry, shownPath);
 
 		if ( not kind ) then
 			ME.Notice("In world preview: could not make the client only display rows", "info");
@@ -221,13 +287,43 @@ local function ApplyCamera()
 	end
 end
 
+local function ApplyTextures()
+	local entry = ME.Current();
+
+	if ( not model or not entry or not shownPath ) then
+		return;
+	end
+
+	for kind, path in pairs(ME.PreviewTextures(entry)) do
+		ME.Quiet("ModelEditor_SetPreviewTexture", model, kind, path);
+	end
+end
+
 local function ApplyView()
 	Try("SetPosition", 0, 0, 0);
 	Try("SetFacing", 0);
 	Try("SetModelScale", 1);
 	Try("SetLight", 1, 0, -0.5, 0.4, -0.75, 0.6, 1, 1, 1, 0.9, 1, 1, 1);
+	ApplyTextures();
 	ApplyCamera();
 	ApplySequence();
+end
+
+-- Shows a texture on a replaceable texture type of the preview and the in world creature, the model file keeps its slot.
+function ME.SetPreviewTexture(doc, kind, path)
+	local entry = ME.Entry(doc);
+
+	if ( not entry ) then
+		return;
+	end
+
+	entry.previewTextures = entry.previewTextures or {};
+	entry.previewTextures[kind] = path;
+
+	if ( doc == ME.current ) then
+		ApplyTextures();
+		SyncWorld();
+	end
 end
 
 local function RefreshControls()

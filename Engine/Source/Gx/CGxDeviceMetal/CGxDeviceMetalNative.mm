@@ -215,7 +215,8 @@ void CGxDeviceMetalNative::ISetCaps(const CGxFormat& format) {
     this->m_caps.m_texTarget[GxTex_CubeMap] = 1;
     this->m_caps.m_texTarget[GxTex_Rectangle] = 1;
     this->m_caps.m_texTarget[GxTex_NonPow2] = 1;
-    this->m_caps.m_texNonPow2 = 1;
+    // As D3D9 on current GPUs: 1 means conditional NPOT and sends FFX to padded pow2 textures, whose unwritten edge the glow blur reads
+    this->m_caps.m_texNonPow2 = 0;
     this->m_caps.m_texFilterTrilinear = 1;
     this->m_caps.m_texFilterAnisotropic = 1;
     this->m_caps.m_maxTexAnisotropy = 16;

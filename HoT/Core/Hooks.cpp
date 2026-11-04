@@ -22,6 +22,7 @@
 #include "HoT/Net/Handlers.h"
 #include "HoT/Net/Opcodes.h"
 #include "HoT/Net/Packet.h"
+#include "HoT/Streaming/Channels.h"
 
 namespace HoT {
 
@@ -99,6 +100,7 @@ void OnGlueScriptsLoaded(const char** stockEvents, uint32_t stockCount) {
 
 void OnCharacterEnum() {
     Session::SetInWorld(false);
+    Streaming::Channels::OnCharacterEnum();
 }
 
 void OnCharacterListUpdated() {

@@ -9,6 +9,7 @@ class RuntimeCvarsModule : public Module {
 
     void OnInitializeGlobal() override {
         StartupDownloaderCvar::Register();
+        PatchChannelCvar::Register();
         DebugOutputCvar::Register();
         FirstRunCvars::Register();
         StartupDefaults::ApplyFreshInstall();

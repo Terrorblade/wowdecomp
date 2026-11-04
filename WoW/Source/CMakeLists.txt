@@ -22,7 +22,7 @@ if (WOWDECOMP_PLATFORM_MAC)
 elseif (WOWDECOMP_PLATFORM_LINUX)
     set(WOW_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/bin/Linux)
 else ()
-    set(WOW_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/bin/Win)
+    set(WOW_OUTPUT_DIR ${WOWDECOMP_WIN_BIN_DIR})
 endif ()
 
 set_target_properties(Wow PROPERTIES

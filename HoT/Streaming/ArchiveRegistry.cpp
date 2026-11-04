@@ -42,12 +42,14 @@ void OnArchiveOpened(const char* path, int32_t priority, uint32_t flags, SArchiv
     m.m_priority = priority;
     m.m_flags = flags;
     m.m_archive = archive;
+    m.m_originalKey = m.m_key;
+    m.m_originalName = m.m_openName;
 
     std::lock_guard<std::mutex> lock(Mutex());
     std::vector<ArchiveMount>& mounts = Mounts();
 
     for (auto it = mounts.begin(); it != mounts.end();) {
-        it = (it->m_archive == archive || it->m_key == m.m_key) ? mounts.erase(it) : it + 1;
+        it = (it->m_archive == archive) ? mounts.erase(it) : it + 1;
     }
 
     mounts.push_back(std::move(m));
@@ -81,9 +83,23 @@ std::wstring KeyFor(const std::wstring& path) {
 bool Find(const std::wstring& absPath, ArchiveMount& out) {
     const std::wstring key = KeyFor(absPath);
     std::lock_guard<std::mutex> lock(Mutex());
+    const std::vector<ArchiveMount>& mounts = Mounts();
+
+    for (auto it = mounts.rbegin(); it != mounts.rend(); it++) {
+        if (it->m_key == key) {
+            out = *it;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool FindArchive(SArchive* archive, ArchiveMount& out) {
+    std::lock_guard<std::mutex> lock(Mutex());
 
     for (const ArchiveMount& m : Mounts()) {
-        if (m.m_key == key) {
+        if (m.m_archive == archive) {
             out = m;
             return true;
         }
@@ -97,12 +113,28 @@ size_t Count() {
     return Mounts().size();
 }
 
-static void SetWritable(const std::wstring& key, bool writable) {
+std::vector<ArchiveMount> All() {
+    std::lock_guard<std::mutex> lock(Mutex());
+    return Mounts();
+}
+
+static void SetWritable(SArchive* archive, bool writable) {
     std::lock_guard<std::mutex> lock(Mutex());
 
     for (ArchiveMount& e : Mounts()) {
-        if (e.m_key == key) {
+        if (e.m_archive == archive) {
             e.m_writable = writable;
+        }
+    }
+}
+
+static void SetOpenName(SArchive* archive, const std::string& openName) {
+    std::lock_guard<std::mutex> lock(Mutex());
+
+    for (ArchiveMount& e : Mounts()) {
+        if (e.m_archive == archive) {
+            e.m_openName = openName;
+            e.m_key = KeyFor(openName);
         }
     }
 }
@@ -134,7 +166,7 @@ static bool Reopen(const std::wstring& absPath, bool writable, std::string* erro
         fresh = nullptr;
         bool restored = Blizzard::Mopaq::SFileOpenArchive(m.m_openName.c_str(), m.m_priority, m.m_flags, &fresh) && fresh;
         m.m_archive->m_archive = restored ? fresh : nullptr;
-        SetWritable(m.m_key, false);
+        SetWritable(m.m_archive, false);
 
         if (!restored) {
             return Fail(error, "archive reopen failed and the read-only handle could not be restored");
@@ -144,7 +176,7 @@ static bool Reopen(const std::wstring& absPath, bool writable, std::string* erro
     }
 
     m.m_archive->m_archive = fresh;
-    SetWritable(m.m_key, writable);
+    SetWritable(m.m_archive, writable);
     return true;
 }
 
@@ -154,6 +186,64 @@ bool EnsureWritable(const std::wstring& absPath, std::string* error) {
 
 bool Commit(const std::wstring& absPath, std::string* error) {
     return Reopen(absPath, false, error);
+}
+
+bool Retarget(SArchive* archive, const std::string& openName, std::string* error) {
+    ArchiveMount m;
+
+    if (!archive || !FindArchive(archive, m)) {
+        return Fail(error, "archive is not registered");
+    }
+
+    if (m.m_writable) {
+        return Fail(error, "archive is open for writing");
+    }
+
+    if (archive->m_archive) {
+        Blizzard::Mopaq::SFileCloseArchive(archive->m_archive);
+    }
+
+    archive->m_archive = nullptr;
+    System_SFile::ARCHIVEREC* fresh = nullptr;
+
+    if (!Blizzard::Mopaq::SFileOpenArchive(openName.c_str(), m.m_priority, m.m_flags, &fresh) || !fresh) {
+        fresh = nullptr;
+        bool restored = Blizzard::Mopaq::SFileOpenArchive(m.m_openName.c_str(), m.m_priority, m.m_flags, &fresh) && fresh;
+        archive->m_archive = restored ? fresh : nullptr;
+        return Fail(error, restored ? "cannot open " + openName : "cannot open " + openName + " and the previous archive could not be restored");
+    }
+
+    archive->m_archive = fresh;
+    SetOpenName(archive, openName);
+    return true;
+}
+
+bool ReopenAround(const std::wstring& absPath, const std::function<bool()>& work, std::string* error) {
+    ArchiveMount m;
+
+    if (!Find(absPath, m)) {
+        return work() ? true : Fail(error, "work failed");
+    }
+
+    if (m.m_writable) {
+        return Fail(error, "archive is open for writing");
+    }
+
+    if (m.m_archive->m_archive) {
+        Blizzard::Mopaq::SFileCloseArchive(m.m_archive->m_archive);
+    }
+
+    m.m_archive->m_archive = nullptr;
+    const bool worked = work();
+    System_SFile::ARCHIVEREC* fresh = nullptr;
+    bool ok = Blizzard::Mopaq::SFileOpenArchive(m.m_openName.c_str(), m.m_priority, m.m_flags, &fresh) && fresh;
+    m.m_archive->m_archive = ok ? fresh : nullptr;
+
+    if (!ok) {
+        return Fail(error, "cannot reopen " + m.m_openName);
+    }
+
+    return worked ? true : Fail(error, "work failed");
 }
 
 }

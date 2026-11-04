@@ -1,6 +1,8 @@
 #ifndef HOT_RUNTIME_CVARS_H
 #define HOT_RUNTIME_CVARS_H
 
+#include <string>
+
 namespace HoT {
 class Module;
 }
@@ -36,6 +38,13 @@ namespace HoT::StartupDownloaderCvar {
 
 void Register();
 bool Enabled();
+
+}
+
+namespace HoT::PatchChannelCvar {
+
+void Register();
+std::string Value();
 
 }
 

@@ -16367,7 +16367,8 @@ void CGUnit_C::SortAuras() {
             uint32_t last = this->GetAuraCount() - 1;
 
             if (i < last) {
-                memcpy(&sorted[i], &sorted[i + 1], sizeof(SortedAuraInfo) * (last - i));
+                // FIX: memmove, the original memcpy shifts the array onto itself.
+                memmove(&sorted[i], &sorted[i + 1], sizeof(SortedAuraInfo) * (last - i));
             }
 
             sorted[last].m_auraIndex = 256;

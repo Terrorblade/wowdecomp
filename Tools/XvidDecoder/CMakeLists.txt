@@ -32,12 +32,12 @@ add_library(XvidDecoder SHARED
 
 set_target_properties(XvidDecoder PROPERTIES
     OUTPUT_NAME XvidDecoder
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/Win
+    RUNTIME_OUTPUT_DIRECTORY ${WOWDECOMP_WIN_BIN_DIR}
 )
 
 foreach (config ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
     string(TOUPPER ${config} config)
-    set_target_properties(XvidDecoder PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${CMAKE_SOURCE_DIR}/bin/Win)
+    set_target_properties(XvidDecoder PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${WOWDECOMP_WIN_BIN_DIR})
 endforeach ()
 
 target_include_directories(XvidDecoder

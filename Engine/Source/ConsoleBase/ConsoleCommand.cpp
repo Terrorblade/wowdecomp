@@ -2,6 +2,7 @@
 #include <cstring>
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
 #include "Engine/Source/Base/ConvertUTF.h"
+#include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "GameVersion.h"
@@ -59,6 +60,11 @@ static int32_t ConsoleCommand_Ver(const char* command, const char* arguments) {
     return 1;
 }
 
+static bool IsHiddenCommand(CONSOLECOMMAND* cmd) {
+    CVar* var = CVar::Lookup(cmd->m_key.m_str);
+    return var && (var->m_flags & CVAR_HIDDEN);
+}
+
 // VERIFY: 021fc29a manual
 // OFFSET: 0x00768660
 static int32_t ConsoleCommand_Help(const char* command, const char* arguments) {
@@ -98,7 +104,7 @@ static int32_t ConsoleCommand_Help(const char* command, const char* arguments) {
         buffer[0] = '\0';
 
         for (CONSOLECOMMAND* cmd = g_consoleCommandHash.m_fulllist.Head(); cmd; cmd = g_consoleCommandHash.m_fulllist.Next(cmd)) {
-            if (cmd->m_category != category) {
+            if (cmd->m_category != category || IsHiddenCommand(cmd)) {
                 continue;
             }
 
@@ -239,7 +245,7 @@ int32_t ConsoleCommandComplete(const char* partial, const char** previous, int32
     uint32_t length = SStrLen(partial);
 
     while (cmd) {
-        if (!SStrCmpI(partial, cmd->m_key.m_str, length)) {
+        if (!SStrCmpI(partial, cmd->m_key.m_str, length) && !IsHiddenCommand(cmd)) {
             *previous = cmd->m_key.m_str;
             return 1;
         }

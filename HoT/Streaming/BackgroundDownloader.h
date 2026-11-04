@@ -1,7 +1,11 @@
 #ifndef HOT_STREAMING_BACKGROUNDDOWNLOADER_H
 #define HOT_STREAMING_BACKGROUNDDOWNLOADER_H
 
+#include <cstdint>
 #include <string>
+#include <vector>
+
+struct SArchive;
 
 namespace HoT {
 class Module;
@@ -22,6 +26,8 @@ void StartPolling();
 void PumpMainThread();
 
 bool IsActive();
+
+bool IsEnabled();
 
 // An active download, or the first update check has not finished yet.
 bool IsBusy();
@@ -51,6 +57,11 @@ void SwapOnClose();
 
 // Closes the archives HoT mounted and swaps staged files in, from BeginCloseGame after CloseAllArchives.
 void OnCloseGame();
+
+void RefreshArchiveNames(const std::vector<std::string>& names);
+void CollectMountedNames(SArchive* archive, std::vector<std::string>& out);
+int32_t NextMountPriority();
+void NoteMountsChanged();
 
 // Lua functions, SMSG_BACKGROUND_DOWNLOAD, the enableStartupDownloader check, PumpMainThread and the MPQ scanner pump.
 Module* GetModule();

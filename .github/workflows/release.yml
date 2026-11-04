@@ -16,7 +16,7 @@ jobs:
         shell: powershell
     env:
       CLIENTDIR: ${{ vars.CLIENTDIR }}
-      PATCHDIR: ${{ vars.PATCHDIR }}
+      PATCHDIR: ${{ vars.PATCHDIR }}\channels\dev
       MANIFESTDIR: ${{ vars.MANIFESTDIR }}
       SOAPDIR: ${{ vars.SOAPDIR }}
       PERSIST_DIR: ${{ vars.PERSIST_DIR }}
@@ -106,6 +106,7 @@ jobs:
 
       - name: Copy binaries
         run: |
+          New-Item -ItemType Directory -Force -Path "$env:PATCHDIR" | Out-Null
           foreach ($dest in "$env:CLIENTDIR\_DO_NOT_PACKAGE\Assets\Binaries", "$env:PATCHDIR") {
             foreach ($f in "HoTClient64.exe", "discord_game_sdk_64.dll", "XvidDecoder.dll") {
               Copy-Item -Path "source\bin\Win\$f" -Destination "$dest\$f" -Force
@@ -117,9 +118,8 @@ jobs:
 
       - name: Run manifest tool
         run: |
-          Push-Location "$env:MANIFESTDIR"
-          cmd.exe /c "Run.bat"
-          Pop-Location
+          & "$env:MANIFESTDIR\hot-manifest.exe" --channel dev
+          if ($LASTEXITCODE -ne 0) { throw "hot-manifest failed with exit code $LASTEXITCODE" }
 
       - name: Trigger streamall
         continue-on-error: true
@@ -136,7 +136,7 @@ jobs:
           # The Mac binary is universal, both of its slices carry this commit.
           foreach ($platform in "Wn64", "Lx64", "Mc64", "MacA") {
             Write-Host "Publishing $platform build $sha"
-            & ".\SoapCommand.exe" dev "publishexe $platform $sha"
+            & ".\SoapCommand.exe" dev "publishexe $platform $sha dev"
             if ($LASTEXITCODE -ne 0) { throw "SoapCommand.exe failed for $platform with exit code $LASTEXITCODE" }
           }
           Pop-Location

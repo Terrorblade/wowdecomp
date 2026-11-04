@@ -13,14 +13,22 @@ static bool OnChanged(CVar* cvar, const char* previous, const char* value, void*
     return true;
 }
 
-CVar* Register(const char* name, const char* help, const char* defaultValue, ChangeFn onChange) {
-    CVar* cvar = CVar::Register(name, help, 1, defaultValue, OnChanged, CATEGORY_DEFAULT, false, reinterpret_cast<void*>(onChange), false);
+static CVar* RegisterWithFlags(const char* name, const char* help, uint32_t flags, const char* defaultValue, ChangeFn onChange) {
+    CVar* cvar = CVar::Register(name, help, flags, defaultValue, OnChanged, CATEGORY_DEFAULT, false, reinterpret_cast<void*>(onChange), false);
 
     if (onChange) {
         onChange(cvar && cvar->m_stringValue.m_str ? cvar->m_stringValue.m_str : defaultValue);
     }
 
     return cvar;
+}
+
+CVar* Register(const char* name, const char* help, const char* defaultValue, ChangeFn onChange) {
+    return RegisterWithFlags(name, help, CVAR_ARCHIVE, defaultValue, onChange);
+}
+
+CVar* RegisterHidden(const char* name, const char* help, const char* defaultValue, ChangeFn onChange) {
+    return RegisterWithFlags(name, help, CVAR_ARCHIVE | CVAR_HIDDEN, defaultValue, onChange);
 }
 
 int32_t Int(const char* value) {

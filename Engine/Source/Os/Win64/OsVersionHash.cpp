@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <intrin.h>
 #include <windows.h>
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Os/OsVersionHash.h"
@@ -210,6 +211,19 @@ static int32_t HashEntry(IOsVersionHashCallback& callback, const OsVersionHashEn
     }
 }
 
+// ASan pads read-only globals with poisoned redzones, so section bytes are copied out unchecked before hashing.
+__declspec(no_sanitize_address) static void HashImageBytes(IOsVersionHashCallback& callback, const uint8_t* data, uint32_t size) {
+    uint8_t buffer[0x1000];
+
+    while (size) {
+        uint32_t count = size < sizeof(buffer) ? size : sizeof(buffer);
+        __movsb(buffer, data, count);
+        callback.Process(buffer, count);
+        data += count;
+        size -= count;
+    }
+}
+
 // OFFSET: 0x00871980
 static int32_t HashSection(IOsVersionHashCallback& callback, OsVersionHash& hash, const uint8_t* image, uint64_t imageBase, const IMAGE_SECTION_HEADER* section, uint32_t alignment, int32_t unrelocate, bool is32Bit) {
     uint32_t size = section->Misc.VirtualSize;
@@ -239,7 +253,7 @@ static int32_t HashSection(IOsVersionHashCallback& callback, OsVersionHash& hash
             }
 
             if (chunk) {
-                callback.Process(data, chunk);
+                HashImageBytes(callback, data, chunk);
                 data += chunk;
             } else {
                 OsVersionHashEntry entry = hash.m_entries[index];

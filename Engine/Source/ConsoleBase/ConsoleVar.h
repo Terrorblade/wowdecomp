@@ -10,6 +10,7 @@
 enum CVAR_FLAGS : uint32_t {
     CVAR_ARCHIVE = 1,
     CVAR_LATCH = 2,
+    CVAR_HIDDEN = 0x40,
 };
 
 struct CVar;

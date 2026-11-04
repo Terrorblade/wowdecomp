@@ -188,6 +188,11 @@ static bool ParseObjectArray(const std::string& json, const char* arrayKey, OnOb
 
 bool ParseManifest(const std::string& json, Manifest& out) {
     FindString(json, "baseUrl", out.m_baseUrl);
+    FindString(json, "storeUrl", out.m_storeUrl);
+
+    if (!FindString(json, "channel", out.m_channel) || out.m_channel.empty()) {
+        out.m_channel = "release";
+    }
 
     ManifestFile mf;
 
@@ -254,8 +259,8 @@ bool ParseManifest(const std::string& json, Manifest& out) {
 }
 
 void LoadLauncherConfig(const std::wstring& installDir, LauncherConfig& out) {
-    out.m_manifestUrl = L"https://download.houroftwilight.net/patch/manifest.json";
-    out.m_patchBaseUrl = "https://download.houroftwilight.net/patch";
+    out.m_manifestUrl = L"https://download.houroftwilight.net/patch/channels/release/manifest.json";
+    out.m_patchBaseUrl = "https://download.houroftwilight.net/patch/channels/release";
     out.m_launcherExe = "HoTLauncher.exe";
 
     std::string json = ReadFile(std::filesystem::path(installDir) / "launcher.json");

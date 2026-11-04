@@ -43,6 +43,7 @@
 #include "HoT/Streaming/ArchivePatcher.h"
 #include "HoT/Streaming/ArchiveRegistry.h"
 #include "HoT/Streaming/BlobContainer.h"
+#include "HoT/Streaming/Channels.h"
 #include "HoT/Streaming/HttpClient.h"
 #include "HoT/Streaming/InstallFiles.h"
 #include "HoT/Streaming/LauncherManifest.h"
@@ -69,6 +70,7 @@ static std::atomic<bool> s_started{ false };
 static std::atomic<bool> s_running{ false };
 static std::atomic<bool> s_pollerStarted{ false };
 static std::atomic<bool> s_kickPending{ false };
+static std::atomic<bool> s_kickAgain{ false };
 static std::wstring s_installDir;
 
 static constexpr uint32_t s_pollIntervalMs = 5 * 60 * 1000;
@@ -92,11 +94,11 @@ static std::vector<StreamListener> s_artListeners;
 static std::vector<StreamListener> s_batchListeners;
 
 // A move over the running exe means a restart is needed.
-static bool MoveInstallFile(const std::wstring& src, const std::wstring& dst, uint32_t flags) {
+static bool MoveInstallFile(const std::wstring& src, const std::wstring& dst, uint32_t flags, bool gate = true) {
     bool replacedRunningExe = false;
     bool ok = InstallFiles::Move(src, dst, flags, replacedRunningExe);
 
-    if (replacedRunningExe) {
+    if (replacedRunningExe && gate) {
         s_restartNeeded = true;
     }
 
@@ -539,6 +541,8 @@ void SwapOnClose() {
 }
 
 void OnCloseGame() {
+    Channels::OnCloseGame();
+
     for (SArchive* archive : s_ownedMounts) {
         SFile::CloseArchive(archive);
     }
@@ -551,9 +555,19 @@ struct MountRequest {
     std::string m_path;
 };
 
+struct DevReplace {
+    std::wstring m_part;
+    std::wstring m_target;
+    std::string m_relPath;
+    std::string m_sha256;
+    std::string m_quick;
+    std::string m_contentId;
+};
+
 // Everything one pass produced for the main thread, applied only once the whole pass finished downloading.
 struct PassBatch {
     std::vector<ArchivePatchJob> m_jobs;
+    std::vector<DevReplace> m_devReplaces;
     std::vector<MountRequest> m_mounts;
 };
 
@@ -567,11 +581,11 @@ static PassBatch s_passBatch;
 static std::set<std::wstring> s_mounted;
 
 static void PublishBatch() {
-    if (s_passBatch.m_jobs.empty() && s_passBatch.m_mounts.empty()) {
+    if (s_passBatch.m_jobs.empty() && s_passBatch.m_devReplaces.empty() && s_passBatch.m_mounts.empty()) {
         return;
     }
 
-    StreamLog("stream: publishing batch, %d in-place job(s), %d mount(s)", static_cast<int32_t>(s_passBatch.m_jobs.size()), static_cast<int32_t>(s_passBatch.m_mounts.size()));
+    StreamLog("stream: publishing batch, %d in-place job(s), %d dev replace(s), %d mount(s)", static_cast<int32_t>(s_passBatch.m_jobs.size()), static_cast<int32_t>(s_passBatch.m_devReplaces.size()), static_cast<int32_t>(s_passBatch.m_mounts.size()));
     std::lock_guard<std::mutex> lock(s_batchMutex);
     s_batchQueue.push_back(std::move(s_passBatch));
     s_passBatch = PassBatch();
@@ -635,14 +649,13 @@ static void RefreshGlueModels() {
     StreamLog("stream: asked the glue UI to rebuild its model after art mount");
 }
 
-static bool DownloadWhole(const std::string& baseUrl, const ManifestFile& mf, const std::wstring& local, ByteCounter& counter) {
+static bool DownloadWhole(const std::string& baseUrl, const ManifestFile& mf, const std::wstring& local, const std::wstring& part, ByteCounter& counter) {
     std::error_code ec;
     fs::create_directories(fs::path(local).parent_path(), ec);
-    std::wstring part = PartPath(mf);
     std::wstring meta = part + L".meta";
     fs::create_directories(fs::path(part).parent_path(), ec);
 
-    if (FileSize(part) < 0) {
+    if (FileSize(part) < 0 && PathEqual(part, PartPath(mf))) {
         MoveInstallFile((local + L".part").c_str(), part.c_str(), 0);
         MoveInstallFile((local + L".part.meta").c_str(), meta.c_str(), 0);
     }
@@ -702,9 +715,8 @@ struct MountAfter {
     std::string m_sha;
 };
 
-static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const ManifestArchive* arc, const std::wstring& local) {
+static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const ManifestArchive* arc, const std::wstring& local, const std::wstring& part, bool gate) {
     std::error_code ec;
-    std::wstring part = PartPath(mf);
     bool isMpq = IsMpq(mf.m_path);
     bool existed = fs::exists(local, ec);
     std::optional<MountAfter> mount;
@@ -728,7 +740,7 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
     }
 
     // Swap now when unlocked, else stage a hash named copy, mount it and swap later.
-    if (MoveInstallFile(part.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED)) {
+    if (MoveInstallFile(part.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED, gate)) {
         RememberPlaced(local, mf, arc);
 
         if (isMpq) {
@@ -752,16 +764,16 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
         mount = MountAfter{ np, mf.m_sha256 };
     }
 
-    RecordPending(np, local, !isMpq);
+    RecordPending(np, local, gate && !isMpq);
     SweepStagedSiblings(mf, local, np);
     StreamLog("stream: staged %s (in use), will swap on next launch", mf.m_path.c_str());
     return mount;
 }
 
-static void SwapOrStage(const std::wstring& np, const std::wstring& local, const ManifestFile& mf, const ManifestArchive* arc) {
+static void SwapOrStage(const std::wstring& np, const std::wstring& local, const ManifestFile& mf, const ManifestArchive* arc, bool gate) {
     const bool isMpq = IsMpq(mf.m_path);
 
-    if (MoveInstallFile(np.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED)) {
+    if (MoveInstallFile(np.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED, gate)) {
         RememberPlaced(local, mf, arc);
 
         if (isMpq) {
@@ -774,7 +786,7 @@ static void SwapOrStage(const std::wstring& np, const std::wstring& local, const
             EnqueueMount(np, mf.m_sha256);
         }
 
-        RecordPending(np, local, !isMpq);
+        RecordPending(np, local, gate && !isMpq);
         SweepStagedSiblings(mf, local, np);
     }
 }
@@ -974,7 +986,7 @@ enum class ArchivePlan {
 // The whole file path is only taken for reasons that will not go away on their own.
 static constexpr long long s_bloatFloor = 64LL << 20;
 
-static ArchivePlan PlanArchive(const std::string& baseUrl, const ManifestFile& mf, const ManifestArchive& arc, const std::wstring& local, ArchivePatchJob& job) {
+static ArchivePlan PlanArchive(const std::string& storeUrl, const ManifestFile& mf, const ManifestArchive& arc, const std::wstring& local, ArchivePatchJob& job) {
     if (!mf.m_quick.empty() && FileSize(local) == mf.m_size && LocalMatches(local, mf.m_quick)) {
         LocalDigests::Remember(local, LocalDigests::Kind::ContentId, arc.m_contentId);
         ForgetInPlace(local);
@@ -1031,7 +1043,7 @@ static ArchivePlan PlanArchive(const std::string& baseUrl, const ManifestFile& m
     }
 
     std::string targetBytes;
-    std::wstring indexUrl = Widen(JoinUrl(baseUrl, BlobContainer::RelativeIndexPath(arc.m_contentId)));
+    std::wstring indexUrl = Widen(JoinUrl(storeUrl, BlobContainer::RelativeIndexPath(arc.m_contentId)));
 
     if (!HttpGetString(indexUrl, targetBytes)) {
         StreamLog("stream: %s index fetch failed, retrying next pass", mf.m_path.c_str());
@@ -1092,7 +1104,7 @@ static ArchivePlan PlanArchive(const std::string& baseUrl, const ManifestFile& m
 }
 
 // Leaves the verified raw bytes of one file at blobs/<sha>, downloading unless a valid copy is already there.
-static bool FetchBlob(const std::string& baseUrl, const ArchiveWrite& w, ByteCounter& counter) {
+static bool FetchBlob(const std::string& storeUrl, const ArchiveWrite& w, ByteCounter& counter) {
     std::string existing;
 
     if (FileSize(w.m_blobPath) == w.m_size && ReadBinaryFile(w.m_blobPath, existing) && Sha256Hex(existing.data(), existing.size()) == w.m_sha256) {
@@ -1110,7 +1122,7 @@ static bool FetchBlob(const std::string& baseUrl, const ArchiveWrite& w, ByteCou
         counter.Report(written);
     };
 
-    std::wstring url = Widen(JoinUrl(baseUrl, BlobContainer::RelativeBlobPath(w.m_sha256)));
+    std::wstring url = Widen(JoinUrl(storeUrl, BlobContainer::RelativeBlobPath(w.m_sha256)));
 
     if (!HttpDownloadFile(url, part, opt)) {
         fs::remove(part, ec);
@@ -1312,6 +1324,7 @@ static void CollectArchiveNames(SArchive* archive, std::vector<std::string>& out
 
 struct BatchProgress {
     size_t m_nextJob = 0;
+    size_t m_nextReplace = 0;
     size_t m_nextMount = 0;
     std::set<std::string> m_seen;
     std::vector<std::string> m_names;
@@ -1377,6 +1390,56 @@ static void FinishBatch(BatchProgress& bp) {
     StreamLog("stream: batch applied, refreshed %d name(s)", static_cast<int32_t>(bp.m_names.size()));
 }
 
+static bool IsDevPath(const std::wstring& path) {
+    const std::wstring root = ArchiveRegistry::KeyFor(Channels::DevRoot().wstring()) + L"\\";
+    const std::wstring key = ArchiveRegistry::KeyFor(path);
+    return key.size() > root.size() && key.compare(0, root.size(), root) == 0;
+}
+
+static bool ApplyDevReplace(const DevReplace& rep, BatchProgress& bp) {
+    std::string error;
+    const std::wstring part = rep.m_part;
+    const std::wstring target = rep.m_target;
+    ArchiveMount mount;
+    std::vector<std::string> names;
+
+    if (ArchiveRegistry::Find(target, mount)) {
+        CollectArchiveNames(mount.m_archive, names);
+    }
+
+    bool ok = ArchiveRegistry::ReopenAround(target, [&part, &target] {
+        return MoveInstallFile(part.c_str(), target.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED);
+    }, &error);
+
+    StreamLog("stream: dev copy %s replaced %s%s%s", rep.m_relPath.c_str(), ok ? "OK" : "FAILED", error.empty() ? "" : ", ", error.c_str());
+
+    if (!ok) {
+        std::error_code ec;
+        fs::remove(part, ec);
+        return false;
+    }
+
+    LocalDigests::Remember(target, LocalDigests::Kind::Sha256, rep.m_sha256);
+    LocalDigests::Remember(target, LocalDigests::Kind::Quick, rep.m_quick);
+
+    if (!rep.m_contentId.empty()) {
+        LocalDigests::Remember(target, LocalDigests::Kind::ContentId, rep.m_contentId);
+    }
+
+    MarkPlaced(target);
+
+    if (ArchiveRegistry::Find(target, mount)) {
+        CollectArchiveNames(mount.m_archive, names);
+        bp.m_anyApplied = true;
+    }
+
+    for (const std::string& n : names) {
+        AddRefreshName(bp, n);
+    }
+
+    return true;
+}
+
 // One item of the front batch per frame, then a single refresh once it is drained.
 static void ProcessBatch() {
     PassBatch* batch = nullptr;
@@ -1414,13 +1477,38 @@ static void ProcessBatch() {
         }
 
         MarkPlaced(job.m_archivePath);
+
+        if (IsDevPath(job.m_archivePath)) {
+            if (!r.m_ok) {
+                Channels::NoteDevFailed();
+            }
+
+            Channels::NoteDevQueued(-1);
+        }
+
         std::lock_guard<std::mutex> lock(s_batchMutex);
         s_frontJobsDone = bp.m_nextJob;
         return;
     }
 
+    if (bp.m_nextReplace < batch->m_devReplaces.size()) {
+        const DevReplace& rep = batch->m_devReplaces[bp.m_nextReplace++];
+        if (!ApplyDevReplace(rep, bp)) {
+            Channels::NoteDevFailed();
+        }
+
+        Channels::NoteDevQueued(-1);
+        return;
+    }
+
     if (bp.m_nextMount < batch->m_mounts.size()) {
         const MountRequest& req = batch->m_mounts[bp.m_nextMount++];
+
+        if (Channels::DeferMount(req.m_path)) {
+            StreamLog("stream: deferred mount of %s until release data is mounted again", req.m_path.c_str());
+            return;
+        }
+
         int32_t priority = s_nextMountPriority.fetch_add(1);
         SArchive* archive = nullptr;
         bool ok = SFile::OpenArchive(req.m_path.c_str(), priority, s_mountFlags, &archive) != 0 && archive;
@@ -1442,6 +1530,7 @@ static void ProcessBatch() {
     }
 
     FinishBatch(bp);
+    Channels::OnBatchFinished();
     bp = BatchProgress();
     std::lock_guard<std::mutex> lock(s_batchMutex);
     s_frontJobsDone = 0;
@@ -1470,9 +1559,15 @@ struct BatchScope {
 
 struct PlannedItem {
     const ManifestFile* m_file = nullptr;
+    const ManifestArchive* m_arc = nullptr;
     bool m_inPlace = false;
     ArchivePatchJob m_job;
     std::wstring m_local;
+    std::wstring m_part;
+    std::string m_baseUrl;
+    std::string m_storeUrl;
+    bool m_dev = false;
+    bool m_gate = true;
     size_t m_remaining = 0;
     bool m_failed = false;
 };
@@ -1481,6 +1576,7 @@ struct DownloadWork {
     bool m_blob = false;
     size_t m_item = 0;
     ArchiveWrite m_write;
+    std::string m_storeUrl;
     std::vector<size_t> m_refs;
     long long m_size = 0;
     std::string m_label;
@@ -1492,6 +1588,153 @@ struct WorkPool {
     std::condition_variable m_cv;
     std::deque<std::pair<size_t, bool>> m_done;
 };
+
+struct LayoutScope {
+    bool m_wanted = false;
+    bool m_fetched = false;
+    bool m_incomplete = false;
+    std::vector<Channels::LayoutEntry> m_layout;
+
+    ~LayoutScope() {
+        if (this->m_fetched) {
+            Channels::PublishLayout(std::move(this->m_layout), !this->m_incomplete);
+        }
+    }
+};
+
+static bool FetchManifest(const std::wstring& manifestUrl, const char* channel, Manifest& man) {
+    // Busts the CDN cache so the newest manifest is read, the signature covers the body and not the URL.
+    std::wstring stamp = std::to_wstring(static_cast<long long>(std::time(nullptr)));
+    std::wstring manifestReq = AppendQuery(manifestUrl, L"t", stamp);
+
+    std::string json;
+
+    if (!HttpGetString(manifestReq, json)) {
+        StreamLog("stream: %s manifest fetch failed", channel);
+        return false;
+    }
+
+    // Checked before parsing, so a deploy landing between the two fetches fails closed until the next pass.
+    std::wstring sigReq = AppendQuery(manifestUrl + Widen(s_signatureSuffix), L"t", stamp);
+
+    std::string signature;
+
+    if (!HttpGetString(sigReq, signature)) {
+        StreamLog("stream: %s manifest signature fetch failed", channel);
+        return false;
+    }
+
+    if (!VerifyManifestSignature(json, signature)) {
+        StreamLog("stream: %s manifest signature REJECTED, ignoring this manifest", channel);
+        return false;
+    }
+
+    if (!ParseManifest(json, man)) {
+        StreamLog("stream: %s manifest parse failed", channel);
+        return false;
+    }
+
+    if (Text::LowerAscii(man.m_channel) != channel) {
+        StreamLog("stream: %s manifest names channel \"%s\", REJECTED", channel, man.m_channel.c_str());
+        return false;
+    }
+
+    return true;
+}
+
+static const ManifestFile* FindManifestFile(const Manifest& man, const std::string& path) {
+    for (const ManifestFile& mf : man.m_files) {
+        if (_stricmp(mf.m_path.c_str(), path.c_str()) == 0) {
+            return &mf;
+        }
+    }
+
+    return nullptr;
+}
+
+static bool TakesFile(const ManifestFile& mf) {
+    return !InstallFiles::IsForeignBinary(mf.m_path) && (mf.m_platform.empty() || mf.m_platform == InstallFiles::ManifestPlatform());
+}
+
+static bool SeedDevCopy(const std::wstring& release, const std::wstring& dev, const std::string& relPath) {
+    std::error_code ec;
+
+    if (FileSize(release) <= 0) {
+        return false;
+    }
+
+    fs::create_directories(fs::path(dev).parent_path(), ec);
+    std::wstring seed = dev + L".seed";
+    fs::copy_file(release, seed, fs::copy_options::overwrite_existing, ec);
+
+    if (ec) {
+        StreamLog("stream: cannot seed dev copy of %s: %s", relPath.c_str(), ec.message().c_str());
+        fs::remove(seed, ec);
+        return false;
+    }
+
+    if (!MoveInstallFile(seed.c_str(), dev.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH)) {
+        fs::remove(seed, ec);
+        return false;
+    }
+
+    StreamLog("stream: seeded dev copy of %s from release", relPath.c_str());
+    return true;
+}
+
+static void SweepDevCopies(const std::set<std::wstring>& keep) {
+    std::error_code ec;
+    std::vector<fs::path> stale;
+
+    for (const fs::directory_entry& e : fs::recursive_directory_iterator(Channels::DevRoot(), ec)) {
+        if (!e.is_regular_file(ec)) {
+            continue;
+        }
+
+        const std::wstring key = ArchiveRegistry::KeyFor(e.path().wstring());
+        ArchiveMount mount;
+
+        if (keep.find(key) == keep.end() && !ArchiveRegistry::Find(e.path().wstring(), mount)) {
+            stale.push_back(e.path());
+        }
+    }
+
+    for (const fs::path& p : stale) {
+        if (fs::remove(p, ec)) {
+            StreamLog("stream: removed dev copy %s, release has the same contents", Text::NarrowAcp(p.wstring()).c_str());
+        }
+    }
+}
+
+static bool PlaceDevCopy(PlannedItem& item) {
+    const ManifestFile& mf = *item.m_file;
+    ArchiveMount mount;
+
+    if (ArchiveRegistry::Find(item.m_local, mount)) {
+        DevReplace rep;
+        rep.m_part = item.m_part;
+        rep.m_target = item.m_local;
+        rep.m_relPath = mf.m_path;
+        rep.m_sha256 = mf.m_sha256;
+        rep.m_quick = mf.m_quick;
+        rep.m_contentId = item.m_arc ? item.m_arc->m_contentId : "";
+        s_passBatch.m_devReplaces.push_back(std::move(rep));
+        Channels::NoteDevQueued(1);
+        return true;
+    }
+
+    std::error_code ec;
+    fs::create_directories(fs::path(item.m_local).parent_path(), ec);
+
+    if (!MoveInstallFile(item.m_part.c_str(), item.m_local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED)) {
+        fs::remove(item.m_part, ec);
+        StreamLog("stream: could not place dev copy %s", mf.m_path.c_str());
+        return false;
+    }
+
+    RememberPlaced(item.m_local, mf, item.m_arc);
+    return true;
+}
 
 static void Run() {
     // Login stays gated until it is known what needs patching.
@@ -1512,41 +1755,39 @@ static void Run() {
     s_launcherExe = cfg.m_launcherExe;
     const bool hdPatch = LauncherSettings::HdPatch();
 
-    // Busts the CDN cache so the newest manifest is read, the signature covers the body and not the URL.
-    std::wstring stamp = std::to_wstring(static_cast<long long>(std::time(nullptr)));
-    std::wstring manifestReq = AppendQuery(manifestUrl, L"t", stamp);
-
-    std::string json;
-
-    if (!HttpGetString(manifestReq, json)) {
-        StreamLog("stream: manifest fetch failed");
-        return;
-    }
-
-    // Checked before parsing, so a deploy landing between the two fetches fails closed until the next pass.
-    std::wstring sigReq = AppendQuery(manifestUrl + Widen(s_signatureSuffix), L"t", stamp);
-
-    std::string signature;
-
-    if (!HttpGetString(sigReq, signature)) {
-        StreamLog("stream: manifest signature fetch failed");
-        return;
-    }
-
-    if (!VerifyManifestSignature(json, signature)) {
-        StreamLog("stream: manifest signature REJECTED, ignoring this manifest");
-        return;
-    }
-
     Manifest man;
 
-    if (!ParseManifest(json, man)) {
-        StreamLog("stream: manifest parse failed");
+    if (!FetchManifest(manifestUrl, Channels::s_release, man)) {
         return;
     }
 
     if (!man.m_baseUrl.empty()) {
         baseUrl = man.m_baseUrl;
+    }
+
+    const std::string storeUrl = man.m_storeUrl.empty() ? baseUrl : man.m_storeUrl;
+    const std::string binaryChannel = Channels::BinaryChannel();
+    const bool binaryGate = !Channels::BinaryChannelChanged();
+
+    LayoutScope layoutScope;
+    layoutScope.m_wanted = Channels::WantsDev() || binaryChannel == Channels::s_dev;
+    Manifest devMan;
+    std::string devBaseUrl;
+    std::string devStoreUrl;
+
+    if (layoutScope.m_wanted) {
+        layoutScope.m_fetched = FetchManifest(Channels::DevManifestUrl(manifestUrl), Channels::s_dev, devMan);
+
+        if (layoutScope.m_fetched) {
+            devBaseUrl = devMan.m_baseUrl.empty() ? JoinUrl(baseUrl, "channels/dev") : devMan.m_baseUrl;
+            devStoreUrl = devMan.m_storeUrl.empty() ? devBaseUrl : devMan.m_storeUrl;
+        }
+    }
+
+    const bool devBinaries = binaryChannel == Channels::s_dev;
+
+    if (devBinaries && !layoutScope.m_fetched) {
+        StreamLog("stream: binaries follow dev but the dev manifest is unavailable, leaving binaries alone this pass");
     }
 
     static std::atomic<bool> s_pendingReset{ false };
@@ -1566,37 +1807,39 @@ static void Run() {
     std::vector<PlannedItem> plan;
     std::set<std::string> wantedBlobs;
 
-    for (const ManifestFile& mf : man.m_files) {
+    auto planFile = [&](const Manifest& source, const ManifestFile& mf, const std::string& fileBaseUrl, const std::string& fileStoreUrl) {
         std::wstring local = TargetPath(mf);
 
 #ifdef AUTO_UPDATER_IGNORES_EXE
         if (Platform::IsRunningExecutable(local) || InstallFiles::IsDiscordLibrary(mf.m_path)) {
             StreamLog("stream: AUTO_UPDATER_IGNORES_EXE set, ignoring %s", mf.m_path.c_str());
-            continue;
+            return;
         }
 #endif
 
-        if (InstallFiles::IsForeignBinary(mf.m_path) || (!mf.m_platform.empty() && mf.m_platform != InstallFiles::ManifestPlatform())) {
-            continue;
+        if (!TakesFile(mf)) {
+            return;
         }
 
         bool restored = false;
 
         if (mf.m_hd && !ReconcileHdFile(local, hdPatch, restored)) {
-            continue;
+            return;
         }
 
         std::wstring np = StagedPath(mf, local);
 
         // An archive that describes itself is judged by its contents and brought up to date file by file where possible.
-        const ManifestArchive* arc = IsMpq(mf.m_path) ? ArchiveFor(man, mf) : nullptr;
+        const ManifestArchive* arc = IsMpq(mf.m_path) ? ArchiveFor(source, mf) : nullptr;
 
         if (arc && FileSize(local) >= 0 && FileSize(np) != mf.m_size) {
             PlannedItem item;
             item.m_file = &mf;
+            item.m_arc = arc;
             item.m_inPlace = true;
             item.m_local = local;
-            ArchivePlan how = PlanArchive(baseUrl, mf, *arc, local, item.m_job);
+            item.m_storeUrl = fileStoreUrl;
+            ArchivePlan how = PlanArchive(fileStoreUrl, mf, *arc, local, item.m_job);
 
             if (how == ArchivePlan::Current) {
                 // Restored from .disabled, so the client never loaded it at startup.
@@ -1605,11 +1848,11 @@ static void Run() {
                 }
 
                 SweepStagedSiblings(mf, local, L"");
-                continue;
+                return;
             }
 
             if (how == ArchivePlan::Skip) {
-                continue;
+                return;
             }
 
             if (how == ArchivePlan::InPlace) {
@@ -1618,7 +1861,7 @@ static void Run() {
                 }
 
                 plan.push_back(std::move(item));
-                continue;
+                return;
             }
         }
 
@@ -1629,18 +1872,131 @@ static void Run() {
 
             // Nothing left to swap in.
             SweepStagedSiblings(mf, local, L"");
-            continue;
+            return;
         }
 
         if (FileSize(np) == mf.m_size) {
-            SwapOrStage(np, local, mf, arc);
-            continue;
+            SwapOrStage(np, local, mf, arc, binaryGate);
+            return;
         }
 
         PlannedItem item;
         item.m_file = &mf;
+        item.m_arc = arc;
         item.m_local = local;
+        item.m_part = PartPath(mf);
+        item.m_baseUrl = fileBaseUrl;
+        item.m_storeUrl = fileStoreUrl;
+        item.m_gate = binaryGate;
         plan.push_back(std::move(item));
+    };
+
+    for (const ManifestFile& mf : man.m_files) {
+        if (devBinaries && !IsMpq(mf.m_path)) {
+            continue;
+        }
+
+        planFile(man, mf, baseUrl, storeUrl);
+    }
+
+    if (devBinaries && layoutScope.m_fetched) {
+        for (const ManifestFile& mf : devMan.m_files) {
+            if (!IsMpq(mf.m_path)) {
+                planFile(devMan, mf, devBaseUrl, devStoreUrl);
+            }
+        }
+    }
+
+    if (layoutScope.m_fetched) {
+        std::set<std::wstring> keepDev;
+
+        for (const ManifestFile& mf : devMan.m_files) {
+            if (!IsMpq(mf.m_path) || !TakesFile(mf) || (mf.m_hd && !hdPatch)) {
+                continue;
+            }
+
+            const ManifestFile* rel = FindManifestFile(man, mf.m_path);
+            const ManifestArchive* devArc = ArchiveFor(devMan, mf);
+            const ManifestArchive* relArc = rel ? ArchiveFor(man, *rel) : nullptr;
+            const bool same = rel && ((devArc && relArc && devArc->m_contentId == relArc->m_contentId) || _stricmp(rel->m_sha256.c_str(), mf.m_sha256.c_str()) == 0);
+
+            Channels::LayoutEntry entry;
+            entry.m_relPath = mf.m_path;
+            entry.m_inRelease = rel != nullptr;
+            entry.m_inDev = true;
+            entry.m_differs = !same;
+            entry.m_releasePath = TargetPath(rel ? *rel : mf);
+            entry.m_devPath = Channels::DevPath(mf.m_path);
+            layoutScope.m_layout.push_back(entry);
+
+            if (same) {
+                continue;
+            }
+
+            const std::wstring local = entry.m_devPath;
+            keepDev.insert(ArchiveRegistry::KeyFor(local));
+
+            if (FileSize(local) < 0) {
+                SeedDevCopy(entry.m_releasePath, local, mf.m_path);
+            }
+
+            PlannedItem item;
+            item.m_file = &mf;
+            item.m_arc = devArc;
+            item.m_local = local;
+            item.m_part = Channels::DevPartPath(mf.m_path);
+            item.m_baseUrl = devBaseUrl;
+            item.m_storeUrl = devStoreUrl;
+            item.m_dev = true;
+
+            if (devArc && FileSize(local) >= 0) {
+                item.m_inPlace = true;
+                ArchivePlan how = PlanArchive(devStoreUrl, mf, *devArc, local, item.m_job);
+
+                if (how == ArchivePlan::Current) {
+                    continue;
+                }
+
+                if (how == ArchivePlan::Skip) {
+                    layoutScope.m_incomplete = true;
+                    continue;
+                }
+
+                if (how == ArchivePlan::InPlace) {
+                    for (const ArchiveWrite& w : item.m_job.m_writes) {
+                        wantedBlobs.insert(w.m_sha256);
+                    }
+
+                    plan.push_back(std::move(item));
+                    continue;
+                }
+
+                item.m_inPlace = false;
+                item.m_job = ArchivePatchJob();
+            }
+
+            if (FileSize(local) == mf.m_size && LocalMatches(local, ExpectedDigest(mf))) {
+                continue;
+            }
+
+            plan.push_back(std::move(item));
+        }
+
+        for (const ManifestFile& rf : man.m_files) {
+            if (!IsMpq(rf.m_path) || !TakesFile(rf) || (rf.m_hd && !hdPatch) || FindManifestFile(devMan, rf.m_path)) {
+                continue;
+            }
+
+            Channels::LayoutEntry entry;
+            entry.m_relPath = rf.m_path;
+            entry.m_inRelease = true;
+            entry.m_differs = true;
+            entry.m_releasePath = TargetPath(rf);
+            entry.m_devPath = Channels::DevPath(rf.m_path);
+            layoutScope.m_layout.push_back(entry);
+        }
+
+        SweepDevCopies(keepDev);
     }
 
     LocalDigests::Save();
@@ -1699,6 +2055,7 @@ static void Run() {
                 DownloadWork t;
                 t.m_blob = true;
                 t.m_write = w;
+                t.m_storeUrl = item.m_storeUrl;
                 t.m_size = w.m_size;
                 t.m_label = item.m_file->m_path + " " + w.m_name;
                 it = blobTask.emplace(w.m_sha256, tasks.size()).first;
@@ -1760,7 +2117,7 @@ static void Run() {
         SetCurrentFile(t.m_label);
         ByteCounter counter;
         counter.m_size = t.m_size;
-        bool ok = t.m_blob ? FetchBlob(baseUrl, t.m_write, counter) : DownloadWhole(baseUrl, *plan[t.m_item].m_file, plan[t.m_item].m_local, counter);
+        bool ok = t.m_blob ? FetchBlob(t.m_storeUrl, t.m_write, counter) : DownloadWhole(plan[t.m_item].m_baseUrl, *plan[t.m_item].m_file, plan[t.m_item].m_local, plan[t.m_item].m_part, counter);
         counter.Settle();
         return ok;
     };
@@ -1822,8 +2179,12 @@ static void Run() {
 
         PlannedItem& item = plan[t.m_item];
 
-        if (r.second) {
-            mounts[t.m_item] = PlaceDownloaded(*item.m_file, ArchiveFor(man, *item.m_file), item.m_local);
+        if (item.m_dev) {
+            if (!r.second || !PlaceDevCopy(item)) {
+                layoutScope.m_incomplete = true;
+            }
+        } else if (r.second) {
+            mounts[t.m_item] = PlaceDownloaded(*item.m_file, item.m_arc, item.m_local, item.m_part, item.m_gate);
         }
 
         MarkPlaced(item.m_local);
@@ -1840,9 +2201,17 @@ static void Run() {
         if (item.m_inPlace) {
             if (!item.m_failed) {
                 s_passBatch.m_jobs.push_back(std::move(item.m_job));
+
+                if (item.m_dev) {
+                    Channels::NoteDevQueued(1);
+                }
             } else {
                 StreamLog("stream: %s in-place download incomplete, retrying next pass", item.m_file->m_path.c_str());
                 MarkPlaced(item.m_local);
+
+                if (item.m_dev) {
+                    layoutScope.m_incomplete = true;
+                }
             }
         } else if (mounts[i]) {
             EnqueueMount(mounts[i]->m_path, mounts[i]->m_sha);
@@ -1925,18 +2294,55 @@ void Trigger() {
     bool expected = false;
 
     if (!s_running.compare_exchange_strong(expected, true)) {
+        s_kickAgain = true;
         return;
     }
 
     std::thread([] {
         Platform::SetBackgroundThreadPriority();
-        Run();
+
+        do {
+            s_kickAgain = false;
+            Run();
+        } while (s_kickAgain.load());
+
         s_running = false;
+
+        if (s_kickAgain.exchange(false)) {
+            Trigger();
+        }
     }).detach();
 }
 
 bool IsActive() {
     return s_active.load();
+}
+
+bool IsEnabled() {
+    return s_started.load();
+}
+
+void RefreshArchiveNames(const std::vector<std::string>& names) {
+    BatchProgress bp;
+
+    for (const std::string& n : names) {
+        AddRefreshName(bp, n);
+    }
+
+    bp.m_anyApplied = !names.empty();
+    FinishBatch(bp);
+}
+
+void CollectMountedNames(SArchive* archive, std::vector<std::string>& out) {
+    CollectArchiveNames(archive, out);
+}
+
+int32_t NextMountPriority() {
+    return s_nextMountPriority.fetch_add(1);
+}
+
+void NoteMountsChanged() {
+    s_updateGeneration++;
 }
 
 bool IsBusy() {

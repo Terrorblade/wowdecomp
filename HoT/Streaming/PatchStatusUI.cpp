@@ -5,12 +5,15 @@
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "HoT/Core/Log.h"
 #include "HoT/Streaming/BackgroundDownloader.h"
+#include "HoT/Streaming/Channels.h"
 
 namespace HoT::Streaming::PatchStatusUI {
 
 static constexpr const char* s_statusLua = "Interface\\SharedXML\\StreamingPatchStatus.lua";
 
 static constexpr const char* s_busyMessage = "The game is still downloading updated files. Please wait for patching to finish before logging in.";
+
+static constexpr const char* s_channelMessage = "The game is still downloading the data this realm uses. Please wait for patching to finish before entering the world.";
 
 static constexpr const char* s_restartMessage = "A game update has been downloaded. Please restart the game to finish patching before logging in.";
 
@@ -328,6 +331,15 @@ void Load(const char* state) {
     FrameScript_Execute(script.c_str(), "HoTPatchStatus", nullptr);
 }
 
+static void ShowBlocked(const char* message) {
+    LOG_DEBUG << "Refused login: " << message;
+    std::string script = "local msg = \"";
+    script += message;
+    script += "\";\n";
+    script += s_blockedScript;
+    FrameScript_Execute(script.c_str(), "HoTPatchStatus", nullptr);
+}
+
 bool BlockLogin() {
     const char* message = nullptr;
 
@@ -341,12 +353,16 @@ bool BlockLogin() {
         return false;
     }
 
-    LOG_DEBUG << "Refused login: " << message;
-    std::string script = "local msg = \"";
-    script += message;
-    script += "\";\n";
-    script += s_blockedScript;
-    FrameScript_Execute(script.c_str(), "HoTPatchStatus", nullptr);
+    ShowBlocked(message);
+    return true;
+}
+
+bool BlockEnterWorld() {
+    if (Channels::IsReady()) {
+        return false;
+    }
+
+    ShowBlocked(s_channelMessage);
     return true;
 }
 

@@ -22,6 +22,7 @@
 #include "HoT/Runtime/WorldResume.h"
 #include "HoT/Spells/ActionRepeat.h"
 #include "HoT/Streaming/BackgroundDownloader.h"
+#include "HoT/Streaming/Channels.h"
 #include "HoT/Spells/AutoRepeatDeadzone.h"
 #include "HoT/Ui/Atlas.h"
 #include "HoT/Ui/ComboPoints.h"
@@ -39,6 +40,7 @@ std::vector<Module*>& Modules() {
         LinkWatchdog::GetModule(),
         WorldResume::GetModule(),
         Streaming::GetModule(),
+        Streaming::Channels::GetModule(),
         Discord::GetModule(),
         Editor::GetModule(),
         MSDF::GetModule(),

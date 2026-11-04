@@ -1984,6 +1984,10 @@ void CGlueMgr::EnterWorld() {
         return;
     }
 
+    if (HoT::Streaming::PatchStatusUI::BlockEnterWorld()) {
+        return;
+    }
+
     CharacterSelectionDisplay* display = CCharacterSelection::s_selectionIndex < 0 || CCharacterSelection::s_selectionIndex >= static_cast<int32_t>(CCharacterSelection::s_characterList.Count()) ? nullptr : &CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex];
     CGlueMgr::m_characterInfo = &display->m_characterInfo;
 

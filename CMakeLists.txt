@@ -100,6 +100,18 @@ if (WOWDECOMP_DISABLE_SIGNATURE_CHECKS)
     add_compile_definitions(DISABLE_SIGNATURE_CHECKS=1)
 endif ()
 
+# Windows only. MSVC AddressSanitizer build of the game code, written to bin/WinAsan so it never replaces bin/Win.
+option(WOWDECOMP_ASAN "Build the game code with AddressSanitizer into bin/WinAsan" OFF)
+if (WOWDECOMP_ASAN AND NOT WOWDECOMP_PLATFORM_WIN)
+    message(FATAL_ERROR "WOWDECOMP_ASAN is Windows only.")
+endif ()
+
+if (WOWDECOMP_ASAN)
+    set(WOWDECOMP_WIN_BIN_DIR ${CMAKE_SOURCE_DIR}/bin/WinAsan)
+else ()
+    set(WOWDECOMP_WIN_BIN_DIR ${CMAKE_SOURCE_DIR}/bin/Win)
+endif ()
+
 # Game identity (build 12340, version 3.3.5, client name) lives in GameVersion.h at the repository root.
 # WaystoneVersion.h is regenerated from git on every build; the login screen shows its build number.
 set(WAYSTONE_VERSION_HEADER ${CMAKE_BINARY_DIR}/generated/WaystoneVersion.h)
@@ -113,6 +125,19 @@ include_directories(${CMAKE_BINARY_DIR}/generated)
 # Third-party code is linked, not decompiled, for now.
 if (EXISTS ${CMAKE_SOURCE_DIR}/ThirdParty/CMakeLists.txt)
     add_subdirectory(ThirdParty)
+endif ()
+
+if (WOWDECOMP_ASAN)
+    # ThirdParty stays uninstrumented, so the STL container annotations stay off here too or the link fails on the mismatch.
+    add_compile_options(/fsanitize=address)
+    add_compile_definitions(_DISABLE_STL_ANNOTATION)
+
+    get_filename_component(WOWDECOMP_MSVC_BIN_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
+    foreach (file clang_rt.asan_dynamic-x86_64.dll clang_rt.asan_dynamic-x86_64.pdb)
+        if (EXISTS ${WOWDECOMP_MSVC_BIN_DIR}/${file})
+            configure_file(${WOWDECOMP_MSVC_BIN_DIR}/${file} ${WOWDECOMP_WIN_BIN_DIR}/${file} COPYONLY)
+        endif ()
+    endforeach ()
 endif ()
 
 if (WOWDECOMP_PLATFORM_MAC)
@@ -210,6 +235,9 @@ foreach (target Wow WowClient MapViewer M2Viewer GxTest MpqTest BlpTest DbcTest 
     if (TARGET ${target})
         if (WOWDECOMP_PLATFORM_WIN)
             target_sources(${target} PRIVATE ${CMAKE_SOURCE_DIR}/waystone.rc)
+        endif ()
+        if (WOWDECOMP_ASAN AND target MATCHES "^Wow(Client)?$")
+            target_sources(${target} PRIVATE ${CMAKE_SOURCE_DIR}/Tools/WowClient/asan_options.cpp)
         endif ()
     endif ()
 endforeach ()

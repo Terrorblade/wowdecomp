@@ -61,6 +61,10 @@ static int32_t TryCreateDirectory(const char* path) {
 // OFFSET: 0x00767220
 static int32_t CvarListCommandHandler(const char* command, const char* arguments) {
     for (CVar* var = s_registeredCVars.m_fulllist.Head(); var; var = s_registeredCVars.m_fulllist.Next(var)) {
+        if (var->m_flags & CVAR_HIDDEN) {
+            continue;
+        }
+
         char line[256];
         SStrPrintf(line, sizeof(line), "  \"%s\" is \"%s\"", var->m_key.m_str, var->m_stringValue.m_str);
 

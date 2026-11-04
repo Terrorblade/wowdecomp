@@ -141,7 +141,8 @@ uint32_t STORMAPI S_Thread::s_SLaunchThread(void* threadParam) {
 
     for (int32_t i = 0; i < numthreads; i++) {
         if (s_threads[i].live && s_threads[i].threadId == threadId) {
-            memcpy(&s_threads[i], &s_threads[i + 1], (s_maxthreads - 1 - i) * sizeof(SThreadTrack));
+            // FIX: the original memcpy shifts the array onto itself, which is undefined for overlapping ranges.
+            memmove(&s_threads[i], &s_threads[i + 1], (s_maxthreads - 1 - i) * sizeof(SThreadTrack));
             numthreads--;
         }
     }

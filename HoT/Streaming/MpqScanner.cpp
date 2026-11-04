@@ -12,6 +12,7 @@
 #include "HoT/Platform/Files.h"
 #include "HoT/Platform/Process.h"
 #include "HoT/Streaming/BackgroundDownloader.h"
+#include "HoT/Streaming/Channels.h"
 #include "HoT/Streaming/LocalDigests.h"
 #include "HoT/Streaming/Paths.h"
 #include "HoT/Streaming/TextConv.h"
@@ -68,6 +69,19 @@ static void Rescan() {
         return;
     }
 
+    auto report = [&](const std::wstring& fileName, const std::wstring& path) {
+        MpqInfo info;
+        info.m_filenameLower = ToLower(Text::NarrowAcp(fileName));
+        // Still reported so it counts as present, but the copy on disk is the old one so hashing it only costs I/O.
+        info.m_updating = IsUpdatePending(path);
+
+        if (!info.m_updating) {
+            info.m_digest = DigestOf(path);
+        }
+
+        s_results.push_back(info);
+    };
+
     auto scanFolder = [&](const fs::path& folder) {
         std::error_code ec;
 
@@ -85,22 +99,24 @@ static void Rescan() {
                 continue;
             }
 
-            MpqInfo info;
-            info.m_filenameLower = ToLower(Text::NarrowAcp(entry.path().filename().wstring()));
-            // Still reported so it counts as present, but the copy on disk is the old one so hashing it only costs I/O.
-            info.m_updating = IsUpdatePending(entry.path().wstring());
+            std::wstring mounted;
 
-            if (!info.m_updating) {
-                info.m_digest = DigestOf(entry.path().wstring());
+            if (!Channels::ReportedPath(entry.path().wstring(), mounted)) {
+                continue;
             }
 
-            s_results.push_back(info);
+            report(entry.path().filename().wstring(), mounted);
         }
     };
 
     scanFolder(dataFolder);
     scanFolder(Platform::ResolveHostPath(dataFolder / "enUS"));
     scanFolder(Platform::ResolveHostPath(dataFolder / "enGB"));
+
+    for (const std::wstring& extra : Channels::ExtraMounts()) {
+        report(fs::path(extra).filename().wstring(), extra);
+    }
+
     LocalDigests::Save();
 }
 

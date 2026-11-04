@@ -8027,7 +8027,8 @@ void CGPlayer_C::DelKnownSpell(int32_t spellId, int32_t silent) {
                         uint32_t last = line->m_spells.m_count - 1;
 
                         if (i < last) {
-                            memcpy(&line->m_spells.m_data[i], &line->m_spells.m_data[i + 1], sizeof(int32_t) * (last - i));
+                            // FIX: memmove, the original memcpy shifts the array onto itself.
+                            memmove(&line->m_spells.m_data[i], &line->m_spells.m_data[i + 1], sizeof(int32_t) * (last - i));
                         }
 
                         line->m_spells.SetCount(last);

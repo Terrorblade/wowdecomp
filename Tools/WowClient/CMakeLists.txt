@@ -12,6 +12,11 @@ endif ()
 option(WOWCLIENT_CRASH_LOG "Crash logger with console window and WowClient_crash.log (re/tools/build release mode turns it off)" ON)
 option(WOWCLIENT_CONSOLE "Crash logger also opens a console window" OFF)
 option(WOWCLIENT_FREEZE_DETECTOR "Force a crash on the main thread when it stops pumping messages for WOWCLIENT_FREEZE_SECONDS (default 10, 0 disables)" ON)
+if (WOWDECOMP_ASAN)
+    # ASan commits its shadow memory from an access violation handler, which both of these would log or trap first.
+    set(WOWCLIENT_CRASH_LOG OFF)
+    set(WOWCLIENT_FREEZE_DETECTOR OFF)
+endif ()
 set(CLIENT_TOOL_SOURCES "")
 if (WOWCLIENT_CRASH_LOG)
     list(APPEND CLIENT_TOOL_SOURCES crash_log.cpp)
@@ -24,12 +29,12 @@ add_executable(WowClient WIN32 ${CLIENT_SOURCES} ${CLIENT_PLATFORM_SOURCES} ${CL
 
 set_target_properties(WowClient PROPERTIES
     OUTPUT_NAME ${WOWCLIENT_OUTPUT_NAME}
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/Win
+    RUNTIME_OUTPUT_DIRECTORY ${WOWDECOMP_WIN_BIN_DIR}
 )
 
 foreach (config ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
     string(TOUPPER ${config} config)
-    set_target_properties(WowClient PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${CMAKE_SOURCE_DIR}/bin/Win)
+    set_target_properties(WowClient PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${WOWDECOMP_WIN_BIN_DIR})
 endforeach ()
 
 target_include_directories(WowClient

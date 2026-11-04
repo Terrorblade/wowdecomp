@@ -2176,7 +2176,8 @@ void CGSpellBook::DelKnownSpell(int32_t spellId, int32_t notify) {
         uint32_t last = s_numSpells - 1;
 
         if (i < last) {
-            memcpy(&s_spellList[i], &s_spellList[i + 1], sizeof(s_spellList[0]) * (s_numSpells - i) - sizeof(s_spellList[0]));
+            // FIX: memmove, the original memcpy shifts the array onto itself.
+            memmove(&s_spellList[i], &s_spellList[i + 1], sizeof(s_spellList[0]) * (s_numSpells - i) - sizeof(s_spellList[0]));
         }
 
         s_numSpells = last;
@@ -2200,7 +2201,8 @@ void CGSpellBook::DelKnownSpell(int32_t spellId, int32_t notify) {
             uint32_t last = s_trackingSpells.m_count - 1;
 
             if (i < last) {
-                memcpy(&s_trackingSpells.m_data[i], &s_trackingSpells.m_data[i + 1], sizeof(int32_t) * (last - i));
+                // FIX: memmove, the original memcpy shifts the array onto itself.
+                memmove(&s_trackingSpells.m_data[i], &s_trackingSpells.m_data[i + 1], sizeof(int32_t) * (last - i));
             }
 
             s_trackingSpells.SetCount(last);
@@ -2215,7 +2217,8 @@ void CGSpellBook::DelKnownSpell(int32_t spellId, int32_t notify) {
             uint32_t last = s_openLockSpells.m_count - 1;
 
             if (i < last) {
-                memcpy(&s_openLockSpells.m_data[i], &s_openLockSpells.m_data[i + 1], sizeof(int32_t) * (last - i));
+                // FIX: memmove, the original memcpy shifts the array onto itself.
+                memmove(&s_openLockSpells.m_data[i], &s_openLockSpells.m_data[i + 1], sizeof(int32_t) * (last - i));
             }
 
             s_openLockSpells.SetCount(last);
@@ -2231,7 +2234,8 @@ void CGSpellBook::DelKnownSpell(int32_t spellId, int32_t notify) {
                 uint32_t last = s_shapeshiftSpells.m_count - 1;
 
                 if (i < last) {
-                    memcpy(&s_shapeshiftSpells.m_data[i], &s_shapeshiftSpells.m_data[i + 1], sizeof(SpellUsableInfo) * (last - i));
+                    // FIX: memmove, the original memcpy shifts the array onto itself.
+                    memmove(&s_shapeshiftSpells.m_data[i], &s_shapeshiftSpells.m_data[i + 1], sizeof(SpellUsableInfo) * (last - i));
                 }
 
                 s_shapeshiftSpells.SetCount(last);
@@ -2253,7 +2257,8 @@ void CGSpellBook::DelKnownSpell(int32_t spellId, int32_t notify) {
                 uint32_t last = totems.m_count - 1;
 
                 if (i < last) {
-                    memcpy(&totems.m_data[i], &totems.m_data[i + 1], sizeof(int32_t) * (last - i));
+                    // FIX: memmove, the original memcpy shifts the array onto itself.
+                    memmove(&totems.m_data[i], &totems.m_data[i + 1], sizeof(int32_t) * (last - i));
                 }
 
                 totems.SetCount(last);

@@ -29,6 +29,8 @@ struct ManifestArchive {
 
 struct Manifest {
     std::string m_baseUrl;
+    std::string m_storeUrl;
+    std::string m_channel;
     std::vector<ManifestFile> m_files;
     std::vector<ManifestArchive> m_archives;
 };

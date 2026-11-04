@@ -1334,7 +1334,8 @@ void CGBattlefieldInfo::RemoveVehicle(const WOWGUID& guid) {
     CGBattlefieldInfo::m_numVehicles--;
 
     if (index != 39) {
-        memcpy(&CGBattlefieldInfo::m_vehicleGuids[index], &CGBattlefieldInfo::m_vehicleGuids[index + 1], sizeof(WOWGUID) * (39 - index));
+        // FIX: memmove, the original memcpy shifts the array onto itself.
+        memmove(&CGBattlefieldInfo::m_vehicleGuids[index], &CGBattlefieldInfo::m_vehicleGuids[index + 1], sizeof(WOWGUID) * (39 - index));
     }
 
     CGBattlefieldInfo::m_vehicleGuids[39] = WOWGUID();

@@ -12,8 +12,6 @@ void Load(const char* state);
 // Called first thing in Script_DefaultServerLogin, true when the login was refused and the script must return.
 bool BlockLogin();
 
-bool BlockEnterWorld();
-
 }
 
 #endif

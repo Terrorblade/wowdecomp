@@ -673,7 +673,7 @@ Functions for the background downloader and the settings shared with the launche
 | `SetDownloadSpeedLimit(mbps)` | nothing | Sets the download limit in MB/s. Negative values are treated as 0. |
 | `GetMpqList()` | nothing | Prints the installed MPQ files and their digests to chat once the scan completes. Useful for support requests. |
 | `GetPatchChannel()` | string | The data channel currently mounted, `"release"` or `"dev"`. The connected realm picks it, Lua can only read it. |
-| `IsPatchChannelReady()` | boolean | False while the data the realm asked for is still downloading or being swapped in. Enter World is refused while this is false, and the streaming progress functions above show the download. |
+| `IsPatchChannelReady()` | boolean | False while the data the realm asked for is still downloading or being swapped in. Enter World is still allowed, the client keeps the data it has mounted and switches once the realm's data is ready at the glue screen. |
 
 | Event | Args | Description |
 |---|---|---|

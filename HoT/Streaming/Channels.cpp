@@ -36,7 +36,7 @@ namespace fs = std::filesystem;
 namespace HoT::Streaming::Channels {
 
 static constexpr uint32_t s_mountFlags = 0xC00;
-static constexpr uint64_t s_kickIntervalMs = 30000;
+static constexpr uint64_t s_kickIntervalMs = 15000;
 
 static std::mutex s_stateMutex;
 static std::string s_lastChannel = s_release;
@@ -752,8 +752,9 @@ static void TryApply() {
 
         const uint64_t now = Platform::MonotonicMs();
 
-        if (NeedsPass() && now - s_lastKickMs > s_kickIntervalMs) {
+        if (target == s_dev && !IsBusy() && s_devQueued.load() == 0 && now - s_lastKickMs >= s_kickIntervalMs) {
             s_lastKickMs = now;
+            StreamLog("channels: dev data is not ready yet, checking again");
             Trigger();
         }
 
@@ -827,6 +828,7 @@ static int32_t Packet_SMSG_PATCH_CHANNEL(void* param, NETMESSAGE msgId, uint32_t
 
     if (Record(channel)) {
         PublishRequested();
+        s_lastKickMs = Platform::MonotonicMs();
         Trigger();
     }
 

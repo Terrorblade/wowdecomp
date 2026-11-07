@@ -40,9 +40,13 @@ static void ModuleOffset(void* address, char* out, size_t size) {
 
 void CrashLogStack(CONTEXT* context) {
 #if defined(_M_X64)
-    HANDLE process = GetCurrentProcess();
-    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
-    SymInitialize(process, nullptr, TRUE);
+    static HANDLE process = nullptr;
+
+    // A duplicated process handle is its own DbgHelp session, so Storm's crash report can still initialize its own.
+    if (!process && DuplicateHandle(GetCurrentProcess(), GetCurrentProcess(), GetCurrentProcess(), &process, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
+        SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
+        SymInitialize(process, nullptr, TRUE);
+    }
 
     CONTEXT frame = *context;
 

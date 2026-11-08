@@ -55,6 +55,7 @@ static const uint32_t kClientOwnsZ = 0xFF | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_
 
 static const float kWaistTrace = 1.2f;
 static const float kWallSkin = 0.1f;
+static const float kBoxCornerReach = 1.4143f; // the collider is an axis aligned square, its corners reach radius * sqrt(2)
 static const float kGroundUp = 2.0f;
 static const float kGroundDown = 3.0f;
 static const float kMaxStepDown = 2.0f;
@@ -165,14 +166,19 @@ static void DriftUnit(CGUnit_C* unit, const std::vector<ForceField>& fields, flo
     bool onTransport = (moveFlags & MOVEMENTFLAG_ONTRANSPORT) != 0;
 
     if (!onTransport && (forceFlags & FORCE_FLAG_NO_COLLISION) == 0) {
+        // Sweep past the step by the collider's reach: a unit drifted inside its own collider can
+        // walk straight through the wall, because the native movement sweep starts already penetrating.
+        float len = std::sqrt(dX * dX + dY * dY + dZ * dZ);
+        float clearance = movement->m_collisionRadius * kBoxCornerReach + kWallSkin;
+        float reach = len > 0.0f ? (len + clearance) / len : 1.0f;
+
         C3Vector start(posX, posY, posZ + kWaistTrace);
-        C3Vector end(posX + dX, posY + dY, posZ + kWaistTrace + dZ);
+        C3Vector end(posX + dX * reach, posY + dY * reach, posZ + kWaistTrace + dZ * reach);
         C3Vector hit(0.0f, 0.0f, 0.0f);
         float t = 1.0f;
 
         if (World::Intersect(start, end, &hit, &t, kIntersectSolid, nullptr) && t < 1.0f) {
-            float len = std::sqrt(dX * dX + dY * dY + dZ * dZ);
-            float tSafe = t - (len > 0.0f ? kWallSkin / len : 0.0f);
+            float tSafe = len > 0.0f ? (t * (len + clearance) - clearance) / len : 0.0f;
 
             if (tSafe < 0.0f) {
                 tSafe = 0.0f;

@@ -568,6 +568,10 @@ static int32_t Script_EditorGetCursorTextures(lua_State* L) {
     return static_cast<int32_t>(count);
 }
 
+static const char* KindName(int32_t kind) {
+    return kind == ObjectEdit::KIND_DOODAD ? "m2" : (kind == ObjectEdit::KIND_WMO ? "wmo" : "wmodoodad");
+}
+
 static int32_t Script_EditorGetSelectionCount(lua_State* L) {
     lua_pushnumber(L, ObjectEdit::GetSelectionCount());
     return 1;
@@ -582,7 +586,7 @@ static int32_t Script_EditorGetSelection(lua_State* L) {
         return 0;
     }
 
-    lua_pushstring(L, kind == ObjectEdit::KIND_DOODAD ? "m2" : "wmo");
+    lua_pushstring(L, KindName(kind));
     lua_pushnumber(L, uniqueId);
     lua_pushstring(L, fileName);
     return 3;
@@ -680,6 +684,11 @@ static int32_t Script_EditorGetObjectSetting(lua_State* L) {
         return 1;
     }
 
+    if (!SStrCmpI(key, "pickWmoDoodads", STORM_MAX_STR)) {
+        lua_pushboolean(L, ObjectEdit::s_settings.m_pickWmoDoodads);
+        return 1;
+    }
+
     return 0;
 }
 
@@ -695,6 +704,8 @@ static int32_t Script_EditorSetObjectSetting(lua_State* L) {
         ObjectEdit::s_settings.m_followCursor = value;
     } else if (!SStrCmpI(key, "snapMultiToGround", STORM_MAX_STR)) {
         ObjectEdit::s_settings.m_snapMultiToGround = value;
+    } else if (!SStrCmpI(key, "pickWmoDoodads", STORM_MAX_STR)) {
+        ObjectEdit::s_settings.m_pickWmoDoodads = value;
     }
 
     return 0;
@@ -718,7 +729,7 @@ static int32_t Script_EditorPickObject(lua_State* L) {
     }
 
     ObjectEdit::Select(kind, uniqueId, lua_toboolean(L, 7) != 0);
-    lua_pushstring(L, kind == ObjectEdit::KIND_DOODAD ? "m2" : "wmo");
+    lua_pushstring(L, KindName(kind));
     lua_pushnumber(L, uniqueId);
     lua_pushnumber(L, distance);
     return 3;

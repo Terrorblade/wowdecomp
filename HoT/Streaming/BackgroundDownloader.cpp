@@ -56,6 +56,7 @@
 #include "HoT/Streaming/StreamLog.h"
 #include "HoT/Streaming/TextConv.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
+#include "WoW/Source/Magic/MagicClient/SpellVisuals.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/AchievementInfo.h"
 #include "WoW/Source/Ui/GameUI.h"
@@ -1175,6 +1176,7 @@ static void SweepBlobCache(const std::set<std::string>& wanted) {
 struct RefreshResult {
     bool m_spellDataChanged = false;
     bool m_achievementDataChanged = false;
+    bool m_visualKitDataChanged = false;
     bool m_interfaceFiles = false;
     bool m_artFiles = false;
 };
@@ -1252,6 +1254,10 @@ static void RefreshName(const std::string& name, RefreshResult& result) {
     // Achievement, Achievement_Category and Achievement_Criteria all feed the index.
     if (stemLen >= 11 && EqualNoCase(stem, "achievement", 11)) {
         result.m_achievementDataChanged = true;
+    }
+
+    if (stemLen >= 14 && EqualNoCase(stem, "spellvisualkit", 14)) {
+        result.m_visualKitDataChanged = true;
     }
 
     if (DB::ReloadTable(name.c_str())) {
@@ -1365,6 +1371,11 @@ static void FinishBatch(BatchProgress& bp) {
     // Streamed achievement rows land in the tables but not in CGAchievementInfo's index.
     if (r.m_achievementDataChanged) {
         s_achievementRebuildPending = true;
+    }
+
+    // The kit attachment lookup is built once at startup, before the first channel switch.
+    if (r.m_visualKitDataChanged) {
+        SpellVisualsInitializeModelAttachLookup();
     }
 
     if (r.m_interfaceFiles) {

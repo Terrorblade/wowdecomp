@@ -40,9 +40,25 @@ static const char* const s_passThroughCommands[] = {
     "REPLY",
     "REPLY2",
     "SCREENSHOT",
-    "TOGGLESOUND",
     "MASTERVOLUMEUP",
     "MASTERVOLUMEDOWN",
+};
+
+// Also kept without the free camera, so the character can still walk.
+static const char* const s_walkingCommands[] = {
+    "MOVEFORWARD",
+    "MOVEBACKWARD",
+    "TURNLEFT",
+    "TURNRIGHT",
+    "STRAFELEFT",
+    "STRAFERIGHT",
+    "JUMP",
+    "PITCHUP",
+    "PITCHDOWN",
+    "TOGGLEAUTORUN",
+    "TOGGLERUN",
+    "CAMERAZOOMIN",
+    "CAMERAZOOMOUT",
 };
 
 struct ModeState {
@@ -329,7 +345,8 @@ bool GetMouseRay(C3Vector& start, C3Vector& end) {
     return start.x != end.x || start.y != end.y || start.z != end.z;
 }
 
-static bool IsPassThrough(const char* key) {
+template <size_t Count>
+static bool IsBoundTo(const char* key, const char* const (&commands)[Count]) {
     if (!CGUIBindings::s_bindings) {
         return false;
     }
@@ -340,13 +357,36 @@ static bool IsPassThrough(const char* key) {
         return false;
     }
 
-    for (const char* allowed : s_passThroughCommands) {
+    for (const char* allowed : commands) {
         if (SameKey(command, allowed)) {
             return true;
         }
     }
 
     return false;
+}
+
+static bool IsPassThrough(const char* key) {
+    return IsBoundTo(key, s_passThroughCommands) || (!FreeCam::IsActive() && IsBoundTo(key, s_walkingCommands));
+}
+
+// Key strings name the side of a held modifier ("LCTRL-S"), the editor hotkeys do not ("CTRL-S").
+static std::string WithoutModifierSides(const char* key) {
+    std::string result;
+
+    for (;;) {
+        const char* name = *key == 'L' || *key == 'R' ? key + 1 : key;
+        size_t length = !strncmp(name, "ALT-", 4) ? 4 : (!strncmp(name, "CTRL-", 5) ? 5 : (!strncmp(name, "SHIFT-", 6) ? 6 : 0));
+
+        if (!length || !name[length]) {
+            break;
+        }
+
+        result.append(name, length);
+        key = name + length;
+    }
+
+    return result + key;
 }
 
 bool OnWorldKey(const char* key, uint32_t metaKeys, bool down) {
@@ -368,13 +408,8 @@ bool OnWorldKey(const char* key, uint32_t metaKeys, bool down) {
         }
     }
 
-    if (down && CallLuaBool("GameEditor_OnHotkey", key)) {
+    if (down && CallLuaBool("GameEditor_OnHotkey", WithoutModifierSides(key).c_str())) {
         return true;
-    }
-
-    // Without the free camera the character walks and the game bindings stay live, the game menu stays shut.
-    if (!FreeCam::IsActive()) {
-        return SameKey(key, "ESCAPE");
     }
 
     return !IsPassThrough(key);

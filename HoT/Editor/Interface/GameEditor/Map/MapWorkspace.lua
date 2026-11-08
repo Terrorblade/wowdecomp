@@ -117,7 +117,7 @@ function MapEditor_Save(mode)
 	if ( not saved ) then
 		NoggitMessageBox_Critical(err or "Saving failed");
 	else
-		EditorPrint(format("Map editor: saved %d tile(s)", saved));
+		GameEditor_Notify(format("Saved %d file(s)", saved), saved > 0 and "ok" or "info");
 	end
 end
 

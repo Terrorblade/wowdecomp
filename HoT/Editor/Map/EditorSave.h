@@ -33,6 +33,9 @@ bool BuildTile(CMapArea* area, std::vector<uint8_t>& out, const ObjectChanges* c
 bool ReloadArea(CMapArea* area, const std::vector<uint8_t>& data);
 bool ApplyObjectChanges(CMapArea* area, const ObjectChanges& changes);
 
+// Writes a loose file at its game path, keeping a .bak of the original.
+bool WriteGameFile(const std::string& gamePath, const void* data, size_t size);
+
 // Writes loose ADTs under <exe dir>\World\Maps\<map>, returns the tile count or -1 with error set.
 int32_t Save(MODE mode, std::string& error);
 

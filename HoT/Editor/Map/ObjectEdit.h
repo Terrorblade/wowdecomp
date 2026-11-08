@@ -14,11 +14,13 @@ namespace HoT::Editor::Map::ObjectEdit {
 enum KIND {
     KIND_DOODAD = 0,
     KIND_WMO = 1,
+    KIND_WMO_DOODAD = 2,
 };
 
 struct Settings {
     bool m_followCursor;
     bool m_snapMultiToGround;
+    bool m_pickWmoDoodads;
 };
 
 extern Settings s_settings;
@@ -39,6 +41,7 @@ const char* GetModel(uint32_t index);
 void RemoveObjects(const std::vector<EditorSave::AddedObject>& objects, bool record);
 void AddObjects(const std::vector<EditorSave::AddedObject>& objects, bool record);
 uint32_t GetSelectionCount();
+bool HasWmoDoodadSelection();
 bool GetSelectionInfo(uint32_t index, int32_t* kind, uint32_t* uniqueId, const char** fileName);
 bool GetTransform(C3Vector* position, C3Vector* rotation, float* scale);
 void SetTransform(const C3Vector* position, const C3Vector* rotation, const float* scale);

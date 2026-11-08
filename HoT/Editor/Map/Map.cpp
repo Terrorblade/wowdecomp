@@ -297,7 +297,7 @@ void MapHandler::UpdateTool(float elapsedSec, float dx, float dy) {
             ObjectEdit::ScaleBy(powf(2.0f, vertical * 4.0f));
         } else if (shift) {
             ObjectEdit::MoveBy(C3Vector(0.0f, 0.0f, vertical * 80.0f));
-        } else if (ObjectEdit::s_settings.m_followCursor && this->m_cursorValid) {
+        } else if (ObjectEdit::s_settings.m_followCursor && this->m_cursorValid && !ObjectEdit::HasWmoDoodadSelection()) {
             ObjectEdit::MoveTo(this->m_cursor);
         } else {
             C3Vector camera = Runtime::CameraPosition();

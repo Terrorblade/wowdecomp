@@ -510,7 +510,8 @@ function NoggitTools_CreateObjectEditor(parent)
 			text = "Nothing selected";
 		elseif ( count == 1 ) then
 			local kind, uid, file = EditorGetSelection(1);
-			text = format("%s: %d\n%s", kind == "wmo" and "WMO" or "M2", uid, file:match("([^\\]+)$") or file);
+			local label = kind == "wmo" and "WMO" or (kind == "wmodoodad" and "WMO M2 (all placements)" or "M2");
+			text = format("%s: %d\n%s", label, uid, file:match("([^\\]+)$") or file);
 		else
 			text = format("%d objects selected", count);
 		end
@@ -543,6 +544,7 @@ function NoggitTools_CreateObjectEditor(parent)
 		Option(single, "Random rot/tilt/scale on rotate", nil, false);
 		Option(single, "Mouse move follow cursor on the ground", "followCursor", true);
 		Option(single, "Mouse move snaps to objects", nil, false);
+		Option(single, "Select M2s inside WMOs", "pickWmoDoodads", true);
 		single:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0);
 		local singleHeight = FinishGroup(single);
 

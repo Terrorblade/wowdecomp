@@ -21,6 +21,7 @@
 #include "HoT/Editor/Map/ObjectEdit.h"
 #include "HoT/Editor/Map/TextureEdit.h"
 #include "HoT/Editor/Map/Runtime.h"
+#include "HoT/Editor/Map/WmoDoodadEdit.h"
 #include "HoT/Streaming/LooseFiles.h"
 
 namespace HoT::Editor::Map::EditorSave {
@@ -594,6 +595,16 @@ static void BackupOriginal(const std::filesystem::path& path, const char* gamePa
     SFile::Unload(data);
 }
 
+bool WriteGameFile(const std::string& gamePath, const void* data, size_t size) {
+    std::string relative = gamePath;
+    std::replace(relative.begin(), relative.end(), '/', '\\');
+
+    std::filesystem::path path = Platform::GameFilePath(relative);
+    CreateDirectories(path.parent_path());
+    BackupOriginal(path, relative.c_str());
+    return WriteBytes(path, data, size);
+}
+
 static bool SaveArea(CMapArea* area) {
     std::vector<uint8_t> data;
 
@@ -603,13 +614,7 @@ static bool SaveArea(CMapArea* area) {
 
     char gamePath[512];
     snprintf(gamePath, sizeof(gamePath), "%s\\%s_%d_%d.adt", CMap::mapPath, CMap::mapName, area->m_index.x, area->m_index.y);
-    std::string relative = gamePath;
-    std::replace(relative.begin(), relative.end(), '/', '\\');
-
-    std::filesystem::path path = Platform::GameFilePath(relative);
-    CreateDirectories(path.parent_path());
-    BackupOriginal(path, relative.c_str());
-    return WriteBytes(path, data.data(), data.size());
+    return WriteGameFile(gamePath, data.data(), data.size());
 }
 
 static void AddArea(std::vector<CMapArea*>& areas, CMapArea* area) {
@@ -653,6 +658,10 @@ int32_t Save(MODE mode, std::string& error) {
         }
 
         saved++;
+    }
+
+    if (error.empty()) {
+        saved += WmoDoodadEdit::Save(error);
     }
 
     if (saved) {

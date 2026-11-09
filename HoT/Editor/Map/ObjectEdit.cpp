@@ -26,6 +26,7 @@
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "HoT/Editor/Map/TerrainEdit.h"
 #include "HoT/Editor/Map/TextureEdit.h"
+#include "HoT/Editor/Map/WmoDoodadEdit.h"
 
 namespace HoT::Editor::Map::ObjectEdit {
 
@@ -43,7 +44,7 @@ struct FileDef {
     SMMapObjDef* m_mapObj;
 };
 
-Settings s_settings = { true, false };
+Settings s_settings = { true, false, false };
 
 static std::vector<Selected> s_selection;
 static bool s_editing;
@@ -124,6 +125,10 @@ static C44Matrix BuildMatrix(const C3Vector& world, const C3Vector& rotation, fl
 }
 
 static bool LocalBounds(int32_t kind, uint32_t uniqueId, CAaBox& box, C44Matrix& matrix) {
+    if (kind == KIND_WMO_DOODAD) {
+        return WmoDoodadEdit::GetBounds(uniqueId, box, matrix);
+    }
+
     if (kind == KIND_DOODAD) {
         CMapDoodadDef* doodad = FindDoodad(uniqueId);
 
@@ -232,9 +237,9 @@ bool Pick(const C3Vector& start, const C3Vector& dir, float maxDistance, int32_t
 
     if (CMap::VectorIntersect(&rayStart, &rayEnd, 0x110, 0x100, &mapObjT, nullptr, &mapObj, &mapObjDef, &mapObjDefGroup) && mapObjDef) {
         FileDef def;
+        best = mapObjT;
 
         if (FindFileDef(KIND_WMO, mapObjDef->m_hashval, def)) {
-            best = mapObjT;
             *kind = KIND_WMO;
             *uniqueId = mapObjDef->m_hashval;
             found = true;
@@ -249,7 +254,9 @@ bool Pick(const C3Vector& start, const C3Vector& dir, float maxDistance, int32_t
         for (CMapDoodadDef* doodad = CMap::doodadDefHash.Head(); doodad; doodad = CMap::doodadDefHash.Next(doodad)) {
             CM2Model* model = doodad->m_model;
 
-            if (!model || !(model->m_fFlags & 1) || !IsWorldDoodad(doodad) || !CWorldMath::VectorIntersectAABox2(doodad->m_bbox, rayStart, rayEnd)) {
+            bool pickable = IsWorldDoodad(doodad) || (s_settings.m_pickWmoDoodads && doodad->m_key.m_key != 0);
+
+            if (!model || !(model->m_fFlags & 1) || !pickable || !CWorldMath::VectorIntersectAABox2(doodad->m_bbox, rayStart, rayEnd)) {
                 continue;
             }
 
@@ -275,8 +282,8 @@ bool Pick(const C3Vector& start, const C3Vector& dir, float maxDistance, int32_t
 
         if (hitDoodad && doodadT < best && (hitDoodad->m_type & 0x40)) {
             best = doodadT;
-            *kind = KIND_DOODAD;
-            *uniqueId = hitDoodad->m_hashval;
+            *kind = hitDoodad->m_key.m_key ? KIND_WMO_DOODAD : KIND_DOODAD;
+            *uniqueId = hitDoodad->m_key.m_key ? WmoDoodadEdit::GetHandle(hitDoodad->m_key.m_key - 1, static_cast<uint16_t>(hitDoodad->m_hashval)) : hitDoodad->m_hashval;
             found = true;
         }
     }
@@ -299,10 +306,17 @@ static bool IsSelected(int32_t kind, uint32_t uniqueId, size_t* index) {
     return false;
 }
 
-void Select(int32_t kind, uint32_t uniqueId, bool add) {
-    FileDef def;
+static bool ObjectExists(int32_t kind, uint32_t uniqueId) {
+    if (kind == KIND_WMO_DOODAD) {
+        return WmoDoodadEdit::Exists(uniqueId);
+    }
 
-    if (!FindFileDef(kind, uniqueId, def)) {
+    FileDef def;
+    return FindFileDef(kind, uniqueId, def);
+}
+
+void Select(int32_t kind, uint32_t uniqueId, bool add) {
+    if (!ObjectExists(kind, uniqueId)) {
         return;
     }
 
@@ -328,7 +342,7 @@ void ClearSelection() {
 
 CMapArea* FindArea(int32_t kind, uint32_t uniqueId) {
     FileDef def;
-    return FindFileDef(kind, uniqueId, def) ? def.m_area : nullptr;
+    return kind != KIND_WMO_DOODAD && FindFileDef(kind, uniqueId, def) ? def.m_area : nullptr;
 }
 
 static void PruneSelection();
@@ -337,6 +351,14 @@ static std::vector<EditorSave::AddedObject> s_clipboard;
 static uint32_t s_lastUniqueId;
 
 static bool CollectObject(int32_t kind, uint32_t uniqueId, EditorSave::AddedObject& out) {
+    if (kind == KIND_WMO_DOODAD) {
+        out = EditorSave::AddedObject();
+        out.m_kind = kind;
+        out.m_doodad.m_uniqueId = uniqueId;
+        out.m_fileName = WmoDoodadEdit::GetFileName(uniqueId);
+        return WmoDoodadEdit::Exists(uniqueId);
+    }
+
     FileDef def;
 
     if (!FindFileDef(kind, uniqueId, def)) {
@@ -408,14 +430,18 @@ void RemoveObjects(const std::vector<EditorSave::AddedObject>& objects, bool rec
     std::vector<EditorSave::AddedObject> removed;
 
     for (const EditorSave::AddedObject& object : objects) {
-        uint32_t uniqueId = object.m_kind == KIND_DOODAD ? object.m_doodad.m_uniqueId : object.m_mapObj.m_uniqueId;
+        uint32_t uniqueId = object.m_kind == KIND_WMO ? object.m_mapObj.m_uniqueId : object.m_doodad.m_uniqueId;
         EditorSave::AddedObject current;
 
         if (record && CollectObject(object.m_kind, uniqueId, current)) {
             removed.push_back(current);
         }
 
-        PurgeFromScene(object.m_kind, uniqueId);
+        if (object.m_kind == KIND_WMO_DOODAD) {
+            WmoDoodadEdit::Remove(uniqueId);
+        } else {
+            PurgeFromScene(object.m_kind, uniqueId);
+        }
     }
 
     for (uint32_t i = 0; i < 4096; i++) {
@@ -428,6 +454,10 @@ void RemoveObjects(const std::vector<EditorSave::AddedObject>& objects, bool rec
         EditorSave::ObjectChanges changes;
 
         for (const EditorSave::AddedObject& object : objects) {
+            if (object.m_kind == KIND_WMO_DOODAD) {
+                continue;
+            }
+
             if (object.m_kind == KIND_DOODAD) {
                 for (int32_t j = 0; j < area->m_doodadDefCount; j++) {
                     if (area->m_doodadDef[j].m_uniqueId == object.m_doodad.m_uniqueId) {
@@ -461,6 +491,11 @@ void AddObjects(const std::vector<EditorSave::AddedObject>& objects, bool record
     std::vector<EditorSave::AddedObject> added;
 
     for (const EditorSave::AddedObject& object : objects) {
+        if (object.m_kind == KIND_WMO_DOODAD) {
+            WmoDoodadEdit::Restore(object.m_doodad.m_uniqueId);
+            continue;
+        }
+
         C3Vector position = FilePosition(object);
         int32_t areaX = static_cast<int32_t>(position.x / 533.33333f);
         int32_t areaY = static_cast<int32_t>(position.z / 533.33333f);
@@ -521,7 +556,7 @@ void CopySelection() {
     for (const Selected& selected : s_selection) {
         EditorSave::AddedObject object;
 
-        if (CollectObject(selected.m_kind, selected.m_uniqueId, object)) {
+        if (selected.m_kind != KIND_WMO_DOODAD && CollectObject(selected.m_kind, selected.m_uniqueId, object)) {
             s_clipboard.push_back(object);
         }
     }
@@ -680,18 +715,24 @@ void Duplicate() {
 void Reset() {
     s_selection.clear();
     s_editing = false;
+    WmoDoodadEdit::Reset();
 }
 
 static void PruneSelection() {
     s_selection.erase(std::remove_if(s_selection.begin(), s_selection.end(), [](const Selected& selected) {
-        FileDef def;
-        return !FindFileDef(selected.m_kind, selected.m_uniqueId, def);
+        return !ObjectExists(selected.m_kind, selected.m_uniqueId);
     }), s_selection.end());
 }
 
 uint32_t GetSelectionCount() {
     PruneSelection();
     return static_cast<uint32_t>(s_selection.size());
+}
+
+bool HasWmoDoodadSelection() {
+    return std::any_of(s_selection.begin(), s_selection.end(), [](const Selected& selected) {
+        return selected.m_kind == KIND_WMO_DOODAD;
+    });
 }
 
 bool GetSelectionInfo(uint32_t index, int32_t* kind, uint32_t* uniqueId, const char** fileName) {
@@ -702,6 +743,11 @@ bool GetSelectionInfo(uint32_t index, int32_t* kind, uint32_t* uniqueId, const c
     *kind = s_selection[index].m_kind;
     *uniqueId = s_selection[index].m_uniqueId;
     *fileName = "";
+
+    if (*kind == KIND_WMO_DOODAD) {
+        *fileName = WmoDoodadEdit::GetFileName(*uniqueId);
+        return true;
+    }
 
     FileDef def;
 
@@ -740,6 +786,11 @@ static void LinkToChunk(CMapBaseObj* object, const C3Vector& world, bool doodad)
 }
 
 static void ApplyState(int32_t kind, uint32_t uniqueId, const C3Vector& filePos, const C3Vector& rotation, float scale) {
+    if (kind == KIND_WMO_DOODAD) {
+        WmoDoodadEdit::Write(uniqueId, FileToWorld(filePos), rotation, scale);
+        return;
+    }
+
     FileDef def;
 
     if (!FindFileDef(kind, uniqueId, def)) {
@@ -780,6 +831,17 @@ static void ApplyState(int32_t kind, uint32_t uniqueId, const C3Vector& filePos,
 }
 
 static bool ReadState(int32_t kind, uint32_t uniqueId, C3Vector& filePos, C3Vector& rotation, float& scale) {
+    if (kind == KIND_WMO_DOODAD) {
+        C3Vector world;
+
+        if (!WmoDoodadEdit::Read(uniqueId, world, rotation, scale)) {
+            return false;
+        }
+
+        filePos = WorldToFile(world);
+        return true;
+    }
+
     FileDef def;
 
     if (!FindFileDef(kind, uniqueId, def)) {
@@ -939,7 +1001,7 @@ void RotateBy(const C3Vector& degrees) {
 
 void ScaleBy(float factor) {
     ForEachSelected([](int32_t kind, uint32_t uniqueId, C3Vector& filePos, C3Vector& rot, float& sc, const void* arg) {
-        if (kind == KIND_DOODAD) {
+        if (kind != KIND_WMO) {
             sc *= *static_cast<const float*>(arg);
         }
     }, &factor);
@@ -950,7 +1012,8 @@ void SnapToGround() {
         C3Vector world = FileToWorld(filePos);
         float height;
 
-        if (TerrainEdit::GetHeight(world.x, world.y, &height)) {
+        // Terrain under a building says nothing about the floor inside it.
+        if (kind != KIND_WMO_DOODAD && TerrainEdit::GetHeight(world.x, world.y, &height)) {
             filePos.y = height;
         }
     }, nullptr);

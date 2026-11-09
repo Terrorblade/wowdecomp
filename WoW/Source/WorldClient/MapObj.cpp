@@ -50,6 +50,7 @@
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/MapChunk.h"
 #include "WoW/Source/WorldClient/MapDoodadDef.h"
+#include "HoT/Editor/Map/WmoDoodadEdit.h"
 #include "WoW/Source/WorldClient/MapLight.h"
 #include "WoW/Source/WorldClient/MapObjDef.h"
 #include "WoW/Source/WorldClient/MapObjGroup.h"
@@ -2628,50 +2629,60 @@ void CMapObjDef::CullMapObjDefGroupFromExterior(CMapObjDefGroup* mapObjDefGroup,
 // OFFSET: 0x007BF740
 void CMapObj::CreateRefs(CMapObj* mapObj, CMapObjGroup* mapObjGroup, CMapObjDef* mapObjDef, CMapObjDefGroup* mapObjDefGroup) {
     for (uint32_t i = 0; i < static_cast<uint32_t>(mapObjGroup->m_doodadRefListCount); i++) {
-        uint16_t doodadRef = mapObjGroup->m_doodadRefList[i];
-        int32_t doodadSet = mapObj->GetDoodadSet(doodadRef);
-        int32_t overrideSet = 0;
-
-        if (doodadSet && doodadSet != mapObjDef->m_doodadSet) {
-            uint32_t j = 0;
-
-            while (doodadSet != mapObjDef->m_doodadSetOverrides[j]) {
-                if (++j >= 3) {
-                    break;
-                }
-            }
-
-            if (j >= 3) {
-                continue;
-            }
-
-            overrideSet = doodadSet;
-
-            if (!overrideSet) {
-                continue;
-            }
-        }
-
-        SMODoodadDef* doodadDef = &mapObj->m_doodadDefList[doodadRef];
-        CMapDoodadDef* mapDoodadDef = CMap::CreateDoodadDef(doodadRef, doodadDef, &mapObj->m_doodadNameList[doodadDef->m_flags & 0xFFFFFF], mapObjDef->m_hashval + 1, &mapObjDef->m_mat, static_cast<uint16_t>(overrideSet));
-        CMapBaseObjLink* link = CMap::AllocBaseObjLink(mapDoodadDef);
-        link->m_ref = mapObjDefGroup;
-
-        if (overrideSet) {
-            mapObjDefGroup->m_doodadDefLinkList.LinkToHead(link);
-        } else {
-            mapObjDefGroup->m_doodadDefLinkList.LinkToTail(link);
-        }
-
-        if (!(mapObjDefGroup->m_flags & 0x2) || (mapDoodadDef->m_flags & 0x4)) {
-            mapDoodadDef->m_diffuseLightScale = 1.0f;
-            mapDoodadDef->m_flags = static_cast<MapObjFlag>((mapDoodadDef->m_flags & ~0x2) | 0x4);
-        } else {
-            mapDoodadDef->m_flags = static_cast<MapObjFlag>(mapDoodadDef->m_flags | 0x2);
-        }
+        CMapObj::CreateRef(mapObj, mapObjGroup->m_doodadRefList[i], mapObjDef, mapObjDefGroup);
     }
 
     mapObjDefGroup->m_flags = static_cast<MapObjFlag>(mapObjDefGroup->m_flags | 0x8);
+}
+
+// HoT: split from CreateRefs so the editor can bring back a single deleted doodad.
+void CMapObj::CreateRef(CMapObj* mapObj, uint16_t doodadRef, CMapObjDef* mapObjDef, CMapObjDefGroup* mapObjDefGroup) {
+    int32_t doodadSet = mapObj->GetDoodadSet(doodadRef);
+    int32_t overrideSet = 0;
+
+    if (doodadSet && doodadSet != mapObjDef->m_doodadSet) {
+        uint32_t j = 0;
+
+        while (doodadSet != mapObjDef->m_doodadSetOverrides[j]) {
+            if (++j >= 3) {
+                break;
+            }
+        }
+
+        if (j >= 3) {
+            return;
+        }
+
+        overrideSet = doodadSet;
+
+        if (!overrideSet) {
+            return;
+        }
+    }
+
+    // HoT: unsaved editor changes replace the placement from the file.
+    SMODoodadDef* doodadDef = HoT::Editor::Map::WmoDoodadEdit::Resolve(mapObj, doodadRef);
+
+    if (!doodadDef) {
+        return;
+    }
+
+    CMapDoodadDef* mapDoodadDef = CMap::CreateDoodadDef(doodadRef, doodadDef, &mapObj->m_doodadNameList[doodadDef->m_flags & 0xFFFFFF], mapObjDef->m_hashval + 1, &mapObjDef->m_mat, static_cast<uint16_t>(overrideSet));
+    CMapBaseObjLink* link = CMap::AllocBaseObjLink(mapDoodadDef);
+    link->m_ref = mapObjDefGroup;
+
+    if (overrideSet) {
+        mapObjDefGroup->m_doodadDefLinkList.LinkToHead(link);
+    } else {
+        mapObjDefGroup->m_doodadDefLinkList.LinkToTail(link);
+    }
+
+    if (!(mapObjDefGroup->m_flags & 0x2) || (mapDoodadDef->m_flags & 0x4)) {
+        mapDoodadDef->m_diffuseLightScale = 1.0f;
+        mapDoodadDef->m_flags = static_cast<MapObjFlag>((mapDoodadDef->m_flags & ~0x2) | 0x4);
+    } else {
+        mapDoodadDef->m_flags = static_cast<MapObjFlag>(mapDoodadDef->m_flags | 0x2);
+    }
 }
 
 // VERIFY: 3943554d auto

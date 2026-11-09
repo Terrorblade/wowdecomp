@@ -183,6 +183,7 @@ class CMapObj : public CMapObjIndex, public TSHashObject<CMapObj, HASHKEY_NONE> 
     void GetGroupBounds(CAaSphere* sphere, int32_t index);
     void GetGroupBounds(CAaBox* box, int32_t index);
     int32_t GetDoodadSet(uint32_t index);
+    static void CreateRef(CMapObj* mapObj, uint16_t doodadRef, CMapObjDef* mapObjDef, CMapObjDefGroup* mapObjDefGroup);
     uint32_t GetGroupFlags(int32_t index);
     static uint32_t sMinimapTag;
     bool QueryMapObjMinimap(int32_t groupNum, CAaBox* box, TSStackArray<MINIMAPQUADINFO>* quads, uint32_t maxQuads, int32_t inside, uint8_t indoorArea);

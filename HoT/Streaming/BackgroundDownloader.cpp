@@ -56,11 +56,13 @@
 #include "HoT/Streaming/StreamLog.h"
 #include "HoT/Streaming/TextConv.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
+#include "WoW/Source/Magic/MagicClient/SpellVisuals.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/AchievementInfo.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/SpellBookFrame.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 
 namespace fs = std::filesystem;
 
@@ -1174,6 +1176,7 @@ static void SweepBlobCache(const std::set<std::string>& wanted) {
 struct RefreshResult {
     bool m_spellDataChanged = false;
     bool m_achievementDataChanged = false;
+    bool m_visualKitDataChanged = false;
     bool m_interfaceFiles = false;
     bool m_artFiles = false;
 };
@@ -1251,6 +1254,10 @@ static void RefreshName(const std::string& name, RefreshResult& result) {
     // Achievement, Achievement_Category and Achievement_Criteria all feed the index.
     if (stemLen >= 11 && EqualNoCase(stem, "achievement", 11)) {
         result.m_achievementDataChanged = true;
+    }
+
+    if (stemLen >= 14 && EqualNoCase(stem, "spellvisualkit", 14)) {
+        result.m_visualKitDataChanged = true;
     }
 
     if (DB::ReloadTable(name.c_str())) {
@@ -1364,6 +1371,11 @@ static void FinishBatch(BatchProgress& bp) {
     // Streamed achievement rows land in the tables but not in CGAchievementInfo's index.
     if (r.m_achievementDataChanged) {
         s_achievementRebuildPending = true;
+    }
+
+    // The kit attachment lookup is built once at startup, before the first channel switch.
+    if (r.m_visualKitDataChanged) {
+        SpellVisualsInitializeModelAttachLookup();
     }
 
     if (r.m_interfaceFiles) {
@@ -2357,7 +2369,40 @@ bool IsRestartPending() {
     return s_restartNeeded.load();
 }
 
+static bool s_glueReloadDeferred = false;
+
+// The login screen stays up until the character list arrives. Reloading in that window loses the
+// login but leaves the authenticated world socket open, which hangs the next one.
+static bool IsLoginInFlight() {
+    ClientConnection* connection = ClientServices::Connection();
+    return connection && connection->m_connected && !SStrCmpI(CGlueMgr::m_currentScreen, "login", STORM_MAX_STR);
+}
+
+// The screen name outlives entering the world, so it alone does not place us on the screen.
+static bool IsOnCharacterSelect() {
+    return !CGlueMgr::m_suspended && !ClntObjMgrGetActivePlayerObj() &&
+           !SStrCmpI(CGlueMgr::m_currentScreen, "charselect", STORM_MAX_STR);
+}
+
+// A reload would throw away the offer, and the CVar is only set once it has been answered.
+static bool IsHdOfferOutstanding() {
+    CVar* offered = CVar::Lookup("firstRunHdPatchOffered");
+    return offered && offered->m_stringValue.m_str && !CVars::Bool(offered->m_stringValue.m_str);
+}
+
 void PumpMainThread() {
+    if (s_glueReloadDeferred && !IsLoginInFlight() && !(IsOnCharacterSelect() && IsHdOfferOutstanding())) {
+        s_glueReloadDeferred = false;
+        StreamLog("stream: applying the glue UI reload held back during login");
+        CGlueMgr::m_reload = 1;
+    }
+
+    if (s_uiRefreshNeeded.load() && IsOnCharacterSelect() && !IsHdOfferOutstanding()) {
+        s_uiRefreshNeeded = false;
+        StreamLog("stream: reloading the glue UI on character select for new interface files");
+        CGlueMgr::m_reload = 1;
+    }
+
     // The active state change is queued instead of signalled inline.
     static bool s_prevActive = false;
     bool active = s_active.load();
@@ -2441,6 +2486,8 @@ static int32_t Script_StreamingRefreshUI(lua_State* L) {
 
     if (ClntObjMgrGetActivePlayerObj()) {
         CGGameUI::m_reloadUIRequested = 1;
+    } else if (IsLoginInFlight()) {
+        s_glueReloadDeferred = true;
     } else {
         CGlueMgr::m_reload = 1;
     }

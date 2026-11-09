@@ -3,7 +3,6 @@
 #include <cstdint>
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Frame/CSimpleEditBox.h"
-#include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "HoT/Core/Chat.h"
 #include "HoT/Editor/VectorMath.h"
@@ -202,32 +201,14 @@ static float StepSeconds() {
 }
 
 static void ApplyCharacterVisibility() {
-    CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-
-    if (!player) {
-        return;
-    }
-
-    if (!s_state.m_active || !s_state.m_hideCharacter) {
-        if (!s_state.m_characterHidden) {
-            return;
-        }
-
+    if (s_state.m_active && s_state.m_hideCharacter) {
+        // Zero hides the active player, the camera fade rewrites this every frame so it has to be reapplied.
+        Player_C_SetPlayerRenderDisabled(0);
+        s_state.m_characterHidden = true;
+    } else if (s_state.m_characterHidden) {
+        Player_C_SetPlayerRenderDisabled(1);
         s_state.m_characterHidden = false;
-        player->UpdateDisplayInfo(1);
-
-        return;
     }
-
-    CM2Model* model = player->GetObjectModel();
-
-    // Geometry calls on a model that has not loaded queue a heap record instead of applying.
-    if (!model || !(model->m_fFlags & 0x1)) {
-        return;
-    }
-
-    model->SetGeometryVisible(0, 0xFFFFFFFF, 0);
-    s_state.m_characterHidden = true;
 }
 
 static void SyncCharacter(const C3Vector& target) {

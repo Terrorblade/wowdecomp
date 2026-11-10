@@ -1385,9 +1385,10 @@ static void FinishBatch(BatchProgress& bp) {
         SpellVisualsInitializeModelAttachLookup();
     }
 
-    // The sound kit lookup is built once at startup too; old entries stay, playing sounds point at them.
+    // The sound kit lookup is built once at startup too, followed by its sound groups; old entries stay, playing sounds point at them.
     if (r.m_soundDataChanged) {
         SI2::InitSoundKitLookup();
+        SI2::CreateSoundGroups();
     }
 
     if (r.m_interfaceFiles) {

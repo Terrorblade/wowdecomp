@@ -58,6 +58,7 @@
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Magic/MagicClient/SpellVisuals.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/Ui/AchievementInfo.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/SpellBookFrame.h"
@@ -1177,6 +1178,7 @@ struct RefreshResult {
     bool m_spellDataChanged = false;
     bool m_achievementDataChanged = false;
     bool m_visualKitDataChanged = false;
+    bool m_soundDataChanged = false;
     bool m_interfaceFiles = false;
     bool m_artFiles = false;
 };
@@ -1258,6 +1260,11 @@ static void RefreshName(const std::string& name, RefreshResult& result) {
 
     if (stemLen >= 14 && EqualNoCase(stem, "spellvisualkit", 14)) {
         result.m_visualKitDataChanged = true;
+    }
+
+    // SoundEntries and SoundEntriesAdvanced both feed the sound kit lookup.
+    if (stemLen >= 12 && EqualNoCase(stem, "soundentries", 12)) {
+        result.m_soundDataChanged = true;
     }
 
     if (DB::ReloadTable(name.c_str())) {
@@ -1376,6 +1383,11 @@ static void FinishBatch(BatchProgress& bp) {
     // The kit attachment lookup is built once at startup, before the first channel switch.
     if (r.m_visualKitDataChanged) {
         SpellVisualsInitializeModelAttachLookup();
+    }
+
+    // The sound kit lookup is built once at startup too; old entries stay, playing sounds point at them.
+    if (r.m_soundDataChanged) {
+        SI2::InitSoundKitLookup();
     }
 
     if (r.m_interfaceFiles) {

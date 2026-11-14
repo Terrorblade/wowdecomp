@@ -4,6 +4,8 @@
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Common/ComponentCore/ComponentUtils.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/Magic/MagicClient/SpellTable.h"
+#include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/WorldClient/CDetailDoodadData.h"
 #include "WoW/Source/WorldClient/DetailDoodad.h"
 #include "WoW/Source/WorldClient/Map.h"
@@ -80,6 +82,16 @@ static void RefreshGameTables(const char* stem) {
     GameTablesInitialize();
 }
 
+// Built per world session by ClientInitializeGame, so out of the world there is nothing to rebuild.
+static void RefreshSpellTable(const char* stem) {
+    if (!ClntObjMgrGetActivePlayerObj()) {
+        return;
+    }
+
+    SpellTableDestroy();
+    SpellTableInitialize();
+}
+
 class RefreshModule : public Module {
     public:
     const char* Name() const override {
@@ -97,6 +109,10 @@ class RefreshModule : public Module {
         OnTableReloaded("ItemClass", RefreshItemSubclasses);
         OnTableReloaded("ItemSubClass", RefreshItemSubclasses);
         OnTableReloaded("GameTables", RefreshGameTables);
+        OnTableReloaded("SkillLine", RefreshSpellTable);
+        OnTableReloaded("SkillLineAbility", RefreshSpellTable);
+        OnTableReloaded("SkillRaceClassInfo", RefreshSpellTable);
+        OnTableReloaded("SkillCostsData", RefreshSpellTable);
     }
 };
 

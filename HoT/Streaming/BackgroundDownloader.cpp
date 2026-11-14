@@ -1748,6 +1748,97 @@ static bool PlaceDevCopy(PlannedItem& item) {
     return true;
 }
 
+static bool FollowerDevCopyCurrent(const std::wstring& dev, const ManifestFile& mf, const ManifestArchive* arc) {
+    if (FileSize(dev) < 0) {
+        return false;
+    }
+
+    if (!arc) {
+        return FileSize(dev) == mf.m_size && LocalMatches(dev, ExpectedDigest(mf));
+    }
+
+    std::string bytes;
+
+    if (!MpqFile::ReadFile(dev, ArchiveManifest::s_fileName, bytes)) {
+        return false;
+    }
+
+    return ArchiveManifest::ContentIdOf(bytes) == arc->m_contentId;
+}
+
+// Another instance holds the patch lock and keeps the dev copies current, so this one only reads them.
+static void PublishFollowerLayout() {
+    if (!Channels::WantsDev()) {
+        return;
+    }
+
+    LauncherConfig cfg;
+    LoadLauncherConfig(s_installDir, cfg);
+    Manifest man;
+
+    if (!FetchManifest(cfg.m_manifestUrl, Channels::s_release, man)) {
+        return;
+    }
+
+    LayoutScope layoutScope;
+    Manifest devMan;
+    layoutScope.m_fetched = FetchManifest(Channels::DevManifestUrl(cfg.m_manifestUrl), Channels::s_dev, devMan);
+
+    if (!layoutScope.m_fetched) {
+        return;
+    }
+
+    const bool hdPatch = LauncherSettings::HdPatch();
+    int32_t current = 0;
+    int32_t stale = 0;
+
+    for (const ManifestFile& mf : devMan.m_files) {
+        if (!IsMpq(mf.m_path) || !TakesFile(mf) || (mf.m_hd && !hdPatch)) {
+            continue;
+        }
+
+        const ManifestFile* rel = FindManifestFile(man, mf.m_path);
+        const ManifestArchive* devArc = ArchiveFor(devMan, mf);
+        const ManifestArchive* relArc = rel ? ArchiveFor(man, *rel) : nullptr;
+        const bool same = rel && ((devArc && relArc && devArc->m_contentId == relArc->m_contentId) || _stricmp(rel->m_sha256.c_str(), mf.m_sha256.c_str()) == 0);
+
+        Channels::LayoutEntry entry;
+        entry.m_relPath = mf.m_path;
+        entry.m_inRelease = rel != nullptr;
+        entry.m_inDev = true;
+        entry.m_differs = !same;
+        entry.m_releasePath = TargetPath(rel ? *rel : mf);
+        entry.m_devPath = Channels::DevPath(mf.m_path);
+
+        if (!same) {
+            if (FollowerDevCopyCurrent(entry.m_devPath, mf, devArc)) {
+                current++;
+            } else {
+                stale++;
+                layoutScope.m_incomplete = true;
+            }
+        }
+
+        layoutScope.m_layout.push_back(entry);
+    }
+
+    for (const ManifestFile& rf : man.m_files) {
+        if (!IsMpq(rf.m_path) || !TakesFile(rf) || (rf.m_hd && !hdPatch) || FindManifestFile(devMan, rf.m_path)) {
+            continue;
+        }
+
+        Channels::LayoutEntry entry;
+        entry.m_relPath = rf.m_path;
+        entry.m_inRelease = true;
+        entry.m_differs = true;
+        entry.m_releasePath = TargetPath(rf);
+        entry.m_devPath = Channels::DevPath(rf.m_path);
+        layoutScope.m_layout.push_back(entry);
+    }
+
+    StreamLog("stream: read the dev copies another instance keeps, %d current, %d not yet", current, stale);
+}
+
 static void Run() {
     // Login stays gated until it is known what needs patching.
     FirstPassScope firstPassScope;
@@ -1755,6 +1846,7 @@ static void Run() {
 
     if (!InstallFiles::AcquirePatchLock(s_installDir)) {
         StreamLog("stream: another instance is patching this install, skipping pass");
+        PublishFollowerLayout();
         return;
     }
 

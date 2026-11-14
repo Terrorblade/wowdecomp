@@ -2979,17 +2979,18 @@ UNIT_REACTION CGUnit_C::UnitReaction(const CGUnit_C* unit) const {
                 return UNIT_REACTION_FRIENDLY;
             }
 
+            // HoT: party and raid members are friendly whatever their factions, as the server treats them.
             if (controller->IsActivePlayer()) {
                 WOWGUID guid = otherController->m_obj->m_guid;
 
                 if (CGGameUI::IsInParty(guid)) {
-                    return CGUnit_C::UnitReaction(this->m_unit->m_unitFieldFactiontemplate, unit);
+                    return UNIT_REACTION_FRIENDLY;
                 }
 
                 guid = otherController->m_obj->m_guid;
 
                 if (CGGameUI::IsPartyMember(guid)) {
-                    return CGUnit_C::UnitReaction(this->m_unit->m_unitFieldFactiontemplate, unit);
+                    return UNIT_REACTION_FRIENDLY;
                 }
             }
 
@@ -2997,13 +2998,13 @@ UNIT_REACTION CGUnit_C::UnitReaction(const CGUnit_C* unit) const {
                 WOWGUID guid = controller->m_obj->m_guid;
 
                 if (CGGameUI::IsInParty(guid)) {
-                    return CGUnit_C::UnitReaction(this->m_unit->m_unitFieldFactiontemplate, unit);
+                    return UNIT_REACTION_FRIENDLY;
                 }
 
                 guid = controller->m_obj->m_guid;
 
                 if (CGGameUI::IsPartyMember(guid)) {
-                    return CGUnit_C::UnitReaction(this->m_unit->m_unitFieldFactiontemplate, unit);
+                    return UNIT_REACTION_FRIENDLY;
                 }
             }
         } else if (this->m_obj->m_guid == ClntObjMgrGetActivePlayer() && !otherController) {

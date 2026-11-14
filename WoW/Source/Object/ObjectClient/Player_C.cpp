@@ -1153,6 +1153,11 @@ bool CGPlayer_C::CanInteract(const CGUnit_C* unit) const {
         return false;
     }
 
+    // HoT: no interacting with your own pets while you or the pet are in combat.
+    if (isPlayer && (data->m_unitFieldSummonedby == this->m_obj->m_guid || data->m_unitFieldCreatedby == this->m_obj->m_guid) && (this->IsInCombat() || unit->IsInCombat())) {
+        return false;
+    }
+
     return !(data->m_unitFieldFlags & 0x2000000) && npcFlags && ((unit->UnitReaction(this) >= UNIT_REACTION_NEUTRAL && this->UnitReaction(unit) >= UNIT_REACTION_NEUTRAL) || (unit->m_unit->m_unitFieldFlags2 & 0x4000));
 }
 

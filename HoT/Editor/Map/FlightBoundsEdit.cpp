@@ -13,6 +13,7 @@
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/MapArea.h"
 #include "HoT/Editor/Map/EditorSave.h"
+#include "HoT/Features/VoidFloors.h"
 
 namespace HoT::Editor::Map::FlightBoundsEdit {
 
@@ -419,6 +420,27 @@ void DrawOverlay(const C3Vector& camPos, const C3Vector* cursor) {
             if (s_settings.m_showUpper) {
                 AddPlane(area, bounds, upperFill, upperLine);
             }
+        }
+    }
+
+    // Client side void floors (HoT/Features/VoidFloors.cpp) as filled discs.
+    CImVector discFill = Color(0xFF, 0x90, 0x30, 0x40);
+    CImVector discLine = Color(0xFF, 0xB0, 0x50, 0xE0);
+    float discX, discY, discRadius, discFloor;
+
+    for (uint32_t i = 0; VoidFloors::GetCurrent(i, &discX, &discY, &discRadius, &discFloor); i++) {
+        const int32_t segments = 48;
+
+        for (int32_t s = 0; s < segments; s++) {
+            float a0 = s * 6.2831855f / segments;
+            float a1 = (s + 1) * 6.2831855f / segments;
+            C3Vector p0(discX + cosf(a0) * discRadius, discY + sinf(a0) * discRadius, discFloor);
+            C3Vector p1(discX + cosf(a1) * discRadius, discY + sinf(a1) * discRadius, discFloor);
+            Push(s_fill, C3Vector(discX, discY, discFloor), discFill);
+            Push(s_fill, p0, discFill);
+            Push(s_fill, p1, discFill);
+            Push(s_lines, p0, discLine);
+            Push(s_lines, p1, discLine);
         }
     }
 

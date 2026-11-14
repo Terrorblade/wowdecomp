@@ -1,5 +1,6 @@
 #include "World.h"
 #include "HoT/Editor/Map/WorldHooks.h"
+#include "HoT/Features/VoidFloors.h"
 #include "HoT/Profiler/Profiler.h"
 #include "WoW/Source/WorldClient/WorldConstants.h"
 #include <cstdlib>
@@ -1800,7 +1801,8 @@ bool World::IsValidPosition(float x, float y, float z, float margin) {
 // VERIFY: 91f1484d auto
 // OFFSET: 0x0077F8D0
 int32_t World::GetFlightBoundsLower(const C3Vector& pos, float* height) {
-    return CMap::GetFlightBounds(pos, height, 1);
+    // HoT: custom void floors cover spots the MFBO grid is too coarse for.
+    return HoT::VoidFloors::Apply(pos, height, CMap::GetFlightBounds(pos, height, 1));
 }
 
 

@@ -440,21 +440,44 @@ void DrawOverlay(const C3Vector& camPos, const C3Vector* cursor) {
                 for (int32_t gy = -reach; gy < reach; gy++) {
                     float x0 = baseX + gx * cell;
                     float y0 = baseY + gy * cell;
-
-                    if (VoidFloors::IsExcluded(x0 + cell * 0.5f, y0 + cell * 0.5f)) {
-                        continue;
-                    }
-
                     C3Vector a(x0, y0, discFloor);
                     C3Vector b(x0 + cell, y0, discFloor);
-                    C3Vector c(x0 + cell, y0 + cell, discFloor);
                     C3Vector d(x0, y0 + cell, discFloor);
-                    Push(s_fill, a, discFill);
-                    Push(s_fill, b, discFill);
-                    Push(s_fill, c, discFill);
-                    Push(s_fill, a, discFill);
-                    Push(s_fill, c, discFill);
-                    Push(s_fill, d, discFill);
+
+                    // Cells the outline crosses are split so the fill hugs it.
+                    const int32_t split = 4;
+                    float sub = cell / split;
+                    int32_t excludedCorners = VoidFloors::IsExcluded(x0, y0) + VoidFloors::IsExcluded(x0 + cell, y0)
+                        + VoidFloors::IsExcluded(x0, y0 + cell) + VoidFloors::IsExcluded(x0 + cell, y0 + cell)
+                        + VoidFloors::IsExcluded(x0 + cell * 0.5f, y0 + cell * 0.5f);
+                    int32_t pieces = excludedCorners == 0 || excludedCorners == 5 ? 1 : split;
+                    float size = pieces == 1 ? cell : sub;
+
+                    for (int32_t sx = 0; sx < pieces; sx++) {
+                        for (int32_t sy = 0; sy < pieces; sy++) {
+                            float px0 = x0 + sx * size;
+                            float py0 = y0 + sy * size;
+
+                            if (VoidFloors::IsExcluded(px0 + size * 0.5f, py0 + size * 0.5f)) {
+                                continue;
+                            }
+
+                            C3Vector p0(px0, py0, discFloor);
+                            C3Vector p1(px0 + size, py0, discFloor);
+                            C3Vector p2(px0 + size, py0 + size, discFloor);
+                            C3Vector p3(px0, py0 + size, discFloor);
+                            Push(s_fill, p0, discFill);
+                            Push(s_fill, p1, discFill);
+                            Push(s_fill, p2, discFill);
+                            Push(s_fill, p0, discFill);
+                            Push(s_fill, p2, discFill);
+                            Push(s_fill, p3, discFill);
+                        }
+                    }
+
+                    if (excludedCorners == 5) {
+                        continue;
+                    }
                     // Grid lines every fourth cell, by world cell index so they do not crawl with the camera.
                     if ((static_cast<int32_t>(floorf(y0 / cell)) & 3) == 0) {
                         Push(s_lines, a, discLine);

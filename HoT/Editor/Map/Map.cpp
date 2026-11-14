@@ -13,6 +13,7 @@
 #include "HoT/Editor/Map/EditorScripts.h"
 #include "HoT/Editor/Map/EditorUndo.h"
 #include "HoT/Editor/Map/EditorWorld.h"
+#include "HoT/Editor/Map/FlightBoundsEdit.h"
 #include "HoT/Editor/Map/ObjectEdit.h"
 #include "HoT/Editor/Map/Runtime.h"
 #include "HoT/Editor/Map/TerrainEdit.h"
@@ -58,6 +59,7 @@ static void EndStrokes() {
     TerrainEdit::EndStroke();
     TextureEdit::EndStroke();
     ChunkEdit::EndStroke();
+    FlightBoundsEdit::EndStroke();
 }
 
 class MapHandler : public Mode::Handler {
@@ -71,6 +73,8 @@ class MapHandler : public Mode::Handler {
     int32_t m_lastY = 0;
     bool m_cursorValid = false;
     C3Vector m_cursor = { 0.0f, 0.0f, 0.0f };
+    bool m_flightValid = false;
+    C3Vector m_flightCursor = { 0.0f, 0.0f, 0.0f };
     bool m_rayValid = false;
     C3Vector m_rayStart = { 0.0f, 0.0f, 0.0f };
     C3Vector m_rayDir = { 0.0f, 0.0f, 0.0f };
@@ -108,6 +112,7 @@ static bool CanEdit() {
 
 void MapHandler::UpdateCursor() {
     this->m_cursorValid = false;
+    this->m_flightValid = false;
     this->m_rayValid = false;
 
     if (!CanEdit() || Mode::IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
@@ -141,6 +146,23 @@ void MapHandler::UpdateCursor() {
     this->m_rayDir = dir;
     this->m_rayLength = std::min(length, kMaxRayLength);
     this->m_cursorValid = TerrainEdit::Raycast(start, dir, this->m_rayLength, &this->m_cursor);
+
+    if (TerrainEdit::s_mode != TerrainEdit::MODE_FLIGHT) {
+        return;
+    }
+
+    // Over the void the flight tool aims at the height it would write.
+    if (this->m_cursorValid) {
+        this->m_flightValid = true;
+        this->m_flightCursor = this->m_cursor;
+    } else if (fabsf(dir.z) > 0.001f) {
+        float t = (static_cast<float>(FlightBoundsEdit::s_settings.m_height) - start.z) / dir.z;
+
+        if (t > 0.0f && t < kMaxRayLength) {
+            this->m_flightValid = true;
+            this->m_flightCursor = C3Vector(start.x + dir.x * t, start.y + dir.y * t, start.z + dir.z * t);
+        }
+    }
 }
 
 void MapHandler::ReleaseButtons() {
@@ -340,6 +362,16 @@ void MapHandler::UpdateTool(float elapsedSec, float dx, float dy) {
         return;
     }
 
+    if (mode == TerrainEdit::MODE_FLIGHT) {
+        if (this->m_flightValid && shift && !ctrl) {
+            FlightBoundsEdit::Paint(this->m_flightCursor);
+        } else if (this->m_flightValid && ctrl && !shift) {
+            FlightBoundsEdit::PickHeight(this->m_flightCursor);
+        }
+
+        return;
+    }
+
     if (!this->m_cursorValid) {
         return;
     }
@@ -432,6 +464,10 @@ void MapHandler::OnWorldRender(CGWorldFrame* frame) {
 
     ChunkEdit::DrawOverlay(camera, toolActive);
 
+    if (toolActive && TerrainEdit::s_mode == TerrainEdit::MODE_FLIGHT) {
+        FlightBoundsEdit::DrawOverlay(camera, this->m_flightValid ? &this->m_flightCursor : nullptr);
+    }
+
     if (toolActive && this->m_cursorValid && TerrainEdit::s_mode != TerrainEdit::MODE_OBJECT) {
         TerrainEdit::DrawBrush(this->m_cursor, camera);
     }
@@ -487,6 +523,7 @@ void MapHandler::OnToolChanged(const char* tool) {
         { "map.area", TerrainEdit::MODE_AREA },
         { "map.impass", TerrainEdit::MODE_IMPASS },
         { "map.vertex", TerrainEdit::MODE_VERTEX },
+        { "map.flight", TerrainEdit::MODE_FLIGHT },
     };
 
     for (const auto& entry : s_tools) {

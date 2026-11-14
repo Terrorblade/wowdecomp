@@ -988,6 +988,101 @@ function NoggitTools_CreateVertexPainter(parent)
 	return panel;
 end
 
+local function FlightToolValue(index)
+	return select(index, EditorGetFlightTool());
+end
+
+local function FlightInfoText()
+	local x, y = EditorGetCursor();
+
+	if ( not x ) then
+		x, y = EditorGetCamera();
+	end
+
+	if ( not x ) then
+		return "";
+	end
+
+	local tileX, tileY, hasChunk, lowerAt, upperAt, vertexLower, vertexUpper = EditorGetFlightBounds(x, y);
+
+	if ( not tileX ) then
+		return "No tile loaded here";
+	elseif ( not hasChunk ) then
+		return format("Tile %d_%d has no MFBO yet", tileX, tileY);
+	end
+
+	return format("Tile %d_%d\nFloor here: %.1f  ceiling: %.1f\nNearest vertex: floor %d, ceiling %d", tileX, tileY, lowerAt, upperAt, vertexLower, vertexUpper);
+end
+
+function NoggitTools_CreateFlightBounds(parent)
+	local panel = NewPanel(parent);
+
+	local layerGroup = NewGroup(panel, panel.innerWidth, "Plane");
+	local layerRadios = RadioGrid(layerGroup, { "Floor (void)", "Ceiling" }, FlightToolValue(1), function(index)
+		EditorSetFlightTool("layer", index);
+	end);
+	AddGroup(panel, layerGroup);
+
+	table.insert(panel.sync, function()
+		local layer = FlightToolValue(1);
+
+		for i, radio in ipairs(layerRadios) do
+			if ( radio.checked ~= (i == layer) ) then
+				NoggitCheckBox_SetChecked(radio, i == layer);
+			end
+		end
+	end);
+
+	FormSpinRow(panel, "Height:", -32768, 32767, 1, 0, function() return FlightToolValue(2); end, function(value) EditorSetFlightTool("height", value); end);
+
+	local fromCursor = NoggitCheckBox_Create(panel, "Use cursor height", FlightToolValue(4), function(_, checked)
+		EditorSetFlightTool("fromCursor", checked);
+	end);
+	PlaceInPanel(panel, fromCursor, ROW_HEIGHT, 2);
+
+	table.insert(panel.sync, function()
+		local checked = FlightToolValue(4) and true or false;
+
+		if ( fromCursor.checked ~= checked ) then
+			NoggitCheckBox_SetChecked(fromCursor, checked);
+		end
+	end);
+
+	FormSpinRow(panel, "Below cursor by:", -1000, 1000, 1, 1, function() return FlightToolValue(5); end, function(value) EditorSetFlightTool("offset", value); end);
+
+	local radiusGetter = function() return FlightToolValue(3); end;
+	local radiusSetter = function(value) EditorSetFlightTool("radius", value); end;
+	FormSpinRow(panel, "Brush Radius:", 0, 2000, 1, 0, radiusGetter, radiusSetter);
+	FormSlider(panel, 0, 2000, 1, radiusGetter, radiusSetter);
+
+	local showUpper = NoggitCheckBox_Create(panel, "Show ceiling", FlightToolValue(6), function(_, checked)
+		EditorSetFlightTool("showUpper", checked);
+	end);
+	PlaceInPanel(panel, showUpper, ROW_HEIGHT, 2);
+
+	KeybindRow(panel, 0xF86D, "Set vertices in brush");
+	KeybindRow(panel, 0xF86C, "Pick nearest vertex height");
+
+	PlaceInPanel(panel, Button(panel, "Fill current tile", panel.innerWidth, EditorFillFlightTile, true), 23);
+	PlaceInPanel(panel, Button(panel, "Fill all loaded tiles", panel.innerWidth, function()
+		NoggitMessageBox_Show("Fill loaded tiles", "Set this plane to the height on every loaded tile?", {
+			{ text = "Fill", onClick = EditorFillFlightLoaded },
+			{ text = "Cancel" },
+		});
+	end, true), 23);
+
+	local info = NoggitUI_FontString(panel, "");
+	info:SetWidth(panel.innerWidth);
+	info:SetHeight(48);
+	PlaceInPanel(panel, info, 48, 4);
+
+	table.insert(panel.sync, function()
+		info:SetText(FlightInfoText());
+	end);
+
+	return panel;
+end
+
 function NoggitTools_Sync(panel)
 	for _, sync in ipairs(panel.sync) do
 		sync();

@@ -2,6 +2,7 @@
 #include "HoT/Editor/Map/EditorUndo.h"
 #include "HoT/Editor/Map/TextureEdit.h"
 #include "HoT/Editor/Map/ChunkEdit.h"
+#include "HoT/Editor/Map/FlightBoundsEdit.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -54,6 +55,8 @@ float GetRadius() {
             return ChunkEdit::s_settings.m_areaRadius;
         case MODE_VERTEX:
             return ChunkEdit::s_settings.m_vertexRadius;
+        case MODE_FLIGHT:
+            return FlightBoundsEdit::s_settings.m_radius;
         default:
             return 0.0f;
     }
@@ -61,6 +64,12 @@ float GetRadius() {
 
 void ChangeRadius(float delta) {
     if (s_mode == MODE_OBJECT || s_mode == MODE_IMPASS) {
+        return;
+    }
+
+    if (s_mode == MODE_FLIGHT) {
+        float& radius = FlightBoundsEdit::s_settings.m_radius;
+        radius = Clamp(radius + delta * 10.0f, 0.0f, 2000.0f);
         return;
     }
 

@@ -15,6 +15,7 @@
 #include "HoT/Editor/Map/EditorSave.h"
 #include "HoT/Editor/Map/EditorUndo.h"
 #include "HoT/Editor/Map/EditorWorld.h"
+#include "HoT/Editor/Map/FlightBoundsEdit.h"
 #include "HoT/Editor/Map/ObjectEdit.h"
 #include "HoT/Editor/Map/Runtime.h"
 #include "HoT/Editor/Map/TerrainEdit.h"
@@ -923,6 +924,82 @@ static int32_t Script_EditorGetChunkInfo(lua_State* L) {
     return 4;
 }
 
+static int32_t Script_EditorGetFlightTool(lua_State* L) {
+    const FlightBoundsEdit::Settings& settings = FlightBoundsEdit::s_settings;
+    lua_pushnumber(L, settings.m_layer + 1);
+    lua_pushnumber(L, settings.m_height);
+    lua_pushnumber(L, settings.m_radius);
+    lua_pushboolean(L, settings.m_fromCursor);
+    lua_pushnumber(L, settings.m_offset);
+    lua_pushboolean(L, settings.m_showUpper);
+    return 6;
+}
+
+static int32_t Script_EditorSetFlightTool(lua_State* L) {
+    if (!lua_isstring(L, 1) || (!lua_isnumber(L, 2) && !lua_isboolean(L, 2))) {
+        luaL_error(L, "Usage: EditorSetFlightTool(\"key\", value)");
+        return 0;
+    }
+
+    const char* key = lua_tolstring(L, 1, nullptr);
+    float value = lua_isboolean(L, 2) ? (lua_toboolean(L, 2) ? 1.0f : 0.0f) : static_cast<float>(lua_tonumber(L, 2));
+    FlightBoundsEdit::Settings& settings = FlightBoundsEdit::s_settings;
+
+    if (!SStrCmpI(key, "layer", STORM_MAX_STR)) {
+        settings.m_layer = value >= 2.0f ? FlightBoundsEdit::LAYER_UPPER : FlightBoundsEdit::LAYER_LOWER;
+    } else if (!SStrCmpI(key, "height", STORM_MAX_STR)) {
+        settings.m_height = static_cast<int32_t>(Clamp(floorf(value + 0.5f), -32768.0f, 32767.0f));
+    } else if (!SStrCmpI(key, "radius", STORM_MAX_STR)) {
+        settings.m_radius = Clamp(value, 0.0f, 2000.0f);
+    } else if (!SStrCmpI(key, "fromCursor", STORM_MAX_STR)) {
+        settings.m_fromCursor = value != 0.0f;
+    } else if (!SStrCmpI(key, "offset", STORM_MAX_STR)) {
+        settings.m_offset = Clamp(value, -1000.0f, 1000.0f);
+    } else if (!SStrCmpI(key, "showUpper", STORM_MAX_STR)) {
+        settings.m_showUpper = value != 0.0f;
+    }
+
+    return 0;
+}
+
+static int32_t Script_EditorGetFlightBounds(lua_State* L) {
+    if (!lua_isnumber(L, 1) || !lua_isnumber(L, 2)) {
+        luaL_error(L, "Usage: EditorGetFlightBounds(x, y)");
+        return 0;
+    }
+
+    FlightBoundsEdit::Info info;
+
+    if (!FlightBoundsEdit::GetInfo(C3Vector(static_cast<float>(lua_tonumber(L, 1)), static_cast<float>(lua_tonumber(L, 2)), 0.0f), &info)) {
+        return 0;
+    }
+
+    lua_pushnumber(L, info.m_tileX);
+    lua_pushnumber(L, info.m_tileY);
+    lua_pushboolean(L, info.m_hasChunk);
+    lua_pushnumber(L, info.m_lowerAt);
+    lua_pushnumber(L, info.m_upperAt);
+    lua_pushnumber(L, info.m_vertexLower);
+    lua_pushnumber(L, info.m_vertexUpper);
+    return 7;
+}
+
+static int32_t Script_EditorFillFlightTile(lua_State* L) {
+    if (Runtime::IsMapLoaded()) {
+        FlightBoundsEdit::FillTile(Runtime::CameraPosition());
+    }
+
+    return 0;
+}
+
+static int32_t Script_EditorFillFlightLoaded(lua_State* L) {
+    if (Runtime::IsMapLoaded()) {
+        FlightBoundsEdit::FillLoaded();
+    }
+
+    return 0;
+}
+
 static int32_t Script_EditorDeleteSelection(lua_State* L) {
     ObjectEdit::DeleteSelection();
     return 0;
@@ -1109,6 +1186,11 @@ void Register() {
     Lua::RegisterFunction("EditorSetHoles", Gated<Script_EditorSetHoles>);
     Lua::RegisterFunction("EditorSetImpass", Gated<Script_EditorSetImpass>);
     Lua::RegisterFunction("EditorGetChunkInfo", Gated<Script_EditorGetChunkInfo>);
+    Lua::RegisterFunction("EditorGetFlightTool", Gated<Script_EditorGetFlightTool>);
+    Lua::RegisterFunction("EditorSetFlightTool", Gated<Script_EditorSetFlightTool>);
+    Lua::RegisterFunction("EditorGetFlightBounds", Gated<Script_EditorGetFlightBounds>);
+    Lua::RegisterFunction("EditorFillFlightTile", Gated<Script_EditorFillFlightTile>);
+    Lua::RegisterFunction("EditorFillFlightLoaded", Gated<Script_EditorFillFlightLoaded>);
     Lua::RegisterFunction("EditorDeleteSelection", Gated<Script_EditorDeleteSelection>);
     Lua::RegisterFunction("EditorCopySelection", Gated<Script_EditorCopySelection>);
     Lua::RegisterFunction("EditorPasteObjects", Gated<Script_EditorPasteObjects>);

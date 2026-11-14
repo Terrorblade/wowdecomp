@@ -17,6 +17,7 @@ local MAP_TOOLS = {
 	{ key = "map.area", name = "Area Designator", icon = 0xF8A0, mode = 6, create = NoggitTools_CreateAreaDesignator },
 	{ key = "map.impass", name = "Impass Designator", icon = 0xF8A1, mode = 7, noPanel = true },
 	{ key = "map.vertex", name = "Vertex Painter", icon = 0xF8A3, mode = 8, create = NoggitTools_CreateVertexPainter },
+	{ key = "map.flight", name = "Flight Bounds", icon = 0xF8B0, mode = 9, create = NoggitTools_CreateFlightBounds },
 	{ key = "map.object", name = "Object Editor", icon = 0xF8A4, mode = 4, create = NoggitTools_CreateObjectEditor },
 };
 

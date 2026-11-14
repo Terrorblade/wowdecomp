@@ -34,6 +34,11 @@ struct ChunkSnapshot {
     uint32_t m_colors[145];
 };
 
+struct FlightSnapshot {
+    uint32_t m_area;
+    int16_t m_heights[18];
+};
+
 struct ObjectSnapshot {
     int32_t m_kind;
     uint32_t m_uniqueId;
@@ -49,6 +54,7 @@ void RecordHeight(int32_t row, int32_t col);
 void RecordTexture(int32_t row, int32_t col);
 void RecordObject(int32_t kind, uint32_t uniqueId);
 void RecordChunk(int32_t row, int32_t col);
+void RecordFlight(uint32_t areaIndex);
 void RecordPresence(const std::vector<EditorSave::AddedObject>& removed, const std::vector<EditorSave::AddedObject>& added);
 bool Undo();
 bool Redo();

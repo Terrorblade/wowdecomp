@@ -3,6 +3,7 @@
 #include <vector>
 #include "WoW/Source/WorldClient/MapArea.h"
 #include "HoT/Editor/Map/ChunkEdit.h"
+#include "HoT/Editor/Map/FlightBoundsEdit.h"
 #include "HoT/Editor/Map/ObjectEdit.h"
 #include "HoT/Editor/Map/TerrainEdit.h"
 #include "HoT/Editor/Map/TextureEdit.h"
@@ -18,11 +19,13 @@ struct Step {
     std::vector<ObjectSnapshot> m_objectAfter;
     std::vector<ChunkSnapshot> m_chunkBefore;
     std::vector<ChunkSnapshot> m_chunkAfter;
+    std::vector<FlightSnapshot> m_flightBefore;
+    std::vector<FlightSnapshot> m_flightAfter;
     std::vector<EditorSave::AddedObject> m_removedObjects;
     std::vector<EditorSave::AddedObject> m_addedObjects;
 
     bool Empty() const {
-        return this->m_heightBefore.empty() && this->m_textureBefore.empty() && this->m_objectBefore.empty() && this->m_chunkBefore.empty() && this->m_removedObjects.empty() && this->m_addedObjects.empty();
+        return this->m_heightBefore.empty() && this->m_textureBefore.empty() && this->m_objectBefore.empty() && this->m_chunkBefore.empty() && this->m_flightBefore.empty() && this->m_removedObjects.empty() && this->m_addedObjects.empty();
     }
 };
 
@@ -120,6 +123,23 @@ void RecordChunk(int32_t row, int32_t col) {
     }
 }
 
+void RecordFlight(uint32_t areaIndex) {
+    BeginStep();
+
+    for (const FlightSnapshot& snapshot : s_current.m_flightBefore) {
+        if (snapshot.m_area == areaIndex) {
+            return;
+        }
+    }
+
+    FlightSnapshot snapshot;
+
+    if (FlightBoundsEdit::Capture(areaIndex, snapshot)) {
+        s_current.m_flightBefore.push_back(snapshot);
+        MarkArea(areaIndex);
+    }
+}
+
 void RecordPresence(const std::vector<EditorSave::AddedObject>& removed, const std::vector<EditorSave::AddedObject>& added) {
     if (s_open) {
         EndStep();
@@ -200,6 +220,14 @@ void EndStep() {
         }
     }
 
+    for (const FlightSnapshot& before : s_current.m_flightBefore) {
+        FlightSnapshot after;
+
+        if (FlightBoundsEdit::Capture(before.m_area, after)) {
+            s_current.m_flightAfter.push_back(after);
+        }
+    }
+
     s_undo.push_back(std::move(s_current));
 
     if (s_undo.size() > s_maxSteps) {
@@ -210,7 +238,12 @@ void EndStep() {
     s_current = Step();
 }
 
-static void Apply(const std::vector<HeightSnapshot>& heights, const std::vector<TextureSnapshot>& textures, const std::vector<ObjectSnapshot>& objects, const std::vector<ChunkSnapshot>& chunks) {
+static void Apply(const std::vector<HeightSnapshot>& heights, const std::vector<TextureSnapshot>& textures, const std::vector<ObjectSnapshot>& objects, const std::vector<ChunkSnapshot>& chunks, const std::vector<FlightSnapshot>& flights) {
+    // A restore can add the MFBO chunk and reload its tile, so it goes before the chunk based restores.
+    for (const FlightSnapshot& snapshot : flights) {
+        FlightBoundsEdit::Restore(snapshot);
+    }
+
     for (const ChunkSnapshot& snapshot : chunks) {
         ChunkEdit::Restore(snapshot);
     }
@@ -243,7 +276,7 @@ bool Undo() {
         ObjectEdit::AddObjects(step.m_removedObjects, false);
     }
 
-    Apply(step.m_heightBefore, step.m_textureBefore, step.m_objectBefore, step.m_chunkBefore);
+    Apply(step.m_heightBefore, step.m_textureBefore, step.m_objectBefore, step.m_chunkBefore, step.m_flightBefore);
     s_redo.push_back(std::move(step));
     s_undo.pop_back();
     return true;
@@ -264,7 +297,7 @@ bool Redo() {
         ObjectEdit::AddObjects(step.m_addedObjects, false);
     }
 
-    Apply(step.m_heightAfter, step.m_textureAfter, step.m_objectAfter, step.m_chunkAfter);
+    Apply(step.m_heightAfter, step.m_textureAfter, step.m_objectAfter, step.m_chunkAfter, step.m_flightAfter);
     s_undo.push_back(std::move(step));
     s_redo.pop_back();
     return true;

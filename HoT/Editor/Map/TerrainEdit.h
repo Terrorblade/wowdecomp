@@ -18,7 +18,8 @@ enum MODE {
     MODE_AREA = 5,
     MODE_IMPASS = 6,
     MODE_VERTEX = 7,
-    NUM_MODES = 8,
+    MODE_FLIGHT = 8,
+    NUM_MODES = 9,
 };
 
 enum TERRAIN_TYPE {

@@ -431,8 +431,8 @@ void DrawOverlay(const C3Vector& camPos, const C3Vector* cursor) {
     for (uint32_t i = 0; VoidFloors::GetCurrent(i, &discX, &discY, &discRadius, &discFloor); i++) {
         if (discRadius <= 0.0f) {
             // Whole map floor as a grid round the camera, excluded cells left as holes.
-            const float cell = 25.0f;
-            const int32_t reach = 24;
+            const float cell = 8.0f;
+            const int32_t reach = 60;
             float baseX = floorf(camPos.x / cell) * cell;
             float baseY = floorf(camPos.y / cell) * cell;
 
@@ -455,10 +455,16 @@ void DrawOverlay(const C3Vector& camPos, const C3Vector* cursor) {
                     Push(s_fill, a, discFill);
                     Push(s_fill, c, discFill);
                     Push(s_fill, d, discFill);
-                    Push(s_lines, a, discLine);
-                    Push(s_lines, b, discLine);
-                    Push(s_lines, a, discLine);
-                    Push(s_lines, d, discLine);
+                    // Grid lines every fourth cell, by world cell index so they do not crawl with the camera.
+                    if ((static_cast<int32_t>(floorf(y0 / cell)) & 3) == 0) {
+                        Push(s_lines, a, discLine);
+                        Push(s_lines, b, discLine);
+                    }
+
+                    if ((static_cast<int32_t>(floorf(x0 / cell)) & 3) == 0) {
+                        Push(s_lines, a, discLine);
+                        Push(s_lines, d, discLine);
+                    }
                 }
             }
 

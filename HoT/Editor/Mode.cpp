@@ -76,6 +76,8 @@ struct ModeState {
 
     uint32_t m_buttonsDown = 0;
     uint32_t m_buttonsHeld = 0;
+    // Pressed before the editor opened, their release belongs to the game's own binding.
+    uint32_t m_gameButtons = 0;
     Handler* m_buttonOwner[16] = {};
 
     bool m_haveLastTick = false;
@@ -239,6 +241,7 @@ void SetActive(bool active) {
 
         s_state.m_active = true;
         s_state.m_haveLastTick = false;
+        s_state.m_gameButtons = s_state.m_buttonsHeld;
 
         SetUIParentShown(false);
 
@@ -262,6 +265,13 @@ void SetActive(bool active) {
     }
 
     ReleaseButtons(0.0f, 0.0f);
+
+    // A held right button drives the editor's BUTTON1 look, its release would reach the game as BUTTON2.
+    if ((s_state.m_buttonsHeld & static_cast<uint32_t>(MOUSE_BUTTON_RIGHT)) && !(s_state.m_gameButtons & static_cast<uint32_t>(MOUSE_BUTTON_RIGHT)) && CGUIBindings::s_bindings) {
+        CGUIBindings::s_bindings->ExecKey(0, "BUTTON1", 0, 1, static_cast<BINDING_MODE>(4));
+    }
+
+    s_state.m_gameButtons = 0;
 
     for (Handler* handler : s_state.m_handlers) {
         handler->OnDeactivate();
@@ -431,6 +441,17 @@ static bool ClickSelectsObjects() {
 bool OnWorldMouse(MOUSEBUTTON button, uint32_t metaKeys, float ndcX, float ndcY, bool down) {
     if (!s_state.m_active) {
         return false;
+    }
+
+    uint32_t bit = static_cast<uint32_t>(button);
+
+    // Held since before the editor opened: let the release end the game's mouselook, or the cursor stays captured.
+    if (s_state.m_gameButtons & bit) {
+        s_state.m_gameButtons &= ~bit;
+
+        if (!down) {
+            return false;
+        }
     }
 
     float x = 0.0f;

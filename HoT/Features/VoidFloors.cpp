@@ -91,9 +91,37 @@ int32_t Apply(const C3Vector& pos, float* height, int32_t result) {
     return result;
 }
 
+bool GetExclusionPoint(uint32_t exclusion, uint32_t point, float* x, float* y) {
+    for (const Exclusion& entry : s_exclusions) {
+        if (entry.m_mapId != CGGameUI::m_iCurrentMapID || exclusion-- != 0) {
+            continue;
+        }
+
+        if (point >= entry.m_count) {
+            return false;
+        }
+
+        *x = entry.m_points[point].m_x;
+        *y = entry.m_points[point].m_y;
+        return true;
+    }
+
+    return false;
+}
+
+bool IsExcluded(float x, float y) {
+    for (const Exclusion& entry : s_exclusions) {
+        if (entry.m_mapId == CGGameUI::m_iCurrentMapID && Inside(entry, x, y)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool GetCurrent(uint32_t index, float* x, float* y, float* radius, float* floor) {
     for (const VoidFloor& entry : s_floors) {
-        if (entry.m_mapId != CGGameUI::m_iCurrentMapID || entry.m_radius <= 0.0f) {
+        if (entry.m_mapId != CGGameUI::m_iCurrentMapID) {
             continue;
         }
 

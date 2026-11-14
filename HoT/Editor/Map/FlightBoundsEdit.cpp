@@ -429,6 +429,61 @@ void DrawOverlay(const C3Vector& camPos, const C3Vector* cursor) {
     float discX, discY, discRadius, discFloor;
 
     for (uint32_t i = 0; VoidFloors::GetCurrent(i, &discX, &discY, &discRadius, &discFloor); i++) {
+        if (discRadius <= 0.0f) {
+            // Whole map floor as a grid round the camera, excluded cells left as holes.
+            const float cell = 25.0f;
+            const int32_t reach = 24;
+            float baseX = floorf(camPos.x / cell) * cell;
+            float baseY = floorf(camPos.y / cell) * cell;
+
+            for (int32_t gx = -reach; gx < reach; gx++) {
+                for (int32_t gy = -reach; gy < reach; gy++) {
+                    float x0 = baseX + gx * cell;
+                    float y0 = baseY + gy * cell;
+
+                    if (VoidFloors::IsExcluded(x0 + cell * 0.5f, y0 + cell * 0.5f)) {
+                        continue;
+                    }
+
+                    C3Vector a(x0, y0, discFloor);
+                    C3Vector b(x0 + cell, y0, discFloor);
+                    C3Vector c(x0 + cell, y0 + cell, discFloor);
+                    C3Vector d(x0, y0 + cell, discFloor);
+                    Push(s_fill, a, discFill);
+                    Push(s_fill, b, discFill);
+                    Push(s_fill, c, discFill);
+                    Push(s_fill, a, discFill);
+                    Push(s_fill, c, discFill);
+                    Push(s_fill, d, discFill);
+                    Push(s_lines, a, discLine);
+                    Push(s_lines, b, discLine);
+                    Push(s_lines, a, discLine);
+                    Push(s_lines, d, discLine);
+                }
+            }
+
+            // Exclusion outlines at the floor height.
+            CImVector edge = Color(0x50, 0xFF, 0x70, 0xFF);
+            float px, py, firstX, firstY, lastX, lastY;
+
+            for (uint32_t n = 0; VoidFloors::GetExclusionPoint(n, 0, &firstX, &firstY); n++) {
+                lastX = firstX;
+                lastY = firstY;
+
+                for (uint32_t p = 1; VoidFloors::GetExclusionPoint(n, p, &px, &py); p++) {
+                    Push(s_lines, C3Vector(lastX, lastY, discFloor), edge);
+                    Push(s_lines, C3Vector(px, py, discFloor), edge);
+                    lastX = px;
+                    lastY = py;
+                }
+
+                Push(s_lines, C3Vector(lastX, lastY, discFloor), edge);
+                Push(s_lines, C3Vector(firstX, firstY, discFloor), edge);
+            }
+
+            continue;
+        }
+
         const int32_t segments = 48;
 
         for (int32_t s = 0; s < segments; s++) {

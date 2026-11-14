@@ -17,6 +17,7 @@
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/Ui/ChatFrame.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 
 namespace HoT::WorldResume {
@@ -206,6 +207,28 @@ static void SendPlayerLogin() {
     clientServices->CharacterLogin(WOWGUID{ s_playerGuid }, 0);
 }
 
+// The client keeps its channel list and only joins channels it does not already hold, while the server's
+// new Player has none, so rejoin every one. Safe before the login completes, the server queues it.
+// Password protected custom channels cannot come back, the client keeps no password.
+static void SendChannelRejoins() {
+    for (uint32_t i = 0; i < CGChat::s_channels.Count(); i++) {
+        const ChatChannel& channel = CGChat::s_channels.m_data[i];
+
+        // m_unk9C is set until the server confirms the join, m_unkA4 is the second join byte.
+        if (!channel.m_channelNumber || channel.m_unk9C || !channel.m_name[0]) {
+            continue;
+        }
+
+        Net::Packet(static_cast<uint32_t>(CMSG_CHAT_JOIN_CHANNEL))
+            .PutUInt32(channel.m_zoneChannelID)
+            .PutUInt8(1)
+            .PutUInt8(channel.m_unkA4)
+            .PutString(channel.m_name)
+            .PutString("")
+            .Send();
+    }
+}
+
 // The server re-sends every object under a guid the client still holds, so purge the object manager the way a map change does.
 static bool ReloadWorld() {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
@@ -300,6 +323,7 @@ static void Pump() {
     if (s_authenticated && HasLink()) {
         SendReadyForAccountDataTimes();
         SendPlayerLogin();
+        SendChannelRejoins();
 
         // After the login request, the order the client itself uses.
         ReloadWorld();

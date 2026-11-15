@@ -716,6 +716,7 @@ function Common.CreateGridPage(parent, options)
 	page.available = true;
 
 	page.HasChanges = function(self)
+		self.grid:CommitFocus();
 		return self.available and self.grid:HasChanges();
 	end;
 
@@ -744,6 +745,7 @@ function Common.CreateGridPage(parent, options)
 	end;
 
 	page.Save = function(self)
+		self.grid:CommitFocus();
 		local changes, count = self.grid:GetChanges();
 
 		if ( count == 0 or not self.available ) then

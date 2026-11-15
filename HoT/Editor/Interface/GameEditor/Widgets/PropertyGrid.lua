@@ -1311,6 +1311,15 @@ function Grid:GetChanges()
 	return changes, count;
 end
 
+-- Buttons do not take focus, so a value still being typed must be committed before saving.
+function Grid:CommitFocus()
+	for _, row in pairs(self.rowsByColumn) do
+		if ( row.edit:HasFocus() ) then
+			row.edit:ClearFocus();
+		end
+	end
+end
+
 function Grid:HasChanges()
 	local _, count = self:GetChanges();
 	return count > 0;

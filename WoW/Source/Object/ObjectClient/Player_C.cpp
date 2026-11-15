@@ -4471,7 +4471,8 @@ int32_t Packet_SMSG_CUSTOM_STAT_TRACK(void* param, NETMESSAGE msgId, uint32_t ti
     msg->Get(stats.m_healthRegenInCombat);
 
     HoT::Lua::SignalEvent("HOT_STAT_UPDATE", nullptr);
-    FrameScript_SignalEvent(SCRIPT_EVENT_COMBAT_RATING_UPDATE, nullptr);
+    // By name: the server also sends this at character create, where the glue event table is loaded.
+    HoT::Lua::SignalEvent("COMBAT_RATING_UPDATE", nullptr);
     return 1;
 }
 

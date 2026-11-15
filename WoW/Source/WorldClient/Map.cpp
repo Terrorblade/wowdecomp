@@ -3166,6 +3166,11 @@ void CMap::FreeDoodadDef(CMapDoodadDef* doodadDef) {
 // VERIFY: d7c82155 manual
 // OFFSET: 0x007C02D0
 void CMap::FreeEntity(CMapEntity* entity) {
+    // HoT: the scene keeps rendering from the camera target until the next update replaces it.
+    if (CWorldScene::camTargetEntity == entity) {
+        CWorldScene::camTargetEntity = nullptr;
+    }
+
     entity->m_lameAssLink.Unlink();
     entity->~CMapEntity();
     ObjectFree(*CMap::entityHeap, entity->m_objectIndex);

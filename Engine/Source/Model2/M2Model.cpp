@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <cfloat>
 #include <cmath>
 #include <cstdlib>
@@ -56,6 +57,93 @@ TSGrowableArray<uint32_t> CM2Model::s_collisionCodes;
 
 // STATIC: 0x00D411C0
 TSGrowableArray<M2ModelCallback> CM2Model::s_sequenceCallbacks;
+
+struct DeferredParticleUpdate {
+    CParticleEmitter2* m_emitter;
+    float m_deltaTime;
+    int32_t m_hasFrame;
+    C3Vector m_viewPos;
+    C44Matrix m_transform;
+    C44Matrix m_frame;
+};
+
+static std::vector<DeferredParticleUpdate> s_particleUpdates;
+static std::atomic<uint32_t> s_particleUpdateNext;
+static bool s_particleUpdatesOpen;
+
+static void RunParticleUpdates(void*) {
+    uint32_t count = static_cast<uint32_t>(s_particleUpdates.size());
+
+    for (uint32_t i = s_particleUpdateNext.fetch_add(1); i < count; i = s_particleUpdateNext.fetch_add(1)) {
+        DeferredParticleUpdate& update = s_particleUpdates[i];
+        update.m_emitter->Update(update.m_deltaTime, update.m_transform, update.m_viewPos, update.m_hasFrame ? &update.m_frame : nullptr);
+        update.m_emitter->m_updateQueued = 0;
+    }
+}
+
+static void ReleaseParticleUpdates() {
+    for (DeferredParticleUpdate& update : s_particleUpdates) {
+        update.m_emitter->DecRef();
+    }
+
+    s_particleUpdates.clear();
+}
+
+static void RunParticleUpdatesHere() {
+    s_particleUpdateNext.store(0);
+    RunParticleUpdates(nullptr);
+    ReleaseParticleUpdates();
+}
+
+// Quad emitters keep all their state on the emitter, so their update runs on the animation workers after AnimateST.
+static bool QueueParticleUpdate(CParticleEmitter2* emitter, float deltaTime, const C44Matrix& transform, const C3Vector& viewPos, const C44Matrix* frame) {
+    if (!s_particleUpdatesOpen || emitter->m_params.m_hasModel != CParticleEmitter2::PT_QUAD || emitter->m_childEmitterCount || (emitter->m_flags & 0x40000)) {
+        return false;
+    }
+
+    if (emitter->m_updateQueued) {
+        RunParticleUpdatesHere();
+    }
+
+    DeferredParticleUpdate& update = s_particleUpdates.emplace_back();
+    update.m_emitter = emitter;
+    update.m_deltaTime = deltaTime;
+    update.m_hasFrame = frame != nullptr;
+    update.m_viewPos = viewPos;
+    update.m_transform = transform;
+
+    if (frame) {
+        update.m_frame = *frame;
+    }
+
+    emitter->m_updateQueued = 1;
+    emitter->AddRef();
+    return true;
+}
+
+void CM2Model::BeginParticleUpdates() {
+    s_particleUpdates.clear();
+    s_particleUpdatesOpen = true;
+}
+
+void CM2Model::FlushParticleUpdates(CM2Scene* scene) {
+    s_particleUpdatesOpen = false;
+
+    if (s_particleUpdates.empty()) {
+        return;
+    }
+
+    HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::ParticleUpdate);
+    s_particleUpdateNext.store(0);
+
+    if (s_particleUpdates.size() > 8) {
+        scene->m_cache->RunThreads(&RunParticleUpdates, nullptr);
+    } else {
+        RunParticleUpdates(nullptr);
+    }
+
+    ReleaseParticleUpdates();
+}
 
 // INLINED
 CM2ModelCall::CM2ModelCall() {
@@ -3005,6 +3093,8 @@ void CM2Model::RenderBatchShadowMap(int32_t untextured, M2Batch* batch, const CM
 // OFFSET: 0x00829E40
 void CM2Model::RenderModelBatchListShadowMap(int32_t untextured, const CModelBatchList& list) {
     M2SkinSection* prevSection = nullptr;
+    M2SkinSection runs[2];
+    uint32_t runSlot = 0;
     CM2Model* prevModel = nullptr;
     uint32_t i = 0;
 
@@ -3016,6 +3106,7 @@ void CM2Model::RenderModelBatchListShadowMap(int32_t untextured, const CModelBat
         if (model != prevModel) {
             prevSection = nullptr;
             prevModel = model;
+            shared->m_cache->LinkToSharedUpdateList(shared);
 
             if (entry->m_count == 1) {
                 int32_t indexed = model->m_optGeo ? model->SetIndices() : shared->SetIndices();
@@ -3038,8 +3129,41 @@ void CM2Model::RenderModelBatchListShadowMap(int32_t untextured, const CModelBat
             section = &shared->m_skinSections[batch->m_skinSectionIndex];
         }
 
+        uint32_t next = i + entry->m_count;
+
+        // Depth only draws ignore the material, so a model's touching index ranges on one palette go out as one draw.
+        if (untextured && model->m_optGeo && entry->m_count == 1) {
+            M2ModelOptGeo* optGeo = model->m_optGeo;
+            M2SkinSection& run = runs[runSlot];
+            bool joined = false;
+
+            while (next < list.m_count && list.m_batches[next].m_model == model && list.m_batches[next].m_count == 1) {
+                M2SkinSection* following = &optGeo->m_skinSections[optGeo->m_batches[list.m_batches[next].m_batchIndex].m_skinSectionIndex];
+                const M2SkinSection& last = joined ? run : *section;
+
+                if (following->m_boneComboIndex != section->m_boneComboIndex || following->m_indexStart != last.m_indexStart + last.m_indexCount) {
+                    break;
+                }
+
+                if (!joined) {
+                    run = *section;
+                    joined = true;
+                }
+
+                run.m_indexCount += following->m_indexCount;
+                run.m_boneCount = following->m_boneCount > run.m_boneCount ? following->m_boneCount : run.m_boneCount;
+                run.m_boneInfluences = following->m_boneInfluences > run.m_boneInfluences ? following->m_boneInfluences : run.m_boneInfluences;
+                next++;
+            }
+
+            if (joined) {
+                section = &run;
+                runSlot ^= 1;
+            }
+        }
+
         model->RenderBatchShadowMap(untextured, batch, list, i, section, prevSection);
-        i += entry->m_count;
+        i = next;
         prevSection = section;
     }
 }
@@ -5883,6 +6007,11 @@ void CM2Model::AnimateParticleST(float deltaTime, uint32_t index) {
     static C44Matrix s_emitterRotation(0.0f, 1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 
     transform = s_emitterRotation * transform;
+
+    if (QueueParticleUpdate(emitter, deltaTime, transform, *reinterpret_cast<const C3Vector*>(&this->m_scene->m_viewInv.d0), static_cast<const C44Matrix*>(this->m_frameOfReference))) {
+        return;
+    }
+
     emitter->Update(deltaTime, transform, *reinterpret_cast<const C3Vector*>(&this->m_scene->m_viewInv.d0), static_cast<const C44Matrix*>(this->m_frameOfReference));
 
     uint32_t modelCount = emitter->GetNumParticleModels();
@@ -7091,7 +7220,8 @@ void CModelBatchList::Optimize() {
             section = &model->m_shared->m_skinSections[model->m_shared->m_skinData->m_batches[batch.m_batchIndex].m_skinSectionIndex];
         }
 
-        keys[i] = { section->m_boneInfluences, reinterpret_cast<uintptr_t>(model->m_optGeo), reinterpret_cast<uintptr_t>(model->m_shared), batch.m_batchIndex, batch };
+        uint16_t influences = model->m_optGeo ? 0xFFFF : section->m_boneInfluences;
+        keys[i] = { influences, reinterpret_cast<uintptr_t>(model->m_optGeo), reinterpret_cast<uintptr_t>(model->m_shared), batch.m_batchIndex, batch };
     }
 
     std::sort(keys.begin(), keys.end(), [](const BatchKey& a, const BatchKey& b) {

@@ -89,7 +89,8 @@ struct PipelineKey {
     uint8_t m_srcBlend;                   // MTLBlendFactor, the same for colour and alpha
     uint8_t m_dstBlend;
     uint8_t m_writeMask;                  // MTLColorWriteMask
-    uint8_t m_padding[3];
+    uint8_t m_padding;
+    uint16_t m_instanceStreams;
 
     PipelineKey() { memset(this, 0, sizeof(*this)); }
     bool operator==(const PipelineKey& other) const { return memcmp(this, &other, sizeof(*this)) == 0; }

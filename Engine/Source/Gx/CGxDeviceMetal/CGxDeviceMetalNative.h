@@ -169,6 +169,7 @@ class CGxDeviceMetalNative : public CGxDevice {
     GxMetal::Buffer* m_streamBufs[16];
     uint32_t m_streamOffsets[16];
     uint32_t m_streamStrides[16];
+    uint32_t m_instanceStreams = 0;
     GxMetal::Buffer* m_indexBuf;
     // The encoder pass the stream bindings were applied for; a new pass invalidates them
     uint64_t m_streamPassId;

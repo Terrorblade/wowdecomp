@@ -13,7 +13,7 @@
 static const char* s_asyncQueueNames[3] = { "Disk Queue", "Net Geometry Queue", "Net Texture Queue" };
 
 // STATIC: 0x00AC3444
-static uint32_t s_handlerTimeout = 100;
+static uint32_t s_handlerTimeout = 10;
 
 // STATIC: 0x00AC3448
 static TSList<CAsyncQueue, TSGetLink<CAsyncQueue> > s_asyncQueueList;
@@ -503,8 +503,8 @@ void AsyncFileReadInitialize(uint32_t threadSleep, uint32_t handlerTimeout) {
         s_threadSleep = 100;
     }
 
-    if (handlerTimeout < 20) {
-        s_handlerTimeout = 20;
+    if (handlerTimeout < 5) {
+        s_handlerTimeout = 5;
     }
 
     EventRegisterEx(EVENT_ID_POLL, AsyncFileReadPollHandler, nullptr, EVENT_PRIORITY_NORMAL);

@@ -73,7 +73,7 @@ struct BATCHEDRENDERFONTDESC : public TSHashObject<BATCHEDRENDERFONTDESC, HASHKE
     static void Initialize();
     static void InitializeIndexBuff();
     static void Shutdown();
-    static CGxVertexPCT* UnlockVertexPtrAndRender(CGxBuf*& buf, int32_t count);
+    static void UnlockVertexPtrAndRender(CGxBuf*& buf, int32_t count);
 
     /* 0018 */ CGxFont* m_face;
     /* 001C */ TSExplicitList<CGxString, offsetof(CGxString, m_batchedStringLink)> m_strings;

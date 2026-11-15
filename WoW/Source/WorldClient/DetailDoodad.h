@@ -111,7 +111,7 @@ class CDetailDoodadInst {
     public:
     /* 0000 */ int32_t m_objectIndex;
     /* 0004 */ CDetailDoodadInstBatch m_batches[4];
-    /* 0094 */ uint32_t m_age;
+    /* 0094 */ float m_age;
     /* 0098 */ CMapChunk* m_chunk;
     /* 009C */ TSLink<CDetailDoodadInst> m_link;
 

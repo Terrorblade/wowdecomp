@@ -2392,6 +2392,7 @@ void CGxDeviceMetalNative::IStateSyncVertexPtrs() {
     if (this->m_primVertexFormat != GxVertexBufferFormats_Last && this->m_primVertexBuf) {
         // One known interleaved format: a single stream over the whole vertex
         this->ISetVertexBuffer(0, PoolBuffer(this->m_primVertexBuf->m_pool), this->m_primVertexBuf->m_index, this->m_primVertexSize);
+        this->m_instanceStreams = 0;
         this->m_primVertexDirty = 0;
         return;
     }
@@ -2401,6 +2402,7 @@ void CGxDeviceMetalNative::IStateSyncVertexPtrs() {
     CGxBuf* buffers[GxVAs_Last] = {};
     uint32_t strides[GxVAs_Last] = {};
     uint32_t count = 0;
+    uint32_t instanceStreams = 0;
 
     for (uint32_t i = 0; i < GxVAs_Last; i++) {
         if (!(this->m_primVertexMask & (1 << i)) || !this->m_primVertexFormatBuf[i]) {
@@ -2419,6 +2421,10 @@ void CGxDeviceMetalNative::IStateSyncVertexPtrs() {
             buffers[count++] = this->m_primVertexFormatBuf[i];
         }
 
+        if (this->m_primInstanceMask & (1 << i)) {
+            instanceStreams |= 1u << stream;
+        }
+
         static const uint32_t kAttribSizes[7] = { 4, 4, 4, 8, 12, 4, 4 };
         uint32_t type = this->m_primVertexFormatAttrib[i].m_type;
         strides[stream] += kAttribSizes[type < 7 ? type : 0];
@@ -2428,6 +2434,7 @@ void CGxDeviceMetalNative::IStateSyncVertexPtrs() {
         this->ISetVertexBuffer(stream, PoolBuffer(buffers[stream]->m_pool), buffers[stream]->m_index, strides[stream]);
     }
 
+    this->m_instanceStreams = instanceStreams;
     this->m_primVertexDirty = 0;
 }
 
@@ -2706,6 +2713,8 @@ bool CGxDeviceMetalNative::IDrawPrepare(const CGxBatch* batch) {
     for (uint32_t i = 0; i < 16; i++) {
         key.m_strides[i] = static_cast<uint16_t>(this->m_streamStrides[i]);
     }
+
+    key.m_instanceStreams = static_cast<uint16_t>(this->m_primInstanceCount ? this->m_instanceStreams : 0);
 
     id<MTLTexture> colorTexture = this->m_metal->ColorTarget().m_texture ? this->m_metal->ColorTarget().m_texture->m_texture : nil;
     id<MTLTexture> depthTexture = this->m_metal->DepthTarget().m_texture ? this->m_metal->DepthTarget().m_texture->m_texture : nil;
@@ -3064,7 +3073,8 @@ void CGxDeviceMetalNative::IDraw(const CGxBatch* batch, bool indexed, uint32_t b
         }
 
         this->m_indexBuf->m_use.m_lastUse = this->m_indexBuf->m_use.m_lastRenderUse = this->m_metal->CurrentSerial();
-        [encoder drawIndexedPrimitives:primitive indexCount:count indexType:MTLIndexTypeUInt16 indexBuffer:this->m_indexBuf->m_buffer indexBufferOffset:first * 2 instanceCount:1 baseVertex:baseVertexIndex baseInstance:0];
+        uint32_t instances = (this->m_primInstanceCount && this->m_instanceStreams) ? this->m_primInstanceCount : 1;
+        [encoder drawIndexedPrimitives:primitive indexCount:count indexType:MTLIndexTypeUInt16 indexBuffer:this->m_indexBuf->m_buffer indexBufferOffset:first * 2 instanceCount:instances baseVertex:baseVertexIndex baseInstance:0];
         return;
     }
 

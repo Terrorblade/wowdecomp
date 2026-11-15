@@ -1713,7 +1713,7 @@ void CWorld::Initialize() {
     }
 
     World::idMat.Identity();
-    CWorld::s_worldPoolUsage = 1;
+    CWorld::s_worldPoolUsage = GxPoolUsage_Static;
     CWorld::shadowColor = 0xFFFFFFFF;
     CWorld::detailDoodadAlphaRef = 128;
     CWorld::detailDoodadTest = 0;
@@ -3563,19 +3563,22 @@ void CWorldScene::RenderDetailDoodads() {
     for (CDetailDoodadInst* inst = CWorldScene::sortTable.m_detailDoodadInstList.Head(); inst; inst = next) {
         next = CWorldScene::sortTable.m_detailDoodadInstList.Next(inst);
         CMapChunk* chunk = inst->m_chunk;
-        inst->m_age = 0;
+        inst->m_age = 0.0f;
         HoT::Profiler::Count(HoT::Profiler::Counter::DetailDoodads);
-
-        CM2Lighting lighting(chunk->m_sphere);
-        World::s_m2Scene->SelectLights(&lighting);
-        chunk->SelectLights(&lighting);
 
         world = C44Matrix();
         world.Translate(chunk->m_topLeftCoords - CWorldScene::s_activeWorldView);
 
         if (shaders) {
+            if (CWorld::farFog > chunk->m_distToCamera && (chunk->m_flags & MAPOBJ_FLAG_UNPLACED)) {
+                chunk->m_flags = static_cast<MapObjFlag>(chunk->m_flags & ~MAPOBJ_FLAG_UNPLACED);
+            }
+
             CDetailDoodad::SetupVertexShader(world, 0);
         } else {
+            CM2Lighting lighting(chunk->m_sphere);
+            World::s_m2Scene->SelectLights(&lighting);
+            chunk->SelectLights(&lighting);
             lighting.SetupGxLights(&CWorldScene::s_activeWorldView);
             lighting.SetupGxFog();
 
@@ -3614,10 +3617,13 @@ void CWorldScene::CullDoodads(CSortEntry* entry, uint16_t fadeLevel) {
         }
 
         if (!doodadDef->m_model || !(doodadDef->m_flags & MAPOBJ_FLAG_PREPARED)) {
-            CAaBox box;
-            CAaBox bounds = doodadDef->m_model->m_shared->m_boundingBox;
-            CWorldMath::TransformAABox(doodadDef->m_mat, bounds, box);
-            CWorldScene::s_barrier.AddBarrier(box, 10.0f);
+            if (doodadDef->m_model) {
+                CAaBox box;
+                CAaBox bounds = doodadDef->m_model->m_shared->m_boundingBox;
+                CWorldMath::TransformAABox(doodadDef->m_mat, bounds, box);
+                CWorldScene::s_barrier.AddBarrier(box, 10.0f);
+            }
+
             doodadDef = next;
             continue;
         }
@@ -3918,10 +3924,12 @@ void CWorldScene::CullDoodadsExterior(TSList<CMapBaseObjLink, TSGetExplicitLink<
                 }
             }
         } else {
-            CAaBox box;
-            CAaBox bounds = doodadDef->m_model->m_shared->m_boundingBox;
-            CWorldMath::TransformAABox(doodadDef->m_mat, bounds, box);
-            CWorldScene::s_barrier.AddBarrier(box, 10.0f);
+            if (doodadDef->m_model) {
+                CAaBox box;
+                CAaBox bounds = doodadDef->m_model->m_shared->m_boundingBox;
+                CWorldMath::TransformAABox(doodadDef->m_mat, bounds, box);
+                CWorldScene::s_barrier.AddBarrier(box, 10.0f);
+            }
         }
 
         link = linkList->RawNext(link);
@@ -3939,10 +3947,13 @@ void CWorldScene::CullDoodadsInterior(TSList<CMapBaseObjLink, TSGetExplicitLink<
         }
 
         if (!doodadDef->m_model || !(doodadDef->m_flags & MAPOBJ_FLAG_PREPARED)) {
-            CAaBox box;
-            CAaBox bounds = doodadDef->m_model->m_shared->m_boundingBox;
-            CWorldMath::TransformAABox(doodadDef->m_mat, bounds, box);
-            CWorldScene::s_barrier.AddBarrier(box, 10.0f);
+            if (doodadDef->m_model) {
+                CAaBox box;
+                CAaBox bounds = doodadDef->m_model->m_shared->m_boundingBox;
+                CWorldMath::TransformAABox(doodadDef->m_mat, bounds, box);
+                CWorldScene::s_barrier.AddBarrier(box, 10.0f);
+            }
+
             continue;
         }
 
@@ -4963,9 +4974,10 @@ void CWorldScene::RenderHorizon() {
         area->m_horizonLink.Unlink();
     }
 
-    uint32_t count = 0;
-    CMapObjGroup** groups = static_cast<CMapObjGroup**>(alloca(256 * sizeof(CMapObjGroup*)));
-    C44Matrix** matrices = static_cast<C44Matrix**>(alloca(256 * sizeof(C44Matrix*)));
+    static TSGrowableArray<CMapObjGroup*> s_groups;
+    static TSGrowableArray<C44Matrix*> s_matrices;
+    s_groups.SetCount(0);
+    s_matrices.SetCount(0);
     CMapObjDef* nextDef;
 
     for (CMapObjDef* def = CWorldScene::sortTable.m_horizonMapObjList.Head(); def; def = nextDef) {
@@ -4977,9 +4989,10 @@ void CWorldScene::RenderHorizon() {
                 CMapObjGroup* group = mapObj->GetGroup(i, 0);
 
                 if (group->m_flags & 0x8) {
-                    groups[count] = group;
-                    matrices[count] = &def->m_mat;
-                    count++;
+                    s_groups.SetCount(s_groups.Count() + 1);
+                    s_matrices.SetCount(s_matrices.Count() + 1);
+                    s_groups.m_data[s_groups.Count() - 1] = group;
+                    s_matrices.m_data[s_matrices.Count() - 1] = &def->m_mat;
                 }
             } else if (!mapObj->IsGroupLoading(i)) {
                 mapObj->ReadGroup(i);
@@ -4989,6 +5002,8 @@ void CWorldScene::RenderHorizon() {
         def->m_horizonLink.Unlink();
     }
 
+    uint32_t count = s_groups.Count();
+
     if (count) {
         DayNight::DNInfo* info = DayNight::GetInfo();
         GxRsSet(GxRs_FogStart, 0.0f);
@@ -4997,7 +5012,7 @@ void CWorldScene::RenderHorizon() {
         GxRsSet(GxRs_Fog, 1);
         GxRsSet(GxRs_Lighting, 0);
         int32_t a5 = -1;
-        CMapObj::RenderMapObjGroupsColor(groups, count, matrices, &world, &a5);
+        CMapObj::RenderMapObjGroupsColor(s_groups.m_data, count, s_matrices.m_data, &world, &a5);
     }
 
     GxXformPop(GxXform_World);

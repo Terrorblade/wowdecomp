@@ -12,12 +12,14 @@
 #include "Engine/Source/Gx/CGxBuf.h"
 #include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Engine/Source/Gx/CGxDevice/CGxShader.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Model2/M2Data.h"
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Shared.h"
 #include "Engine/Source/Services/GfxSingletonManager.h"
+#include "Engine/Source/Services/ParticleShaderCode.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -52,9 +54,6 @@ static thread_local C33Matrix s_billboardXform(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0
 // STATIC: 0x00B2D5B4
 static const float s_cornerOffsets[4][2] = { { -1.0f, 1.0f }, { -1.0f, -1.0f }, { 1.0f, 1.0f }, { 1.0f, -1.0f } };
 
-// STATIC: 0x00B2D5D4
-static const float s_cornerTexCoords[4][2] = { { 0.0f, 0.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f } };
-
 // STATIC: 0x00DCE680
 uint32_t CParticleEmitter2::s_initCount;
 
@@ -64,8 +63,14 @@ CGxBuf* CParticleEmitter2::s_indexBuf;
 // STATIC: 0x00DCE688
 CGxPool* CParticleEmitter2::s_indexPool;
 
+CGxBuf* CParticleEmitter2::s_cornerBuf;
+
+CGxPool* CParticleEmitter2::s_cornerPool;
+
+CGxShader* CParticleEmitter2::s_instancedShaders[60];
+
 // STATIC: 0x00DCE68C
-float CParticleEmitter2::s_viewDist;
+thread_local float CParticleEmitter2::s_viewDist;
 
 // STATIC: 0x00DCE690
 float CParticleEmitter2::s_rndTable[128];
@@ -80,19 +85,25 @@ thread_local CSortableParticleQueue CParticleEmitter2::s_pq(s_pqParams);
 
 namespace {
 
-struct PrebuiltVertices {
+struct PrebuiltInstances {
     CParticleEmitter2* m_emitter;
     const C44Matrix* m_frameOfReference;
     C44Matrix m_view;
-    std::vector<uint8_t> m_data;
+    size_t m_offset;
     CAaBox m_worldBounds;
-    uint32_t m_vertexCount;
+    uint32_t m_instanceCount;
     uint32_t m_renderedParticles;
 };
 
-std::vector<PrebuiltVertices> s_prebuilt;
+std::vector<PrebuiltInstances> s_prebuilt;
 uint32_t s_prebuiltCount;
 std::unordered_map<CParticleEmitter2*, uint32_t> s_prebuiltIndex;
+
+// One arena per pass, per-slot buffers each grew to the largest emitter that ever used the slot and never shrank.
+std::vector<CParticleEmitter2::ParticleInstance> s_prebuiltArena;
+size_t s_prebuiltArenaUsed;
+size_t s_prebuiltArenaPeak;
+uint32_t s_prebuiltClears;
 
 }
 
@@ -217,43 +228,42 @@ static uint32_t PopIndex(TSGrowableArray<uint32_t>& array) {
     return value;
 }
 
-// INLINED
-static inline void AddVertex(CAaBox& bounds, CParticleEmitter2::ParticleVertex& vertex, const C3Vector& position, const CImVector& color, const C2Vector& texCoord) {
-    *reinterpret_cast<C3Vector*>(vertex.m_position) = position;
+static inline void AddInstance(CAaBox& bounds, CParticleEmitter2::ParticleVertex& vertex, const C3Vector& center, const C3Vector& axisU, const C3Vector& axisV, const CImVector& color, const C2Vector& texBase, const C2Vector& texCell) {
+    float extentX = fabs(axisU.x) + fabs(axisV.x);
+    float extentY = fabs(axisU.y) + fabs(axisV.y);
+    float extentZ = fabs(axisU.z) + fabs(axisV.z);
 
-    if (bounds.b.x > position.x) {
-        bounds.b.x = position.x;
+    if (bounds.b.x > center.x - extentX) {
+        bounds.b.x = center.x - extentX;
     }
 
-    if (bounds.b.y > position.y) {
-        bounds.b.y = position.y;
+    if (bounds.b.y > center.y - extentY) {
+        bounds.b.y = center.y - extentY;
     }
 
-    if (position.z < bounds.b.z) {
-        bounds.b.z = position.z;
+    if (bounds.b.z > center.z - extentZ) {
+        bounds.b.z = center.z - extentZ;
     }
 
-    if (bounds.t.x < position.x) {
-        bounds.t.x = position.x;
+    if (bounds.t.x < center.x + extentX) {
+        bounds.t.x = center.x + extentX;
     }
 
-    if (position.y > bounds.t.y) {
-        bounds.t.y = position.y;
+    if (bounds.t.y < center.y + extentY) {
+        bounds.t.y = center.y + extentY;
     }
 
-    if (position.z > bounds.t.z) {
-        bounds.t.z = position.z;
+    if (bounds.t.z < center.z + extentZ) {
+        bounds.t.z = center.z + extentZ;
     }
 
-    *reinterpret_cast<C3Vector*>(vertex.m_normal) = s_particleNormal;
-    *reinterpret_cast<CImVector*>(vertex.m_color) = color;
-    *reinterpret_cast<C2Vector*>(vertex.m_texCoord) = texCoord;
-
-    vertex.m_position += vertex.m_positionStride;
-    vertex.m_normal += vertex.m_normalStride;
-    vertex.m_color += vertex.m_colorStride;
-    vertex.m_texCoord += vertex.m_texCoordStride;
-    vertex.m_count++;
+    CParticleEmitter2::ParticleInstance& instance = vertex.m_instance[vertex.m_count++];
+    instance.m_center = center;
+    instance.m_axisU = axisU;
+    instance.m_axisV = axisV;
+    instance.m_color = color;
+    instance.m_texBase = texBase;
+    instance.m_texCell = texCell;
 }
 
 // VERIFY: 645e971f auto
@@ -416,8 +426,27 @@ void CParticleEmitter2::Init() {
             return;
         }
 
-        CParticleEmitter2::s_indexPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Index, GxPoolUsage_Static, sizeof(uint16_t) * 0x1FFF8, GxPoolHintBit_Unk2, "CParticleEmitter2_idx");
-        CParticleEmitter2::s_indexBuf = g_theGxDevicePtr->BufCreate(CParticleEmitter2::s_indexPool, sizeof(uint16_t), 0x1FFF8, 0);
+        CParticleEmitter2::s_indexPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Index, GxPoolUsage_Static, sizeof(uint16_t) * 6, GxPoolHintBit_Unk2, "CParticleEmitter2_idx");
+        CParticleEmitter2::s_indexBuf = g_theGxDevicePtr->BufCreate(CParticleEmitter2::s_indexPool, sizeof(uint16_t), 6, 0);
+        CParticleEmitter2::s_cornerPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Vertex, GxPoolUsage_Static, sizeof(s_cornerOffsets), GxPoolHintBit_Unk2, "CParticleEmitter2_corner");
+        CParticleEmitter2::s_cornerBuf = g_theGxDevicePtr->BufCreate(CParticleEmitter2::s_cornerPool, sizeof(C2Vector), 4, 0);
+
+        // Gx rebuilds these from m_code after a device reset, the same as the MSDF text shaders.
+        for (uint32_t i = 0; i < 60; i++) {
+            const ParticleShaderCode::Variant& variant = ParticleShaderCode::s_variants[i];
+            CGxShader* shader = g_theGxDevicePtr->m_shaderList[GxSh_Vertex].Ptr(variant.m_name);
+
+            if (!shader) {
+                shader = g_theGxDevicePtr->m_shaderList[GxSh_Vertex].New(variant.m_name, 0, 0);
+                shader->m_target = GxSh_Vertex;
+                shader->m_code.SetCount(variant.m_size);
+                memcpy(shader->m_code.m_data, variant.m_code, variant.m_size);
+                shader->m_loaded = 0;
+            }
+
+            shader->m_refCount++;
+            CParticleEmitter2::s_instancedShaders[i] = shader;
+        }
     }
 
     CParticleEmitter2::s_initCount++;
@@ -440,6 +469,22 @@ void CParticleEmitter2::Destroy() {
 
     if (CParticleEmitter2::s_indexPool) {
         g_theGxDevicePtr->PoolDestroy(CParticleEmitter2::s_indexPool);
+    }
+
+    if (CParticleEmitter2::s_cornerBuf) {
+        g_theGxDevicePtr->BufDestroy(CParticleEmitter2::s_cornerBuf);
+        CParticleEmitter2::s_cornerBuf = nullptr;
+    }
+
+    if (CParticleEmitter2::s_cornerPool) {
+        g_theGxDevicePtr->PoolDestroy(CParticleEmitter2::s_cornerPool);
+        CParticleEmitter2::s_cornerPool = nullptr;
+    }
+
+    for (CGxShader*& shader : CParticleEmitter2::s_instancedShaders) {
+        if (shader) {
+            g_theGxDevicePtr->ShaderDestroy(shader);
+        }
     }
 }
 
@@ -772,46 +817,17 @@ void CParticleEmitter2::RandomizeSpin(const CParticle2& particle, float* spin, f
 // VERIFY: 21e8a355 manual
 // OFFSET: 0x0097A260
 void __stdcall CParticleEmitter2::RenderIndices(CGxBuf* buf) {
-    uint16_t* indices = reinterpret_cast<uint16_t*>(g_theGxDevicePtr->BufLock(buf));
-    uint16_t* end = indices + 0x1FFF8;
-    uint16_t vertex = 0;
+    static const uint16_t s_quadIndices[6] = { 0, 1, 2, 3, 2, 1 };
 
-    while (indices < end) {
-        indices[0] = vertex;
-        indices[1] = vertex + 1;
-        indices[2] = vertex + 2;
-        indices[3] = vertex + 3;
-        indices[4] = vertex + 2;
-        indices[5] = vertex + 1;
-        indices += 6;
-        vertex += 4;
-    }
-
+    memcpy(g_theGxDevicePtr->BufLock(buf), s_quadIndices, sizeof(s_quadIndices));
     g_theGxDevicePtr->BufUnlock(buf, 0);
     buf->m_hasData = 1;
 }
 
-// VERIFY: 7d50dd44 manual
-// OFFSET: 0x0097A2E0
-void CParticleEmitter2::FillOutParticleVertex(void* buffer, EGxVertexBufferFormat format, ParticleVertex* vertex) {
-    uint32_t stride = GxVertexSize(format);
-
-    vertex->m_position = static_cast<uint8_t*>(buffer) + GxVertexAttribOffset(format, GxVA_Position);
-    vertex->m_positionStride = stride;
-
-    if (this->m_params.m_materialFlags & 0x1) {
-        vertex->m_normalStride = stride;
-        vertex->m_normal = static_cast<uint8_t*>(buffer) + GxVertexAttribOffset(format, GxVA_Normal);
-    } else {
-        static thread_local C3Vector s_zeroNormal(0.0f, 0.0f, 0.0f);
-        vertex->m_normal = reinterpret_cast<uint8_t*>(&s_zeroNormal);
-        vertex->m_normalStride = 0;
-    }
-
-    vertex->m_color = static_cast<uint8_t*>(buffer) + GxVertexAttribOffset(format, GxVA_Color0);
-    vertex->m_colorStride = stride;
-    vertex->m_texCoordStride = stride;
-    vertex->m_texCoord = static_cast<uint8_t*>(buffer) + GxVertexAttribOffset(format, GxVA_TexCoord0);
+void CParticleEmitter2::RenderCorners(CGxBuf* buf) {
+    memcpy(g_theGxDevicePtr->BufLock(buf), s_cornerOffsets, sizeof(s_cornerOffsets));
+    g_theGxDevicePtr->BufUnlock(buf, 0);
+    buf->m_hasData = 1;
 }
 
 // VERIFY: 5ce9bae8 manual
@@ -860,8 +876,23 @@ void CParticleEmitter2::RenderParticlesPrep(const C44Matrix* frameOfReference, c
 
 // VERIFY: d76443ea auto
 // OFFSET: 0x0097A580
-void __stdcall CParticleEmitter2::RenderParticleVertices(CGxBuf* buf, EGxVertexBufferFormat format, uint32_t vertexCount, uint32_t indexCount) {
-    if (!s_particleRenderEnable) {
+void CParticleEmitter2::RenderParticleInstances(CGxBuf* buf, uint32_t instanceCount, int32_t lit) {
+    static const CGxVertexAttrib s_cornerAttribs[] = {
+        { GxVA_Position, 3, 0, sizeof(C2Vector) },
+    };
+
+    static const CGxVertexAttrib s_instanceAttribs[] = {
+        { GxVA_TexCoord1, 4, offsetof(ParticleInstance, m_center), sizeof(ParticleInstance) },
+        { GxVA_TexCoord2, 4, offsetof(ParticleInstance, m_axisU), sizeof(ParticleInstance) },
+        { GxVA_TexCoord3, 4, offsetof(ParticleInstance, m_axisV), sizeof(ParticleInstance) },
+        { GxVA_Color0, 0, offsetof(ParticleInstance, m_color), sizeof(ParticleInstance) },
+        { GxVA_TexCoord4, 3, offsetof(ParticleInstance, m_texBase), sizeof(ParticleInstance) },
+        { GxVA_TexCoord5, 3, offsetof(ParticleInstance, m_texCell), sizeof(ParticleInstance) },
+    };
+
+    static const uint32_t s_instanceMask = (1 << GxVA_TexCoord1) | (1 << GxVA_TexCoord2) | (1 << GxVA_TexCoord3) | (1 << GxVA_Color0) | (1 << GxVA_TexCoord4) | (1 << GxVA_TexCoord5);
+
+    if (!s_particleRenderEnable || !instanceCount) {
         return;
     }
 
@@ -869,23 +900,41 @@ void __stdcall CParticleEmitter2::RenderParticleVertices(CGxBuf* buf, EGxVertexB
         CParticleEmitter2::RenderIndices(CParticleEmitter2::s_indexBuf);
     }
 
+    if (!CParticleEmitter2::s_cornerBuf->m_hasData || !CParticleEmitter2::s_cornerBuf->m_valid) {
+        CParticleEmitter2::RenderCorners(CParticleEmitter2::s_cornerBuf);
+    }
+
     C44Matrix identity;
     g_theGxDevicePtr->XformSetView(identity);
 
-    GxPrimVertexPtr(buf, format);
+    g_theGxDevicePtr->PrimVertexFormat(CParticleEmitter2::s_cornerBuf, s_cornerAttribs, sizeof(s_cornerAttribs) / sizeof(s_cornerAttribs[0]));
+    g_theGxDevicePtr->PrimVertexFormat(buf, s_instanceAttribs, sizeof(s_instanceAttribs) / sizeof(s_instanceAttribs[0]));
+    g_theGxDevicePtr->PrimVertexMask((1 << GxVA_Position) | s_instanceMask);
+    g_theGxDevicePtr->PrimInstances(s_instanceMask, instanceCount);
     g_theGxDevicePtr->PrimIndexPtr(CParticleEmitter2::s_indexBuf);
 
     CShaderEffect::SetTexMtx_Identity(0);
     CShaderEffect::SetDefaultShaders(0);
     CShaderEffect::UpdateWorldViewMatrix();
 
+    // The same permutation SetDefaultShaders picked, the effect's pixel shader stays bound.
+    uint32_t shadow = CShaderEffect::s_shadowValue > 2 ? 2 : CShaderEffect::s_shadowValue;
+    uint32_t localLights = CShaderEffect::s_localLightCount > 4 ? 4 : CShaderEffect::s_localLightCount;
+    uint32_t variant = (lit ? 30 : 0) + (CShaderEffect::s_lightEnabled ? 1 : 0) + 2 * localLights + 10 * shadow;
+    g_theGxDevicePtr->RsSet(GxRs_VertexShader, CParticleEmitter2::s_instancedShaders[variant]);
+
+    float normal[4] = { s_particleNormal.x, s_particleNormal.y, s_particleNormal.z, 0.0f };
+    GxShaderConstantsSet(GxSh_Vertex, 35, normal, 1);
+
     CGxBatch batch;
     batch.m_primType = GxPrim_Triangles;
     batch.m_start = 0;
-    batch.m_count = indexCount;
+    batch.m_count = 6;
     batch.m_minIndex = 0;
-    batch.m_maxIndex = vertexCount - 1;
+    batch.m_maxIndex = 3;
     g_theGxDevicePtr->Draw(&batch, 1);
+
+    g_theGxDevicePtr->PrimInstances(0, 0);
 }
 
 // VERIFY: a9b4f93f manual
@@ -1600,12 +1649,15 @@ int32_t CParticleEmitter2::BuildVertex(const CParticle2& particle, ParticleVerte
 
     C3Vector center = particle.m_position * s_particleXform;
     uint32_t flags = this->m_flags;
+    C2Vector texCell(this->m_textureCellWidth, this->m_textureCellHeight);
 
     if (flags & 0x4) {
         uint32_t column = headCell & (this->m_textureCols - 1);
         float u = column * this->m_textureCellWidth;
         int32_t row = headCell >> this->m_textureCellShift;
         float v = row * this->m_textureCellHeight;
+        C3Vector axisU;
+        C3Vector axisV;
 
         if ((flags & 0x200000) && particle.m_velocity.z * particle.m_velocity.z + particle.m_velocity.y * particle.m_velocity.y + particle.m_velocity.x * particle.m_velocity.x > 0.00000023841858f) {
             C3Vector reverse(-particle.m_velocity.x, -particle.m_velocity.y, -particle.m_velocity.z);
@@ -1628,34 +1680,15 @@ int32_t CParticleEmitter2::BuildVertex(const CParticle2& particle, ParticleVerte
                 size.x = 1.0f / sqrt(directionSq) / inv * scale.x;
             }
 
-            for (uint32_t i = 0; i < 4; i++) {
-                float offsetX = s_cornerOffsets[i][0] * size.x;
-                float offsetY = s_cornerOffsets[i][1] * size.y;
-                C3Vector position(offsetY * -axisY + offsetX * axisX + center.x, offsetX * axisY + offsetY * axisX + center.y, center.z);
-                C2Vector texCoord;
-                texCoord.x = s_cornerTexCoords[i][0] * this->m_textureCellWidth + u;
-                texCoord.y = s_cornerTexCoords[i][1] * this->m_textureCellHeight + v;
-                AddVertex(this->m_worldBounds, vertex, position, color, texCoord);
-            }
+            axisU = C3Vector(size.x * axisX, size.x * axisY, 0.0f);
+            axisV = C3Vector(-size.y * axisY, size.y * axisX, 0.0f);
         } else if (0.0f == this->m_params.m_spin && 0.0f == this->m_params.m_spinVariation) {
             if (flags & 0x4000) {
-                for (uint32_t i = 0; i < 4; i++) {
-                    float offsetX = s_cornerOffsets[i][0] * scale.x;
-                    float offsetY = s_cornerOffsets[i][1] * scale.y;
-                    C3Vector position(s_billboardXform.b0 * offsetY + offsetX * s_billboardXform.a0 + center.x, offsetY * s_billboardXform.b1 + offsetX * s_billboardXform.a1 + center.y, offsetY * s_billboardXform.b2 + offsetX * s_billboardXform.a2 + center.z);
-                    C2Vector texCoord;
-                    texCoord.x = s_cornerTexCoords[i][0] * this->m_textureCellWidth + u;
-                    texCoord.y = s_cornerTexCoords[i][1] * this->m_textureCellHeight + v;
-                    AddVertex(this->m_worldBounds, vertex, position, color, texCoord);
-                }
+                axisU = C3Vector(s_billboardXform.a0 * scale.x, s_billboardXform.a1 * scale.x, s_billboardXform.a2 * scale.x);
+                axisV = C3Vector(s_billboardXform.b0 * scale.y, s_billboardXform.b1 * scale.y, s_billboardXform.b2 * scale.y);
             } else {
-                for (uint32_t i = 0; i < 4; i++) {
-                    C3Vector position(s_cornerOffsets[i][0] * scale.x + center.x, s_cornerOffsets[i][1] * scale.y + center.y, center.z);
-                    C2Vector texCoord;
-                    texCoord.x = s_cornerTexCoords[i][0] * this->m_textureCellWidth + u;
-                    texCoord.y = s_cornerTexCoords[i][1] * this->m_textureCellHeight + v;
-                    AddVertex(this->m_worldBounds, vertex, position, color, texCoord);
-                }
+                axisU = C3Vector(scale.x, 0.0f, 0.0f);
+                axisV = C3Vector(0.0f, scale.y, 0.0f);
             }
         } else {
             float angle = particle.m_age * spinRate + spin;
@@ -1665,47 +1698,20 @@ int32_t CParticleEmitter2::BuildVertex(const CParticle2& particle, ParticleVerte
             }
 
             if (flags & 0x4000) {
-                // FIX: the rotation is the same for all four corners, built once instead of per corner
                 C33Matrix rotation = C33Matrix::Rotation(angle, this->m_billboardAxis, true);
-
-                for (uint32_t i = 0; i < 4; i++) {
-                    float offsetX = s_cornerOffsets[i][0] * scale.x;
-                    float offsetY = s_cornerOffsets[i][1] * scale.y;
-                    float billboardX = s_billboardXform.b0 * offsetY + offsetX * s_billboardXform.a0;
-                    float billboardY = offsetY * s_billboardXform.b1 + offsetX * s_billboardXform.a1;
-                    float billboardZ = offsetY * s_billboardXform.b2 + offsetX * s_billboardXform.a2;
-                    C3Vector position(rotation.a2 * billboardZ + rotation.a1 * billboardY + billboardX * rotation.a0 + center.x, rotation.b2 * billboardZ + rotation.b1 * billboardY + rotation.b0 * billboardX + center.y, billboardX * rotation.c0 + billboardY * rotation.c1 + billboardZ * rotation.c2 + center.z);
-                    C2Vector texCoord;
-                    texCoord.x = s_cornerTexCoords[i][0] * this->m_textureCellWidth + u;
-                    texCoord.y = s_cornerTexCoords[i][1] * this->m_textureCellHeight + v;
-                    AddVertex(this->m_worldBounds, vertex, position, color, texCoord);
-                }
+                C3Vector a(s_billboardXform.a0 * scale.x, s_billboardXform.a1 * scale.x, s_billboardXform.a2 * scale.x);
+                C3Vector b(s_billboardXform.b0 * scale.y, s_billboardXform.b1 * scale.y, s_billboardXform.b2 * scale.y);
+                axisU = C3Vector(rotation.a0 * a.x + rotation.a1 * a.y + rotation.a2 * a.z, rotation.b0 * a.x + rotation.b1 * a.y + rotation.b2 * a.z, rotation.c0 * a.x + rotation.c1 * a.y + rotation.c2 * a.z);
+                axisV = C3Vector(rotation.a0 * b.x + rotation.a1 * b.y + rotation.a2 * b.z, rotation.b0 * b.x + rotation.b1 * b.y + rotation.b2 * b.z, rotation.c0 * b.x + rotation.c1 * b.y + rotation.c2 * b.z);
             } else {
                 float sinAngle = sin(angle);
                 float cosAngle = cos(angle);
-                float cosX = cosAngle * scale.x;
-                float cosY = cosAngle * scale.y;
-                float sinX = scale.x * sinAngle;
-                float sinY = scale.y * sinAngle;
-                C2Vector texCoord;
-
-                texCoord.x = u;
-                texCoord.y = v;
-                AddVertex(this->m_worldBounds, vertex, C3Vector(center.x - cosX - sinY, center.y - sinX + cosY, center.z), color, texCoord);
-
-                texCoord.x = u;
-                texCoord.y = v + this->m_textureCellHeight;
-                AddVertex(this->m_worldBounds, vertex, C3Vector(center.x - cosX + sinY, center.y - sinX - cosY, center.z), color, texCoord);
-
-                texCoord.x = this->m_textureCellWidth + u;
-                texCoord.y = v;
-                AddVertex(this->m_worldBounds, vertex, C3Vector(cosX + center.x - sinY, cosY + sinX + center.y, center.z), color, texCoord);
-
-                texCoord.x = u + this->m_textureCellWidth;
-                texCoord.y = v + this->m_textureCellHeight;
-                AddVertex(this->m_worldBounds, vertex, C3Vector(cosX + sinY + center.x, sinX + center.y - cosY, center.z), color, texCoord);
+                axisU = C3Vector(cosAngle * scale.x, sinAngle * scale.x, 0.0f);
+                axisV = C3Vector(-sinAngle * scale.y, cosAngle * scale.y, 0.0f);
             }
         }
+
+        AddInstance(this->m_worldBounds, vertex, center, axisU, axisV, color, C2Vector(u, v), texCell);
     }
 
     if (!(this->m_flags & 0x8)) {
@@ -1736,13 +1742,7 @@ int32_t CParticleEmitter2::BuildVertex(const CParticle2& particle, ParticleVerte
     float flatSq = flat.y * flat.y + flat.x * flat.x;
 
     if (flatSq < 0.00077160494f) {
-        for (uint32_t i = 0; i < 4; i++) {
-            C3Vector position(s_cornerOffsets[i][0] * scale.x + center.x, s_cornerOffsets[i][1] * scale.y + center.y, center.z);
-            C2Vector texCoord;
-            texCoord.x = s_cornerTexCoords[i][0] * this->m_textureCellWidth + u;
-            texCoord.y = s_cornerTexCoords[i][1] * this->m_textureCellHeight + v;
-            AddVertex(this->m_worldBounds, vertex, position, color, texCoord);
-        }
+        AddInstance(this->m_worldBounds, vertex, center, C3Vector(scale.x, 0.0f, 0.0f), C3Vector(0.0f, scale.y, 0.0f), color, C2Vector(u, v), texCell);
 
         return 1;
     }
@@ -1750,24 +1750,9 @@ int32_t CParticleEmitter2::BuildVertex(const CParticle2& particle, ParticleVerte
     float inv = 1.0f / sqrt(flatSq);
     float perpX = flat.x * (scale.x * inv);
     float perpY = flat.y * (inv * scale.y);
-    C3Vector end(tail.x + center.x, tail.y + center.y, tail.z + center.z);
-    C2Vector texCoord;
+    C3Vector half(tail.x * 0.5f, tail.y * 0.5f, tail.z * 0.5f);
 
-    texCoord.x = this->m_textureCellWidth * s_cornerTexCoords[0][0] + u;
-    texCoord.y = this->m_textureCellHeight * s_cornerTexCoords[0][1] + v;
-    AddVertex(this->m_worldBounds, vertex, C3Vector(center.x - perpY, center.y + perpX, center.z), color, texCoord);
-
-    texCoord.x = this->m_textureCellWidth * s_cornerTexCoords[1][0] + u;
-    texCoord.y = this->m_textureCellHeight * s_cornerTexCoords[1][1] + v;
-    AddVertex(this->m_worldBounds, vertex, C3Vector(perpY + center.x, center.y - perpX, center.z), color, texCoord);
-
-    texCoord.x = this->m_textureCellWidth * s_cornerTexCoords[2][0] + u;
-    texCoord.y = this->m_textureCellHeight * s_cornerTexCoords[2][1] + v;
-    AddVertex(this->m_worldBounds, vertex, C3Vector(end.x - perpY, perpX + end.y, end.z), color, texCoord);
-
-    texCoord.x = u + s_cornerTexCoords[3][0] * this->m_textureCellWidth;
-    texCoord.y = v + this->m_textureCellHeight * s_cornerTexCoords[3][1];
-    AddVertex(this->m_worldBounds, vertex, C3Vector(end.x + perpY, end.y - perpX, end.z), color, texCoord);
+    AddInstance(this->m_worldBounds, vertex, C3Vector(center.x + half.x, center.y + half.y, center.z + half.z), half, C3Vector(-perpY, perpX, 0.0f), color, C2Vector(u, v), texCell);
 
     return 1;
 }
@@ -2229,7 +2214,7 @@ CParticleEmitter2::CParticleEmitter2() : m_random(0) {
     this->m_worldBounds.t.x = -3.4028235e38f;
     this->m_worldBounds.t.y = -3.4028235e38f;
     this->m_worldBounds.t.z = -3.4028235e38f;
-    this->unused_0230 = 0;
+    this->m_updateQueued = 0;
 
     this->m_random.SetSeed((rand() << 16) | static_cast<uint16_t>(rand()));
     this->m_childEmitterCount = 0;
@@ -2356,7 +2341,7 @@ void CParticleEmitter2::BuildParticleVertices(ParticleVertex& vertex, uint32_t c
         this->m_worldBounds.t.z = this->m_viewPos.z + this->m_worldBounds.t.z;
     }
 
-    this->m_renderedParticles = vertex.m_count / this->m_vertsPerParticle;
+    this->m_renderedParticles = vertex.m_count * 4 / this->m_vertsPerParticle;
 }
 
 // VERIFY: 722cfea2 manual
@@ -2388,27 +2373,24 @@ void CParticleEmitter2::RenderParticles(const C44Matrix* frameOfReference, void*
         count = this->m_liveList.Count();
     }
 
-    EGxVertexBufferFormat format = (this->m_params.m_materialFlags & 0x1) ? GxVBF_PNCT : GxVBF_PCT;
-
     if (!buffer) {
-        buf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, GxVertexSize(format), count * this->m_vertsPerParticle);
+        buf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, sizeof(ParticleInstance), count * (this->m_vertsPerParticle / 4));
         buffer = g_theGxDevicePtr->BufLock(buf);
     }
 
     ParticleVertex vertex;
+    vertex.m_instance = static_cast<ParticleInstance*>(buffer);
     vertex.m_count = 0;
     auto prebuilt = s_prebuiltIndex.find(this);
 
-    // FIX: vertices the animation workers built for these exact inputs are copied instead of built here
     if (prebuilt != s_prebuiltIndex.end() && s_prebuilt[prebuilt->second].m_frameOfReference == frameOfReference && !memcmp(&s_prebuilt[prebuilt->second].m_view, &view, sizeof(C44Matrix))) {
-        const PrebuiltVertices& entry = s_prebuilt[prebuilt->second];
-        memcpy(buffer, entry.m_data.data(), entry.m_vertexCount * GxVertexSize(format));
-        vertex.m_count = entry.m_vertexCount;
+        const PrebuiltInstances& entry = s_prebuilt[prebuilt->second];
+        memcpy(buffer, s_prebuiltArena.data() + entry.m_offset, entry.m_instanceCount * sizeof(ParticleInstance));
+        vertex.m_count = entry.m_instanceCount;
         this->m_worldBounds = entry.m_worldBounds;
         this->m_renderedParticles = entry.m_renderedParticles;
         s_prebuiltIndex.erase(prebuilt);
     } else {
-        this->FillOutParticleVertex(buffer, format, &vertex);
         this->BuildParticleVertices(vertex, count, view.AffineInverse());
     }
 
@@ -2417,7 +2399,7 @@ void CParticleEmitter2::RenderParticles(const C44Matrix* frameOfReference, void*
         buf->m_hasData = 1;
 
         if (this->m_renderedParticles) {
-            CParticleEmitter2::RenderParticleVertices(buf, format, vertex.m_count, this->m_renderedParticles * this->m_indicesPerParticle);
+            CParticleEmitter2::RenderParticleInstances(buf, vertex.m_count, this->m_params.m_materialFlags & 0x1);
             g_theGxDevicePtr->XformSetView(view);
         }
     }
@@ -2636,7 +2618,7 @@ CParticleEmitter2::CParticleEmitter2(const CParticleEmitter2& source, int32_t co
     this->m_worldBounds.t.x = 0.0f;
     this->m_worldBounds.t.y = 0.0f;
     this->m_worldBounds.t.z = 0.0f;
-    this->unused_0230 = 0;
+    this->m_updateQueued = 0;
 
     this->m_random.SetSeed((rand() << 16) | static_cast<uint16_t>(rand()));
     this->m_childEmitterCount = source.m_childEmitterCount;
@@ -3205,7 +3187,7 @@ CParticleEmitter2* CSplineParticleEmitter::Clone(int32_t copyParticles) {
     return mem ? new (mem) CSplineParticleEmitter(*this, copyParticles) : nullptr;
 }
 
-// FIX: queues this emitter's vertices for the animation workers, returns how many particles it will build
+// Queues this emitter's instances for the animation workers, returns how many particles it will build.
 uint32_t CParticleEmitter2::PrebuildAdd(const C44Matrix* frameOfReference, const C44Matrix& view) {
     if (!s_particleRenderEnable || this->m_params.m_hasModel || !this->m_liveList.Count() || !TextureGetGxTex(this->m_texture, 0, nullptr)) {
         return 0;
@@ -3225,14 +3207,22 @@ uint32_t CParticleEmitter2::PrebuildAdd(const C44Matrix* frameOfReference, const
         count = this->m_liveList.Count();
     }
 
-    EGxVertexBufferFormat format = (this->m_params.m_materialFlags & 0x1) ? GxVBF_PNCT : GxVBF_PCT;
-    PrebuiltVertices& entry = s_prebuilt[s_prebuiltCount++];
+    PrebuiltInstances& entry = s_prebuilt[s_prebuiltCount++];
     entry.m_emitter = this;
     entry.m_frameOfReference = frameOfReference;
     entry.m_view = view;
-    entry.m_vertexCount = 0;
+    entry.m_instanceCount = 0;
     entry.m_renderedParticles = 0;
-    entry.m_data.resize(count * this->m_vertsPerParticle * GxVertexSize(format));
+    entry.m_offset = s_prebuiltArenaUsed;
+    s_prebuiltArenaUsed = entry.m_offset + count * (this->m_vertsPerParticle / 4);
+
+    if (s_prebuiltArena.size() < s_prebuiltArenaUsed) {
+        s_prebuiltArena.resize(s_prebuiltArenaUsed + s_prebuiltArenaUsed / 4);
+    }
+
+    if (s_prebuiltArenaPeak < s_prebuiltArenaUsed) {
+        s_prebuiltArenaPeak = s_prebuiltArenaUsed;
+    }
 
     return count;
 }
@@ -3240,15 +3230,26 @@ uint32_t CParticleEmitter2::PrebuildAdd(const C44Matrix* frameOfReference, const
 void CParticleEmitter2::PrebuildClear() {
     s_prebuiltCount = 0;
     s_prebuiltIndex.clear();
+    s_prebuiltArenaUsed = 0;
+
+    if (++s_prebuiltClears >= 1024) {
+        if (s_prebuiltArena.size() > 2 * s_prebuiltArenaPeak) {
+            s_prebuiltArena.resize(s_prebuiltArenaPeak);
+            s_prebuiltArena.shrink_to_fit();
+        }
+
+        s_prebuiltClears = 0;
+        s_prebuiltArenaPeak = 0;
+    }
 }
 
 uint32_t CParticleEmitter2::PrebuildCount() {
     return s_prebuiltCount;
 }
 
-// FIX: the RenderParticles vertex work for one queued emitter, safe to run on any animation worker
+// The RenderParticles instance work for one queued emitter, safe to run on any animation worker.
 void CParticleEmitter2::PrebuildRun(uint32_t index) {
-    PrebuiltVertices& entry = s_prebuilt[index];
+    PrebuiltInstances& entry = s_prebuilt[index];
     CParticleEmitter2* emitter = entry.m_emitter;
     CAaBox worldBounds = emitter->m_worldBounds;
     uint32_t renderedParticles = emitter->m_renderedParticles;
@@ -3267,13 +3268,12 @@ void CParticleEmitter2::PrebuildRun(uint32_t index) {
         count = emitter->m_liveList.Count();
     }
 
-    EGxVertexBufferFormat format = (emitter->m_params.m_materialFlags & 0x1) ? GxVBF_PNCT : GxVBF_PCT;
     ParticleVertex vertex;
+    vertex.m_instance = s_prebuiltArena.data() + entry.m_offset;
     vertex.m_count = 0;
-    emitter->FillOutParticleVertex(entry.m_data.data(), format, &vertex);
     emitter->BuildParticleVertices(vertex, count, entry.m_view.AffineInverse());
 
-    entry.m_vertexCount = vertex.m_count;
+    entry.m_instanceCount = vertex.m_count;
     entry.m_worldBounds = emitter->m_worldBounds;
     entry.m_renderedParticles = emitter->m_renderedParticles;
     emitter->m_worldBounds = worldBounds;

@@ -1956,6 +1956,8 @@ void CGxDeviceD3d9Ex::IStateSyncVertexPtrs() {
         }
 
         this->ISetVertexBuffer(0, static_cast<LPDIRECT3DVERTEXBUFFER9>(buf->m_pool->m_apiSpecific), buf->m_index, this->m_primVertexSize);
+        this->m_d3dStreamCount = 1;
+        this->m_d3dInstanceStreams = 0;
 
         return;
     }
@@ -1963,6 +1965,7 @@ void CGxDeviceD3d9Ex::IStateSyncVertexPtrs() {
     CGxBuf** streamBufs = static_cast<CGxBuf**>(_alloca(sizeof(CGxBuf*) * GxVAs_Last));
     uint32_t* streamStrides = static_cast<uint32_t*>(_alloca(sizeof(uint32_t) * GxVAs_Last));
     uint32_t streamCount = 0;
+    uint32_t instanceStreams = 0;
 
     memset(streamBufs, 0, sizeof(CGxBuf*) * GxVAs_Last);
     memset(streamStrides, 0, sizeof(uint32_t) * GxVAs_Last);
@@ -1985,6 +1988,10 @@ void CGxDeviceD3d9Ex::IStateSyncVertexPtrs() {
 
         if (stream == streamCount) {
             streamBufs[streamCount++] = this->m_primVertexFormatBuf[i];
+        }
+
+        if (this->m_primInstanceMask & (1 << i)) {
+            instanceStreams |= 1 << stream;
         }
 
         const CGxVertexAttrib& attrib = this->m_primVertexFormatAttrib[i];
@@ -2013,6 +2020,9 @@ void CGxDeviceD3d9Ex::IStateSyncVertexPtrs() {
         CGxBuf* buf = streamBufs[stream];
         this->ISetVertexBuffer(stream, static_cast<LPDIRECT3DVERTEXBUFFER9>(buf->m_pool->m_apiSpecific), buf->m_index, streamStrides[stream]);
     }
+
+    this->m_d3dStreamCount = streamCount;
+    this->m_d3dInstanceStreams = instanceStreams;
 }
 
 // VERIFY: e679bca0 manual
@@ -3111,8 +3121,9 @@ void CGxDeviceD3d9Ex::Draw(CGxBatch* batch, int32_t count) {
     }
 
     if (HoT::Profiler::g_enabled) {
-        uint32_t verts = count ? batch->m_maxIndex - batch->m_minIndex + 1 : batch->m_count;
-        HoT::Profiler::OnDraw(this->PrimCalcCount(batch->m_primType, batch->m_count), verts, count != 0, static_cast<CGxShader*>(this->m_hwRenderStates[GxRs_VertexShader].m_data.p), static_cast<CGxShader*>(this->m_hwRenderStates[GxRs_PixelShader].m_data.p));
+        uint32_t instances = (count && this->m_primInstanceCount && this->m_d3dInstanceStreams) ? this->m_primInstanceCount : 1;
+        uint32_t verts = (count ? batch->m_maxIndex - batch->m_minIndex + 1 : batch->m_count) * instances;
+        HoT::Profiler::OnDraw(this->PrimCalcCount(batch->m_primType, batch->m_count) * instances, verts, count != 0, static_cast<CGxShader*>(this->m_hwRenderStates[GxRs_VertexShader].m_data.p), static_cast<CGxShader*>(this->m_hwRenderStates[GxRs_PixelShader].m_data.p));
     }
 
     uint32_t baseVertexIndex = 0;
@@ -3125,7 +3136,21 @@ void CGxDeviceD3d9Ex::Draw(CGxBatch* batch, int32_t count) {
 
     if (count) {
         uint32_t primCount = this->PrimCalcCount(batch->m_primType, batch->m_count);
+        uint32_t instanceStreams = this->m_primInstanceCount ? this->m_d3dInstanceStreams : 0;
+
+        if (instanceStreams) {
+            for (uint32_t stream = 0; stream < this->m_d3dStreamCount; stream++) {
+                this->m_d3dDevice->SetStreamSourceFreq(stream, (instanceStreams & (1 << stream)) ? (D3DSTREAMSOURCE_INSTANCEDATA | 1) : (D3DSTREAMSOURCE_INDEXEDDATA | this->m_primInstanceCount));
+            }
+        }
+
         this->m_d3dDevice->DrawIndexedPrimitive(s_primitiveConversion[batch->m_primType], baseVertexIndex, batch->m_minIndex, batch->m_maxIndex - batch->m_minIndex + 1, batch->m_start + (this->m_primIndexBuf->m_index >> (this->m_primIndexBuf->m_itemSize == sizeof(uint32_t) ? 2 : 1)), primCount);
+
+        if (instanceStreams) {
+            for (uint32_t stream = 0; stream < this->m_d3dStreamCount; stream++) {
+                this->m_d3dDevice->SetStreamSourceFreq(stream, 1);
+            }
+        }
     } else {
         uint32_t primCount = this->PrimCalcCount(batch->m_primType, batch->m_count);
         this->m_d3dDevice->DrawPrimitive(s_primitiveConversion[batch->m_primType], baseVertexIndex, primCount);

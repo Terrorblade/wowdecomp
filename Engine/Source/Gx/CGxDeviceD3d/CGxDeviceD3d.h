@@ -243,6 +243,8 @@ class CGxDeviceD3d : public CGxDevice {
     /* 3BA4 */ uint32_t m_d3dVertexStreamStride [8];
     /* 3BC4 */ uint32_t m_deviceStates [DeviceStates_Last];
     /* 3E9C */ bool m_texEnabled [8];
+    uint32_t m_d3dStreamCount = 0;
+    uint32_t m_d3dInstanceStreams = 0;
 
     virtual void ITexMarkAsUpdated(CGxTex* texId);
     virtual void IRsSendToHw(EGxRenderState which);

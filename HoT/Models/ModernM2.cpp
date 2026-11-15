@@ -767,6 +767,8 @@ static bool SplitSections(SkinBuild& build, const M2Data* data, uint32_t maxBone
     std::vector<M2SkinSection> sections;
     std::vector<uint32_t> origin;
     std::vector<uint16_t> combos(boneCombos, boneCombos + boneComboCount);
+    std::vector<uint16_t> openPalette;
+    uint32_t openCombo = 0xFFFFFFFF;
     lookup.reserve(slotCount);
     bones.reserve(slotCount);
     indices.reserve(build.m_indices.size());
@@ -812,13 +814,32 @@ static bool SplitSections(SkinBuild& build, const M2Data* data, uint32_t maxBone
             }
 
             std::sort(globals.begin(), globals.end());
-            uint32_t comboIndex = static_cast<uint32_t>(combos.size());
+            uint32_t added = 0;
 
-            if (comboIndex > 0xFFFF) {
-                return false;
+            for (uint16_t bone : globals) {
+                if (std::find(openPalette.begin(), openPalette.end(), bone) == openPalette.end()) {
+                    added++;
+                }
             }
 
-            combos.insert(combos.end(), globals.begin(), globals.end());
+            // Pieces share one palette while it fits, so the merge can join them and the bones upload once.
+            if (openCombo == 0xFFFFFFFF || openPalette.size() + added > maxBones) {
+                if (combos.size() > 0xFFFF) {
+                    return false;
+                }
+
+                openCombo = static_cast<uint32_t>(combos.size());
+                openPalette.clear();
+            }
+
+            for (uint16_t bone : globals) {
+                if (std::find(openPalette.begin(), openPalette.end(), bone) == openPalette.end()) {
+                    openPalette.push_back(bone);
+                    combos.push_back(bone);
+                }
+            }
+
+            uint32_t comboIndex = openCombo;
 
             uint32_t vertexStart = static_cast<uint32_t>(lookup.size());
             uint32_t indexStart = static_cast<uint32_t>(indices.size());
@@ -846,8 +867,8 @@ static bool SplitSections(SkinBuild& build, const M2Data* data, uint32_t maxBone
                         for (uint32_t j = 0; j < 4; j++) {
                             uint32_t comboSlot = s.m_boneComboIndex + influences[j];
                             uint16_t bone = comboSlot < boneComboCount ? boneCombos[comboSlot] : globals[0];
-                            auto found = std::lower_bound(globals.begin(), globals.end(), bone);
-                            local[j] = found != globals.end() && *found == bone ? static_cast<uint8_t>(found - globals.begin()) : 0;
+                            auto found = std::find(openPalette.begin(), openPalette.end(), bone);
+                            local[j] = found != openPalette.end() ? static_cast<uint8_t>(found - openPalette.begin()) : 0;
                         }
 
                         uint32_t packed;
@@ -872,7 +893,7 @@ static bool SplitSections(SkinBuild& build, const M2Data* data, uint32_t maxBone
             section.m_vertexCount = vertexCount;
             section.m_indexStart = indexStart;
             section.m_indexCount = static_cast<uint32_t>(indices.size()) - indexStart;
-            section.m_boneCount = static_cast<uint16_t>(globals.size());
+            section.m_boneCount = static_cast<uint16_t>(openPalette.size());
             section.m_boneComboIndex = static_cast<uint16_t>(comboIndex);
             sections.push_back(section);
             origin.push_back(si);
@@ -946,6 +967,22 @@ static bool SplitSections(SkinBuild& build, const M2Data* data, uint32_t maxBone
 
     if (sections.size() > MAX_BATCHES) {
         return true;
+    }
+
+    // The draw skips the bone upload when the combo matches the last draw, so every piece on a palette reports its full size.
+    std::unordered_map<uint32_t, uint16_t> paletteSizes;
+
+    for (const M2SkinSection& section : sections) {
+        if (section.m_indexCount && section.m_boneComboIndex >= boneComboCount) {
+            uint16_t& size = paletteSizes[section.m_boneComboIndex];
+            size = section.m_boneCount > size ? section.m_boneCount : size;
+        }
+    }
+
+    for (M2SkinSection& section : sections) {
+        if (section.m_indexCount && section.m_boneComboIndex >= boneComboCount) {
+            section.m_boneCount = paletteSizes[section.m_boneComboIndex];
+        }
     }
 
     build.m_splitMap.assign(build.m_sections.size(), SplitRun { 0, 0 });

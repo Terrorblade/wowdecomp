@@ -60,10 +60,10 @@ static const char** s_shaderTargetNames[GxShTargets_Last] = { CGxDevice::s_verte
 uint32_t CGxDevice::s_alphaRef[GxBlends_Last] = { 0, 224, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 };
 
 // STATIC: 0x00AD8BAC
-int32_t s_streamVertexPoolSize = 0x2C0000;
+int32_t s_streamVertexPoolSize = 0x1000000;
 
 // STATIC: 0x00AD8BB0
-int32_t s_streamIndexPoolSize = 0x40000;
+int32_t s_streamIndexPoolSize = 0x100000;
 
 // STATIC: 0x00AD8BB4
 C3Vector CGxDevice::s_pointScaleAttenuation(1.0f, 0.0f, 0.0f);
@@ -741,6 +741,12 @@ void CGxDevice::PrimVertexMask(uint32_t mask) {
     this->m_primVertexDirty |= mask ^ this->m_primVertexMask;
     this->m_primVertexMask = mask;
     this->m_primVertexFormat = GxVertexBufferFormats_Last;
+}
+
+void CGxDevice::PrimInstances(uint32_t attribMask, uint32_t count) {
+    this->m_primVertexDirty |= attribMask ^ this->m_primInstanceMask;
+    this->m_primInstanceMask = attribMask;
+    this->m_primInstanceCount = count;
 }
 
 // VERIFY: a26b1a58 auto

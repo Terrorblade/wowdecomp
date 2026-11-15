@@ -126,7 +126,7 @@ void Liquid::CRenderer::Flush(const C3Vector& cameraPos, uint32_t pass) {
         instance->m_queued = 0;
     }
 
-    instances.Clear();
+    instances.SetCount(0);
 
     for (uint32_t i = 0; i < 4; i++) {
         if (lights[i].m_flags & 0x1) {

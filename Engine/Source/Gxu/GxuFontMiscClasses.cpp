@@ -275,7 +275,7 @@ void BATCHEDRENDERFONTDESC::Shutdown() {
 
 // VERIFY: 36c33614 manual
 // OFFSET: 0x006C48D0
-CGxVertexPCT* BATCHEDRENDERFONTDESC::UnlockVertexPtrAndRender(CGxBuf*& buf, int32_t count) {
+void BATCHEDRENDERFONTDESC::UnlockVertexPtrAndRender(CGxBuf*& buf, int32_t count) {
     GxBufUnlock(buf, sizeof(CGxVertexPCT) * count);
 
     if (!BATCHEDRENDERFONTDESC::s_indexBuf->m_hasData || !BATCHEDRENDERFONTDESC::s_indexBuf->m_valid) {
@@ -295,8 +295,6 @@ CGxVertexPCT* BATCHEDRENDERFONTDESC::UnlockVertexPtrAndRender(CGxBuf*& buf, int3
 
         GxDraw(&batch, 1);
     }
-
-    return reinterpret_cast<CGxVertexPCT*>(GxBufLock(buf));
 }
 
 // VERIFY: 7e6d9f88 manual
@@ -340,10 +338,6 @@ void BATCHEDRENDERFONTDESC::RenderBatch() {
         this->m_face->m_textureCache[i].UpdateDirty();
     }
 
-    CGxBuf* buf = GxBufStream(GxPoolTarget_Vertex, sizeof(CGxVertexPCT), 2048);
-    CGxVertexPCT* verts = reinterpret_cast<CGxVertexPCT*>(GxBufLock(buf));
-    int32_t space = 2048;
-
     for (int32_t texturePage = 0; texturePage < 8; texturePage++) {
         CTexture* texture = this->m_face->m_textureCache[texturePage].m_texture;
 
@@ -359,7 +353,25 @@ void BATCHEDRENDERFONTDESC::RenderBatch() {
 
         g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex);
 
+        int32_t pageVerts = 0;
+
         for (CGxString* string = this->m_strings.Head(); string; string = this->m_strings.Next(string)) {
+            if (string->m_textLines[texturePage]) {
+                pageVerts += string->CalculateVertsNeeded(texturePage);
+            }
+        }
+
+        if (!pageVerts) {
+            continue;
+        }
+
+        // Reserve only what this page draws, a fixed 2048 vertex lock per batch wrapped the stream ring once per ~28 names.
+        int32_t capacity = pageVerts < 2048 ? pageVerts : 2048;
+        CGxBuf* buf = GxBufStream(GxPoolTarget_Vertex, sizeof(CGxVertexPCT), capacity);
+        CGxVertexPCT* verts = reinterpret_cast<CGxVertexPCT*>(GxBufLock(buf));
+        int32_t space = capacity;
+
+        for (CGxString* string = this->m_strings.Head(); string && pageVerts; string = this->m_strings.Next(string)) {
             if (!string->m_textLines[texturePage]) {
                 continue;
             }
@@ -376,24 +388,24 @@ void BATCHEDRENDERFONTDESC::RenderBatch() {
                 vertIndex += count;
                 space -= count;
                 verts += count;
+                pageVerts -= count;
 
                 if (!space) {
-                    verts = BATCHEDRENDERFONTDESC::UnlockVertexPtrAndRender(buf, 2048);
-                    space = 2048;
+                    BATCHEDRENDERFONTDESC::UnlockVertexPtrAndRender(buf, capacity);
+
+                    if (pageVerts) {
+                        capacity = pageVerts < 2048 ? pageVerts : 2048;
+                        buf = GxBufStream(GxPoolTarget_Vertex, sizeof(CGxVertexPCT), capacity);
+                        verts = reinterpret_cast<CGxVertexPCT*>(GxBufLock(buf));
+                        space = capacity;
+                    }
                 }
             }
         }
-
-        if (space != 2048) {
-            verts = BATCHEDRENDERFONTDESC::UnlockVertexPtrAndRender(buf, 2048 - space);
-            space = 2048;
-        }
     }
-
-    GxBufUnlock(buf, 0);
 }
 
-static MSDFVERT* UnlockMsdfVertsAndRender(CGxBuf*& buf, int32_t count) {
+static void UnlockMsdfVertsAndRender(CGxBuf*& buf, int32_t count) {
     GxBufUnlock(buf, sizeof(MSDFVERT) * count);
 
     if (!BATCHEDRENDERFONTDESC::s_indexBuf->m_hasData || !BATCHEDRENDERFONTDESC::s_indexBuf->m_valid) {
@@ -413,8 +425,6 @@ static MSDFVERT* UnlockMsdfVertsAndRender(CGxBuf*& buf, int32_t count) {
 
         GxDraw(&batch, 1);
     }
-
-    return reinterpret_cast<MSDFVERT*>(GxBufLock(buf));
 }
 
 // All glyphs of an MSDF font sit in text line 0, so the whole batch goes out in one pass sized to fit it.
@@ -444,7 +454,7 @@ void BATCHEDRENDERFONTDESC::RenderBatchMsdf() {
     GxXformViewProjNativeTranspose(viewProj);
     GxShaderConstantsSet(GxSh_Vertex, 0, reinterpret_cast<const float*>(&viewProj), 4);
 
-    int32_t capacity = total < 2048 ? 2048 : (total > 65532 ? 65532 : total);
+    int32_t capacity = total > 65532 ? 65532 : total;
     CGxBuf* buf = GxBufStream(GxPoolTarget_Vertex, sizeof(MSDFVERT), capacity);
     MSDFVERT* verts = reinterpret_cast<MSDFVERT*>(GxBufLock(buf));
     int32_t space = capacity;
@@ -480,19 +490,27 @@ void BATCHEDRENDERFONTDESC::RenderBatchMsdf() {
             vertIndex += count;
             space -= count;
             verts += count;
+            total -= count;
 
             if (!space) {
-                verts = UnlockMsdfVertsAndRender(buf, capacity);
-                space = capacity;
+                UnlockMsdfVertsAndRender(buf, capacity);
+
+                if (total) {
+                    capacity = total > 65532 ? 65532 : total;
+                    buf = GxBufStream(GxPoolTarget_Vertex, sizeof(MSDFVERT), capacity);
+                    verts = reinterpret_cast<MSDFVERT*>(GxBufLock(buf));
+                    space = capacity;
+                }
             }
         }
     }
 
-    if (space != capacity) {
+    if (space && space != capacity) {
         UnlockMsdfVertsAndRender(buf, capacity - space);
+    } else if (space == capacity) {
+        GxBufUnlock(buf, 0);
     }
 
-    GxBufUnlock(buf, 0);
     g_theGxDevicePtr->RsPop();
 }
 

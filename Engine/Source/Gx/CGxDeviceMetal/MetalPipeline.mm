@@ -325,6 +325,11 @@ id<MTLRenderPipelineState> PipelineCache::Pipeline(const PipelineKey& key, const
             vertexDescriptor.layouts[stream].stride = 16;
         } else {
             vertexDescriptor.layouts[stream].stride = key.m_strides[stream];
+
+            if (key.m_instanceStreams & (1u << stream)) {
+                vertexDescriptor.layouts[stream].stepFunction = MTLVertexStepFunctionPerInstance;
+                vertexDescriptor.layouts[stream].stepRate = 1;
+            }
         }
     }
     descriptor.vertexDescriptor = vertexDescriptor;

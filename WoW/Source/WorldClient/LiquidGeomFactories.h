@@ -49,7 +49,7 @@ namespace Liquid {
         /* 000C */ CMapObjGroup* m_mapObjGroup;
         /* 0010 */ CGxBatch* m_batch;
         /* 0014 */ CImVector m_diffuseColor;
-        /* 0018 */ int32_t unused_0018;
+        /* 0018 */ int32_t m_holdsLiquidVB;
         /* 001C */ int32_t m_magma;
         /* 0020 */ float m_texCoord1ValueX;
         /* 0024 */ int32_t unused_0024;

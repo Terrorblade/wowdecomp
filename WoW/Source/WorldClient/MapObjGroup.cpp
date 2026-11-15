@@ -1531,6 +1531,11 @@ void CMapObjGroup::Clear() {
     this->m_cAaBspNodePtr1.Clear();
     this->FreeVB();
 
+    if (this->m_liquidVBRefCount) {
+        this->m_liquidVBRefCount = 1;
+        this->FreeLiquidVB();
+    }
+
     if (this->m_liquidVertArray) {
         CMapObjGroup::s_freeVertArrays.LinkToHead(this->m_liquidVertArray);
         this->m_liquidVertArray = nullptr;

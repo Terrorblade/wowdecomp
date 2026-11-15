@@ -1916,12 +1916,15 @@ void CMap::ProcessDetailDoodadUpdateList() {
     while (inst) {
         CDetailDoodadInst* next = CMap::s_detailDoodadUpdateList.Next(inst);
 
-        if (++inst->m_age > 10) {
+        inst->m_age += FrameTime::s_tickTimeSec;
+
+        // Seconds rather than frames, ten frames was 70 ms at 144 fps and clutter rebuilt on every camera turn.
+        if (inst->m_age > 0.5f) {
             if (inst->HasBatches()) {
                 inst->FreeBuffers();
             }
 
-            if (inst->m_age > 20) {
+            if (inst->m_age > 1.0f) {
                 CDetailDoodad::FreeInst(inst);
             }
         }

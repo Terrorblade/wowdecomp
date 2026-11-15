@@ -1,9 +1,11 @@
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <malloc.h>
 #include <new>
 #include <typeinfo>
+#include <vector>
 #include "Engine/Source/Model2/M2Shared.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/SIMD.h"
@@ -360,7 +362,7 @@ int32_t CM2Shared::SetIndices() {
 
     if (!this->m_indexPool) {
         EGxPoolHintBits hint = wide ? static_cast<EGxPoolHintBits>(GxPoolHintBit_Unk1 | GxPoolHintBit_Index32) : GxPoolHintBit_Unk1;
-        this->m_indexPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Index, GxPoolUsage_Dynamic, indexSize * this->m_instances * this->m_skinData->m_indices.m_count, hint, this->m_fileNameWithoutPath);
+        this->m_indexPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Index, GxPoolUsage_Static, indexSize * this->m_instances * this->m_skinData->m_indices.m_count, hint, this->m_fileNameWithoutPath);
         this->m_indexBuf = g_theGxDevicePtr->BufCreate(this->m_indexPool, indexSize, this->m_instances * this->m_skinData->m_indices.m_count, 0);
 
         if (!this->m_indexPool || !this->m_indexBuf) {
@@ -1139,10 +1141,175 @@ void CM2Shared::SubstituteSpecializedShaders() {
     }
 }
 
+// Sections share one bone palette while it fits, so geosets can merge and the bones upload once per model.
+static void ShareBonePalettes(M2Data* data, M2SkinProfile* skin, uint32_t maxBones) {
+    uint32_t sectionCount = skin->m_skinSections.m_count;
+    uint32_t comboCount = data->m_boneCombos.m_count;
+    uint32_t slotCount = skin->m_vertices.m_count;
+
+    if (sectionCount < 2 || !comboCount || !maxBones || maxBones > 256 || skin->IsWide() || skin->m_bones.m_count < slotCount) {
+        return;
+    }
+
+    M2SkinSection* sections = skin->m_skinSections.Data();
+    const uint16_t* combos = data->m_boneCombos.Data();
+    std::vector<int32_t> owner(slotCount, -1);
+    uint32_t drawn = 0;
+    uint32_t largestBefore = 0;
+
+    for (uint32_t i = 0; i < sectionCount; i++) {
+        const M2SkinSection& section = sections[i];
+
+        if (!section.m_indexCount) {
+            continue;
+        }
+
+        if (!section.m_boneCount || section.m_boneCount > maxBones || section.m_boneComboIndex + section.m_boneCount > comboCount || section.m_vertexStart + section.m_vertexCount > slotCount) {
+            return;
+        }
+
+        for (uint32_t v = section.m_vertexStart; v < section.m_vertexStart + section.m_vertexCount; v++) {
+            if (owner[v] >= 0) {
+                return;
+            }
+
+            owner[v] = static_cast<int32_t>(i);
+        }
+
+        drawn++;
+        largestBefore = section.m_boneCount > largestBefore ? section.m_boneCount : largestBefore;
+    }
+
+    if (drawn < 2) {
+        return;
+    }
+
+    std::vector<uint32_t> order;
+    std::vector<uint8_t> seen(sectionCount, 0);
+    order.reserve(sectionCount);
+
+    for (uint32_t b = 0; b < skin->m_batches.m_count; b++) {
+        uint32_t index = skin->m_batches[b].m_skinSectionIndex;
+
+        if (index < sectionCount && !seen[index]) {
+            seen[index] = 1;
+            order.push_back(index);
+        }
+    }
+
+    for (uint32_t i = 0; i < sectionCount; i++) {
+        if (!seen[i]) {
+            order.push_back(i);
+        }
+    }
+
+    std::vector<uint16_t> palettes;
+    std::vector<uint32_t> baseOf(sectionCount, 0xFFFFFFFF);
+    std::vector<uint8_t> remap(static_cast<size_t>(sectionCount) * maxBones, 0);
+    uint32_t openBase = 0xFFFFFFFF;
+    uint32_t paletteCount = 0;
+
+    for (uint32_t index : order) {
+        const M2SkinSection& section = sections[index];
+
+        if (!section.m_indexCount) {
+            continue;
+        }
+
+        const uint16_t* bones = combos + section.m_boneComboIndex;
+        uint32_t added = 0;
+
+        for (uint32_t k = 0; k < section.m_boneCount; k++) {
+            bool known = std::find(bones, bones + k, bones[k]) != bones + k;
+
+            if (!known && openBase != 0xFFFFFFFF) {
+                known = std::find(palettes.begin() + openBase, palettes.end(), bones[k]) != palettes.end();
+            }
+
+            added += known ? 0 : 1;
+        }
+
+        if (openBase == 0xFFFFFFFF || palettes.size() - openBase + added > maxBones) {
+            openBase = static_cast<uint32_t>(palettes.size());
+            paletteCount++;
+        }
+
+        for (uint32_t k = 0; k < section.m_boneCount; k++) {
+            auto found = std::find(palettes.begin() + openBase, palettes.end(), bones[k]);
+
+            if (found == palettes.end()) {
+                palettes.push_back(bones[k]);
+                found = palettes.end() - 1;
+            }
+
+            remap[static_cast<size_t>(index) * maxBones + k] = static_cast<uint8_t>(found - (palettes.begin() + openBase));
+        }
+
+        baseOf[index] = openBase;
+    }
+
+    if (paletteCount >= drawn || palettes.size() > comboCount) {
+        return;
+    }
+
+    std::vector<uint32_t> sizeOf(palettes.size() + 1, 0);
+    uint32_t largestAfter = 0;
+
+    for (uint32_t index : order) {
+        if (baseOf[index] == 0xFFFFFFFF) {
+            continue;
+        }
+
+        uint32_t next = static_cast<uint32_t>(palettes.size());
+
+        for (uint32_t other : order) {
+            if (baseOf[other] != 0xFFFFFFFF && baseOf[other] > baseOf[index] && baseOf[other] < next) {
+                next = baseOf[other];
+            }
+        }
+
+        sizeOf[baseOf[index]] = next - baseOf[index];
+        largestAfter = sizeOf[baseOf[index]] > largestAfter ? sizeOf[baseOf[index]] : largestAfter;
+    }
+
+    // Small doodads keep their narrow palettes, a wider one would cut how many instances share a draw.
+    if (largestAfter > largestBefore && data->m_bones.m_count < 16) {
+        return;
+    }
+
+    ubyte4* vertexBones = skin->m_bones.Data();
+
+    for (uint32_t index : order) {
+        M2SkinSection& section = sections[index];
+
+        if (baseOf[index] == 0xFFFFFFFF) {
+            continue;
+        }
+
+        const uint8_t* local = &remap[static_cast<size_t>(index) * maxBones];
+
+        for (uint32_t v = section.m_vertexStart; v < section.m_vertexStart + section.m_vertexCount; v++) {
+            for (uint32_t k = 0; k < 4; k++) {
+                uint8_t old = vertexBones[v].b[k];
+                vertexBones[v].b[k] = local[old < section.m_boneCount ? old : 0];
+            }
+        }
+
+        section.m_boneComboIndex = static_cast<uint16_t>(baseOf[index]);
+        section.m_boneCount = static_cast<uint16_t>(sizeOf[baseOf[index]]);
+    }
+
+    memcpy(data->m_boneCombos.Data(), palettes.data(), sizeof(uint16_t) * palettes.size());
+}
+
 // VERIFY: 6736c39f manual
 // OFFSET: 0x00837A40
 int32_t CM2Shared::InitializeSkinProfile() {
     M2SkinProfile* skinData = this->m_skinData;
+
+    if (!this->m_modern && (this->m_cache->m_flags & 8)) {
+        ShareBonePalettes(this->m_data, skinData, this->m_maxBones);
+    }
 
     this->m_maxInstances = skinData->m_indices.m_count ? 0x10000 / skinData->m_indices.m_count : 1;
 
@@ -1151,8 +1318,12 @@ int32_t CM2Shared::InitializeSkinProfile() {
         this->m_maxInstances = 1;
     }
 
+    // Many custom skins leave boneCountMax at 0, which used to turn doodad instance batching off for them.
+    uint32_t boneCountMax = skinData->m_boneCountMax ? skinData->m_boneCountMax : this->m_maxBones;
+
     for (uint32_t i = 0; i < skinData->m_skinSections.m_count; i++) {
-        uint32_t instances = skinData->m_boneCountMax / skinData->m_skinSections[i].m_boneCount;
+        uint32_t sectionBones = skinData->m_skinSections[i].m_boneCount ? skinData->m_skinSections[i].m_boneCount : 1;
+        uint32_t instances = boneCountMax / sectionBones;
 
         if (this->m_maxInstances > instances) {
             this->m_maxInstances = instances;
@@ -1999,7 +2170,7 @@ CM2Shared::~CM2Shared() {
         }
     }
 
-    if (this->m_lowPrioritySequenceCapacity) {
+    if (this->m_lowPrioritySequenceBuffers) {
         for (uint32_t i = 0; i < this->m_lowPrioritySequenceCount; i++) {
             OsFreeNear(this->m_lowPrioritySequenceBuffers[i]);
         }

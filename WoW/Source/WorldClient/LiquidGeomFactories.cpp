@@ -43,8 +43,9 @@ void Liquid::ClearGeomFactories() {
 // VERIFY: 32ee76a0 manual
 // OFFSET: 0x007D4380
 void Liquid::CMeshGeomFactory::Purge() {
-    if (this->m_mapObjGroup) {
+    if (this->m_mapObjGroup && this->m_holdsLiquidVB) {
         this->m_mapObjGroup->FreeLiquidVB();
+        this->m_holdsLiquidVB = 0;
     }
 }
 
@@ -99,7 +100,16 @@ void Liquid::CMeshGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf**
     uint32_t sharedRows = this->m_sharedVerts[1].m_count;
     uint32_t sharedTiles = this->m_mapObjGroup->GetNumSharedTiles();
     uint32_t vertexCount = (sharedRows + this->m_mapObjGroup->m_liquidVerts.y) * (sharedCols + this->m_mapObjGroup->m_liquidVerts.x) + 6 * sharedTiles;
-    this->m_mapObjGroup->AllocLiquidVB(format, vertexCount, 3 * vertexCount, &this->m_batch);
+
+    if (!this->m_mapObjGroup->m_liquidVertsBlock || !this->m_mapObjGroup->m_liquidIndicesBlock) {
+        this->m_holdsLiquidVB = 0;
+    }
+
+    // One reference per factory, taking one every frame kept the count above zero so the buffers were never freed.
+    if (!this->m_holdsLiquidVB) {
+        this->m_mapObjGroup->AllocLiquidVB(format, vertexCount, 3 * vertexCount, &this->m_batch);
+        this->m_holdsLiquidVB = 1;
+    }
 
     *vertexBuf = this->m_mapObjGroup->m_liquidVertsBlock->m_buffer;
     *indexBuf = this->m_mapObjGroup->m_liquidIndicesBlock->m_buffer;
@@ -177,7 +187,7 @@ void Liquid::CMeshGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf**
 // VERIFY: ac0e5a30 manual
 // OFFSET: 0x007D4800
 Liquid::CMeshGeomFactory::~CMeshGeomFactory() {
-    if (this->m_mapObjGroup) {
+    if (this->m_mapObjGroup && this->m_holdsLiquidVB) {
         this->m_mapObjGroup->FreeLiquidVB();
     }
 }
@@ -213,6 +223,7 @@ Liquid::CMeshGeomFactory::CMeshGeomFactory() {
     *reinterpret_cast<int32_t*>(&this->m_diffuseColor) = -1;
     this->m_texCoord1ValueX = 0.0f;
     this->m_magma = 0;
+    this->m_holdsLiquidVB = 0;
     this->unused_0024 = 0;
 }
 

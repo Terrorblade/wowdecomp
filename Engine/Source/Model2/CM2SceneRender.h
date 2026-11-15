@@ -67,7 +67,7 @@ class CM2SceneRender {
     void DrawCallback();
     uint32_t DrawParticle(uint32_t index, M2Element* elements, uint32_t* indices, uint32_t count);
     void DrawRibbon();
-    void RenderBatchedParticle(CParticleEmitter2* emitter, CGxBuf* buf, EGxVertexBufferFormat format, uint32_t vertexCount, uint32_t indexCount);
+    void RenderBatchedParticle(CParticleEmitter2* emitter, CGxBuf* buf, uint32_t instanceCount);
     void SetBatchVertices(int32_t sharedVertices);
     void SetupBillboardView(const C3Vector& position);
     void SetupLighting();

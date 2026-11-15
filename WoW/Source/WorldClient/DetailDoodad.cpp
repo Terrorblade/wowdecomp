@@ -830,7 +830,7 @@ CDetailDoodadInstBatch::CDetailDoodadInstBatch() {
 // VERIFY: 9e2e57b8 manual
 // OFFSET: 0x007B36E0
 CDetailDoodadInst::CDetailDoodadInst() {
-    this->m_age = 0;
+    this->m_age = 0.0f;
     this->m_chunk = nullptr;
 }
 

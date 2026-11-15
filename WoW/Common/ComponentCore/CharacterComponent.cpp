@@ -3575,10 +3575,10 @@ void CCharacterComponent::GeosRenderPrep() {
         this->m_data.m_model->SetGeometryVisible(rec.m_geosetGroup[0] + 1801, rec.m_geosetGroup[0] + 1801, 1);
     }
 
-    this->m_data.m_model->OptimizeVisibleGeometry();
     this->m_flags &= ~0x4;
-    // HoT: HD components apply the manifest geosets after the stock ones.
+    // HoT: HD components apply the manifest geosets after the stock ones, then the merge runs over the final set.
     HoT::HD::ApplyGeosets(this);
+    this->m_data.m_model->OptimizeVisibleGeometry();
 }
 
 // VERIFY: f3bbc113 manual

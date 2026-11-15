@@ -7,6 +7,32 @@
 // STATIC: 0x00AC0CE4
 static CStatus s_errorList;
 
+static const uint32_t MAX_GLOBAL_ENTRIES = 256;
+
+// Nothing ever clears the global list, so it skips repeats and keeps only the newest entries instead of growing all session.
+static bool SkipGlobalEntry(CStatus* status, const char* text) {
+    if (status != &s_errorList) {
+        return false;
+    }
+
+    uint32_t count = 0;
+
+    for (CStatus::STATUSENTRY* entry = status->m_statusList.Head(); entry; entry = status->m_statusList.Next(entry)) {
+        if (entry->m_text && !SStrCmp(entry->m_text, text, STORM_MAX_STR)) {
+            return true;
+        }
+
+        count++;
+    }
+
+    while (count >= MAX_GLOBAL_ENTRIES) {
+        status->m_statusList.DeleteNode(status->m_statusList.Head());
+        count--;
+    }
+
+    return false;
+}
+
 // INLINED
 CStatus::STATUSENTRY::~STATUSENTRY() {
     if (this->m_text) {
@@ -128,7 +154,7 @@ void CStatus::Prepend(STATUS_TYPE severity, const char* format, ...) {
     va_start(args, format);
     SStrVPrintf(buffer, sizeof(buffer), format, args);
 
-    if (!buffer[0]) {
+    if (!buffer[0] || SkipGlobalEntry(this, buffer)) {
         return;
     }
 
@@ -157,7 +183,7 @@ void CStatus::Add(STATUS_TYPE severity, const char* format, ...) {
     va_start(args, format);
     SStrVPrintf(buffer, sizeof(buffer), format, args);
 
-    if (!buffer[0]) {
+    if (!buffer[0] || SkipGlobalEntry(this, buffer)) {
         return;
     }
 

@@ -4094,14 +4094,18 @@ static int32_t CompareMapObjDistance(const void* a, const void* b) {
 // VERIFY: 43651b8e manual
 // OFFSET: 0x007D9810
 void CMapObj::ProcessAsyncLoadQueue() {
-    void** pending = static_cast<void**>(alloca(0x1000));
-    uint32_t count = 0;
+    static TSGrowableArray<void*> s_pending;
+    s_pending.SetCount(0);
 
     for (CMapObjGroup* group = CMapObj::s_loadedGroups.Head(); group; group = CMapObj::s_loadedGroups.Next(group)) {
         if (group->m_asyncObjPtr) {
-            pending[count++] = group;
+            s_pending.SetCount(s_pending.Count() + 1);
+            s_pending.m_data[s_pending.Count() - 1] = group;
         }
     }
+
+    void** pending = s_pending.m_data;
+    uint32_t count = s_pending.Count();
 
     if (count) {
         qsort(pending, count, sizeof(void*), CompareGroupDistance);

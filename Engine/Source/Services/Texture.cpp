@@ -100,6 +100,15 @@ static int32_t s_gxTexCacheMaxSize;
 // STATIC: 0x00B49CA0
 static uint32_t s_asyncLoadBufferUsed;
 
+// Only a read that was issued holds a buffer and was counted, a texture parked over budget must not subtract.
+static void ReleaseReadAhead(const CAsyncObject* object) {
+    if (!object->m_buffer) {
+        return;
+    }
+
+    s_asyncLoadBufferUsed = object->m_size < s_asyncLoadBufferUsed ? s_asyncLoadBufferUsed - object->m_size : 0;
+}
+
 // STATIC: 0x00B49CA4
 static TSHashTableReuse<CTexture, HASHKEY_TEXTUREFILE> s_textureCache;
 
@@ -154,7 +163,7 @@ void CTextureAtlas::Update(CTexture* texture) {
 // VERIFY: 89c9895e manual
 // OFFSET: 0x004B5130
 void AsyncTextureDestroyedCallback(CAsyncObject* object) {
-    s_asyncLoadBufferUsed -= object->m_size;
+    ReleaseReadAhead(object);
     void* buffer = object->m_buffer;
     AsyncFileReadDestroyObject(object);
     SMemFree(buffer, __FILE__, __LINE__, 0);
@@ -233,7 +242,7 @@ MipBits* GetDefaultTexture(uint32_t width, uint32_t height) {
 // OFFSET: 0x004B5300
 void AsyncTextureFailureCallback(CTexture* texture) {
     CAsyncObject* object = texture->m_asyncObject;
-    s_asyncLoadBufferUsed -= object->m_size;
+    ReleaseReadAhead(object);
     void* buffer = object->m_buffer;
     AsyncFileReadDestroyObject(object);
     SMemFree(buffer, __FILE__, __LINE__, 0);
@@ -1198,6 +1207,11 @@ CGxTex* TextureAllocGxTex(EGxTexTarget target, uint32_t width, uint32_t height, 
 // VERIFY: ead404bb manual
 // OFFSET: 0x004B6920
 void FillInSolidTexture(const CImVector& color, CTexture* texture) {
+    if (texture->m_gxTex && !texture->m_atlas) {
+        TextureFreeGxTex(texture->m_gxTex, texture->m_filename);
+        texture->m_gxTex = nullptr;
+    }
+
     texture->m_gxTex = TextureAllocGxTex(GxTex_2d, 8, 8, 0, GxTex_Argb8888, CGxTexFlags(), reinterpret_cast<void*>(static_cast<uintptr_t>(*reinterpret_cast<const uint32_t*>(&color))), GxuUpdateSingleColorTexture, GxTex_Argb8888, texture->m_filename);
 
     if (color.a < 0xFE) {
@@ -1917,7 +1931,7 @@ void AsyncTextureSuccessCallback(CTexture* texture) {
 
     SFileCloseFile(texture->m_asyncObject->m_file);
     texture->m_asyncObject->m_file = nullptr;
-    s_asyncLoadBufferUsed -= texture->m_asyncObject->m_size;
+    ReleaseReadAhead(texture->m_asyncObject);
     SMemFree(texture->m_asyncObject->m_buffer, __FILE__, __LINE__, 0);
     AsyncFileReadDestroyObject(texture->m_asyncObject);
     texture->m_asyncObject = nullptr;
@@ -2002,6 +2016,11 @@ int32_t LoadBlpMips(char* fileName, char* extension, int32_t flags, MipBits** im
     *images = TextureAllocMippedImg(format, image.m_header.m_width, image.m_header.m_height);
 
     if (!image.LockChain2(fileName, format, *images, 0, 0)) {
+        if (*images) {
+            TextureFreeMippedImg(*images, format, imageWidth, imageHeight);
+            *images = nullptr;
+        }
+
         return 0;
     }
 
@@ -2171,7 +2190,7 @@ CTexture::~CTexture() {
             void* buffer = this->m_asyncObject->m_buffer;
 
             if (AsyncFile::Cancel(this->m_asyncObject, AsyncTextureDestroyedCallback)) {
-                s_asyncLoadBufferUsed -= this->m_asyncObject->m_size;
+                ReleaseReadAhead(this->m_asyncObject);
                 SMemFree(buffer, __FILE__, __LINE__, 0);
             }
         }

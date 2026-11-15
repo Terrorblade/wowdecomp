@@ -596,7 +596,7 @@ static bool AsyncFileReadThreadSleepCallback(CVar* var, const char* oldValue, co
 // VERIFY: 7d364ca0 auto
 // OFFSET: 0x00402690
 static bool AsyncFileReadHandlerTimeoutCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
-    return static_cast<uint32_t>(SStrToInt(value) - 20) <= 230;
+    return static_cast<uint32_t>(SStrToInt(value) - 5) <= 245;
 }
 
 // VERIFY: aabf0f07 manual
@@ -687,7 +687,7 @@ void ClientRegisterConsoleCommands() {
 // OFFSET: 0x004026B0
 void AsyncFileReadRegisterCVars() {
     s_cvAsyncThreadSleep = CVar::Register("asyncThreadSleep", "Engine option: Async read thread sleep", 1, "0", AsyncFileReadThreadSleepCallback, CATEGORY_DEBUG, false, nullptr, false);
-    s_cvAsyncHandlerTimeout = CVar::Register("asyncHandlerTimeout", "Engine option: Async read main thread timeout", 1, "100", AsyncFileReadHandlerTimeoutCallback, CATEGORY_DEBUG, false, nullptr, false);
+    s_cvAsyncHandlerTimeout = CVar::Register("asyncHandlerTimeout", "Engine option: Async read main thread timeout", 1, "10", AsyncFileReadHandlerTimeoutCallback, CATEGORY_DEBUG, false, nullptr, false);
     AsyncFileReadInitialize(s_cvAsyncThreadSleep->m_intValue, s_cvAsyncHandlerTimeout->m_intValue);
 }
 

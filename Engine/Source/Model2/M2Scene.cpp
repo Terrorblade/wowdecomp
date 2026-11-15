@@ -1900,12 +1900,18 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
     {
         HoT::Profiler::Scope mainScope(HoT::Profiler::Zone::M2AnimateMain);
 
+        if (this->m_cache->m_flags & 4) {
+            CM2Model::BeginParticleUpdates();
+        }
+
         for (CM2Model* model = this->m_animateList; model; model = model->m_animateNext) {
             if (!model->m_attachParent) {
                 model->AnimateST();
             }
         }
     }
+
+    CM2Model::FlushParticleUpdates(this);
 
     {
         HoT::Profiler::Scope lightingScope(HoT::Profiler::Zone::M2ModelLighting);

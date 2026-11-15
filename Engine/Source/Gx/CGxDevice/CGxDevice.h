@@ -157,6 +157,8 @@ class CGxDevice {
     /* 2960 */ uint32_t m_cursor [1024];
     /* 3960 */ CGxTex* m_cursorTexture;
     /* 3964 */ float m_cursorDepth;
+    uint32_t m_primInstanceMask = 0;
+    uint32_t m_primInstanceCount = 0;
 
     virtual void ITexMarkAsUpdated(CGxTex* texId);
     virtual void IRsSendToHw(EGxRenderState which) = 0;
@@ -339,6 +341,8 @@ class CGxDevice {
     void PrimIndexPtr(CGxBuf* buf);
     void PrimVertexFormat(CGxBuf* buf, const CGxVertexAttrib* attribs, uint32_t count);
     void PrimVertexMask(uint32_t mask);
+    // The attributes in attribMask step once per instance, count 0 turns instancing off.
+    void PrimInstances(uint32_t attribMask, uint32_t count);
     void PrimVertexPtr(CGxBuf* buf, EGxVertexBufferFormat format);
     void SetScissor(const CRect& rect);
     void ShaderConstantsClear();

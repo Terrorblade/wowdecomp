@@ -6,6 +6,7 @@
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Model2/M2Data.h"
 #include "Engine/Source/Storm/H/stpl.h"
+#include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Tempest/C3Spline_Bezier3.h"
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
@@ -16,6 +17,7 @@
 #include "Engine/Source/Tempest/CRandom.h"
 
 class C2Vector;
+class CGxShader;
 class CM2Model;
 class CM2Scene;
 class CParticleEmitter2;
@@ -86,16 +88,19 @@ class CParticleEmitter2 {
         PT_MODEL = 1,
     };
 
+    // One quad, the vertex shader expands it to m_center + corner.x * m_axisU + corner.y * m_axisV.
+    struct ParticleInstance {
+        C3Vector m_center;
+        C3Vector m_axisU;
+        C3Vector m_axisV;
+        CImVector m_color;
+        C2Vector m_texBase;
+        C2Vector m_texCell;
+    };
+
     struct ParticleVertex {
-        /* 0000 */ uint8_t* m_position;
-        /* 0004 */ uint8_t* m_normal;
-        /* 0008 */ uint8_t* m_color;
-        /* 000C */ uint8_t* m_texCoord;
-        /* 0010 */ uint32_t m_positionStride;
-        /* 0014 */ uint32_t m_normalStride;
-        /* 0018 */ uint32_t m_colorStride;
-        /* 001C */ uint32_t m_texCoordStride;
-        /* 0020 */ uint32_t m_count;
+        ParticleInstance* m_instance;
+        uint32_t m_count;
     };
 
     struct SimpleKey {
@@ -147,12 +152,15 @@ class CParticleEmitter2 {
 
     static CGxBuf* s_indexBuf;
     static CGxPool* s_indexPool;
+    static CGxBuf* s_cornerBuf;
+    static CGxPool* s_cornerPool;
+    static CGxShader* s_instancedShaders[60];
     static uint32_t s_initCount;
     static uint8_t s_noIndexBuffer;
     // FIX: per thread so particle vertices can be built on the animation workers
     static thread_local CSortableParticleQueue s_pq;
     static float s_rndTable[128];
-    static float s_viewDist;
+    static thread_local float s_viewDist;
 
     static void Destroy();
     static void Init();
@@ -160,7 +168,8 @@ class CParticleEmitter2 {
     static uint32_t PrebuildCount();
     static void PrebuildRun(uint32_t index);
     static void __stdcall RenderIndices(CGxBuf* buf);
-    static void __stdcall RenderParticleVertices(CGxBuf* buf, EGxVertexBufferFormat format, uint32_t vertexCount, uint32_t indexCount);
+    static void RenderCorners(CGxBuf* buf);
+    static void RenderParticleInstances(CGxBuf* buf, uint32_t instanceCount, int32_t lit);
 
     /* 0004 */ int32_t m_refCount;
     /* 0008 */ float m_emitAccumulator;
@@ -220,7 +229,7 @@ class CParticleEmitter2 {
     /* 0200 */ C3Vector m_burstOffset;
     /* 020C */ C3Vector m_billboardAxis;
     /* 0218 */ CAaBox m_worldBounds;
-    /* 0230 */ uint32_t unused_0230;
+    /* 0230 */ uint32_t m_updateQueued;
 
     virtual void Sync();
     virtual void CreateParticle(CParticle2& particle, float time, const C44Matrix& transform);
@@ -246,7 +255,6 @@ class CParticleEmitter2 {
     void DetermineIfSimple();
     void EmitNewParticles(float deltaTime, const C44Matrix& transform);
     void EmitParticle(float time, const C44Matrix& transform);
-    void FillOutParticleVertex(void* buffer, EGxVertexBufferFormat format, ParticleVertex* vertex);
     uint32_t GetNumBatches();
     uint32_t GetNumParticleModels();
     uint32_t GetNumPrimitives();

@@ -726,7 +726,7 @@ void CM2SceneRender::DrawRibbon() {
 
 // VERIFY: 693b5e5e manual
 // OFFSET: 0x00821040
-void CM2SceneRender::RenderBatchedParticle(CParticleEmitter2* emitter, CGxBuf* buf, EGxVertexBufferFormat format, uint32_t vertexCount, uint32_t indexCount) {
+void CM2SceneRender::RenderBatchedParticle(CParticleEmitter2* emitter, CGxBuf* buf, uint32_t instanceCount) {
     CShaderEffect* effect = (emitter->m_params.m_materialFlags & 1) ? this->m_particleEffect : this->m_particleUnlitEffect;
 
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(emitter->m_texture, 0, nullptr));
@@ -734,7 +734,7 @@ void CM2SceneRender::RenderBatchedParticle(CParticleEmitter2* emitter, CGxBuf* b
     effect->SetCurrent();
     this->SetupLighting();
     this->SetupMaterial();
-    CParticleEmitter2::RenderParticleVertices(buf, format, vertexCount, indexCount);
+    CParticleEmitter2::RenderParticleInstances(buf, instanceCount, emitter->m_params.m_materialFlags & 1);
 }
 
 // VERIFY: 1504273d manual
@@ -744,27 +744,19 @@ uint32_t CM2SceneRender::DrawBatchedParticle(uint32_t index, M2Element* elements
     uint32_t* first = &indices[index];
     M2Element* element = &elements[*first];
     CParticleEmitter2* emitter = element->m_emitter;
-    EGxVertexBufferFormat format = (emitter->m_params.m_materialFlags & 1) ? GxVBF_PNCT : GxVBF_PCT;
-    uint32_t vertexSize = GxVertexSize(format);
+    uint32_t instanceSize = sizeof(CParticleEmitter2::ParticleInstance);
     uint32_t materialFlags = emitter->m_params.m_materialFlags;
     uint32_t materialBlend = emitter->m_params.m_materialBlend;
     CM2Lighting* lighting = element->m_model->m_currentLighting;
-    uint32_t live = emitter->m_liveList.m_count;
-    uint32_t maxVertices = 0x100000 / vertexSize;
+    uint32_t maxInstances = 0x100000 / instanceSize;
     CTexture* texture = emitter->m_texture;
     uint32_t particles = 0x4000 / emitter->m_vertsPerParticle;
 
-    if (particles >= live) {
-        particles = live;
+    if (particles >= emitter->m_liveList.m_count) {
+        particles = emitter->m_liveList.m_count;
     }
 
-    uint32_t vertices = particles * emitter->m_vertsPerParticle;
-
-    if (0x4000 / emitter->m_vertsPerParticle < live) {
-        live = 0x4000 / emitter->m_vertsPerParticle;
-    }
-
-    uint32_t indexCount = live * emitter->m_indicesPerParticle;
+    uint32_t instances = particles * (emitter->m_vertsPerParticle / 4);
     uint32_t batched = 1;
 
     for (uint32_t i = index + 1; i < count; i++) {
@@ -776,19 +768,12 @@ uint32_t CM2SceneRender::DrawBatchedParticle(uint32_t index, M2Element* elements
 
         CParticleEmitter2* otherEmitter = other->m_emitter;
         uint32_t otherParticles = 0x4000 / otherEmitter->m_vertsPerParticle;
-        uint32_t otherLive = otherEmitter->m_liveList.m_count;
 
-        if (otherParticles >= otherLive) {
-            otherParticles = otherLive;
+        if (otherParticles >= otherEmitter->m_liveList.m_count) {
+            otherParticles = otherEmitter->m_liveList.m_count;
         }
 
-        uint32_t otherVertices = otherParticles * otherEmitter->m_vertsPerParticle;
-
-        if (0x4000 / otherEmitter->m_vertsPerParticle < otherLive) {
-            otherLive = 0x4000 / otherEmitter->m_vertsPerParticle;
-        }
-
-        uint32_t otherIndices = otherLive * otherEmitter->m_indicesPerParticle;
+        uint32_t otherInstances = otherParticles * (otherEmitter->m_vertsPerParticle / 4);
 
         if (otherEmitter->m_params.m_materialBlend != materialBlend) {
             break;
@@ -804,20 +789,19 @@ uint32_t CM2SceneRender::DrawBatchedParticle(uint32_t index, M2Element* elements
             break;
         }
 
-        if (otherVertices + vertices > maxVertices) {
+        if (otherInstances + instances > maxInstances) {
             break;
         }
 
-        if (indexCount + otherIndices > 0x20000 || (lit && !CM2SceneRender::LightingColorsMatch(other->m_model->m_currentLighting, lighting))) {
+        if (lit && !CM2SceneRender::LightingColorsMatch(other->m_model->m_currentLighting, lighting)) {
             break;
         }
 
         batched++;
-        vertices += otherVertices;
-        indexCount += otherIndices;
+        instances += otherInstances;
     }
 
-    if (!vertices || !indexCount) {
+    if (!instances) {
         return 0;
     }
 
@@ -827,24 +811,23 @@ uint32_t CM2SceneRender::DrawBatchedParticle(uint32_t index, M2Element* elements
     C44Matrix view = viewStack.m_mtx[viewStack.m_level];
     this->SetupBillboardView(*reinterpret_cast<const C3Vector*>(&this->m_scene->m_viewInv.d0));
 
-    CGxBuf* buf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, vertexSize, vertices);
+    CGxBuf* buf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, instanceSize, instances);
     uint8_t* data = reinterpret_cast<uint8_t*>(g_theGxDevicePtr->BufLock(buf));
-    uint32_t renderedVertices = 0;
-    uint32_t renderedIndices = 0;
+    uint32_t renderedInstances = 0;
 
     for (uint32_t i = 0; i < batched; i++) {
         emitter = elements[first[i]].m_emitter;
         emitter->Render(static_cast<const C44Matrix*>(this->m_curModel->m_frameOfReference), data, i == 0);
-        renderedVertices += emitter->m_renderedParticles * emitter->m_vertsPerParticle;
-        data += vertexSize * emitter->m_renderedParticles * emitter->m_vertsPerParticle;
-        renderedIndices += emitter->m_renderedParticles * emitter->m_indicesPerParticle;
+        uint32_t emitted = emitter->m_renderedParticles * (emitter->m_vertsPerParticle / 4);
+        renderedInstances += emitted;
+        data += instanceSize * emitted;
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
     buf->m_hasData = 1;
 
-    if (renderedVertices && renderedIndices) {
-        this->RenderBatchedParticle(emitter, buf, format, renderedVertices, renderedIndices);
+    if (renderedInstances) {
+        this->RenderBatchedParticle(emitter, buf, renderedInstances);
     }
 
     g_theGxDevicePtr->XformSetView(view);

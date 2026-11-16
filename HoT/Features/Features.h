@@ -84,6 +84,10 @@ namespace HoT::MovementForce {
 Module* GetModule();
 }
 
+namespace HoT::Ping {
+Module* GetModule();
+}
+
 namespace HoT::PlayerSettings {
 Module* GetModule();
 }

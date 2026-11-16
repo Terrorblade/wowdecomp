@@ -97,6 +97,9 @@ static const char* s_events[] = {
     "MODEL_EDITOR_SAVED",
     "HOT_MINIGAME_VALUE",
     "HOT_MINIGAME_TEXT",
+    "HOT_PING_RECEIVED",
+    "HOT_PING_RESULT",
+    "HOT_PING_RESTRICTION",
 };
 
 void RegisterEvents() {

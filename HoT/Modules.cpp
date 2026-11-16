@@ -62,6 +62,7 @@ std::vector<Module*>& Modules() {
         LootWindow::GetModule(),
         Minigame::GetModule(),
         MovementForce::GetModule(),
+        Ping::GetModule(),
         PlayerSettings::GetModule(),
         QuestLog::GetModule(),
         Talent::GetModule(),

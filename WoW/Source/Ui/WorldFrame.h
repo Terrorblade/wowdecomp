@@ -195,6 +195,7 @@ class CGWorldFrame : public CSimpleFrame {
     void UpdateDayNight(float deltaSec);
     int32_t HandleSpriteTrack(WOWGUID guid);
     int32_t HitTestPoint(float x, float y, int32_t a3, HITTESTRESULT* result);
+    int32_t HitTestPointFlags(float x, float y, uint32_t flags, HITTESTRESULT* result);
     int32_t CanTargetCorpseSelection(const CGCorpse_C* corpse, uint32_t flags);
     static void __stdcall CursorTrackObject(CGGameObject_C* object);
     static void __stdcall CursorTrackUnit(CGUnit_C* unit);

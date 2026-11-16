@@ -1252,9 +1252,14 @@ int32_t CGWorldFrame::HitTest(const C3Vector& start, const C3Vector& end, uint32
 // VERIFY: 53a93536 auto
 // OFFSET: 0x004F9DA0
 int32_t CGWorldFrame::HitTestPoint(float x, float y, int32_t a3, HITTESTRESULT* result) {
+    // HoT: editor tracks the last mouse hit for its Lua functions.
+    return HoT::Editor::OnHitTestPoint(this->HitTestPointFlags(x, y, this->GetHitTestFilterFlags(a3), result), result);
+}
+
+// HoT: the ping system hit tests with its own filter flags instead of the cursor's.
+int32_t CGWorldFrame::HitTestPointFlags(float x, float y, uint32_t flags, HITTESTRESULT* result) {
     if (!(CGInputControl::GetActive()->m_mouseModeFlags & 0x1)) {
-        // HoT: editor tracks the last mouse hit for its Lua functions.
-        return HoT::Editor::OnHitTestPoint(0, result);
+        return HIT_NONE;
     }
 
     CGxDevice* device = g_theGxDevicePtr;
@@ -1266,7 +1271,6 @@ int32_t CGWorldFrame::HitTestPoint(float x, float y, int32_t a3, HITTESTRESULT* 
     this->m_camera->SetupWorldProjection(this->m_viewportDDC);
 
     int32_t kind = HIT_NONE;
-    uint32_t flags = this->GetHitTestFilterFlags(a3);
 
     if (flags) {
         C3Vector start = { 0.0f, 0.0f, 0.0f };
@@ -1288,8 +1292,7 @@ int32_t CGWorldFrame::HitTestPoint(float x, float y, int32_t a3, HITTESTRESULT* 
 
     g_theGxDevicePtr->XformSetProjection(projection);
     g_theGxDevicePtr->XformSetView(view);
-    // HoT: editor tracks the last mouse hit for its Lua functions.
-    return HoT::Editor::OnHitTestPoint(kind, result);
+    return kind;
 }
 
 // VERIFY: 21cb1ac2 auto

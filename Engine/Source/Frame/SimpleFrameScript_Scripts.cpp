@@ -174,6 +174,17 @@ static int32_t Script_CreateFrame(lua_State* L) {
             luaL_error(L, "CreateFrame: Wrong parent object type, expected frame");
             return 0;
         }
+
+        int32_t depth = 1;
+
+        for (CSimpleFrame* ancestor = parent; ancestor; ancestor = ancestor->m_parent) {
+            depth++;
+        }
+
+        if (depth > SIMPLEFRAME_MAX_DEPTH) {
+            luaL_error(L, "CreateFrame: Frame hierarchy would be too deep");
+            return 0;
+        }
     }
 
     if (lua_type(L, 4) == LUA_TSTRING) {
@@ -245,6 +256,17 @@ static int32_t Script_CreateFrame(lua_State* L) {
     return 1;
 }
 
+// Listeners waiting on a deferred unregister may already be destroyed.
+static bool IsPendingUnregister(FrameScript_EventObject* event, FrameScript_Object* listener) {
+    for (EVENTLISTENERNODE* node = event->m_unregisterListeners.Head(); !event->m_unregisterListeners.IsEnd(node); node = event->m_unregisterListeners.RawNext(node)) {
+        if (node->m_listener == listener) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // VERIFY: 6e83215b manual
 // OFFSET: 0x0081BE70
 static int32_t Script_GetFramesRegisteredForEvent(lua_State* L) {
@@ -253,11 +275,19 @@ static int32_t Script_GetFramesRegisteredForEvent(lua_State* L) {
         return 0;
     }
 
-    TSList<EVENTLISTENERNODE>* listeners = FrameScript_GetEventListeners(lua_tolstring(L, 1, nullptr));
+    FrameScript_EventObject* event = s_scriptEventsHash.Ptr(lua_tolstring(L, 1, nullptr));
+
+    if (!event) {
+        return 0;
+    }
+
+    TSList<EVENTLISTENERNODE>* listeners = &event->m_listeners;
     int32_t count = 0;
 
     for (EVENTLISTENERNODE* node = listeners->Head(); node; node = listeners->Next(node)) {
-        count++;
+        if (!IsPendingUnregister(event, node->m_listener)) {
+            count++;
+        }
     }
 
     if (!lua_checkstack(L, count)) {
@@ -267,6 +297,10 @@ static int32_t Script_GetFramesRegisteredForEvent(lua_State* L) {
 
     for (EVENTLISTENERNODE* node = listeners->Head(); node; node = listeners->Next(node)) {
         FrameScript_Object* listener = node->m_listener;
+
+        if (IsPendingUnregister(event, listener)) {
+            continue;
+        }
 
         if (!listener->m_luaRegistered) {
             listener->RegisterScriptObject(nullptr);

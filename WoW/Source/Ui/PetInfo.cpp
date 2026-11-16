@@ -152,12 +152,20 @@ void SendRequestPetInfo() {
 // VERIFY: cf365005 auto
 // OFFSET: 0x005D3050
 const char* CGPetInfo::GetModeToken(uint32_t mode) {
+    if (mode >= sizeof(s_petModeTokens) / sizeof(s_petModeTokens[0])) {
+        return "";
+    }
+
     return s_petModeTokens[mode];
 }
 
 // VERIFY: 5d255e3f auto
 // OFFSET: 0x005D3060
 const char* CGPetInfo::GetOrdersToken(uint32_t order) {
+    if (order >= sizeof(s_petOrderTokens) / sizeof(s_petOrderTokens[0])) {
+        return "";
+    }
+
     return s_petOrderTokens[order];
 }
 
@@ -867,7 +875,7 @@ int32_t Packet_SMSG_PET_SPELLS(void* param, NETMESSAGE msgId, uint32_t time, CDa
 
     uint32_t expiration = 0;
     uint16_t family = 0;
-    uint64_t pet;
+    uint64_t pet = 0;
     msg->Get(pet);
 
     if (pet) {
@@ -1069,8 +1077,14 @@ void CGPetInfo::UpdatePetTempBar() {
 // VERIFY: 5d3e1ddc auto
 // OFFSET: 0x005D6550
 int32_t Packet_SMSG_PET_GUIDS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
+    uint32_t remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    if (count > remaining / 8) {
+        count = remaining / 8;
+    }
+
     CGPetInfo::SetPetCount(count);
 
     for (uint32_t i = 0; i < count; i++) {

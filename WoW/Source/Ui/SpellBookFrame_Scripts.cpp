@@ -197,7 +197,7 @@ static int32_t Script_HasPetSpells(lua_State* L) {
     }
 
     ChrClassesRec* rec = g_chrClassesDB.GetRecord(player->m_unit->m_unitFieldBytes0[1]);
-    lua_pushstring(L, rec->m_petNameToken);
+    lua_pushstring(L, rec ? rec->m_petNameToken : "PET");
     return 2;
 }
 
@@ -1031,7 +1031,10 @@ static int32_t Script_CastSpellByID(lua_State* L) {
     }
 
     SpellRec spell;
-    g_spellDB.GetRecord(spellId, &spell);
+
+    if (!g_spellDB.GetRecord(spellId, &spell)) {
+        return 0;
+    }
 
     if (!(spell.m_attributesExD & 0x20) && player->GetPossessedUnit() != pet) {
         Spell_C_StartSpellCooldown(&spell, pet);
@@ -1134,7 +1137,10 @@ static int32_t Script_CastSpellByName(lua_State* L) {
     }
 
     SpellRec spell;
-    g_spellDB.GetRecord(spellId, &spell);
+
+    if (!g_spellDB.GetRecord(spellId, &spell)) {
+        return 0;
+    }
 
     if ((spell.m_attributesExD & 0x20) || player->GetPossessedUnit() == pet) {
         Spell_C_CastSpell(pet, spell.m_id, nullptr, target, nullptr, false);

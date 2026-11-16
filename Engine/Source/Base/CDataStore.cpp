@@ -254,12 +254,12 @@ CDataStore& CDataStore::PutData(const void* data, uint32_t bytes) {
 // VERIFY: cef12e51 manual
 // OFFSET: 0x0047B290
 int32_t CDataStore::FetchRead(uint32_t pos, uint32_t bytes) {
-    if (pos + bytes > this->m_size) {
+    if (pos > this->m_size || bytes > this->m_size - pos) {
         this->m_read = this->m_size + 1;
         return 0;
     }
 
-    if (pos >= this->m_base && pos + bytes <= this->m_base + this->m_alloc) {
+    if (pos >= this->m_base && pos - this->m_base + bytes <= this->m_alloc) {
         return 1;
     }
 

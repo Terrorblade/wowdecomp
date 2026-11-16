@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <malloc.h>
 #include <new>
 #include <typeinfo>
@@ -52,6 +53,33 @@ int32_t CSimpleHTML::GetObjectType() {
     return CSimpleHTML::s_objectType;
 }
 
+// The format is passed to SStrPrintf with two string arguments, so allow only %s and %%.
+static bool IsValidHyperlinkFormat(const char* format) {
+    if (!format) {
+        return false;
+    }
+
+    int32_t count = 0;
+
+    for (const char* c = format; *c; c++) {
+        if (*c != '%') {
+            continue;
+        }
+
+        c++;
+
+        if (*c == '%') {
+            continue;
+        }
+
+        if (*c != 's' || ++count > 2) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // VERIFY: adeee239 auto
 // OFFSET: 0x0096C750
 void CSimpleHTML::FontUpdated(CSimpleFontedFrameFont* font, int32_t flags) {
@@ -63,6 +91,10 @@ void CSimpleHTML::FontUpdated(CSimpleFontedFrameFont* font, int32_t flags) {
 // VERIFY: d15ae246 manual
 // OFFSET: 0x0096C770
 void CSimpleHTML::SetHyperlinkFormat(const char* format) {
+    if (!IsValidHyperlinkFormat(format)) {
+        return;
+    }
+
     if (this->m_hyperlinkFormat) {
         SMemFree(this->m_hyperlinkFormat, __FILE__, __LINE__, 0);
     }
@@ -150,6 +182,7 @@ void CSimpleHTML::ParseIMG(XMLNode* node, CStatus* status) {
 
     void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
     CSimpleTexture* texture = data ? new (data) CSimpleTexture(this, 2, 1) : nullptr;
+    texture->m_internal = true;
 
     texture->SetWidth(width);
     texture->SetHeight(height);
@@ -190,6 +223,7 @@ void CSimpleHTML::ParseIMG(XMLNode* node, CStatus* status) {
 void CSimpleHTML::AddText(const char* text, HTML_TEXT_TYPE type, uint32_t justify) {
     void* data = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
     CSimpleFontString* string = data ? new (data) CSimpleFontString(this, 2, 1) : nullptr;
+    string->m_internal = true;
 
     if (this->m_layoutAnchor) {
         string->SetPoint(FRAMEPOINT_TOPLEFT, this->m_layoutAnchor, FRAMEPOINT_BOTTOMLEFT, 0.0f, this->m_layoutOffset, 1);
@@ -262,14 +296,8 @@ void CSimpleHTML::ClearContent() {
     this->m_layoutAnchor = nullptr;
     this->m_layoutOffset = 0.0f;
 
-    CSimpleHyperlinkButton* button = this->m_hyperlinks.Head();
-
-    while (!TSList<CSimpleHyperlinkButton, TSGetExplicitLink<CSimpleHyperlinkButton> >::IsEnd(button)) {
-        CSimpleHyperlinkButton* next = this->m_hyperlinks.RawNext(button);
-        this->m_hyperlinks.UnlinkNode(button);
-        delete button;
-        button = next;
-    }
+    // Hyperlink buttons are left for RefreshHyperlinks, a script on one of them may be running now.
+    this->m_hyperlinksDirty = 1;
 }
 
 // VERIFY: 6ff12c29 manual
@@ -282,40 +310,56 @@ void CSimpleHTML::ParseP(XMLNode* node, HTML_TEXT_TYPE type, CStatus* status) {
         StringToJustify(align, justify);
     }
 
-    char* text = SStrDupA(node->m_body ? node->m_body : "", __FILE__, __LINE__);
-    uint32_t offset = 0;
+    const char* body = node->m_body ? node->m_body : "";
+    uint32_t bodyLength = SStrLen(body);
+    uint32_t formatLength = SStrLen(this->m_hyperlinkFormat);
+    size_t textSize = bodyLength + 1;
 
     for (XMLNode* child = node->m_child; child; child = child->m_next) {
         if (!SStrCmpI(child->m_name.m_str, "BR", STORM_MAX_STR)) {
-            char* newText = static_cast<char*>(SMemAlloc(SStrLen(text) + 3, __FILE__, __LINE__, 0));
-            SStrCopy(newText, text, offset + child->m_offset + 1);
-            SStrPack(newText, "|n", STORM_MAX_STR);
-            SStrPack(newText, &text[offset + child->m_offset], STORM_MAX_STR);
-            SMemFree(text, __FILE__, __LINE__, 0);
-            offset += 2;
-            text = newText;
+            textSize += 2;
         } else if (!SStrCmpI(child->m_name.m_str, "A", STORM_MAX_STR)) {
             const char* linkText = child->m_body;
             const char* href = child->GetAttributeByName("href");
 
             if (linkText && *linkText && href && *href) {
-                uint32_t size = SStrLen(href) + SStrLen(this->m_hyperlinkFormat) + SStrLen(linkText) + 1;
-                char* link = static_cast<char*>(alloca(size));
-                SStrPrintf(link, size, this->m_hyperlinkFormat, href, linkText);
+                textSize += SStrLen(href) + formatLength + SStrLen(linkText);
+            }
+        }
+    }
 
-                char* newText = static_cast<char*>(SMemAlloc(SStrLen(text) + size, __FILE__, __LINE__, 0));
-                SStrCopy(newText, text, offset + child->m_offset + 1);
-                SStrPack(newText, link, STORM_MAX_STR);
-                SStrPack(newText, &text[offset + child->m_offset], STORM_MAX_STR);
-                SMemFree(text, __FILE__, __LINE__, 0);
-                text = newText;
-                offset += SStrLen(link);
+    char* text = static_cast<char*>(SMemAlloc(textSize, __FILE__, __LINE__, 0));
+    char* end = text;
+    uint32_t bodyPos = 0;
+
+    for (XMLNode* child = node->m_child; child; child = child->m_next) {
+        uint32_t childOffset = child->m_offset < bodyLength ? child->m_offset : bodyLength;
+
+        if (childOffset > bodyPos) {
+            memcpy(end, &body[bodyPos], childOffset - bodyPos);
+            end += childOffset - bodyPos;
+            bodyPos = childOffset;
+        }
+
+        if (!SStrCmpI(child->m_name.m_str, "BR", STORM_MAX_STR)) {
+            *end++ = '|';
+            *end++ = 'n';
+        } else if (!SStrCmpI(child->m_name.m_str, "A", STORM_MAX_STR)) {
+            const char* linkText = child->m_body;
+            const char* href = child->GetAttributeByName("href");
+
+            if (linkText && *linkText && href && *href) {
+                size_t space = textSize - (end - text);
+                end += SStrPrintf(end, space, this->m_hyperlinkFormat, href, linkText);
             }
         } else {
             const char* name = this->GetName();
             status->Add(STATUS_WARNING, "Frame %s: Unknown element type: %s", name ? name : "<unnamed>", child->m_name.m_str);
         }
     }
+
+    memcpy(end, &body[bodyPos], bodyLength - bodyPos);
+    end[bodyLength - bodyPos] = '\0';
 
     bool space = false;
     bool lineStart = true;

@@ -502,7 +502,7 @@ static uint32_t GetNumDwordBlocks(uint32_t type, WOWGUID guid) {
 // VERIFY: 09b26427 manual
 // OFFSET: 0x004D3F10
 static int32_t ExtractDirtyMasks(CDataStore* msg, uint8_t* blockCount, uint32_t* masks) {
-    uint8_t count;
+    uint8_t count = 0;
     msg->Get(count);
     *blockCount = count;
 
@@ -514,6 +514,10 @@ static int32_t ExtractDirtyMasks(CDataStore* msg, uint8_t* blockCount, uint32_t*
 
     for (; i < count; i++) {
         msg->Get(masks[i]);
+    }
+
+    if (msg->m_read > msg->m_size) {
+        return 0;
     }
 
     if (i < 42) {
@@ -618,10 +622,10 @@ static void DestroyRemovedObject(CGObject_C* object) {
 // VERIFY: e9d855a0 auto
 // OFFSET: 0x004D41C0
 static void SkipSetOfObjects(CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
-    for (uint32_t i = 0; i < count; i++) {
+    for (uint32_t i = 0; i < count && msg->m_read <= msg->m_size; i++) {
         SmartGUID guid;
         *msg >> guid;
     }
@@ -948,14 +952,21 @@ static int32_t FillInPartialObjectData(CGObject_C* object, WOWGUID guid, CDataSt
             }
         }
 
-        uint32_t value;
+        uint32_t value = 0;
 
         if (masks[i >> 5] & (1 << (i & 31))) {
             msg->GetArray(reinterpret_cast<uint8_t*>(&value), sizeof(value));
         } else if (zeroFillAbsent) {
             value = 0;
-        } else {
+        } else if (i > OBJECT_FIELD_TYPE) {
             continue;
+        }
+
+        // The guid and type fields decide the object's storage size, so the server can't change them.
+        if (i < OBJECT_FIELD_TYPE) {
+            value = static_cast<uint32_t>(guid.m_guid >> (32 * i));
+        } else if (i == OBJECT_FIELD_TYPE) {
+            value = static_cast<uint32_t>(object->m_obj->m_type);
         }
 
         // HoT: HDDisplaySwap rewrites a unit's display ids as they arrive, so every reader sees the HD display.
@@ -1205,7 +1216,8 @@ static int32_t PostInitObject(uint32_t time, CDataStore* msg, bool reenable) {
         return CallMirrorHandlers(msg, true, guid);
     }
 
-    switch (typeId) {
+    // An existing object keeps its type even if the packet names another one.
+    switch (object->m_typeId) {
         case ID_OBJECT: {
             object->PostInit(time, create, reenable);
             break;
@@ -1315,10 +1327,10 @@ static int32_t CreateObject(CDataStore* msg, uint32_t time) {
     SmartGUID guid;
     *msg >> guid;
 
-    uint8_t typeId;
+    uint8_t typeId = ID_OBJECT;
     msg->Get(typeId);
 
-    if (typeId >= NUM_CLIENT_OBJECT_TYPES) {
+    if (!guid || typeId == ID_OBJECT || typeId >= NUM_CLIENT_OBJECT_TYPES) {
         return 0;
     }
 
@@ -1345,11 +1357,17 @@ static int32_t CreateObject(CDataStore* msg, uint32_t time) {
         return 0;
     }
 
-    if (create.m_updateFlags & 0x1) {
+    // The active player decides how objects are allocated and freed, so it can't move to another guid.
+    if ((create.m_updateFlags & 0x1) && !s_curMgr->m_playerGuid) {
         s_curMgr->m_playerGuid = guid;
     }
 
     object = ClntObjMgrAllocObject(static_cast<OBJECT_TYPE_ID>(typeId), guid);
+
+    if (!object) {
+        return 0;
+    }
+
     SetupObjectStorage(object, static_cast<OBJECT_TYPE_ID>(typeId), guid);
     object->SetTypeID(static_cast<OBJECT_TYPE_ID>(typeId));
 
@@ -1383,7 +1401,9 @@ static void PostMovementUpdate(CDataStore* msg) {
         return;
     }
 
-    static_cast<CGUnit_C*>(object)->SetUpdateInfo(update, object->m_obj->m_guid == CGUnit_C::s_activeMover);
+    if (object->m_obj->m_type & TYPE_UNIT) {
+        static_cast<CGUnit_C*>(object)->SetUpdateInfo(update, object->m_obj->m_guid == CGUnit_C::s_activeMover);
+    }
 
     if (reenabled) {
         object->Reenable();
@@ -1418,10 +1438,10 @@ static int32_t PartialUpdateFromFullUpdate(CDataStore* msg) {
 // VERIFY: 70f27e51 auto
 // OFFSET: 0x004D6F40
 static void UpdateInRangeObjects(CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
-    while (count) {
+    while (count && msg->m_read <= msg->m_size) {
         count--;
 
         SmartGUID guid;
@@ -1461,8 +1481,12 @@ static void ObjDelete(CGObject_C* object) {
 // OFFSET: 0x004D7050
 static int32_t ObjectUpdateFirstPass(uint32_t index, CDataStore* msg, uint32_t time, uint32_t count) {
     for (; index < count; index++) {
-        uint8_t type;
+        uint8_t type = 0;
         msg->Get(type);
+
+        if (msg->m_read > msg->m_size) {
+            return 0;
+        }
 
         switch (type) {
             case 0: {
@@ -1508,8 +1532,12 @@ static int32_t ObjectUpdateFirstPass(uint32_t index, CDataStore* msg, uint32_t t
 // OFFSET: 0x004D7100
 static int32_t ObjectUpdateSecondPass(CDataStore* msg, uint32_t time, uint32_t count) {
     for (uint32_t i = 0; i < count; i++) {
-        uint8_t type;
+        uint8_t type = 0;
         msg->Get(type);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
 
         switch (type) {
             case 0: {
@@ -1555,14 +1583,14 @@ static int32_t ObjectUpdateSecondPass(CDataStore* msg, uint32_t time, uint32_t c
 // VERIFY: 3bda6338 manual
 // OFFSET: 0x004D7230
 static void UpdateOutOfRangeObjects(CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
     CVehiclePassenger_C::StartAddingPendingRescueTransitions();
 
     uint32_t read = msg->m_read;
 
-    for (uint32_t i = count; i; i--) {
+    for (uint32_t i = count; i && msg->m_read <= msg->m_size; i--) {
         SmartGUID guid;
         *msg >> guid;
 
@@ -1593,7 +1621,7 @@ static void UpdateOutOfRangeObjects(CDataStore* msg) {
 
     msg->m_read = read;
 
-    for (uint32_t i = count; i; i--) {
+    for (uint32_t i = count; i && msg->m_read <= msg->m_size; i--) {
         SmartGUID guid;
         *msg >> guid;
 
@@ -1614,7 +1642,7 @@ static void UpdateOutOfRangeObjects(CDataStore* msg) {
 // VERIFY: 1da078ed manual
 // OFFSET: 0x004D73A0
 int32_t Packet_SMSG_UPDATE_OBJECT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
     uint32_t read = msg->m_read;
@@ -1647,12 +1675,20 @@ int32_t Packet_SMSG_UPDATE_OBJECT(void* param, NETMESSAGE msgId, uint32_t time, 
 // VERIFY: d5d28268 manual
 // OFFSET: 0x004D74D0
 int32_t Packet_SMSG_COMPRESSED_UPDATE_OBJECT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t size;
+    uint32_t size = 0;
     msg->Get(size);
+
+    if (msg->m_read > msg->m_size) {
+        return 0;
+    }
 
     uint32_t compressedSize = msg->m_size - msg->m_read;
     void* compressed;
     msg->GetDataInSitu(compressed, compressedSize);
+
+    if (!compressed) {
+        return 0;
+    }
 
     uint8_t* buffer;
     bool stackBuffer;
@@ -1660,6 +1696,10 @@ int32_t Packet_SMSG_COMPRESSED_UPDATE_OBJECT(void* param, NETMESSAGE msgId, uint
     if (size >= 0x2000) {
         buffer = static_cast<uint8_t*>(SMemAlloc(size, __FILE__, __LINE__, 0));
         stackBuffer = false;
+
+        if (!buffer) {
+            return 0;
+        }
     } else {
         buffer = static_cast<uint8_t*>(alloca(size));
         stackBuffer = true;
@@ -1687,10 +1727,10 @@ int32_t Packet_SMSG_COMPRESSED_UPDATE_OBJECT(void* param, NETMESSAGE msgId, uint
 // VERIFY: 2f490dee manual
 // OFFSET: 0x004D7610
 int32_t Packet_SMSG_DESTROY_OBJECT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = WOWGUID();
     msg->Get(guid.m_guid);
 
-    uint8_t death;
+    uint8_t death = 0;
     msg->Get(death);
 
     CGObject_C* object = s_curMgr->m_objects.Ptr(static_cast<uint32_t>(guid.m_guid), CHashKeyGUID(guid.m_guid));

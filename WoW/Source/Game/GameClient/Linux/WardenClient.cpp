@@ -90,6 +90,10 @@ void WardenCachedModule::Pack(CDataStore* msg) {
 void WardenCachedModule::Unpack(CDataStore* msg) {
     msg->Get(this->m_size);
 
+    if (msg->m_read > msg->m_size || this->m_size > msg->m_size - msg->m_read) {
+        this->m_size = 0;
+    }
+
     if (!this->m_size) {
         this->m_data = nullptr;
         return;

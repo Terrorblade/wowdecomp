@@ -520,6 +520,10 @@ void DBCache<T, TKey, THashKey>::AddItems(CDataStore* msg, bool single) {
         uint32_t id;
         msg->Get(id);
 
+        if (msg->m_read > msg->m_size) {
+            return;
+        }
+
         if (static_cast<int32_t>(id) < 0) {
             id &= 0x7FFFFFFF;
             denied = true;

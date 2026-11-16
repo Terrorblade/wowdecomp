@@ -61,11 +61,11 @@ float CGBarberShop::GetMinCameraDistance() {
 const BarberShopStyleRec* CGBarberShop::GetCurrentStyle(int32_t type) {
     switch (type) {
         case 0:
-            return CGBarberShop::m_currentHairStyle->m_rec;
+            return CGBarberShop::m_currentHairStyle ? CGBarberShop::m_currentHairStyle->m_rec : nullptr;
         case 2:
-            return CGBarberShop::m_currentFacialHair->m_rec;
+            return CGBarberShop::m_currentFacialHair ? CGBarberShop::m_currentFacialHair->m_rec : nullptr;
         case 3:
-            return CGBarberShop::m_currentSkinColor->m_rec;
+            return CGBarberShop::m_currentSkinColor ? CGBarberShop::m_currentSkinColor->m_rec : nullptr;
     }
 
     return nullptr;
@@ -116,29 +116,40 @@ void CGBarberShop::Reset() {
     }
 
     HASHKEY_NONE key;
+    STYLEREC* start = CGBarberShop::m_currentHairStyle;
 
-    while (player->m_player->m_playerBytes[2] != CGBarberShop::m_currentHairStyle->m_rec->m_data) {
+    while (CGBarberShop::m_currentHairStyle && player->m_player->m_playerBytes[2] != CGBarberShop::m_currentHairStyle->m_rec->m_data) {
         STYLEREC* style = CGBarberShop::m_currentHairStyle;
         USEABLESTYLE* useable = CGBarberShop::m_useableStyles.Ptr(style->m_rec->m_type, key);
         STYLEREC* next = style->Next();
 
-        if (!next) {
+        if (!next && useable) {
             next = useable->m_styles.Head();
         }
 
         CGBarberShop::m_currentHairStyle = next;
+
+        if (next == start) {
+            break;
+        }
     }
 
-    while (player->m_player->m_playerBytes2[0] != CGBarberShop::m_currentFacialHair->m_rec->m_data) {
+    start = CGBarberShop::m_currentFacialHair;
+
+    while (CGBarberShop::m_currentFacialHair && player->m_player->m_playerBytes2[0] != CGBarberShop::m_currentFacialHair->m_rec->m_data) {
         STYLEREC* style = CGBarberShop::m_currentFacialHair;
         USEABLESTYLE* useable = CGBarberShop::m_useableStyles.Ptr(style->m_rec->m_type, key);
         STYLEREC* next = style->Next();
 
-        if (!next) {
+        if (!next && useable) {
             next = useable->m_styles.Head();
         }
 
         CGBarberShop::m_currentFacialHair = next;
+
+        if (next == start) {
+            break;
+        }
     }
 
     CGBarberShop::ResetAppearance();
@@ -386,7 +397,7 @@ void CGBarberShop::ResetAppearance() {
 // OFFSET: 0x0052E790
 bool CGBarberShop::IsCurrentStyle(int32_t type) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    CCharacterComponent* component = player->m_characterComponent;
+    CCharacterComponent* component = player ? player->m_characterComponent : nullptr;
 
     if (!component) {
         return true;
@@ -394,11 +405,11 @@ bool CGBarberShop::IsCurrentStyle(int32_t type) {
 
     switch (type) {
         case 0:
-            return player->m_player->m_playerBytes[2] == CGBarberShop::m_currentHairStyle->m_rec->m_data;
+            return !CGBarberShop::m_currentHairStyle || player->m_player->m_playerBytes[2] == CGBarberShop::m_currentHairStyle->m_rec->m_data;
         case 1:
             return player->m_player->m_playerBytes[3] == component->m_data.m_preferences.m_hairColorId;
         case 2:
-            return player->m_player->m_playerBytes2[0] == CGBarberShop::m_currentFacialHair->m_rec->m_data;
+            return !CGBarberShop::m_currentFacialHair || player->m_player->m_playerBytes2[0] == CGBarberShop::m_currentFacialHair->m_rec->m_data;
         case 3:
             return player->m_player->m_playerBytes[0] == component->m_data.m_preferences.m_skinID;
         default:
@@ -527,7 +538,7 @@ void CGBarberShop::ApplyAppearanceChange() {
 
     CCharacterComponent* component = player->m_characterComponent;
 
-    if (!component) {
+    if (!component || !CGBarberShop::m_currentHairStyle || !CGBarberShop::m_currentFacialHair) {
         return;
     }
 

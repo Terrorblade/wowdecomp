@@ -932,7 +932,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
             FrameScript_SignalEvent(SCRIPT_EVENT_LFG_ROLE_CHECK_UPDATE, nullptr);
 
-            if (!CGLookingForGroup::m_roleCheckMembers.m_data[localIndex].m_confirmed && CGLookingForGroup::m_roleCheckState == 2) {
+            if (localIndex < CGLookingForGroup::m_roleCheckMembers.Count() && !CGLookingForGroup::m_roleCheckMembers.m_data[localIndex].m_confirmed && CGLookingForGroup::m_roleCheckState == 2) {
                 FrameScript_SignalEvent(SCRIPT_EVENT_LFG_ROLE_CHECK_SHOW, nullptr);
             } else if (CGLookingForGroup::m_roleCheckState == 5) {
                 SI2::PlayUISound(0x43BD);
@@ -1370,6 +1370,11 @@ void CGLookingForGroup::ParseBlackList(CDataStore* msg, LFGLockInfo* lockInfo) {
     for (uint32_t i = 0; i < count; i++) {
         uint32_t slot;
         msg->Get(slot);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         LFGDungeonEntry* entry = lockInfo->AddDungeon(slot);
         entry->m_locked = 1;
         uint32_t reason;
@@ -1679,6 +1684,10 @@ int32_t Packet_SMSG_LFG_SEARCH_RESULTS(void* param, NETMESSAGE msgId, uint32_t t
             uint64_t guid;
             msg->Get(guid);
 
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
+
             if ((guid & 0xF000000000000000ull) || !(guid & 0xF07FFFFFFFFFFFFFull)) {
                 LFGListParty* party = list->m_parties.Ptr(static_cast<uint32_t>(guid), CHashKeyGUID(guid));
 
@@ -1706,6 +1715,11 @@ int32_t Packet_SMSG_LFG_SEARCH_RESULTS(void* param, NETMESSAGE msgId, uint32_t t
     for (uint32_t i = 0; i < count; i++) {
         uint64_t guid;
         msg->Get(guid);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         LFGListParty* party = list->m_parties.Ptr(static_cast<uint32_t>(guid), CHashKeyGUID(guid));
 
         if (!party) {
@@ -1729,6 +1743,11 @@ int32_t Packet_SMSG_LFG_SEARCH_RESULTS(void* param, NETMESSAGE msgId, uint32_t t
     for (uint32_t i = 0; i < count; i++) {
         WOWGUID guid;
         msg->Get(guid.m_guid);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         LFGListPlayer* player = list->m_players.Ptr(static_cast<uint32_t>(guid.m_guid), CHashKeyGUID(guid.m_guid));
 
         if (!player) {

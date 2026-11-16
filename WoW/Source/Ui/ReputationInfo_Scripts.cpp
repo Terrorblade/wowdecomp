@@ -81,7 +81,7 @@ static int32_t Script_SetSelectedFaction(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index <= CGReputationInfo::m_numFactions) {
+    if (index < CGReputationInfo::m_numFactions) {
         CGReputationInfo::m_selectedFaction = CGReputationInfo::m_factionList.m_data[index]->m_factionId;
     } else {
         CGReputationInfo::m_selectedFaction = 0;
@@ -106,7 +106,7 @@ static int32_t Script_GetFactionInfo(lua_State* L) {
     }
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
-    int32_t faction = index <= CGReputationInfo::m_numFactions ? CGReputationInfo::m_factionList.m_data[index]->m_factionId : 0;
+    int32_t faction = index < CGReputationInfo::m_numFactions ? CGReputationInfo::m_factionList.m_data[index]->m_factionId : 0;
     return GetFactionInfoHelper(L, faction);
 }
 
@@ -164,7 +164,7 @@ static int32_t Script_FactionToggleAtWar(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index <= CGReputationInfo::m_numFactions && CGReputationInfo::m_factionList.m_data[index]->m_factionId) {
+    if (index < CGReputationInfo::m_numFactions && CGReputationInfo::m_factionList.m_data[index]->m_factionId) {
         int32_t faction = CGReputationInfo::m_factionList.m_data[index]->m_factionId;
         CGReputationInfo::SetAtWar(faction, !CGReputationInfo::IsAtWar(faction));
     }
@@ -182,7 +182,7 @@ static int32_t Script_SetWatchedFactionIndex(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index <= CGReputationInfo::m_numFactions) {
+    if (index < CGReputationInfo::m_numFactions) {
         CGReputationInfo::SetWatchedFaction(CGReputationInfo::m_factionList.m_data[index]->m_factionId);
     } else {
         CGReputationInfo::SetWatchedFaction(0);
@@ -201,7 +201,7 @@ static int32_t Script_SetFactionInactive(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index <= CGReputationInfo::m_numFactions) {
+    if (index < CGReputationInfo::m_numFactions) {
         int32_t faction = CGReputationInfo::m_factionList.m_data[index]->m_factionId;
 
         if (faction) {
@@ -222,7 +222,7 @@ static int32_t Script_SetFactionActive(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index <= CGReputationInfo::m_numFactions) {
+    if (index < CGReputationInfo::m_numFactions) {
         int32_t faction = CGReputationInfo::m_factionList.m_data[index]->m_factionId;
 
         if (faction) {

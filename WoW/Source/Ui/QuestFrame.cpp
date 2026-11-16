@@ -307,7 +307,7 @@ void CGQuestInfo::AddReward(const char* title, const uint32_t* choiceItems, cons
     CGQuestInfo::ClearQuestItems();
     int32_t i = 0;
 
-    for (; i < numChoices; i++) {
+    for (; i < numChoices && i < 6; i++) {
         CGQuestInfo::m_questItems[i].m_choice.m_itemID = choiceItems[i];
         CGQuestInfo::m_questItems[i].m_choice.m_displayID = choiceDisplays[i];
         CGQuestInfo::m_questItems[i].m_choice.m_count = choiceCounts[i];
@@ -321,7 +321,7 @@ void CGQuestInfo::AddReward(const char* title, const uint32_t* choiceItems, cons
 
     i = 0;
 
-    for (; i < numRewards; i++) {
+    for (; i < numRewards && i < 6; i++) {
         CGQuestInfo::m_questItems[i].m_reward.m_itemID = rewardItems[i];
         CGQuestInfo::m_questItems[i].m_reward.m_displayID = rewardDisplays[i];
         CGQuestInfo::m_questItems[i].m_reward.m_count = rewardCounts[i];
@@ -579,7 +579,7 @@ void CGQuestInfo::EndQuestList() {
 void CGQuestInfo::AddItemRequest(const char* title, const uint32_t* itemIds, const uint32_t* itemCounts, const uint32_t* itemDisplays, int32_t numItems, int32_t requiredMoney, int32_t canComplete, int32_t autoLaunched, int32_t suggestedGroupNum, uint32_t questFlags) {
     int32_t i = 0;
 
-    for (; i < numItems; i++) {
+    for (; i < numItems && i < 6; i++) {
         CGQuestInfo::m_questItems[i].m_required.m_itemID = itemIds[i];
         CGQuestInfo::m_questItems[i].m_required.m_displayID = itemDisplays[i];
         CGQuestInfo::m_questItems[i].m_required.m_count = itemCounts[i];
@@ -626,7 +626,7 @@ int32_t CGQuestInfo::GetNumQuestChoices() {
 // VERIFY: 5df087bb auto
 // OFFSET: 0x0058BBC0
 int32_t CGQuestInfo::GetQuestItemID(const char* type, uint32_t index) {
-    if (index > 6) {
+    if (index >= 6) {
         return 0;
     }
 
@@ -687,7 +687,7 @@ int32_t CGQuestInfo::IsCompletable() {
 // VERIFY: 11ef127c manual
 // OFFSET: 0x0058CC20
 void CGQuestInfo::QueryQuest(uint32_t index) {
-    if (index > CGQuestInfo::m_numQuests || CGQuestInfo::m_responseSent) {
+    if (index >= CGQuestInfo::m_numQuests || index >= 32 || CGQuestInfo::m_responseSent) {
         return;
     }
 
@@ -707,7 +707,7 @@ void CGQuestInfo::QueryQuest(uint32_t index) {
 // VERIFY: bd530fb2 manual
 // OFFSET: 0x0058CCB0
 void CGQuestInfo::CompleteQuest(uint32_t index) {
-    if (index > CGQuestInfo::m_numInProgress || CGQuestInfo::m_responseSent) {
+    if (index >= CGQuestInfo::m_numInProgress || index >= 32 || CGQuestInfo::m_responseSent) {
         return;
     }
 
@@ -841,7 +841,7 @@ int32_t CGQuestInfo::QuestItemInfo(const char* type, uint32_t index, char* name,
     *quality = 0;
     *usable = 1;
 
-    if (index > 6) {
+    if (index >= 6) {
         return 0;
     }
 

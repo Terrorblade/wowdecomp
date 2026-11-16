@@ -330,7 +330,7 @@ static int32_t ParseAuctionMailSubject(const char* subject, uint32_t* itemId, ui
     int32_t fields = 1;
     *itemId = SStrToInt(subject);
 
-    const char* field = SStrChr(subject + 1, ':');
+    const char* field = *subject ? SStrChr(subject + 1, ':') : nullptr;
 
     if (!field || !*field) {
         return fields;
@@ -962,6 +962,11 @@ void CGAuctionHouse::SellNextItem() {
         return;
     }
 
+    if (!CGAuctionHouse::m_numSellItems || CGAuctionHouse::m_numSellItems > 200) {
+        CGAuctionHouse::OnMultisellFailure(false);
+        return;
+    }
+
     CGAuctionHouse::m_multisellRemaining--;
 
     CDataStore msg;
@@ -1250,13 +1255,14 @@ int32_t Packet_SMSG_AUCTION_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t 
         }
     }
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
-    CGAuctionHouse::m_browseList.SetCount(count);
+    CGAuctionHouse::m_browseList.SetCount(0);
 
     uint32_t now = OsGetAsyncTimeMs();
 
     for (uint32_t i = 0; i < count; i++) {
+        CGAuctionHouse::m_browseList.SetCount(i + 1);
         AuctionItemInfo* auction = &CGAuctionHouse::m_browseList.m_data[i];
         auction->m_auctionHouseID = CGAuctionHouse::m_auctionHouseID;
         msg->Get(auction->m_auctionID);
@@ -1285,6 +1291,11 @@ int32_t Packet_SMSG_AUCTION_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t 
         msg->Get(auction->m_bidder.m_guid);
         msg->Get(auction->m_bid);
         auction->m_sold = 0;
+
+        if (msg->m_read > msg->m_size) {
+            CGAuctionHouse::m_browseList.SetCount(i);
+            break;
+        }
 
         WOWGUID none = WOWGUID();
 
@@ -1333,10 +1344,10 @@ int32_t Packet_SMSG_AUCTION_OWNER_LIST_RESULT(void* param, NETMESSAGE msgId, uin
     CGAuctionHouse::m_ownerList.SetCount(kept);
     CGAuctionHouse::m_pendingOwnedItems = 0;
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
-    if (CGAuctionHouse::m_ownerList.Count() + count > CGAuctionHouse::m_ownerList.m_alloc) {
+    if (msg->m_read <= msg->m_size && count <= msg->m_size - msg->m_read && CGAuctionHouse::m_ownerList.Count() + count > CGAuctionHouse::m_ownerList.m_alloc) {
         CGAuctionHouse::m_ownerList.ReallocData(CGAuctionHouse::m_ownerList.Count() + count);
     }
 
@@ -1374,6 +1385,11 @@ int32_t Packet_SMSG_AUCTION_OWNER_LIST_RESULT(void* param, NETMESSAGE msgId, uin
         msg->Get(auction->m_bidder.m_guid);
         msg->Get(auction->m_bid);
         auction->m_sold = 0;
+
+        if (msg->m_read > msg->m_size) {
+            CGAuctionHouse::m_ownerList.SetCount(index);
+            break;
+        }
 
         WOWGUID none = WOWGUID();
 
@@ -1423,10 +1439,10 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
     CGAuctionHouse::m_ownerList.SetCount(kept);
     CGAuctionHouse::m_pendingSoldItems = 0;
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
-    if (CGAuctionHouse::m_ownerList.Count() + count > CGAuctionHouse::m_ownerList.m_alloc) {
+    if (msg->m_read <= msg->m_size && count <= msg->m_size - msg->m_read && CGAuctionHouse::m_ownerList.Count() + count > CGAuctionHouse::m_ownerList.m_alloc) {
         CGAuctionHouse::m_ownerList.ReallocData(CGAuctionHouse::m_ownerList.Count() + count);
     }
 
@@ -1444,6 +1460,10 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
         msg->Get(mailId);
         msg->Get(mailTemplate);
         msg->Get(daysLeft);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
 
         uint32_t itemId;
         uint32_t randomPropertyId;
@@ -1522,13 +1542,14 @@ int32_t Packet_SMSG_AUCTION_BIDDER_LIST_RESULT(void* param, NETMESSAGE msgId, ui
         }
     }
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
-    CGAuctionHouse::m_bidderList.SetCount(count);
+    CGAuctionHouse::m_bidderList.SetCount(0);
 
     uint32_t now = OsGetAsyncTimeMs();
 
     for (uint32_t i = 0; i < count; i++) {
+        CGAuctionHouse::m_bidderList.SetCount(i + 1);
         AuctionItemInfo* auction = &CGAuctionHouse::m_bidderList.m_data[i];
         auction->m_auctionHouseID = CGAuctionHouse::m_auctionHouseID;
         msg->Get(auction->m_auctionID);
@@ -1557,6 +1578,11 @@ int32_t Packet_SMSG_AUCTION_BIDDER_LIST_RESULT(void* param, NETMESSAGE msgId, ui
         msg->Get(auction->m_bidder.m_guid);
         msg->Get(auction->m_bid);
         auction->m_sold = 0;
+
+        if (msg->m_read > msg->m_size) {
+            CGAuctionHouse::m_bidderList.SetCount(i);
+            break;
+        }
 
         WOWGUID none = WOWGUID();
 

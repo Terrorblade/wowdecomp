@@ -27,11 +27,13 @@ static int32_t Script_GetSocketTypes(lua_State* L) {
     int32_t count = 0;
     double index = lua_tonumber(L, 1);
 
-    if (!stats) {
+    uint32_t socket = static_cast<int32_t>(index - 1);
+
+    if (!stats || socket >= 3) {
         return 0;
     }
 
-    uint32_t color = stats->m_socketColor[static_cast<int32_t>(index - 1)];
+    uint32_t color = stats->m_socketColor[socket];
 
     for (uint32_t i = 0; i < 4; i++) {
         if ((1 << i) & color) {

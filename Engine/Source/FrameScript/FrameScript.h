@@ -58,6 +58,8 @@ TSList<EVENTLISTENERNODE>* FrameScript_GetEventListeners(const char* name);
 uint32_t FrameScript_GetPluralIndex(int32_t count);
 double FrameScript_GetScriptCPUUsage();
 const char* FrameScript_GetText(const char* token, int32_t count, FRAMESCRIPT_GENDER gender);
+
+void FrameScript_CaptureFormatStrings();
 int32_t FrameScript_GetTotalMemoryUsed();
 int32_t FrameScript_GetVariable(const char* name, const char*& value);
 int32_t FrameScript_HookWrapper(lua_State* L);

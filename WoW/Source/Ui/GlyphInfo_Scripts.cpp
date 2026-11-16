@@ -87,7 +87,7 @@ static int32_t Script_GlyphMatchesSocket(lua_State* L) {
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (!player) {
+    if (!player || index >= 6) {
         lua_pushnil(L);
         return 1;
     }

@@ -478,7 +478,7 @@ void CSimpleButton::SetHighlight(CSimpleTexture* texture, EGxBlend blend) {
     }
 
     if (this->m_highlightTexture) {
-        delete this->m_highlightTexture;
+        CSimpleRegion::DeferDelete(this->m_highlightTexture);
     }
 
     if (texture) {
@@ -621,7 +621,7 @@ void CSimpleButton::SetFontString(CSimpleFontString* fontString) {
     }
 
     if (this->m_fontString) {
-        delete this->m_fontString;
+        CSimpleRegion::DeferDelete(this->m_fontString);
     }
 
     if (fontString) {
@@ -689,7 +689,7 @@ void CSimpleButton::SetStateTexture(CSimpleButtonState state, CSimpleTexture* te
     }
 
     if (this->m_stateTextures[state]) {
-        delete this->m_stateTextures[state];
+        CSimpleRegion::DeferDelete(this->m_stateTextures[state]);
     }
 
     if (texture) {

@@ -252,6 +252,10 @@ int32_t Packet_SMSG_GOSSIP_MESSAGE(void* param, NETMESSAGE msgId, uint32_t time,
 
     msg->Get(count);
 
+    if (count > sizeof(CGGossipInfo::m_quests) / sizeof(CGGossipInfo::m_quests[0])) {
+        count = sizeof(CGGossipInfo::m_quests) / sizeof(CGGossipInfo::m_quests[0]);
+    }
+
     for (int32_t i = 0; i < static_cast<int32_t>(count); i++) {
         GossipQuestInfo& quest = CGGossipInfo::m_quests[i];
         msg->Get(quest.m_questID);
@@ -352,13 +356,15 @@ GossipQuestInfo* CGGossipInfo::GetActiveQuest(int32_t index) {
 // VERIFY: 19587bce manual
 // OFFSET: 0x0058ABA0
 int32_t CGQuestInfo::IsLowLevel(int32_t level) {
-    if (level == -1) {
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
+
+    if (level == -1 || !player) {
         return 0;
     }
 
-    uint32_t band = static_cast<int32_t>(static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__))->m_unit->m_unitFieldLevel) / 5;
+    uint32_t band = static_cast<int32_t>(player->m_unit->m_unitFieldLevel) / 5;
     int32_t range = band < 20 ? s_questGreenRange[band] : 8;
-    return level + range < static_cast<int32_t>(static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__))->m_unit->m_unitFieldLevel);
+    return level + range < static_cast<int32_t>(player->m_unit->m_unitFieldLevel);
 }
 
 // VERIFY: fd70ce48 manual

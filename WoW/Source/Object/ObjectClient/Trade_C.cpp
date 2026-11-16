@@ -328,6 +328,10 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
         case TRADE_STATUS_NOT_ON_TAPLIST:
             msg->Get(slot);
 
+            if (slot != 0xFF && slot >= sizeof(s_tradeItems[0]) / sizeof(s_tradeItems[0][0])) {
+                return 1;
+            }
+
             if (slot == 0xFF) {
                 CGTradeInfo::m_playerTrade.m_money[0] = 0;
             }
@@ -354,6 +358,10 @@ int32_t Packet_SMSG_TRADE_STATUS_EXTENDED(void* param, NETMESSAGE msgId, uint32_
     msg->Get(side);
     msg->Get(tradeId);
     msg->Get(stateIndex);
+
+    if (msg->m_read > msg->m_size || side > 1) {
+        return 1;
+    }
 
     if (tradeId != CGTradeInfo::m_playerTrade.m_tradeId) {
         Trade_C_CancelTrade();
@@ -392,6 +400,14 @@ int32_t Packet_SMSG_TRADE_STATUS_EXTENDED(void* param, NETMESSAGE msgId, uint32_
         msg->Get(reinterpret_cast<uint32_t&>(item.m_lockID));
         msg->Get(reinterpret_cast<uint32_t&>(item.m_maxDurability));
         msg->Get(reinterpret_cast<uint32_t&>(item.m_durability));
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
+        if (slot >= sizeof(received) / sizeof(received[0])) {
+            continue;
+        }
 
         if (!side && s_tradeItems[0][slot].m_itemID && !item.m_itemID) {
             CGTradeInfo::DenyPlayerItem(slot);

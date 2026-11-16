@@ -366,9 +366,13 @@ static int32_t QSortInvites(const void* a, const void* b) {
             break;
         }
 
-        case 3:
-            result = s_inviteStatusOrder[left->m_status] - s_inviteStatusOrder[right->m_status];
+        case 3: {
+            const uint32_t numStatuses = sizeof(s_inviteStatusOrder) / sizeof(s_inviteStatusOrder[0]);
+            int32_t leftOrder = left->m_status < numStatuses ? s_inviteStatusOrder[left->m_status] : 0;
+            int32_t rightOrder = right->m_status < numStatuses ? s_inviteStatusOrder[right->m_status] : 0;
+            result = leftOrder - rightOrder;
             break;
+        }
 
         case 4:
             if (CGRaidInfo::FindMemberByGuid(left->m_guid)) {
@@ -989,27 +993,13 @@ bool CGCalendarEvent::ProcessGetEvent(CDataStore* msg, int32_t* status) {
     WowTime::WowDecodeTime(date, &this->m_date);
     WowTime::WowDecodeTime(lockoutDate, &this->m_lockoutDate);
     msg->Get(this->m_guildID);
-
-    uint32_t count = this->m_invites.Count();
     msg->Get(this->m_numInvites);
-
-    for (uint32_t i = count; i < this->m_numInvites; i++) {
-        void* mem = SMemAlloc(sizeof(EventInviteInfo), __FILE__, __LINE__, 0);
-        EventInviteInfo* invite = mem ? new (mem) EventInviteInfo() : nullptr;
-        this->m_invites.New(invite);
-    }
 
     bool found = false;
 
     for (uint32_t i = 0; i < this->m_numInvites; i++) {
         SmartGUID guid;
         *msg >> guid;
-        WOWGUID key = guid;
-
-        if (!g_nameDBCache.GetRecord(guid.m_guid, key, InviteNameCacheCallback, this, false)) {
-            this->m_pendingNames++;
-        }
-
         uint8_t level;
         msg->Get(level);
         uint8_t inviteStatus;
@@ -1022,6 +1012,25 @@ bool CGCalendarEvent::ProcessGetEvent(CDataStore* msg, int32_t* status) {
         msg->Get(inviteID);
         uint32_t responseTime;
         msg->Get(responseTime);
+        char notes[sizeof(EventInviteInfo::m_notes)];
+        msg->GetString(notes, sizeof(notes));
+
+        if (msg->m_read > msg->m_size) {
+            this->m_numInvites = i;
+            break;
+        }
+
+        WOWGUID key = guid;
+
+        if (!g_nameDBCache.GetRecord(guid.m_guid, key, InviteNameCacheCallback, this, false)) {
+            this->m_pendingNames++;
+        }
+
+        if (i >= this->m_invites.Count()) {
+            void* mem = SMemAlloc(sizeof(EventInviteInfo), __FILE__, __LINE__, 0);
+            EventInviteInfo* invite = mem ? new (mem) EventInviteInfo() : nullptr;
+            this->m_invites.New(invite);
+        }
 
         if (this->m_new) {
             inviteStatus = 0;
@@ -1044,7 +1053,7 @@ bool CGCalendarEvent::ProcessGetEvent(CDataStore* msg, int32_t* status) {
         invite->m_moderatorStatus = moderatorStatus;
         invite->m_responseTime = responseTime;
         invite->m_inviteType = inviteType;
-        msg->GetString(this->m_invites.m_data[i]->m_notes, STORM_MAX_STR);
+        SStrCopy(invite->m_notes, notes, sizeof(invite->m_notes));
     }
 
     if (!found && (this->m_flags & 0x400)) {
@@ -1068,28 +1077,33 @@ bool CGCalendarEvent::ProcessInitialInviteList(CDataStore* msg) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
     WOWGUID playerGuid = player ? player->m_obj->m_guid : WOWGUID();
 
-    uint32_t count = this->m_invites.Count();
     msg->Get(this->m_numInvites);
-
-    for (uint32_t i = count; i < this->m_numInvites; i++) {
-        void* mem = SMemAlloc(sizeof(EventInviteInfo), __FILE__, __LINE__, 0);
-        EventInviteInfo* invite = mem ? new (mem) EventInviteInfo() : nullptr;
-        this->m_invites.New(invite);
-    }
 
     bool found = false;
 
     for (uint32_t i = 0; i < this->m_numInvites; i++) {
         SmartGUID guid;
         *msg >> guid;
+        uint8_t level;
+        msg->Get(level);
+
+        if (msg->m_read > msg->m_size) {
+            this->m_numInvites = i;
+            break;
+        }
+
         WOWGUID key = guid;
 
         if (!g_nameDBCache.GetRecord(guid.m_guid, key, InviteNameCacheCallback, this, false)) {
             this->m_pendingNames++;
         }
 
-        uint8_t level;
-        msg->Get(level);
+        if (i >= this->m_invites.Count()) {
+            void* mem = SMemAlloc(sizeof(EventInviteInfo), __FILE__, __LINE__, 0);
+            EventInviteInfo* invite = mem ? new (mem) EventInviteInfo() : nullptr;
+            this->m_invites.New(invite);
+        }
+
         uint8_t moderatorStatus;
         uint8_t inviteStatus;
 
@@ -1112,7 +1126,7 @@ bool CGCalendarEvent::ProcessInitialInviteList(CDataStore* msg) {
         invite->m_responseTime = 0;
     }
 
-    if (!found) {
+    if (!found && player) {
         uint32_t index = this->m_numInvites;
         this->m_numInvites = index + 1;
 

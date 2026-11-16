@@ -40,18 +40,29 @@ static int32_t Script_GetBarberShopStyleInfo(lua_State* L) {
         return 0;
     }
 
+    CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
+
+    if (!player) {
+        return 0;
+    }
+
     int32_t cost;
 
     if (index == 1) {
         lua_pushnil(L);
         lua_pushnil(L);
-        float value = GetGameTableValue(0, ClntObjMgrGetActivePlayerObj()->m_unit->m_unitFieldLevel - 1, 0) * 0.5f;
+        float value = GetGameTableValue(0, player->m_unit->m_unitFieldLevel - 1, 0) * 0.5f;
         cost = static_cast<int32_t>(value);
     } else {
         const BarberShopStyleRec* style = CGBarberShop::GetCurrentStyle(index);
+
+        if (!style) {
+            return 0;
+        }
+
         lua_pushstring(L, style->m_displayName);
         lua_pushstring(L, style->m_description);
-        float value = GetGameTableValue(0, ClntObjMgrGetActivePlayerObj()->m_unit->m_unitFieldLevel - 1, 0) * style->m_costModifier;
+        float value = GetGameTableValue(0, player->m_unit->m_unitFieldLevel - 1, 0) * style->m_costModifier;
         cost = static_cast<int32_t>(value);
     }
 

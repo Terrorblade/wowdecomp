@@ -485,13 +485,17 @@ int32_t OsLaunchURL(const char* url) {
                 break;
             }
 
-            *dst = (s_hexDigitValues[high] << 4) | s_hexDigitValues[low];
+            *dst = (s_hexDigitValues[high & 0x7F] << 4) | s_hexDigitValues[low & 0x7F];
         } else {
             *dst = c;
         }
     }
 
     *dst = '\0';
+
+    if (!OsIsSafeLaunchURL(file)) {
+        return 0;
+    }
 
     HINSTANCE result = ShellExecuteA(window, "open", file, nullptr, nullptr, SW_SHOWNORMAL);
 

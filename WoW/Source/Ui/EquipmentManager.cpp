@@ -112,7 +112,10 @@ void CGEquipmentManager::CreateEquipmentSet(const char* name, const char* icon) 
     EQUIPMENT_SET_NODE* node = CGEquipmentManager::s_equipmentSets.NewNode(2, 0, 8);
     node->m_set = set;
     CGEquipmentManager::SaveSet(set, name, icon);
-    set->m_isNew = 1;
+
+    if (CGEquipmentManager::GetSetByID(id) == set) {
+        set->m_isNew = 1;
+    }
 }
 
 // VERIFY: beee0c68 auto
@@ -140,7 +143,7 @@ void CGEquipmentManager::InitializeGame() {
 // VERIFY: 88b53d9b manual
 // OFFSET: 0x005AE260
 bool CGEquipmentManager::DeleteEquipmentSet(EQUIPMENT_SET* set) {
-    CGActionBar::RemoveEquipmentSet(set->m_id);
+    int32_t id = set->m_id;
     WOWGUID guid = set->m_guid;
 
     for (EQUIPMENT_SET_NODE* node = CGEquipmentManager::s_equipmentSets.Head(); node; node = CGEquipmentManager::s_equipmentSets.Next(node)) {
@@ -151,6 +154,7 @@ bool CGEquipmentManager::DeleteEquipmentSet(EQUIPMENT_SET* set) {
     }
 
     ObjectFree(*CGEquipmentManager::s_equipmentSetHeap, set->m_handle);
+    CGActionBar::RemoveEquipmentSet(id);
     WDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_EQUIPMENT_SET_DELETE));
     SmartGUID setGuid;
@@ -535,6 +539,8 @@ bool CGEquipmentManager::UseEquipmentSet(const EQUIPMENT_SET* set) {
         return false;
     }
 
+    const EQUIPMENT_SET local = *set;
+    set = &local;
     WDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_EQUIPMENT_SET_USE));
     bool inCombat = (player->m_unit->m_unitFieldFlags & 0x80000) != 0;
@@ -648,10 +654,6 @@ void CGEquipmentManager::SaveSet(EQUIPMENT_SET* set, const char* name, const cha
         }
     }
 
-    if (set->m_guid) {
-        CGActionBar::UpdateEquipmentSet(set->m_id);
-    }
-
     WDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_SAVE_EQUIPMENT_SET));
     SmartGUID setGuid;
@@ -669,6 +671,11 @@ void CGEquipmentManager::SaveSet(EQUIPMENT_SET* set, const char* name, const cha
 
     msg.Finalize();
     ClientServices::Send2(&msg);
+
+    if (set->m_guid) {
+        CGActionBar::UpdateEquipmentSet(set->m_id);
+    }
+
     FrameScript_SignalEvent(SCRIPT_EVENT_EQUIPMENT_SETS_CHANGED, nullptr);
 }
 

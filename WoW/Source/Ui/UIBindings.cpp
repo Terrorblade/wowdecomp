@@ -561,13 +561,15 @@ void CGUIBindings::LoadBindingsCallback(HOSFILE localFile, HOSFILE file, void* p
         uint32_t size = static_cast<uint32_t>(OsGetFileSize(file));
 
         if (size) {
-            char* buffer = static_cast<char*>(alloca(size + 1));
+            char* buffer = static_cast<char*>(SMemAlloc(size + 1, __FILE__, __LINE__, 0));
             uint32_t bytesRead;
 
             if (OsReadFile(file, buffer, size, &bytesRead)) {
                 buffer[bytesRead] = '\0';
                 CGUIBindings::LoadBindings(set, buffer);
             }
+
+            SMemFree(buffer, __FILE__, __LINE__, 0);
         }
     }
 
@@ -835,6 +837,10 @@ void CGUIBindings::ClearOverrideBindings(void* owner, bool checkPermission) {
 // VERIFY: 62581540 manual
 // OFFSET: 0x00562990
 CSimpleFrame* GetClickFrame(lua_State* L, const char* name, uint32_t length) {
+    if (length >= 1024) {
+        return nullptr;
+    }
+
     char* buffer = static_cast<char*>(alloca(length + 1));
     memcpy(buffer, name, length);
     buffer[length] = '\0';
@@ -1336,7 +1342,7 @@ KEYBINDING* CGUIBindings::GetReducedKeyBinding(BINDING_MODE mode, const char* ke
     while (numModifiers < 3) {
         const char* separator = SStrChr(key, '-');
 
-        if (!separator || separator == key) {
+        if (!separator || separator == key || separator - key + 1 >= static_cast<ptrdiff_t>(sizeof(modifiers[numModifiers]))) {
             break;
         }
 

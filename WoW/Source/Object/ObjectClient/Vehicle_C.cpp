@@ -253,6 +253,11 @@ int32_t CVehicle_C::GetVehicleAndSeatFromVirtualSeatsRemaining(int32_t& remainin
 
     for (CPassenger* passenger = const_cast<CVehicle_C*>(this)->m_passengers.Head(); passenger; passenger = const_cast<CVehicle_C*>(this)->m_passengers.Next(passenger)) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
+
+        if (!unit || static_cast<uint8_t>(unit->m_movementData.m_transportSeat) >= 8) {
+            continue;
+        }
+
         CVehicle_C* unitVehicle = unit->m_vehicle;
 
         if (unitVehicle && unitVehicle->m_vehicleRec && !(unit->m_obj->m_type & TYPE_PLAYER)) {
@@ -285,7 +290,7 @@ CGUnit_C* CVehicle_C::FindPassengerUnit(uint8_t seat) {
     for (CPassenger* passenger = this->m_passengers.Head(); passenger; passenger = this->m_passengers.Next(passenger)) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
 
-        if (static_cast<uint8_t>(unit->m_movementData.m_transportSeat) == seat) {
+        if (unit && static_cast<uint8_t>(unit->m_movementData.m_transportSeat) == seat) {
             return unit;
         }
     }

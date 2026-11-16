@@ -1,6 +1,7 @@
 #include "GlueMgr.h"
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Streaming.h"
@@ -219,7 +220,10 @@ static int32_t Script_DefaultServerLogin(lua_State* L) {
         return 0;
     }
 
-    CGlueMgr::LoginServerLogin(lua_tolstring(L, 1, nullptr), const_cast<char*>(lua_tolstring(L, 2, nullptr)));
+    char password[1024];
+    SStrCopy(password, lua_tolstring(L, 2, nullptr), sizeof(password));
+    CGlueMgr::LoginServerLogin(lua_tolstring(L, 1, nullptr), password);
+    memset(password, 0, sizeof(password));
     return 0;
 }
 
@@ -827,8 +831,8 @@ int32_t Script_GetMovieResolution(lua_State* L) {
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
-    int32_t width;
-    int32_t height;
+    int32_t width = 0;
+    int32_t height = 0;
     sscanf(resolution->m_stringValue.m_str, "%dx%d", &width, &height);
     lua_pushnumber(L, width);
 
@@ -885,7 +889,10 @@ static int32_t Script_DisconnectFromServer(lua_State* L) {
         ClientServices::Connection()->Disconnect();
     }
 
-    ClientServices::LoginConnection()->Logoff();
+    if (ClientServices::LoginConnection()) {
+        ClientServices::LoginConnection()->Logoff();
+    }
+
     return 0;
 }
 
@@ -1243,7 +1250,7 @@ static int32_t Script_GetNumDeclensionSets(lua_State* L) {
         }
     }
 
-    lua_pushnumber(L, GetNumNameDeclensionSets(s_locale, name, sex));
+    lua_pushnumber(L, SStrLen(name) < 256 ? GetNumNameDeclensionSets(s_locale, name, sex) : 0);
     return 1;
 }
 
@@ -1271,7 +1278,7 @@ static int32_t Script_DeclineName(lua_State* L) {
 
     char declensions[5][1024];
 
-    if (GetNameDeclensions(s_locale, declensions[0], name, sex, static_cast<int32_t>(lua_tonumber(L, 3)) - 1)) {
+    if (SStrLen(name) < 256 && GetNameDeclensions(s_locale, declensions[0], name, sex, static_cast<int32_t>(lua_tonumber(L, 3)) - 1)) {
         for (uint32_t i = 0; i < 5; i++) {
             lua_pushstring(L, declensions[i]);
         }
@@ -1576,6 +1583,10 @@ static int32_t Script_DisableAddOn(lua_State* L) {
 // VERIFY: 2c62788c auto
 // OFFSET: 0x004DCCC0
 static int32_t Script_SurveyNotificationDone(lua_State* L) {
+    if (!CGlueMgr::m_surveyDownload) {
+        return 0;
+    }
+
     if (StringToBOOL(L, 1, 0)) {
         CGlueMgr::SurveySendResults();
     }

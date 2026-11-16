@@ -410,7 +410,7 @@ int32_t Packet_SMSG_NOTIFICATION(void* param, NETMESSAGE msgId, uint32_t time, C
     int32_t type = 0;
     int32_t color = ERROR_COLOR;
 
-    if (*message == '^') {
+    if (*message == '^' && message[1] >= '0' && message[1] < '0' + NUM_COLORTYPES) {
         type = message[1] - '0';
         color = type;
         message += 2;

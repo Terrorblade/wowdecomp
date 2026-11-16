@@ -6902,8 +6902,8 @@ void CGTooltip::SetTalent(const TalentRec* talent, CGTalentGroup_C* group, int32
     }
 
     this->ClearTooltip();
-    int32_t spellId = talent->m_spellRank[displayRank];
-    int32_t nextSpellId = talent->m_spellRank[displayRank + 1];
+    int32_t spellId = displayRank >= 0 ? talent->m_spellRank[displayRank] : 0;
+    int32_t nextSpellId = displayRank < maxRank ? talent->m_spellRank[displayRank + 1] : 0;
     SpellRec spell;
     SpellRec nextSpell;
     int32_t hasSpell = displayRank < 0 ? 0 : g_spellDB.GetRecord(spellId, &spell);
@@ -8079,7 +8079,7 @@ int32_t CGTooltip::SetAchievement(int32_t achievementId, WOWGUID guid, bool comp
 
     ACHIEVEMENT* achievement = s_achievements.Ptr(achievementId, HASHKEY_NONE());
 
-    if (achievement->m_rec->m_sharesCriteria) {
+    if (achievement && achievement->m_rec->m_sharesCriteria) {
         achievement = s_achievements.Ptr(achievement->m_rec->m_sharesCriteria, HASHKEY_NONE());
     }
 
@@ -8108,10 +8108,10 @@ int32_t CGTooltip::SetAchievement(int32_t achievementId, WOWGUID guid, bool comp
             index++;
 
             if (left[0]) {
-                SStrPrintf(right, sizeof(right), criteria->m_description);
+                SStrPrintf(right, sizeof(right), "%s", criteria->m_description);
                 rightColor = *reinterpret_cast<const CImVector*>(met ? &s_skillColors[1] : &s_skillColors[0]);
             } else {
-                SStrPrintf(left, sizeof(left), criteria->m_description);
+                SStrPrintf(left, sizeof(left), "%s", criteria->m_description);
                 leftColor = *reinterpret_cast<const CImVector*>(met ? &s_skillColors[1] : &s_skillColors[0]);
             }
 

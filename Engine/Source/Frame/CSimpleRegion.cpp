@@ -1,6 +1,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <algorithm>
+#include <vector>
 #include "Engine/Source/Frame/CSimpleRegion.h"
 #include "Engine/Source/Frame/CSimpleAlphaAnim.h"
 #include "Engine/Source/Frame/CSimpleAnimGroup.h"
@@ -10,6 +12,8 @@
 #include "Engine/Source/Tempest/C3Vector.h"
 #include <cmath>
 #include "Engine/Source/Tempest/CImVector.h"
+
+static std::vector<CSimpleRegion*> s_pendingDeletes;
 
 // VERIFY: 8fb2cb5e auto
 // OFFSET: 0x00482BD0
@@ -341,6 +345,8 @@ CSimpleRegion::CSimpleRegion(CSimpleFrame* frame, uint32_t drawLayer, int32_t sh
     this->m_animating = 0;
     this->m_animAlpha = 0;
     this->m_animSavedAlpha = 0xFF;
+    this->m_internal = false;
+    this->m_deletePending = false;
 
     memset(this->m_colors, 0, this->m_colorCount * sizeof(CImVector));
     this->m_colorCount = 0;
@@ -355,7 +361,32 @@ CSimpleRegion::CSimpleRegion(CSimpleFrame* frame, uint32_t drawLayer, int32_t sh
 // VERIFY: d3e924a1 manual
 // OFFSET: [0x004881B0, 0x004881D0, 0x004882E0]
 CSimpleRegion::~CSimpleRegion() {
+    if (this->m_deletePending) {
+        s_pendingDeletes.erase(std::remove(s_pendingDeletes.begin(), s_pendingDeletes.end(), this), s_pendingDeletes.end());
+    }
+
     this->SetFrame(nullptr, 1, 0);
+}
+
+// Scripts and region walks up the stack may still use a replaced region, so it is freed on the next UI update.
+void CSimpleRegion::DeferDelete(CSimpleRegion* region) {
+    if (!region || region->m_deletePending) {
+        return;
+    }
+
+    region->m_deletePending = true;
+    region->SetFrame(nullptr, region->m_drawLayer, 0);
+    s_pendingDeletes.push_back(region);
+}
+
+void CSimpleRegion::FlushDeferredDeletes() {
+    std::vector<CSimpleRegion*> pending;
+    pending.swap(s_pendingDeletes);
+
+    for (CSimpleRegion* region : pending) {
+        region->m_deletePending = false;
+        delete region;
+    }
 }
 
 // VERIFY: a61fca48 manual

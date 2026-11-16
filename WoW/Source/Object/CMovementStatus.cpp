@@ -8,7 +8,7 @@ uint32_t CMovementStatus::Skip(CDataStore* msg) {
     uint32_t moveFlags = 0;
     msg->Get(moveFlags);
 
-    uint16_t extraFlags;
+    uint16_t extraFlags = 0;
     msg->Get(extraFlags);
 
     void* data;

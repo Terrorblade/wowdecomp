@@ -218,7 +218,8 @@ void CGGameObject_C_Type_DestructibleBuilding::PostInitWithStats() {
         entry.m_loading = 1;
     }
 
-    this->m_worldObject = this->m_states[((this->m_owner->m_gameObject->m_flags >> 8) & 0xE) >> 1].m_object;
+    uint32_t state = ((this->m_owner->m_gameObject->m_flags >> 8) & 0xE) >> 1;
+    this->m_worldObject = state < sizeof(this->m_states) / sizeof(this->m_states[0]) ? this->m_states[state].m_object : nullptr;
 
     if (this->m_worldObject) {
         World::ObjectSetRenderEnabled(this->m_worldObject, 1);
@@ -2241,7 +2242,7 @@ void CGGameObject_C_Type_DestructibleBuilding::UpdateDestructibleState() {
 
     int32_t state = ((this->m_owner->m_gameObject->m_flags >> 8) & 0xE) >> 1;
 
-    if (state == current) {
+    if (state == current || static_cast<uint32_t>(state) >= sizeof(this->m_states) / sizeof(this->m_states[0])) {
         return;
     }
 
@@ -2312,7 +2313,7 @@ void CGGameObject_C_Type_DestructibleBuilding::UpdateDestructibleState() {
     }
 
     this->m_worldObject = object;
-    this->m_previousState = current;
+    this->m_previousState = current < 4 ? current : -1;
     entry.m_animate = !state || state == 3;
 
     if (!this->m_worldObject || entry.m_loading) {
@@ -3625,7 +3626,11 @@ C3Vector CGGameObject_C_Type_DestructibleBuilding::GetNamePosition() const {
     CAaBox extents;
     extents.b = C3Vector(0.0f, 0.0f, 0.0f);
     extents.t = C3Vector(0.0f, 0.0f, 0.0f);
-    World::ObjectGetExtents(this->m_states[state].m_object, &extents);
+
+    if (state < sizeof(this->m_states) / sizeof(this->m_states[0])) {
+        World::ObjectGetExtents(this->m_states[state].m_object, &extents);
+    }
+
     C3Vector position = this->GetPosition();
     position.z = extents.t.y - extents.b.y + position.z;
     return position;

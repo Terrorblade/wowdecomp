@@ -44,7 +44,10 @@ int32_t MODIFIEDCLICK::SetBinding(BINDING_SET set, const char* binding) {
         if (!SStrCmpI(binding, "BUTTON", 6)) {
             binding += 6;
             button = GetMouseButtonName(IndexToMouseButton(SStrToInt(binding)));
-            binding++;
+
+            if (*binding) {
+                binding++;
+            }
         }
 
         if (*binding) {

@@ -58,7 +58,7 @@ static int32_t Script_HasAction(lua_State* L) {
 
     int32_t slot = static_cast<int32_t>(lua_tonumber(L, 1));
 
-    if (CGActionBar::HasAction(slot - 1)) {
+    if (slot >= 1 && slot <= 144 && CGActionBar::HasAction(slot - 1)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -76,6 +76,11 @@ static int32_t Script_GetActionInfo(lua_State* L) {
     }
 
     int32_t slot = static_cast<int32_t>(lua_tonumber(L, 1));
+
+    if (slot < 1 || slot > 144) {
+        return 0;
+    }
+
     uint32_t action = CGActionBar::m_slotActions[slot - 1];
 
     if (action && !(action & 0xF0000000)) {
@@ -239,7 +244,7 @@ static int32_t Script_GetActionText(lua_State* L) {
     }
 
     int32_t slot = static_cast<int32_t>(lua_tonumber(L, 1));
-    uint32_t action = CGActionBar::m_slotActions[slot - 1];
+    uint32_t action = (slot >= 1 && slot <= 144) ? CGActionBar::m_slotActions[slot - 1] : 0;
 
     if (action) {
         if ((action & 0xF0000000) == 0x40000000) {

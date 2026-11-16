@@ -79,7 +79,7 @@ static int32_t Script_TryOn(lua_State* L) {
             }
         } else {
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-            CGItem_C* item = player->m_bag.FindItemByFullName(lua_tolstring(L, 2, nullptr), 0);
+            CGItem_C* item = player ? player->m_bag.FindItemByFullName(lua_tolstring(L, 2, nullptr), 0) : nullptr;
 
             if (item) {
                 frame->TryOnItem(item, -1);

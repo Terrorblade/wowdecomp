@@ -83,6 +83,7 @@ class CGGuildInfo {
     static void SetShowOffline(int32_t show);
     static int32_t GetSelectedMemberIndex();
     static bool CanEditGuildEvent();
+    static GuildRankInfo& GetRankInfo(uint32_t rank);
 };
 
 extern int32_t s_guildControlRank;

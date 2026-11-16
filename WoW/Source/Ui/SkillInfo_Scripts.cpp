@@ -114,13 +114,13 @@ static int32_t Script_GetSkillLineInfo(lua_State* L) {
         } else {
             SkillLineRec* skillLine = g_skillLineDB.GetRecord(line->m_skillLineID);
             const SkillRaceClassInfoRec* info = SpellTableLookupInfo(player->m_unit->m_unitFieldBytes0[0], player->m_unit->m_unitFieldBytes0[1], line->m_skillLineID);
+            int32_t skillIndex = player->GetSkillIndex(line->m_skillLineID);
 
-            if (skillLine) {
+            if (skillLine && info && skillIndex >= 0) {
                 lua_pushstring(L, skillLine->m_displayName);
                 lua_pushnil(L);
                 lua_pushnil(L);
 
-                int32_t skillIndex = player->GetSkillIndex(line->m_skillLineID);
                 int32_t value = player->GetSkillValue(skillIndex);
                 int32_t maxRank = player->GetSkillMaxRank(skillIndex);
                 uint32_t step = player->GetSkillStep(skillIndex);
@@ -350,11 +350,13 @@ static int32_t Script_BuySkillTier(lua_State* L) {
     SkillLineRec* skillLine = g_skillLineDB.GetRecord(line->m_skillLineID);
     const SkillRaceClassInfoRec* info = SpellTableLookupInfo(player->m_unit->m_unitFieldBytes0[0], player->m_unit->m_unitFieldBytes0[1], line->m_skillLineID);
 
-    if (!skillLine || !info) {
+    int32_t skillIndex = player->GetSkillIndex(line->m_skillLineID);
+
+    if (!skillLine || !info || skillIndex < 0) {
         return 0;
     }
 
-    uint32_t step = player->GetSkillStep(player->GetSkillIndex(line->m_skillLineID));
+    uint32_t step = player->GetSkillStep(skillIndex);
 
     if (!(info->m_flags & 8) && (step || !(info->m_flags & 4))) {
         return 0;

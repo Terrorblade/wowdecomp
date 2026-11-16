@@ -34,7 +34,7 @@ static int32_t Script_SetCharCustomizeFrame(lua_State* L) {
 
     CSimpleModelFFX* frame = static_cast<CSimpleModelFFX*>(CScriptObject::GetScriptObjectByName(lua_tolstring(L, 1, nullptr), CSimpleModel::GetObjectType()));
 
-    if (frame) {
+    if (frame && frame->GetScriptMetaTable() == CSimpleModelFFX::s_metatable) {
         CCharacterCreation::m_charCustomizeFrame = frame;
     }
 
@@ -118,6 +118,10 @@ static int32_t Script_IsRaceClassRestricted(lua_State* L) {
 // VERIFY: 8e30f704 auto
 // OFFSET: 0x004DFC90
 static int32_t Script_UpdateCustomizationScene(lua_State* L) {
+    if (!CCharacterCreation::m_character) {
+        return 0;
+    }
+
     CCharacterCreation::m_character->RenderPrep(0);
     return 0;
 }
@@ -152,6 +156,10 @@ static int32_t Script_SetCharCustomizeBackground(lua_State* L) {
 // VERIFY: 63616981 auto
 // OFFSET: 0x004E0670
 static int32_t Script_GetNameForRace(lua_State* L) {
+    if (!CCharacterCreation::m_character) {
+        return 0;
+    }
+
     ChrRacesRec* raceRec = g_chrRacesDB.GetRecord(CCharacterCreation::m_character->m_data.m_preferences.m_raceID);
     const char* name = CGUnit_C::GetDisplayRaceNameFromRecord(raceRec, CCharacterCreation::m_character->m_data.m_preferences.m_sexID, nullptr);
 
@@ -202,6 +210,10 @@ static int32_t Script_GetFactionForRace(lua_State* L) {
 // VERIFY: 3d7dbaad manual
 // OFFSET: 0x004E0830
 static int32_t Script_GetAvailableClasses(lua_State* L) {
+    if (!CCharacterCreation::m_character) {
+        return 0;
+    }
+
     int32_t count = g_chrClassesDB.m_numRecords;
 
     for (int32_t i = 0; i < count; i++) {
@@ -244,7 +256,7 @@ int32_t Script_GetFacialHairCustomization(lua_State* L) {
     int32_t raceID = CCharacterCreation::m_raceIndex < CCharacterCreation::m_races.Count() ? CCharacterCreation::m_races.m_data[CCharacterCreation::m_raceIndex] : 0;
     ChrRacesRec* raceRec = g_chrRacesDB.GetRecord(raceID);
 
-    if (raceRec) {
+    if (raceRec && CCharacterCreation::m_character && CCharacterCreation::m_character->m_data.m_preferences.m_sexID < 2) {
         lua_pushstring(L, raceRec->m_facialHairCustomization[CCharacterCreation::m_character->m_data.m_preferences.m_sexID]);
         return 1;
     }
@@ -263,6 +275,10 @@ static int32_t Script_GetSelectedRace(lua_State* L) {
 // VERIFY: 72ee83a9 auto
 // OFFSET: 0x004E0A30
 static int32_t Script_GetSelectedSex(lua_State* L) {
+    if (!CCharacterCreation::m_character || CCharacterCreation::m_character->m_data.m_preferences.m_sexID >= 3) {
+        return 0;
+    }
+
     lua_pushnumber(L, g_scriptSexIndex[CCharacterCreation::m_character->m_data.m_preferences.m_sexID]);
     return 1;
 }
@@ -273,7 +289,7 @@ static int32_t Script_GetSelectedClass(lua_State* L) {
     int32_t classID = CCharacterCreation::m_selectedClassID;
     ChrClassesRec* classRec = g_chrClassesDB.GetRecord(classID);
 
-    if (!classRec) {
+    if (!classRec || !CCharacterCreation::m_character) {
         return 0;
     }
 
@@ -402,7 +418,7 @@ static int32_t Script_GetCreateBackgroundModel(lua_State* L) {
             lua_pushstring(L, classRec->m_filename);
             return 1;
         }
-    } else {
+    } else if (CCharacterCreation::m_character) {
         uint32_t raceID = CCharacterCreation::m_character->m_data.m_preferences.m_raceID;
 
         if (raceID == 7) {
@@ -426,6 +442,10 @@ static int32_t Script_GetCreateBackgroundModel(lua_State* L) {
 // VERIFY: 2c992d0a auto
 // OFFSET: 0x004E1880
 static int32_t Script_GetAvailableRaces(lua_State* L) {
+    if (!CCharacterCreation::m_character) {
+        return 0;
+    }
+
     uint32_t count = CCharacterCreation::m_races.Count();
 
     for (uint32_t i = 0; i < count; i++) {
@@ -445,6 +465,10 @@ static int32_t Script_GetAvailableRaces(lua_State* L) {
 // VERIFY: f1ab0bab manual
 // OFFSET: 0x004E19A0
 static int32_t Script_GetClassesForRace(lua_State* L) {
+    if (!CCharacterCreation::m_character) {
+        return 0;
+    }
+
     uint32_t count = CCharacterCreation::m_classes.Count();
 
     for (uint32_t i = 0; i < count; i++) {
@@ -495,7 +519,11 @@ static int32_t Script_SetSelectedClass(lua_State* L) {
 
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     ChrClassesRec* classRec = index >= 0 && index < g_chrClassesDB.m_numRecords ? &g_chrClassesDB.m_records[index] : nullptr;
-    CCharacterCreation::SetSelectedClass(classRec->m_id);
+
+    if (classRec) {
+        CCharacterCreation::SetSelectedClass(classRec->m_id);
+    }
+
     return 0;
 }
 

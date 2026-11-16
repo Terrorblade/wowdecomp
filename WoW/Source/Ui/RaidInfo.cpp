@@ -409,9 +409,13 @@ int32_t Packet_MSG_RAID_TARGET_UPDATE(void* param, NETMESSAGE msgId, uint32_t ti
     uint8_t index = 0;
     WOWGUID target = WOWGUID();
 
-    while (!msg->IsRead()) {
+    while (msg->m_read < msg->m_size) {
         msg->Get(index);
         msg->Get(target.m_guid);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
 
         if (index < 8) {
             CGRaidInfo::SetRaidTarget(index, target);

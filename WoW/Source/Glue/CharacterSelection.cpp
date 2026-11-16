@@ -103,6 +103,7 @@ void CCharacterSelection::Shutdown() {
 
     CCharacterSelection::s_characterList.Clear();
     CharacterSelectionDisplay::SetSelectedCharacterInfo(nullptr);
+    CCharacterSelection::m_modelFrame = nullptr;
 }
 
 // VERIFY: d8b19604 auto
@@ -412,7 +413,7 @@ void CCharacterSelection::EnumerateCharactersCallback(CHARACTER_INFO& info, void
 // VERIFY: 3fe94d69 manual
 // OFFSET: 0x004E3CD0
 void CCharacterSelection::ShowCharacter() {
-    if (CCharacterSelection::s_selectionIndex < 0 || CCharacterSelection::s_selectionIndex >= static_cast<int32_t>(CCharacterSelection::s_characterList.Count())) {
+    if (CCharacterSelection::s_selectionIndex < 0 || CCharacterSelection::s_selectionIndex >= static_cast<int32_t>(CCharacterSelection::s_characterList.Count()) || !CCharacterSelection::m_modelFrame) {
         return;
     }
 

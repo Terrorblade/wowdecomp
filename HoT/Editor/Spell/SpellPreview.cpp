@@ -301,12 +301,16 @@ bool Cast(int32_t spellId, uint64_t target) {
 
 void Stop() {
     CGPlayer_C* player = Caster();
+    Phase phase = s_state.phase;
+    int32_t spellId = s_state.spellId;
+    // The events fired below can call back into Stop, which must not end the same cast again.
+    s_state.phase = Phase::Idle;
 
-    if (s_state.phase == Phase::Casting) {
+    if (phase == Phase::Casting) {
         PendingSpellCast* cast = PendingCast();
         SpellRec spell;
 
-        if (cast && player && g_spellDB.GetRecord(s_state.spellId, &spell)) {
+        if (cast && player && g_spellDB.GetRecord(spellId, &spell)) {
             StripSideEffects(spell);
             HandleSpellFailedOrGo(player, cast, &spell, 27);
         }
@@ -314,10 +318,10 @@ void Stop() {
         if (cast) {
             ReleasePendingSpellCast(cast);
         }
-    } else if (s_state.phase == Phase::Channeling && player) {
-        player->RemoveChannelEffects(s_state.spellId);
+    } else if (phase == Phase::Channeling && player) {
+        player->RemoveChannelEffects(spellId);
 
-        if (player->m_channelSpellId == static_cast<uint32_t>(s_state.spellId)) {
+        if (player->m_channelSpellId == static_cast<uint32_t>(spellId)) {
             player->ClearUIChannel();
         }
     }

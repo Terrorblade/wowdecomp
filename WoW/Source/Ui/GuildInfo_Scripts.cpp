@@ -115,7 +115,7 @@ static int32_t Script_GuildControlDelRank(lua_State* L) {
 static int32_t Script_CanEditGuildEvent(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x100000)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x100000)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -129,7 +129,7 @@ static int32_t Script_CanEditGuildEvent(lua_State* L) {
 static int32_t Script_CanGuildPromote(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x80)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x80)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -143,7 +143,7 @@ static int32_t Script_CanGuildPromote(lua_State* L) {
 static int32_t Script_CanGuildDemote(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x100)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x100)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -157,7 +157,7 @@ static int32_t Script_CanGuildDemote(lua_State* L) {
 static int32_t Script_CanGuildInvite(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x10)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x10)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -171,7 +171,7 @@ static int32_t Script_CanGuildInvite(lua_State* L) {
 static int32_t Script_CanGuildRemove(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x20)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x20)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -185,7 +185,7 @@ static int32_t Script_CanGuildRemove(lua_State* L) {
 static int32_t Script_CanEditMOTD(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x1000)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x1000)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -199,7 +199,7 @@ static int32_t Script_CanEditMOTD(lua_State* L) {
 static int32_t Script_CanEditPublicNote(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x2000)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x2000)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -213,7 +213,7 @@ static int32_t Script_CanEditPublicNote(lua_State* L) {
 static int32_t Script_CanEditOfficerNote(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x8000)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x8000)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -227,7 +227,7 @@ static int32_t Script_CanEditOfficerNote(lua_State* L) {
 static int32_t Script_CanViewOfficerNote(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x4000)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x4000)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -241,7 +241,7 @@ static int32_t Script_CanViewOfficerNote(lua_State* L) {
 static int32_t Script_CanEditGuildInfo(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x10000)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x10000)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -255,7 +255,7 @@ static int32_t Script_CanEditGuildInfo(lua_State* L) {
 static int32_t Script_CanGuildBankRepair(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x40000)) {
+    if (player && player->m_player->m_playerGuildid && (CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_rights & 0x40000)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -268,7 +268,7 @@ static int32_t Script_CanGuildBankRepair(lua_State* L) {
 // OFFSET: 0x005CC3E0
 static int32_t Script_GuildControlGetRankFlags(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
-    uint32_t rights = CGGuildInfo::m_rankInfo[s_guildControlRank].m_rights;
+    uint32_t rights = CGGuildInfo::GetRankInfo(s_guildControlRank).m_rights;
 
     for (uint32_t i = 0; i < 17; i++) {
         if (player && player->m_player->m_playerGuildid && (rights & s_guildRankFlags[i].m_mask)) {
@@ -295,14 +295,14 @@ static int32_t Script_SetGuildBankWithdrawLimit(lua_State* L) {
         amount = 1000000000;
     }
 
-    CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankMoneyPerDay = amount;
+    CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankMoneyPerDay = amount;
     return 0;
 }
 
 // VERIFY: c31fa032 manual
 // OFFSET: 0x005CB700
 static int32_t Script_GetGuildBankWithdrawLimit(lua_State* L) {
-    int32_t limit = CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankMoneyPerDay;
+    int32_t limit = CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankMoneyPerDay;
 
     if (limit >= 0) {
         limit /= 10000;
@@ -327,7 +327,10 @@ static int32_t Script_SetGuildBankTabWithdraw(lua_State* L) {
         amount = 100000;
     }
 
-    CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankTabStacksPerDay[tab] = amount;
+    if (tab < 6) {
+        CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankTabStacksPerDay[tab] = amount;
+    }
+
     return 0;
 }
 
@@ -357,7 +360,7 @@ static int32_t Script_CanEditGuildTabInfo(lua_State* L) {
     uint32_t tab = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && (tab < 6 ? CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_bankTabRights[tab] : 0) & 4) {
+    if (player && (tab < 6 ? CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank).m_bankTabRights[tab] : 0) & 4) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -377,8 +380,8 @@ static int32_t Script_SetGuildBankTabPermissions(lua_State* L) {
     uint8_t tab = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 2)) - 1;
     int32_t enabled = StringToBOOL(L, 3, 0);
-    uint32_t rights = tab < 6 ? CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankTabRights[tab] : 0;
-    uint32_t flag = s_guildBankTabPermissionFlags[index];
+    uint32_t rights = tab < 6 ? CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankTabRights[tab] : 0;
+    uint32_t flag = static_cast<uint32_t>(index) < sizeof(s_guildBankTabPermissionFlags) / sizeof(s_guildBankTabPermissionFlags[0]) ? s_guildBankTabPermissionFlags[index] : 0;
 
     if (enabled) {
         rights |= flag;
@@ -386,7 +389,10 @@ static int32_t Script_SetGuildBankTabPermissions(lua_State* L) {
         rights &= ~flag;
     }
 
-    CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankTabRights[tab] = rights;
+    if (tab < 6) {
+        CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankTabRights[tab] = rights;
+    }
+
     return 0;
 }
 
@@ -469,7 +475,7 @@ static int32_t Script_GetGuildRosterInfo(lua_State* L) {
 
     lua_pushstring(L, member->m_name);
     char rankName[64];
-    SStrCopy(rankName, stats->m_rankNames[member->m_rank], STORM_MAX_STR);
+    SStrCopy(rankName, static_cast<uint32_t>(member->m_rank) < sizeof(stats->m_rankNames) / sizeof(stats->m_rankNames[0]) ? stats->m_rankNames[member->m_rank] : "", sizeof(rankName));
     lua_pushstring(L, rankName);
     lua_pushnumber(L, member->m_rank);
     lua_pushnumber(L, member->m_level);
@@ -533,7 +539,7 @@ static void SetGuildControlRank(uint32_t rank) {
         return;
     }
 
-    uint32_t rights = CGGuildInfo::m_rankInfo[rank].m_rights;
+    uint32_t rights = CGGuildInfo::GetRankInfo(rank).m_rights;
     s_guildControlRank = rank;
 
     for (uint32_t i = 0; i < 17; i++) {
@@ -758,11 +764,11 @@ static int32_t Script_GuildControlSaveRank(lua_State* L) {
     msg.Put(static_cast<uint32_t>(rank));
     msg.Put(rights);
     msg.PutString(rankName);
-    msg.Put(static_cast<uint32_t>(10000 * CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankMoneyPerDay));
+    msg.Put(static_cast<uint32_t>(10000 * CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankMoneyPerDay));
 
     for (uint32_t i = 0; i < 6; i++) {
-        msg.Put(CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankTabRights[i]);
-        msg.Put(static_cast<uint32_t>(CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankTabStacksPerDay[i]));
+        msg.Put(CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankTabRights[i]);
+        msg.Put(static_cast<uint32_t>(CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankTabStacksPerDay[i]));
     }
 
     msg.Finalize();
@@ -807,7 +813,7 @@ static int32_t Script_GetGuildBankTabPermissions(lua_State* L) {
     }
 
     uint8_t tab = static_cast<uint8_t>(static_cast<int32_t>(lua_tonumber(L, 1)) - 1);
-    uint32_t rights = tab < 6 ? CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankTabRights[tab] : 0;
+    uint32_t rights = tab < 6 ? CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankTabRights[tab] : 0;
 
     if (rights & 0x1) {
         lua_pushnumber(L, 1.0);
@@ -827,7 +833,7 @@ static int32_t Script_GetGuildBankTabPermissions(lua_State* L) {
         lua_pushnil(L);
     }
 
-    lua_pushnumber(L, tab < 6 ? CGGuildInfo::m_rankInfo[s_guildControlRank].m_bankTabStacksPerDay[tab] : 0);
+    lua_pushnumber(L, tab < 6 ? CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankTabStacksPerDay[tab] : 0);
     return 4;
 }
 

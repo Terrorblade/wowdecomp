@@ -25,7 +25,7 @@ static int32_t Packet_SMSG_MOTD(void* param, NETMESSAGE msgId, uint32_t time, CD
         return 0;
     }
 
-    uint32_t lineCount;
+    uint32_t lineCount = 0;
     msg->Get(lineCount);
 
     s_motd.Free();
@@ -37,6 +37,11 @@ static int32_t Packet_SMSG_MOTD(void* param, NETMESSAGE msgId, uint32_t time, CD
 
         char line[100];
         msg->GetString(line, sizeof(line));
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         CGChat::AddChatMessage(line, 0, 0, 0, 0, 0, "MOTD", WOWGUID(), 0, WOWGUID(), 0, 0, 0);
         s_motd += line;
     }

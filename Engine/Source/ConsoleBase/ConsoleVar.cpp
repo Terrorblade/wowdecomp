@@ -211,11 +211,17 @@ void CVar::ArchiveCodeRegisteredOnly() {
 // OFFSET: 0x00766400
 int32_t CVar::Load(HOSFILE file) {
     int32_t result = 1;
-    uint32_t size = static_cast<uint32_t>(OsGetFileSize(file));
+    uint64_t fileSize = OsGetFileSize(file);
 
-    if (!size) {
+    if (!fileSize) {
         return 1;
     }
+
+    if (fileSize >= 0x10000000) {
+        return 0;
+    }
+
+    uint32_t size = static_cast<uint32_t>(fileSize);
 
     char* buffer;
     bool onStack;
@@ -228,10 +234,10 @@ int32_t CVar::Load(HOSFILE file) {
         onStack = true;
     }
 
-    uint32_t bytesRead;
+    uint32_t bytesRead = 0;
 
     if (OsReadFile(file, buffer, size, &bytesRead)) {
-        buffer[size] = '\0';
+        buffer[bytesRead < size ? bytesRead : size] = '\0';
         const char* cur = buffer;
 
         if (cur && bytesRead >= 3 && static_cast<uint8_t>(cur[0]) == 0xEF && static_cast<uint8_t>(cur[1]) == 0xBB && static_cast<uint8_t>(cur[2]) == 0xBF) {
@@ -761,6 +767,42 @@ void CVar::Destroy() {
 // OFFSET: 0x00767440
 CVar* CVar::Lookup(const char* name) {
     return name ? s_registeredCVars.Ptr(name) : nullptr;
+}
+
+// Scripts must not point the next login at another server. Glue sets these directly, not through these checks.
+int32_t CVar::IsLoginTarget(const char* name, size_t length) {
+    static const char* const s_names[] = { "realmList", "realmListbn", "portal" };
+
+    for (const char* target : s_names) {
+        if (SStrLen(target) == length && !SStrCmpI(name, target, length)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int32_t CVar::CommandSetsLoginTarget(const char* command) {
+    static const char* const s_separators = " \t\r\n;\"'";
+    const char* c = command;
+
+    while (c && *c) {
+        while (*c && SStrChr(s_separators, *c)) {
+            c++;
+        }
+
+        const char* start = c;
+
+        while (*c && !SStrChr(s_separators, *c)) {
+            c++;
+        }
+
+        if (c > start && CVar::IsLoginTarget(start, c - start)) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 // VERIFY: ec2acf96 manual

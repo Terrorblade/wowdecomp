@@ -53,6 +53,12 @@ static int CompareRefreshRates(const void* a, const void* b) {
 // OFFSET: 0x0054EA60
 static int32_t Script_GetGamma(lua_State* L) {
     CVar* gamma = CVar::Lookup("gamma");
+
+    if (!gamma) {
+        lua_pushnil(L);
+        return 1;
+    }
+
     lua_pushnumber(L, 1.0 - gamma->m_floatValue);
     return 1;
 }
@@ -66,6 +72,11 @@ static int32_t Script_SetGamma(lua_State* L) {
     }
 
     CVar* gamma = CVar::Lookup("gamma");
+
+    if (!gamma) {
+        return 0;
+    }
+
     char value[16];
     SStrPrintf(value, sizeof(value), "%f", 1.0 - lua_tonumber(L, 1));
     gamma->Set(value, true, false, false, true);
@@ -76,6 +87,12 @@ static int32_t Script_SetGamma(lua_State* L) {
 // OFFSET: 0x0054EB10
 static int32_t Script_GetTerrainMip(lua_State* L) {
     CVar* shadowLevel = CVar::Lookup("shadowLevel");
+
+    if (!shadowLevel) {
+        lua_pushnil(L);
+        return 1;
+    }
+
     lua_pushnumber(L, 1.0 - shadowLevel->m_intValue);
     return 1;
 }
@@ -90,9 +107,15 @@ static int32_t Script_SetTerrainMip(lua_State* L) {
 
     int32_t value = static_cast<int32_t>(lua_tonumber(L, 1));
 
+    CVar* shadowLevel = CVar::Lookup("shadowLevel");
+
+    if (!shadowLevel) {
+        return 0;
+    }
+
     char buffer[16];
     SStrPrintf(buffer, sizeof(buffer), "%d", 1 - value);
-    CVar::Lookup("shadowLevel")->Set(buffer, true, false, false, true);
+    shadowLevel->Set(buffer, true, false, false, true);
 
     return 0;
 }
@@ -478,6 +501,10 @@ static int32_t Script_SetScreenResolution(lua_State* L) {
         index = count < static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1 ? s_resolutions.Count() : static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     }
 
+    if (index >= s_resolutions.Count()) {
+        return 0;
+    }
+
     CVar* gxResolution = CVar::Lookup("gxResolution");
 
     if (gxResolution && gxResolution->m_stringValue.m_str) {
@@ -506,6 +533,10 @@ static int32_t Script_SetMultisampleFormat(lua_State* L) {
     if (lua_isnumber(L, 1)) {
         uint32_t count = s_multisampleFormats.Count();
         index = count < static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1 ? s_multisampleFormats.Count() : static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+    }
+
+    if (index >= s_multisampleFormats.Count()) {
+        return 0;
     }
 
     CVar* colorBits = CVar::Lookup("gxColorBits");

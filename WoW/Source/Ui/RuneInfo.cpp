@@ -347,6 +347,10 @@ void CGRuneInfo::ComputeRuneRechargeTime(int32_t index, float progress) {
 // VERIFY: 4de899c0 auto
 // OFFSET: 0x005EE020
 void CGRuneInfo::ConvertRune(uint8_t rune, uint8_t type) {
+    if (rune >= sizeof(CGRuneInfo::m_runes) / sizeof(CGRuneInfo::m_runes[0]) || type >= 4) {
+        return;
+    }
+
     CGRuneInfo::m_runes[rune] = type;
     FrameScript_SignalEvent(SCRIPT_EVENT_RUNE_TYPE_UPDATE, "%d", rune + 1);
     CGSpellBook::UpdateUsable();
@@ -395,13 +399,22 @@ void CGRuneInfo::SetPredictedRunes(uint8_t available, uint8_t used, const uint8_
 void CGRuneInfo::ResyncRunes(CDataStore* msg) {
     msg->Get(CGRuneInfo::m_numRunes);
 
+    if (CGRuneInfo::m_numRunes > sizeof(CGRuneInfo::m_runes) / sizeof(CGRuneInfo::m_runes[0])) {
+        CGRuneInfo::m_numRunes = sizeof(CGRuneInfo::m_runes) / sizeof(CGRuneInfo::m_runes[0]);
+    }
+
     for (int32_t i = 0; i < static_cast<int32_t>(CGRuneInfo::m_numRunes); i++) {
-        uint8_t type;
+        uint8_t type = 0;
         msg->Get(type);
+        uint8_t cooldown = 0;
+        msg->Get(cooldown);
+
+        if (type >= 4) {
+            continue;
+        }
+
         CGRuneInfo::m_runes[i] = type;
         CGRuneInfo::m_baseRunes[i] = type;
-        uint8_t cooldown;
-        msg->Get(cooldown);
         float progress = cooldown * 0.0039215689f;
 
         if (progress > 1.0f) {

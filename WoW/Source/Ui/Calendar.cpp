@@ -136,7 +136,7 @@ size_t CGCalendar::GetDateTimeText(char* buffer, uint32_t size, uint32_t time) {
     WowTime::WowDecodeTime(time, &date);
     char dateText[256] = { 0 };
 
-    if (date.m_year >= 0 && date.m_month >= 0 && date.m_monthDay >= 0 && date.m_weekDay >= 0) {
+    if (date.m_year >= 0 && date.m_month >= 0 && date.m_month < 12 && date.m_monthDay >= 0 && date.m_weekDay >= 0) {
         SStrPrintf(dateText, sizeof(dateText), FrameScript_GetText("FULLDATE", -1, GENDER_NOT_APPLICABLE), FrameScript_GetText(s_weekdayNames[date.m_weekDay], -1, GENDER_NOT_APPLICABLE), FrameScript_GetText(s_fullDateMonthNames[date.m_month], -1, GENDER_NOT_APPLICABLE), date.m_monthDay + 1, date.m_year + 2000, date.m_month + 1);
     }
 
@@ -626,7 +626,7 @@ bool CGCalendar::ComputeEventIndex(const CalendarEventSelection* selection, int3
     WowTime::WowDecodeTime(selection->m_startTime, &date);
     uint32_t month = 12 * (date.m_year - CGCalendar::m_absYear) - CGCalendar::m_absMonth + date.m_month + 1;
 
-    if (month > 2) {
+    if (month > 2 || date.m_monthDay < 0 || date.m_monthDay >= 31) {
         return false;
     }
 
@@ -834,7 +834,7 @@ static bool ComputeEventOccurrence(const WowTime* now, const WowTime* rangeStart
         bool after = *rangeEnd < *outStart;
 
         if (looping) {
-            if (after) {
+            if (after || interval <= 0) {
                 return false;
             }
 
@@ -1428,6 +1428,10 @@ void CGCalendar::CalculateEvents(bool signal) {
                 event->m_endTime = endTime;
                 event->m_type = 8;
                 CGCalendar::InsertEvent(event, node->m_type);
+                if (node->m_duration <= 0) {
+                    break;
+                }
+
                 start.AddHolidayDuration(node->m_duration);
                 end.AddHolidayDuration(node->m_duration);
 
@@ -1621,6 +1625,11 @@ bool CGCalendar::ValidateCreateDate(const WowTime* date) {
 // VERIFY: 5f5b9bac auto
 // OFFSET: 0x005B7CC0
 void CGCalendar::ProcessInitialInviteList(CDataStore* msg) {
+    if (!CGCalendar::m_curEvent) {
+        msg->m_read = msg->m_size;
+        return;
+    }
+
     CGCalendar::m_curEvent->ProcessInitialInviteList(msg);
 }
 
@@ -1760,7 +1769,11 @@ void CGCalendar::GetEvent(uint32_t offset, uint32_t day, uint32_t index) {
 
     CalendarDayEvent* event = CGCalendar::GetDayEvent(offset, day, index);
 
-    if (event && (event->m_type & 0x543)) {
+    if (!event) {
+        return;
+    }
+
+    if (event->m_type & 0x543) {
         CDataStore msg;
         msg.Put(static_cast<uint32_t>(CMSG_CALENDAR_GET_EVENT));
         msg.Put(event->m_eventID);
@@ -2015,7 +2028,7 @@ void CGCalendar::ProcessInviteNotes(CDataStore* msg, uint8_t* clearPending) {
     uint64_t eventID;
     msg->Get(eventID);
     char notes[128];
-    msg->GetString(notes, STORM_MAX_STR);
+    msg->GetString(notes, sizeof(notes));
     uint8_t clear;
     msg->Get(clear);
 
@@ -2041,7 +2054,7 @@ void CGCalendar::ProcessInviteNotesAlert(CDataStore* msg) {
     uint64_t eventID;
     msg->Get(eventID);
     char notes[128];
-    msg->GetString(notes, STORM_MAX_STR);
+    msg->GetString(notes, sizeof(notes));
 
     if (CGCalendar::m_curEvent && eventID == CGCalendar::m_curEvent->m_eventID) {
         CGCalendar::m_curEvent->UpdateInviteNotes(player->m_obj->m_guid, notes);
@@ -2432,7 +2445,7 @@ bool CGCalendar::CanComplainAboutEvent(CalendarDayEvent* event) {
 
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    return player && CGChat::m_complaintsSystemStatus && !(event->m_type & 0x6CC) && event->m_creatorGUID != player->m_obj->m_guid && !FriendList::s_friendList->IsFriend(event->m_creatorGUID);
+    return player && FriendList::s_friendList && CGChat::m_complaintsSystemStatus && !(event->m_type & 0x6CC) && event->m_creatorGUID != player->m_obj->m_guid && !FriendList::s_friendList->IsFriend(event->m_creatorGUID);
 }
 
 // VERIFY: 9cab6517 manual
@@ -3200,6 +3213,10 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
         SmartGUID inviter;
         *msg >> inviter;
 
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         CalendarPendingInvite* invite = s_pendingInvites.NewNode(2, 0, 0);
 
         if (invite) {
@@ -3233,6 +3250,11 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
         msg->Get(reinterpret_cast<uint32_t&>(event.m_textureID));
         SmartGUID creator;
         *msg >> creator;
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         event.m_flags = (activePlayer && creator == activePlayer) ? 0x4 : 0;
         event.m_inviteID = 0;
         event.m_creatorGUID = WOWGUID();
@@ -3349,6 +3371,11 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
         msg->Get(reinterpret_cast<uint32_t&>(resetTime));
         uint64_t instanceID;
         msg->Get(instanceID);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         WowTime reset = serverTime;
         reset.m_tzHours = serverTime.m_tzHours;
         reset.AddMinutes(resetTime / 60);
@@ -3370,6 +3397,14 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
         msg->Get(period);
         uint32_t offset;
         msg->Get(offset);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
+        if (period < 3600) {
+            continue;
+        }
 
         CALENDARRAIDRESETNODE* node = s_raidResets.NewNode(2, 0, 0);
 
@@ -3415,7 +3450,12 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
             int32_t durations[10];
 
             for (uint32_t j = 0; j < 10; j++) {
+                durations[j] = 0;
                 msg->Get(reinterpret_cast<uint32_t&>(durations[j]));
+
+                if (durations[j] < 0 || durations[j] > 24 * 366) {
+                    durations[j] = 0;
+                }
             }
 
             int32_t flags[10];
@@ -3426,6 +3466,10 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
 
             char textureFileName[64];
             msg->GetString(textureFileName, sizeof(textureFileName));
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
 
             DYNAMICHOLIDAYHASH* holiday = s_dynamicHolidays.New(id, HASHKEY_NONE(), 0, 0);
             holiday->m_region = region;

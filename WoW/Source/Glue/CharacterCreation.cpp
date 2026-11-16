@@ -197,7 +197,7 @@ void CCharacterCreation::SetCharCustomizeModel(const char* modelName) {
         model->IsDrawable(1, 1);
     }
 
-    if (CCharacterCreation::m_charCustomizeFrame->m_model && CCharacterCreation::m_character->m_data.m_model) {
+    if (CCharacterCreation::m_charCustomizeFrame->m_model && CCharacterCreation::m_character && CCharacterCreation::m_character->m_data.m_model) {
         CCharacterCreation::m_character->m_data.m_model->AttachToParent(CCharacterCreation::m_charCustomizeFrame->m_model, 0, nullptr, 0);
     }
 }
@@ -207,7 +207,7 @@ void CCharacterCreation::SetCharCustomizeModel(const char* modelName) {
 void CCharacterCreation::SetCharacterFacing(float facing) {
     CCharacterCreation::m_charFacing = facing;
 
-    if (CCharacterCreation::m_character->m_data.m_model) {
+    if (CCharacterCreation::m_character && CCharacterCreation::m_character->m_data.m_model) {
         C3Vector position(0.0f, 0.0f, 0.0f);
         // HoT: an HD character model is scaled to match the stock one.
         CCharacterCreation::m_character->m_data.m_model->SetWorldTransform(position, facing, HoT::HD::GlueScale(CCharacterCreation::m_character->m_data.m_model));
@@ -229,7 +229,7 @@ bool CCharacterCreation::IsClassAvailable(int32_t classID) {
 // VERIFY: e48266b8 auto
 // OFFSET: 0x004E01F0
 void CCharacterCreation::CycleCharCustomization(CHAR_CUSTOMIZATION_TYPE type, int32_t delta) {
-    if (!delta) {
+    if (!delta || !CCharacterCreation::m_character) {
         return;
     }
 
@@ -300,6 +300,10 @@ void CCharacterCreation::CreateCharacter(const char* name) {
     WOWGUID guid = WOWGUID();
     CharacterSelectionDisplay* display = nullptr;
     bool validate = true;
+
+    if (!CCharacterCreation::m_character) {
+        return;
+    }
 
     if (CCharacterCreation::m_existingCharacterIndex >= 0) {
         display = CCharacterSelection::GetCharacterDisplay(CCharacterCreation::m_existingCharacterIndex);
@@ -551,7 +555,7 @@ void CCharacterCreation::Dress() {
 void CCharacterCreation::InitCharacterComponents(ComponentData* data, bool randomize) {
     CreatureModelDataRec* modelRec = GetModelDataRec(data->m_preferences.m_raceID, data->m_preferences.m_sexID);
 
-    if (!modelRec || !*modelRec->m_modelName) {
+    if (!modelRec || !*modelRec->m_modelName || !CCharacterCreation::m_charCustomizeFrame) {
         return;
     }
 
@@ -605,7 +609,7 @@ void CCharacterCreation::InitCharacterComponents(ComponentData* data, bool rando
 // VERIFY: 68a365e1 manual
 // OFFSET: 0x004E1540
 void CCharacterCreation::SetSelectedSex(uint32_t sexID) {
-    if (sexID >= 3 || sexID == CCharacterCreation::m_character->m_data.m_preferences.m_sexID) {
+    if (sexID >= 2 || !CCharacterCreation::m_character || sexID == CCharacterCreation::m_character->m_data.m_preferences.m_sexID || CCharacterCreation::m_raceIndex >= CCharacterCreation::m_races.Count()) {
         return;
     }
 
@@ -667,7 +671,7 @@ void CCharacterCreation::SetSelectedSex(uint32_t sexID) {
 // VERIFY: 60798dcb auto
 // OFFSET: 0x004E1740
 void CCharacterCreation::SetSelectedClass(int32_t classID) {
-    if (!CCharacterCreation::IsClassAvailable(classID)) {
+    if (!CCharacterCreation::m_character || !CCharacterCreation::IsClassAvailable(classID)) {
         return;
     }
 
@@ -691,6 +695,10 @@ void CCharacterCreation::SetSelectedClass(int32_t classID) {
 // VERIFY: ca66e480 auto
 // OFFSET: 0x004E17F0
 void CCharacterCreation::RandomizeCharCustomization() {
+    if (!CCharacterCreation::m_character) {
+        return;
+    }
+
     CCharacterCreation::m_character->SetRandomSkin(COMPONENT_CONTEXT_0);
     CCharacterCreation::m_character->SetRandomFace(COMPONENT_CONTEXT_0);
     CCharacterCreation::m_character->SetRandomHairColor(COMPONENT_CONTEXT_0);
@@ -770,7 +778,7 @@ void CCharacterCreation::ResetCharCustomizeInfo() {
 // OFFSET: 0x004E20B0
 void CCharacterCreation::SetSelectedRace(uint32_t raceIndex, bool force) {
     // HoT: can force a rebuild of the selected race after new art is mounted.
-    if (raceIndex >= CCharacterCreation::m_races.Count() || (raceIndex == CCharacterCreation::m_raceIndex && !force)) {
+    if (raceIndex >= CCharacterCreation::m_races.Count() || (raceIndex == CCharacterCreation::m_raceIndex && !force) || !CCharacterCreation::m_character || CCharacterCreation::m_raceIndex >= CCharacterCreation::m_races.Count()) {
         return;
     }
 

@@ -51,6 +51,12 @@ static TSHashTable<HashedNode, HASHKEY_STRI> s_virtualNodes;
 // STATIC: 0x00D3F6E8
 static TSHashTable<FrameFactoryNode, HASHKEY_STRI> s_factories;
 
+static int32_t s_lockedNodeCount;
+
+static int32_t s_createDepth;
+
+static int32_t s_includeDepth;
+
 // VERIFY: 3a773c6f auto
 // OFFSET: 0x00812530
 XMLTree* FrameXML_LoadXML(const char* filename, MD5_CTX* md5, CStatus* status) {
@@ -224,6 +230,9 @@ CSimpleFrame* Create_SimpleFrame(CSimpleFrame* parent) {
 // OFFSET: 0x00812B90
 void FrameXML_FreeHashNodes() {
     s_virtualNodes.InternalClear(0);
+    s_lockedNodeCount = 0;
+    s_createDepth = 0;
+    s_includeDepth = 0;
 }
 
 // VERIFY: b51e4fcc auto
@@ -242,8 +251,18 @@ XMLNode* FrameXML_AcquireHashNode(const char* name, const char*& taint, bool& lo
         return nullptr;
     }
 
+    // Each held node is a level of recursive inherit loading, so cap it to protect the C stack.
+    if (!hashed->m_locked && s_lockedNodeCount >= 100) {
+        return nullptr;
+    }
+
     locked = hashed->m_locked;
     taint = hashed->m_taint;
+
+    if (!locked) {
+        s_lockedNodeCount++;
+    }
+
     hashed->m_locked = true;
 
     return hashed->m_node;
@@ -252,7 +271,12 @@ XMLNode* FrameXML_AcquireHashNode(const char* name, const char*& taint, bool& lo
 // VERIFY: e53052f6 auto
 // OFFSET: 0x00812D20
 void FrameXML_ReleaseHashNode(const char* name) {
-    s_virtualNodes.Ptr(name)->m_locked = false;
+    HashedNode* hashed = s_virtualNodes.Ptr(name);
+
+    if (hashed && hashed->m_locked) {
+        hashed->m_locked = false;
+        s_lockedNodeCount--;
+    }
 }
 
 // VERIFY: 743ec1d8 auto
@@ -292,6 +316,7 @@ CSimpleFrame* FrameXML_CreateFrame(XMLNode* node, CSimpleFrame* parent, CStatus*
 
     if (!parentName) {
         XMLNode* current = node;
+        int32_t inheritDepth = 0;
 
         do {
             const char* inherits = current->GetAttributeByName("inherits");
@@ -328,7 +353,7 @@ CSimpleFrame* FrameXML_CreateFrame(XMLNode* node, CSimpleFrame* parent, CStatus*
             if (parentName) {
                 break;
             }
-        } while (current);
+        } while (current && ++inheritDepth < 100);
     }
 
     if (parentName && *parentName) {
@@ -343,6 +368,18 @@ CSimpleFrame* FrameXML_CreateFrame(XMLNode* node, CSimpleFrame* parent, CStatus*
         }
     }
 
+    int32_t depth = 1;
+
+    for (CSimpleFrame* ancestor = parent; ancestor; ancestor = ancestor->m_parent) {
+        depth++;
+    }
+
+    // Nested frames load recursively, so deep XML would overflow the C stack.
+    if (depth > SIMPLEFRAME_MAX_DEPTH || s_createDepth >= 64) {
+        status->Add(STATUS_WARNING, "Frame hierarchy too deep: %s", node->m_name.m_str);
+        return nullptr;
+    }
+
     CSimpleFrame* frame = factory->m_factory(parent);
 
     if (!frame) {
@@ -354,9 +391,11 @@ CSimpleFrame* FrameXML_CreateFrame(XMLNode* node, CSimpleFrame* parent, CStatus*
         s_factories.Delete(factory);
     }
 
+    s_createDepth++;
     frame->PreLoadXML(node, status);
     frame->LoadXML(node, status);
     frame->PostLoadXML(node, status);
+    s_createDepth--;
 
     return frame;
 }
@@ -367,7 +406,7 @@ void FrameXML_StoreHashNode(XMLNode* node, const char* name, const char* taint, 
     HashedNode* hashed = s_virtualNodes.Ptr(name);
 
     if (hashed) {
-        if (!hashed->m_taint || taint) {
+        if (!hashed->m_taint || taint || hashed->m_locked) {
             status->Add(STATUS_WARNING, "Virtual object named %s already exists", name);
             return;
         }
@@ -431,7 +470,7 @@ int32_t FrameXML_ProcessFile(const char* filename, const char* wrapper, MD5_CTX*
         SStrCopy(cleanPath, filename, sizeof(cleanPath));
 
         for (char* dots = SStrStr(cleanPath, ".."); dots; dots = SStrStr(cleanPath, "..")) {
-            char before = dots[-1];
+            char before = dots > cleanPath ? dots[-1] : '\0';
 
             if (before != '\\' && before != '/') {
                 break;
@@ -480,7 +519,7 @@ int32_t FrameXML_ProcessFile(const char* filename, const char* wrapper, MD5_CTX*
                 const char* file = child->GetAttributeByName("file");
 
                 if (file) {
-                    char includePath[260];
+                    char includePath[260] = "";
                     const char* slash = SStrChrR(const_cast<char*>(filename), '\\');
 
                     if (slash) {
@@ -495,7 +534,14 @@ int32_t FrameXML_ProcessFile(const char* filename, const char* wrapper, MD5_CTX*
                         SStrCopy(includePath, file, sizeof(includePath));
                     }
 
-                    FrameXML_ProcessFile(includePath, wrapper, md5, &fileStatus);
+                    // A file that includes itself would recurse until the C stack overflows.
+                    if (s_includeDepth < 32) {
+                        s_includeDepth++;
+                        FrameXML_ProcessFile(includePath, wrapper, md5, &fileStatus);
+                        s_includeDepth--;
+                    } else {
+                        fileStatus.Add(STATUS_ERROR, "Includes nested too deeply: %s", includePath);
+                    }
                 } else {
                     fileStatus.Add(STATUS_ERROR, "Element 'Include' without file attribute");
                 }
@@ -503,7 +549,7 @@ int32_t FrameXML_ProcessFile(const char* filename, const char* wrapper, MD5_CTX*
                 const char* file = child->GetAttributeByName("file");
 
                 if (file) {
-                    char scriptPath[260];
+                    char scriptPath[260] = "";
                     const char* slash = SStrChrR(const_cast<char*>(filename), '\\');
 
                     if (slash) {
@@ -631,7 +677,7 @@ int32_t FrameXML_CreateFrames(const char* tocFile, const char* wrapper, MD5_CTX*
                     }
 
                     end--;
-                } while (end[-1] == ' ');
+                } while (end > path && end[-1] == ' ');
             }
 
             *end = '\0';

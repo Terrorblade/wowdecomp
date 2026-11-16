@@ -116,6 +116,7 @@ LUA_API lua_TaintEventCallback lua_tainteventcallback;
 LUA_API void (lua_setdecimalconversion) (int convert);
 LUA_API void (lua_convertdecimal) (char *s);
 LUA_API void (lua_settaint) (lua_State *L, int idx, const char *taint);
+LUA_API const char *(lua_gettaint) (lua_State *L, int idx);
 LUA_API void (lua_gcupdatesizes) (lua_State *L);
 LUA_API size_t (lua_gcgetsize) (lua_State *L, const char *tag);
 LUA_API void (lua_gcupdatetimes) (lua_State *L);
@@ -232,6 +233,7 @@ LUA_API int (lua_dump) (lua_State *L, lua_Writer writer, void *data);
 */
 LUA_API int  (lua_yield) (lua_State *L, int nresults);
 LUA_API int  (lua_resume) (lua_State *L, int narg);
+LUA_API void (lua_setlevel) (lua_State *from, lua_State *to);
 LUA_API int  (lua_status) (lua_State *L);
 
 /*

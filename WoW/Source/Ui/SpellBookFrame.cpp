@@ -1814,6 +1814,10 @@ void CGSpellBook::ReplaceSpell(int32_t oldSpell, int32_t newSpell) {
 void CGSpellBook::AddPetSpell(int32_t spellId) {
     SpellRec spell;
 
+    if (CGSpellBook::m_numPetSpells >= sizeof(s_petSpellList) / sizeof(s_petSpellList[0])) {
+        return;
+    }
+
     if (g_spellDB.GetRecord(spellId, &spell) && !(spell.m_attributes & 0x80) && !(spell.m_attributesExD & 0x8000)) {
         CGSpellBook::AddSpellToNameCache(spellId, 1);
         s_petSpellList[CGSpellBook::m_numPetSpells++] = spellId;

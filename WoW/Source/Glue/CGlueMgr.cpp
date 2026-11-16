@@ -465,7 +465,7 @@ static bool CreateIntroScene(uint8_t classID, uint8_t raceID, C3Vector& position
 int32_t CGlueMgr::OnCharRenameResult(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     uint8_t result;
     WOWGUID guid = { 0 };
-    char name[48];
+    char name[48] = "";
 
     msg->Get(result);
 
@@ -820,7 +820,7 @@ int32_t CGlueMgr::OnRealmSplitMsg(void* param, NETMESSAGE msgId, uint32_t time, 
 // VERIFY: 4b2e7146 manual
 // OFFSET: 0x004D8270
 void CGlueMgr::RealmListDialogCancelled() {
-    if (!SStrCmpI(CGlueMgr::m_currentScreen, "login", STORM_MAX_STR)) {
+    if (!SStrCmpI(CGlueMgr::m_currentScreen, "login", STORM_MAX_STR) && ClientServices::LoginConnection()) {
         ClientServices::LoginConnection()->Logoff();
     }
 }
@@ -2404,6 +2404,10 @@ void CGlueMgr::RaceChange(WOWGUID guid, const CHARACTER_CREATE_INFO* info) {
 // VERIFY: 1b14a261 auto
 // OFFSET: 0x004D7F90
 void CGlueMgr::LoginEnterPIN(int32_t count, uint8_t* digits) {
+    if (CGlueMgr::m_loginState != LOGIN_STATE_PIN_WAIT || !ClientServices::LoginConnection()) {
+        return;
+    }
+
     FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s", "CANCEL");
     ClientServices::LoginEnterPIN(count, digits);
 }
@@ -2450,6 +2454,10 @@ bool CGlueMgr::LoginGetMatrixCoordinate(uint32_t* x, uint32_t* y) {
 // VERIFY: 24156984 auto
 // OFFSET: 0x004D8080
 void CGlueMgr::LoginEnterToken(const char* token) {
+    if (CGlueMgr::m_loginState != LOGIN_STATE_TOKEN_WAIT || !ClientServices::LoginConnection()) {
+        return;
+    }
+
     FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s", "CANCEL");
     ClientServices::LoginEnterToken(token);
 }
@@ -2458,7 +2466,7 @@ void CGlueMgr::LoginEnterToken(const char* token) {
 // OFFSET: 0x004D9190
 int32_t CGlueMgr::OnCharCustomizeResult(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID guid = { 0 };
-    char name[48];
+    char name[48] = "";
     uint8_t sexID = 0;
     uint8_t skinID = 0;
     uint8_t faceID = 0;
@@ -2498,7 +2506,7 @@ int32_t CGlueMgr::OnCharCustomizeResult(void* param, NETMESSAGE msgId, uint32_t 
 // OFFSET: 0x004D92D0
 int32_t CGlueMgr::OnCharFactionChangeResult(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID guid = { 0 };
-    char name[48];
+    char name[48] = "";
     uint8_t sexID = 0;
     uint8_t skinID = 0;
     uint8_t faceID = 0;

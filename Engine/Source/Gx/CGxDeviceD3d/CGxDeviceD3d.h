@@ -377,7 +377,7 @@ class CGxDeviceD3d : public CGxDevice {
     void ISetTexCoordIndex(uint32_t tmu, int32_t texGen, uint32_t coord);
     void ISetTexGen(uint32_t tmu, int32_t texGen);
     void ISetTexture(uint32_t tmu, CGxTex* texId);
-    void ISetVertexBuffer(uint32_t stream, LPDIRECT3DVERTEXBUFFER9 buffer, uint32_t offset, uint32_t stride);
+    void ISetVertexBuffer(uint32_t stream, LPDIRECT3DVERTEXBUFFER9 buffer, uint32_t offset, uint32_t stride, int32_t keepOffset = 0);
     void ISetWindowFocus(int32_t focus);
     void IShaderCreatePixel(CGxShader* shader);
     void IShaderConstantsFlush();

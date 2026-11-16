@@ -314,24 +314,36 @@ void ATTACKROUNDINFO::Unpack(CDataStore& msg) {
     msg >> *reinterpret_cast<SmartGUID*>(&this->m_target);
     msg.Get(reinterpret_cast<uint32_t&>(this->m_damage));
     msg.Get(reinterpret_cast<uint32_t&>(this->m_overkill));
-    uint8_t count;
+    uint8_t count = 0;
     msg.Get(count);
+    const uint32_t maxCount = sizeof(this->m_schoolMask) / sizeof(this->m_schoolMask[0]);
 
     for (uint8_t i = 0; i < count; i++) {
-        msg.Get(this->m_schoolMask[i]);
-        msg.Get(this->m_subDamage[i]);
-        msg.Get(this->m_subDamageInt[i]);
+        if (i < maxCount) {
+            msg.Get(this->m_schoolMask[i]);
+            msg.Get(this->m_subDamage[i]);
+            msg.Get(this->m_subDamageInt[i]);
+        } else {
+            uint32_t schoolMask;
+            float subDamage;
+            uint32_t subDamageInt;
+            msg.Get(schoolMask);
+            msg.Get(subDamage);
+            msg.Get(subDamageInt);
+        }
     }
 
     if (this->m_hitInfo & 0x60) {
         for (uint8_t i = 0; i < count; i++) {
-            msg.Get(this->m_absorbed[i]);
+            uint32_t absorbed;
+            msg.Get(i < maxCount ? this->m_absorbed[i] : absorbed);
         }
     }
 
     if (this->m_hitInfo & 0x180) {
         for (uint8_t i = 0; i < count; i++) {
-            msg.Get(this->m_resisted[i]);
+            uint32_t resisted;
+            msg.Get(i < maxCount ? this->m_resisted[i] : resisted);
         }
     }
 
@@ -849,6 +861,11 @@ int32_t Packet_Group_29(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
             msg->Get(absorbed);
             uint32_t resisted = 0;
             msg->Get(resisted);
+
+            if (type >= sizeof(s_environmentalDamageSchools) / sizeof(s_environmentalDamageSchools[0])) {
+                return 1;
+            }
+
             CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPE_UNIT, __FILE__, __LINE__));
 
             if (unit) {

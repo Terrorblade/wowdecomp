@@ -68,8 +68,8 @@ bool NormalizeGamePath(const std::string& input, std::string& output, std::strin
         size_t end = path.find('\\', start);
         std::string part = path.substr(start, end == std::string::npos ? std::string::npos : end - start);
 
-        if (part == "." || part == "..") {
-            error = "path must not contain . or ..";
+        if (part == "." || part == ".." || part.back() == '.' || part.back() == ' ') {
+            error = "path must not contain . or .. or parts ending in a dot or space";
             return false;
         }
 
@@ -159,7 +159,34 @@ bool ReadGameFile(const std::string& gamePath, std::vector<uint8_t>& data, uint3
     return ok;
 }
 
+bool IsWritableGamePath(const std::string& gamePath, std::string& error) {
+    static const char* const kExtensions[] = { ".m2", ".skin", ".anim", ".phys", ".bone", ".skel", ".blp", ".png" };
+    std::string normalized;
+
+    if (!NormalizeGamePath(gamePath, normalized, error)) {
+        return false;
+    }
+
+    if (normalized != gamePath) {
+        error = gamePath + " is not a normalized game path";
+        return false;
+    }
+
+    for (const char* extension : kExtensions) {
+        if (EndsWith(gamePath, extension)) {
+            return true;
+        }
+    }
+
+    error = gamePath + " does not have a model or texture extension";
+    return false;
+}
+
 bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std::string& error) {
+    if (!IsWritableGamePath(gamePath, error)) {
+        return false;
+    }
+
     std::filesystem::path path(DiskPath(gamePath));
     std::error_code code;
 

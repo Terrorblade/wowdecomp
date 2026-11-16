@@ -183,7 +183,10 @@ int32_t LootRollMasterList(CDataStore* msg) {
         msg->Get(guid.m_guid);
 
         if (!raid) {
-            s_masterLootCandidates[i] = guid;
+            if (i < sizeof(s_masterLootCandidates) / sizeof(s_masterLootCandidates[0])) {
+                s_masterLootCandidates[i] = guid;
+            }
+
             continue;
         }
 
@@ -494,7 +497,10 @@ int32_t LootRollAllPassed(CDataStore* msg) {
         AllPassedStats(roll, stats);
     }
 
-    CGPlayer_C::ClearLootItemSlotType(lootGuid, slot);
+    if (slot < 18) {
+        CGPlayer_C::ClearLootItemSlotType(lootGuid, slot);
+    }
+
     return 1;
 }
 
@@ -502,6 +508,7 @@ int32_t LootRollAllPassed(CDataStore* msg) {
 // OFFSET: 0x006FB700
 static void WonStatsAndName(const NameCache* name, PendingLootRoll* roll, const ItemStats_C* stats) {
     char text[3000];
+    text[0] = '\0';
 
     if (roll->m_rollerGuid == ClntObjMgrGetActivePlayer()) {
         if (g_showLootSpamCVar->m_intValue) {
@@ -616,6 +623,9 @@ int32_t LootRollWon(CDataStore* msg) {
         }
     }
 
-    CGPlayer_C::ClearLootItemSlotType(lootGuid, slot);
+    if (slot < 18) {
+        CGPlayer_C::ClearLootItemSlotType(lootGuid, slot);
+    }
+
     return 1;
 }

@@ -341,16 +341,12 @@ static CM2Model* LoadedModel(CSimpleModel* frame, lua_State* L, int32_t slotInde
     return model;
 }
 
-static void ReadOptions(lua_State* L, int32_t options, Slot& slot) {
+// Reads into a fresh slot since a metamethod on the table can free the slot being configured.
+static Slot ReadOptions(lua_State* L, int32_t options) {
+    Slot slot;
     lua_getfield(L, options, "rider");
-    bool rider = lua_toboolean(L, -1) != 0;
+    slot.m_rider = lua_toboolean(L, -1) != 0;
     lua_pop(L, 1);
-
-    if (rider != slot.m_rider) {
-        FreeSlot(slot);
-        slot.m_rider = rider;
-    }
-
     slot.m_attachment = static_cast<uint32_t>(std::max(0.0f, Field(L, options, "attachment", 0.0f)));
     slot.m_anim = static_cast<uint32_t>(std::max(0.0f, Field(L, options, "anim", static_cast<float>(kMountAnim))));
     slot.m_yaw = Field(L, options, "yaw", 0.0f);
@@ -365,6 +361,22 @@ static void ReadOptions(lua_State* L, int32_t options, Slot& slot) {
     }
 
     lua_pop(L, 1);
+    return slot;
+}
+
+static void ApplyOptions(Slot& slot, const Slot& options) {
+    if (options.m_rider != slot.m_rider) {
+        FreeSlot(slot);
+        slot.m_rider = options.m_rider;
+    }
+
+    slot.m_attachment = options.m_attachment;
+    slot.m_anim = options.m_anim;
+    slot.m_yaw = options.m_yaw;
+    slot.m_pitch = options.m_pitch;
+    slot.m_roll = options.m_roll;
+    slot.m_size = options.m_size;
+    memcpy(slot.m_offset, options.m_offset, sizeof(slot.m_offset));
 }
 
 // ModelEditor_SetPreviewAttach(frame, slot, { attachment, rider, anim, offset = { x, y, z }, yaw, pitch, roll, size } or nil).
@@ -394,8 +406,9 @@ static int32_t Script_SetPreviewAttach(lua_State* L) {
         return 1;
     }
 
+    Slot options = ReadOptions(L, 3);
     Slot& slot = s_frames[frame][index];
-    ReadOptions(L, 3, slot);
+    ApplyOptions(slot, options);
     UpdateFrame(frame, nullptr);
     lua_pushboolean(L, true);
     lua_pushstring(L, slot.m_model && slot.m_model->m_shared ? slot.m_model->m_shared->m_fileName : "");
@@ -632,7 +645,8 @@ bool SetWorldSlot(lua_State* L, uint32_t host, uint32_t index, int32_t options) 
         return true;
     }
 
-    ReadOptions(L, options, s_world[host][index]);
+    Slot read = ReadOptions(L, options);
+    ApplyOptions(s_world[host][index], read);
     return true;
 }
 

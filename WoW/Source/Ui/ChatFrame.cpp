@@ -1099,12 +1099,14 @@ void CGChat::AddChatMessage(const char* text, int32_t type, const char* senderNa
         memset(message, 0, sizeof(message));
 
         char* dest = buffer;
+        char* destEnd = buffer + sizeof(buffer) - 1;
 
         for (const char* source = text; *source; source++) {
-            if (*source == '\t' && dest >= buffer && dest < buffer + sizeof(buffer)) {
+            if (*source == '\t' && destEnd == buffer + sizeof(buffer) - 1) {
                 *dest = 0;
                 dest = message;
-            } else {
+                destEnd = message + sizeof(message) - 1;
+            } else if (dest < destEnd) {
                 *dest++ = *source;
             }
         }
@@ -1212,7 +1214,7 @@ emoteDone:
 
     if (!conversation) {
         for (char* quest = SStrStr(text, "|Hquest:"); quest; quest = SStrStr(quest + 8, "|Hquest:")) {
-            if (quest[-1] == '|') {
+            if (quest < text + 10 || quest[-1] == '|') {
                 continue;
             }
 
@@ -1220,7 +1222,7 @@ emoteDone:
             char* level = separator ? SStrChr(separator + 1, ':') : nullptr;
 
             if (!level) {
-                SErrDisplayAppFatalMessage("", "", 0);
+                continue;
             }
 
             int32_t questLevel = SStrToInt(level + 1);
@@ -1245,8 +1247,12 @@ emoteDone:
         language = 0;
         SStrCopy(translated, text, sizeof(translated));
     } else if (language && player) {
-        uint32_t skill;
-        player->GetLanguageSkill(language, skill);
+        uint32_t skill = 0;
+
+        if (g_languagesDB.GetRecord(language)) {
+            player->GetLanguageSkill(language, skill);
+        }
+
         CGChat::TranslateMessage(language, skill, text, translated, sizeof(translated), 0, 0);
     } else {
         SStrCopy(translated, text, sizeof(translated));
@@ -1406,9 +1412,11 @@ emoteDone:
             char header[304];
             SStrPrintf(header, sizeof(header), FrameScript_GetText(token, -1, GENDER_NOT_APPLICABLE), senderName ? senderName : "");
 
-            if (language && player && language != player->GetDefaultLanguage()) {
+            LanguagesRec* languageRec = language ? g_languagesDB.GetRecord(language) : nullptr;
+
+            if (languageRec && player && language != player->GetDefaultLanguage()) {
                 char languageName[256];
-                SStrPrintf(languageName, sizeof(languageName), "[%s] ", g_languagesDB.GetRecord(language)->m_name);
+                SStrPrintf(languageName, sizeof(languageName), "[%s] ", languageRec->m_name);
                 SStrPack(header, languageName, sizeof(header));
             }
 
@@ -1480,6 +1488,10 @@ emoteDone:
     }
 }
 
+static const char* InSituString(const void* data, uint32_t length) {
+    return data && length && !static_cast<const char*>(data)[length - 1] ? static_cast<const char*>(data) : nullptr;
+}
+
 // VERIFY: 71191980 manual
 // OFFSET: 0x0050BE70
 int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
@@ -1495,9 +1507,9 @@ int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
     WOWGUID senderGuid = WOWGUID();
     uint32_t senderUnk = 0;
     WOWGUID targetGuid = WOWGUID();
-    uint8_t type;
-    uint32_t language;
-    uint32_t length;
+    uint8_t type = 0;
+    uint32_t language = 0;
+    uint32_t length = 0;
     void* data;
     const char* text;
 
@@ -1517,18 +1529,18 @@ int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
         case CHAT_MSG_BATTLENET: {
             msg->Get(length);
             msg->GetDataInSitu(data, length);
-            senderName = static_cast<const char*>(data);
+            senderName = InSituString(data, length);
             msg->Get(targetGuid.m_guid);
 
             if (targetGuid && ((targetGuid.m_guid & 0xF000000000000000ULL) || !(targetGuid.m_guid & 0xF07FFFFFFFFFFFFFULL)) && (targetGuid.m_guid & 0xF0F0000000000000ULL) != 0xF040000000000000ULL) {
                 msg->Get(length);
                 msg->GetDataInSitu(data, length);
-                targetName = static_cast<const char*>(data);
+                targetName = InSituString(data, length);
             }
 
             msg->Get(length);
             msg->GetDataInSitu(data, length);
-            text = static_cast<const char*>(data);
+            text = InSituString(data, length);
             msg->Get(chatTag);
 
             if (FriendList::s_friendList && FriendList::s_friendList->IsIgnored(targetGuid, true)) {
@@ -1541,11 +1553,11 @@ int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
         case CHAT_MSG_WHISPER_FOREIGN: {
             msg->Get(length);
             msg->GetDataInSitu(data, length);
-            senderName = static_cast<const char*>(data);
+            senderName = InSituString(data, length);
             msg->Get(targetGuid.m_guid);
             msg->Get(length);
             msg->GetDataInSitu(data, length);
-            text = static_cast<const char*>(data);
+            text = InSituString(data, length);
             msg->Get(chatTag);
 
             if (FriendList::s_friendList && FriendList::s_friendList->IsIgnored(senderGuid, true)) {
@@ -1564,12 +1576,12 @@ int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
             if (targetGuid && ((targetGuid.m_guid & 0xF000000000000000ULL) || !(targetGuid.m_guid & 0xF07FFFFFFFFFFFFFULL))) {
                 msg->Get(length);
                 msg->GetDataInSitu(data, length);
-                targetName = static_cast<const char*>(data);
+                targetName = InSituString(data, length);
             }
 
             msg->Get(length);
             msg->GetDataInSitu(data, length);
-            text = static_cast<const char*>(data);
+            text = InSituString(data, length);
             msg->Get(chatTag);
             break;
         }
@@ -1579,7 +1591,7 @@ int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
             msg->Get(targetGuid.m_guid);
             msg->Get(length);
             msg->GetDataInSitu(data, length);
-            text = static_cast<const char*>(data);
+            text = InSituString(data, length);
             msg->Get(chatTag);
             msg->Get(achievementID);
             break;
@@ -1589,7 +1601,7 @@ int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
             if (isGM) {
                 msg->Get(length);
                 msg->GetDataInSitu(data, length);
-                senderName = static_cast<const char*>(data);
+                senderName = InSituString(data, length);
             }
 
             if (type == CHAT_MSG_CHANNEL) {
@@ -1599,7 +1611,7 @@ int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
             msg->Get(targetGuid.m_guid);
             msg->Get(length);
             msg->GetDataInSitu(data, length);
-            text = static_cast<const char*>(data);
+            text = InSituString(data, length);
             msg->Get(chatTag);
 
             if (chatTag & 0x10) {
@@ -1646,7 +1658,7 @@ int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
         }
     }
 
-    if (!msg->IsRead()) {
+    if (!msg->IsRead() || !text || type >= CHAT_MSG_MAX) {
         msg->Reset();
         return 1;
     }
@@ -1984,8 +1996,16 @@ void ChatWindowInfo::Init() {
 // VERIFY: c4efb049 manual
 // OFFSET: 0x00501C70
 int32_t CGChat::OnCheckReloadSpamFilter(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
+
+    // Every expression takes at least one byte.
+    uint32_t remaining = msg->m_read > msg->m_size ? 0 : msg->m_size - msg->m_read;
+
+    if (count > remaining) {
+        count = remaining;
+    }
+
     s_expectedSpamRecords.SetCount(count);
 
     uint32_t valid = 0;
@@ -1993,6 +2013,10 @@ int32_t CGChat::OnCheckReloadSpamFilter(void* param, NETMESSAGE msgId, uint32_t 
     for (int32_t i = 0; i < static_cast<int32_t>(count); i++) {
         char expression[512];
         msg->GetString(expression, sizeof(expression));
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
 
         if (!regcomp(&s_expectedSpamRecords.m_data[valid], expression, REG_ICASE)) {
             valid++;
@@ -2104,7 +2128,7 @@ void CGChat::TranslateMessage(uint32_t language, uint32_t skill, const char* tex
         uint32_t length = end - current;
 
         if (length >= sizeof(word)) {
-            length = sizeof(word);
+            length = sizeof(word) - 1;
         }
 
         SStrCopy(word, current, length + 1);
@@ -2285,14 +2309,18 @@ int32_t CGChat::OnDurabilityDamageDeath(void* param, NETMESSAGE msgId, uint32_t 
 // VERIFY: 2f5725dd auto
 // OFFSET: 0x0050C850
 int32_t CGChat::OnDefenseMessage(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    int32_t areaId;
-    uint32_t length;
+    int32_t areaId = 0;
+    uint32_t length = 0;
     void* data;
 
     msg->Get(reinterpret_cast<uint32_t&>(areaId));
     msg->Get(length);
     msg->GetDataInSitu(data, length);
-    const char* text = static_cast<const char*>(data);
+    const char* text = InSituString(data, length);
+
+    if (!text) {
+        return 1;
+    }
 
     AreaTableRec* area = g_areaTableDB.GetRecord(areaId);
 
@@ -2446,6 +2474,8 @@ int32_t CGChat::OnInstanceResetFailed(void* param, NETMESSAGE msgId, uint32_t ti
         SStrPrintf(text, sizeof(text), FrameScript_GetText("INSTANCE_RESET_FAILED_OFFLINE", -1, GENDER_NOT_APPLICABLE), mapName);
     } else if (reason == 2) {
         SStrPrintf(text, sizeof(text), FrameScript_GetText("INSTANCE_RESET_FAILED_ZONING", -1, GENDER_NOT_APPLICABLE), mapName);
+    } else {
+        return 1;
     }
 
     CGChat::AddChatMessage(text, CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
@@ -3335,7 +3365,11 @@ int32_t CGChat::OnTextEmote(void* param, NETMESSAGE msgId, uint32_t time, CDataS
     msg->Get(emoteNum);
     msg->Get(length);
     msg->GetDataInSitu(data, length);
-    const char* target = static_cast<const char*>(data);
+    const char* target = InSituString(data, length);
+
+    if (!target) {
+        return 1;
+    }
 
     if (FriendList::s_friendList && FriendList::s_friendList->IsIgnored(guid, true)) {
         return 1;
@@ -3371,16 +3405,25 @@ int32_t CGChat::OnChannelList(void* param, NETMESSAGE msgId, uint32_t time, CDat
 
     msg->Get(channel->m_flags);
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
     int32_t pending = 0;
     s_pendingUserListActive = false;
 
     for (int32_t i = 0; i < static_cast<int32_t>(count); i++) {
+        WOWGUID guid;
+        uint8_t flags = 0;
+        msg->Get(guid.m_guid);
+        msg->Get(flags);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         PENDINGUSERLIST* user = channel->m_pendingUsers.NewNode(2, 0, 0);
-        msg->Get(user->m_guid.m_guid);
-        msg->Get(user->m_flags);
+        user->m_guid = guid;
+        user->m_flags = flags;
 
         if (!g_nameDBCache.GetRecord(user->m_guid.m_guid, user->m_guid, CGChat::NameQueryCallback, nullptr, false)) {
             pending++;
@@ -4481,13 +4524,20 @@ void CGChat::LoadChatSettingsCallback(HOSFILE localFile, HOSFILE file, void* par
     }
 
     char* buffer = nullptr;
+    char* allocated = nullptr;
     uint32_t size = 0;
 
     if (file != OS_INVALID_FILE) {
         size = static_cast<uint32_t>(OsGetFileSize(file));
 
-        if (size) {
+        if (size >= 0x2000) {
+            allocated = static_cast<char*>(SMemAlloc(size + 1, __FILE__, __LINE__, 0));
+            buffer = allocated;
+        } else if (size) {
             buffer = static_cast<char*>(alloca(size + 1));
+        }
+
+        if (buffer) {
             uint32_t bytesRead;
 
             if (!OsReadFile(file, buffer, size, &bytesRead)) {
@@ -4568,7 +4618,7 @@ void CGChat::LoadChatSettingsCallback(HOSFILE localFile, HOSFILE file, void* par
 
                     uint32_t index = SStrToInt(&line[SStrLen("WINDOW") + 1]) - 1;
 
-                    if (index > 10) {
+                    if (index >= sizeof(s_chatWindows) / sizeof(s_chatWindows[0])) {
                         continue;
                     }
 
@@ -4883,6 +4933,10 @@ void CGChat::LoadChatSettingsCallback(HOSFILE localFile, HOSFILE file, void* par
         }
     }
 
+    if (allocated) {
+        SMemFree(allocated, __FILE__, __LINE__, 0);
+    }
+
     CGChat::m_loaded = 1;
     CGChat::ZoneUpdate();
 }
@@ -5069,8 +5123,15 @@ int32_t FormatTime(char* buffer, uint32_t size, int32_t seconds) {
 // VERIFY: 55b356a1 manual
 // OFFSET: 0x00501030
 int32_t CGChat::OnRaidInstanceInfo(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
+
+    constexpr uint32_t entrySize = 22;
+    uint32_t remaining = msg->m_read > msg->m_size ? 0 : msg->m_size - msg->m_read;
+
+    if (count > remaining / entrySize) {
+        count = remaining / entrySize;
+    }
 
     if (count) {
         if (count >= s_savedInstances.Count()) {
@@ -5495,10 +5556,18 @@ int32_t CGChat::OnDisplayChannelList(CDataStore* msg) {
         return 1;
     }
 
-    uint8_t flags;
-    uint32_t count;
+    uint8_t flags = 0;
+    uint32_t count = 0;
     msg->Get(flags);
     msg->Get(count);
+
+    constexpr uint32_t entrySize = sizeof(uint64_t) + sizeof(uint8_t);
+    uint32_t remaining = msg->m_read > msg->m_size ? 0 : msg->m_size - msg->m_read;
+
+    if (count > remaining / entrySize) {
+        count = remaining / entrySize;
+    }
+
     s_displayChannelMemberCount = 0;
     s_pendingUsers.Clear();
     s_activeDisplayChannelFlags = 0;
@@ -5958,7 +6027,7 @@ void CGChat::DisplayPendingUserList(ChatChannel* channel) {
             text[0] = 0;
 
             if (entry[0] == ',') {
-                memmove(entry, &entry[2], sizeof(entry));
+                memmove(entry, &entry[2], sizeof(entry) - 2);
             }
 
             SStrPack(text, entry, STORM_MAX_STR);

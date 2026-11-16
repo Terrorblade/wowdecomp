@@ -32,6 +32,9 @@ bool GameFileExists(const std::string& gamePath);
 bool IsLooseFile(const std::string& gamePath);
 bool ReadGameFile(const std::string& gamePath, std::vector<uint8_t>& data, uint32_t maxSize = 0x20000000);
 
+// A normalized game path with a model or texture extension, false with error otherwise.
+bool IsWritableGamePath(const std::string& gamePath, std::string& error);
+
 // Writes the file under the game folder through a temp file, an existing file is copied to .bak once.
 bool WriteLoose(const std::string& gamePath, const void* data, size_t size, std::string& error);
 

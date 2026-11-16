@@ -92,7 +92,7 @@ static void ClearKeys() {
 }
 
 static void SetSpeed(float speed, bool announce) {
-    if (speed < kMinSpeed) {
+    if (!(speed >= kMinSpeed)) {
         speed = kMinSpeed;
     }
 

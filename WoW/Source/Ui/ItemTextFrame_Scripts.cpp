@@ -45,7 +45,7 @@ static int32_t Script_ItemTextGetText(lua_State* L) {
 // VERIFY: 8b69700f auto
 // OFFSET: 0x00589D70
 static int32_t Script_ItemTextHasNextPage(lua_State* L) {
-    if (CGItemText::m_hasItemText || !CGItemText::m_pages.m_data[CGItemText::m_currentPage + 1]) {
+    if (CGItemText::m_hasItemText || CGItemText::m_currentPage + 1 >= CGItemText::m_pages.m_count || !CGItemText::m_pages.m_data[CGItemText::m_currentPage + 1]) {
         lua_pushnil(L);
         return 1;
     }
@@ -122,7 +122,7 @@ static int32_t Script_ItemTextPrevPage(lua_State* L) {
 // VERIFY: 97ca59f6 auto
 // OFFSET: 0x0058A150
 static int32_t Script_ItemTextNextPage(lua_State* L) {
-    if (CGItemText::m_itemGUID && !CGItemText::m_hasItemText && CGItemText::m_pages.m_data[CGItemText::m_currentPage + 1] > 0) {
+    if (CGItemText::m_itemGUID && !CGItemText::m_hasItemText && CGItemText::m_currentPage + 2 < CGItemText::m_pages.m_count && CGItemText::m_pages.m_data[CGItemText::m_currentPage + 1] > 0) {
         CGItemText::m_currentPage++;
         CGItemText::DisplayText(CGItemText::m_itemGUID, 1);
     }

@@ -125,7 +125,7 @@ void CSimpleSlider::SetThumbTexture(CSimpleTexture* texture, uint32_t drawLayer)
     }
 
     if (this->m_thumbTexture) {
-        delete this->m_thumbTexture;
+        CSimpleRegion::DeferDelete(this->m_thumbTexture);
     }
 
     if (texture) {

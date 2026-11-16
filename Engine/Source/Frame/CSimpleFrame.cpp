@@ -2,6 +2,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <new>
+#include <utility>
+#include <vector>
 #include "Engine/Source/Frame/CSimpleFrame.h"
 #include "Controller/Controller.h"
 #include "Engine/Source/Base/ConvertUTF.h"
@@ -543,6 +545,30 @@ void CSimpleFrame::ResetAnimPosition() {
     this->Resize(1);
 }
 
+int32_t CSimpleFrame_GetTreeHeight(CSimpleFrame* root) {
+    std::vector<std::pair<CSimpleFrame*, int32_t>> pending;
+    pending.emplace_back(root, 1);
+    int32_t height = 0;
+
+    while (!pending.empty()) {
+        CSimpleFrame* frame = pending.back().first;
+        int32_t depth = pending.back().second;
+        pending.pop_back();
+
+        if (depth > height) {
+            height = depth;
+        }
+
+        for (SIMPLEFRAMENODE* node = frame->m_children.Head(); node; node = frame->m_children.Next(node)) {
+            if (node->m_frame) {
+                pending.emplace_back(node->m_frame, depth + 1);
+            }
+        }
+    }
+
+    return height;
+}
+
 // VERIFY: 4eef2a8c auto
 // OFFSET: 0x0048EC10
 void CSimpleFrame::RunOnAttributeChangedScript(const char* name, int32_t luaRef) {
@@ -557,11 +583,11 @@ void CSimpleFrame::RunOnAttributeChangedScript(const char* name, int32_t luaRef)
         lua_tainted = nullptr;
     }
 
-    char* lowerName = static_cast<char*>(alloca(SStrLen(name) + 1));
-    SStrCopy(lowerName, name, STORM_MAX_STR);
+    char* lowerName = SStrDupA(name, __FILE__, __LINE__);
     SStrLower(lowerName);
 
     lua_pushstring(L, lowerName);
+    SMemFree(lowerName, __FILE__, __LINE__, 0);
     lua_rawgeti(L, LUA_REGISTRYINDEX, luaRef);
     this->RunScript(this->m_onAttributeChanged, 2, nullptr);
 
@@ -1635,6 +1661,11 @@ void CSimpleFrame::SetFrameStrata(FRAME_STRATA strata) {
 void CSimpleFrame::SetFrameLevel(int32_t level, int32_t shiftChildren) {
     if (level < 0) {
         level = 0;
+    }
+
+    // Every strata keeps a node per level up to the highest one used, so keep that bounded.
+    if (level > 10000) {
+        level = 10000;
     }
 
     if (level == this->m_level) {

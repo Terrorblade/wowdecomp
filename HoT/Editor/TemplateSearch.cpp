@@ -82,7 +82,7 @@ static int32_t Packet_SMSG_EDITOR_TEMPLATE_RESULTS(void* param, NETMESSAGE msgId
     results.m_truncated = results.m_truncated || (flags & kFlagTruncated) != 0;
 
     uint16_t count = packet.GetUInt16();
-    results.m_hits.reserve(results.m_hits.size() + count);
+    results.m_hits.reserve(results.m_hits.size() + (count < packet.Remaining() ? count : packet.Remaining()));
 
     for (uint16_t i = 0; i < count && packet.CanRead(4); i++) {
         Hit hit;

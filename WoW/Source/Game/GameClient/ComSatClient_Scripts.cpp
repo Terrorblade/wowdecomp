@@ -59,7 +59,7 @@ static int32_t Script_VoiceEnumerateOutputDevices(lua_State* L) {
 
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 1));
 
-    if (comsat->EnumerateOutputDevices(devices, 20) <= index) {
+    if (index < 0 || index >= 20 || comsat->EnumerateOutputDevices(devices, 20) <= index) {
         lua_pushnil(L);
     } else {
         lua_pushstring(L, devices[index].m_name);
@@ -88,7 +88,7 @@ static int32_t Script_VoiceEnumerateCaptureDevices(lua_State* L) {
 
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 1));
 
-    if (comsat->EnumerateCaptureDevices(devices, 20) <= index) {
+    if (index < 0 || index >= 20 || comsat->EnumerateCaptureDevices(devices, 20) <= index) {
         lua_pushnil(L);
     } else {
         lua_pushstring(L, devices[index].m_name);

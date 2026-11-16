@@ -245,7 +245,7 @@ static int32_t Script_SetHyperlinksEnabled(lua_State* L) {
 
     if (enabled != html->m_hyperlinksEnabled) {
         html->m_hyperlinksEnabled = enabled;
-        html->RefreshHyperlinks();
+        html->m_hyperlinksDirty = 1;
     }
 
     return 0;

@@ -51,7 +51,13 @@ static const EditorViewFlag s_viewFlags[] = {
 };
 
 static float Clamp(float value, float minValue, float maxValue) {
-    return value < minValue ? minValue : (value > maxValue ? maxValue : value);
+    return !(value >= minValue) ? minValue : (value > maxValue ? maxValue : value);
+}
+
+// World and object coordinates from Lua, NaN and huge values would wrap the engine's grid math.
+static float ToCoord(lua_State* L, int32_t index) {
+    double value = lua_tonumber(L, index);
+    return value >= -100000.0 && value <= 100000.0 ? static_cast<float>(value) : (value > 0.0 ? 100000.0f : -100000.0f);
 }
 
 static const EditorViewFlag* FindViewFlag(const char* name) {
@@ -334,7 +340,7 @@ static int32_t Script_EditorSetCamera(lua_State* L) {
         return 0;
     }
 
-    FreeCam::SetPosition(C3Vector(static_cast<float>(lua_tonumber(L, 1)), static_cast<float>(lua_tonumber(L, 2)), static_cast<float>(lua_tonumber(L, 3))));
+    FreeCam::SetPosition(C3Vector(ToCoord(L, 1), ToCoord(L, 2), ToCoord(L, 3)));
     return 0;
 }
 
@@ -469,7 +475,7 @@ static int32_t Script_EditorApplyBrush(lua_State* L) {
         return 1;
     }
 
-    float seconds = static_cast<float>(lua_tonumber(L, 4));
+    float seconds = Clamp(static_cast<float>(lua_tonumber(L, 4)), 0.0f, 10.0f);
 
     for (float done = 0.0f; done < seconds; done += 1.0f / 60.0f) {
         TerrainEdit::GetHeight(pos.x, pos.y, &pos.z);
@@ -627,31 +633,31 @@ static int32_t Script_EditorSetObjectTransform(lua_State* L) {
     }
 
     if (lua_isnumber(L, 1)) {
-        position.x = static_cast<float>(lua_tonumber(L, 1));
+        position.x = ToCoord(L, 1);
     }
 
     if (lua_isnumber(L, 2)) {
-        position.y = static_cast<float>(lua_tonumber(L, 2));
+        position.y = ToCoord(L, 2);
     }
 
     if (lua_isnumber(L, 3)) {
-        position.z = static_cast<float>(lua_tonumber(L, 3));
+        position.z = ToCoord(L, 3);
     }
 
     if (lua_isnumber(L, 4)) {
-        rotation.x = static_cast<float>(lua_tonumber(L, 4));
+        rotation.x = ToCoord(L, 4);
     }
 
     if (lua_isnumber(L, 5)) {
-        rotation.y = static_cast<float>(lua_tonumber(L, 5));
+        rotation.y = ToCoord(L, 5);
     }
 
     if (lua_isnumber(L, 6)) {
-        rotation.z = static_cast<float>(lua_tonumber(L, 6));
+        rotation.z = ToCoord(L, 6);
     }
 
     if (lua_isnumber(L, 7)) {
-        scale = static_cast<float>(lua_tonumber(L, 7));
+        scale = Clamp(static_cast<float>(lua_tonumber(L, 7)), 0.01f, 63.0f);
     }
 
     if (ObjectEdit::GetSelectionCount() == 1) {
@@ -718,8 +724,13 @@ static int32_t Script_EditorPickObject(lua_State* L) {
         return 0;
     }
 
-    C3Vector start(static_cast<float>(lua_tonumber(L, 1)), static_cast<float>(lua_tonumber(L, 2)), static_cast<float>(lua_tonumber(L, 3)));
-    C3Vector dir(static_cast<float>(lua_tonumber(L, 4)), static_cast<float>(lua_tonumber(L, 5)), static_cast<float>(lua_tonumber(L, 6)));
+    C3Vector start(ToCoord(L, 1), ToCoord(L, 2), ToCoord(L, 3));
+    C3Vector dir(ToCoord(L, 4), ToCoord(L, 5), ToCoord(L, 6));
+
+    if (dir.SquaredMag() < 0.000001f) {
+        return 0;
+    }
+
     dir.Normalize();
     int32_t kind;
     uint32_t uniqueId;
@@ -737,7 +748,7 @@ static int32_t Script_EditorPickObject(lua_State* L) {
 }
 
 static int32_t Script_EditorMoveSelection(lua_State* L) {
-    ObjectEdit::MoveBy(C3Vector(static_cast<float>(lua_tonumber(L, 1)), static_cast<float>(lua_tonumber(L, 2)), static_cast<float>(lua_tonumber(L, 3))));
+    ObjectEdit::MoveBy(C3Vector(ToCoord(L, 1), ToCoord(L, 2), ToCoord(L, 3)));
     return 0;
 }
 
@@ -754,7 +765,7 @@ static int32_t Script_EditorPaintTexture(lua_State* L) {
         return 1;
     }
 
-    float seconds = static_cast<float>(lua_tonumber(L, 3));
+    float seconds = Clamp(static_cast<float>(lua_tonumber(L, 3)), 0.0f, 10.0f);
 
     for (float done = 0.0f; done < seconds; done += 1.0f / 60.0f) {
         TextureEdit::Paint(pos, 1.0f / 60.0f);
@@ -873,7 +884,7 @@ static int32_t Script_EditorPaintVertex(lua_State* L) {
     }
 
     C3Vector pos(static_cast<float>(lua_tonumber(L, 1)), static_cast<float>(lua_tonumber(L, 2)), static_cast<float>(lua_tonumber(L, 3)));
-    ChunkEdit::PaintVertexColor(pos, static_cast<float>(lua_tonumber(L, 4)), !lua_toboolean(L, 5));
+    ChunkEdit::PaintVertexColor(pos, Clamp(static_cast<float>(lua_tonumber(L, 4)), 0.0f, 10.0f), !lua_toboolean(L, 5));
     ChunkEdit::EndStroke();
     return 0;
 }
@@ -1021,7 +1032,7 @@ static int32_t Script_EditorPasteObjects(lua_State* L) {
             ObjectEdit::Paste(&cursor);
         }
     } else if (lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
-        C3Vector pos(static_cast<float>(lua_tonumber(L, 1)), static_cast<float>(lua_tonumber(L, 2)), static_cast<float>(lua_tonumber(L, 3)));
+        C3Vector pos(ToCoord(L, 1), ToCoord(L, 2), ToCoord(L, 3));
         ObjectEdit::Paste(&pos);
     } else {
         ObjectEdit::Paste(nullptr);

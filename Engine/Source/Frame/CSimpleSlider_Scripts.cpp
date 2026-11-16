@@ -44,7 +44,7 @@ static int32_t Script_SetThumbTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = slider->GetName();
             luaL_error(L, "%s:SetThumbTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;

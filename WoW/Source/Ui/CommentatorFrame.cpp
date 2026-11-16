@@ -545,7 +545,13 @@ int32_t CGCommentator::OnReceivePlayerInfo(void* param, NETMESSAGE msgId, uint32
         msg->Get(value);
         info.unk_003C = value;
 
-        if (info.m_faction < 2) {
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
+        constexpr uint32_t maxPlayers = sizeof(instance->m_players[0]) / sizeof(instance->m_players[0][0]);
+
+        if (info.m_faction < 2 && instance->m_numPlayers[info.m_faction] < maxPlayers) {
             instance->m_players[info.m_faction][instance->m_numPlayers[info.m_faction]] = info;
             instance->m_numPlayers[info.m_faction]++;
         }
@@ -599,6 +605,12 @@ void CGCommentator::SetPlayersInQueue(CDataStore* msg) {
 
     uint32_t count = 0;
     msg->Get(count);
+    uint32_t remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    if (count > remaining / 17) {
+        count = remaining / 17;
+    }
+
     this->m_skirmishQueue.SetCount(count);
 
     for (uint32_t i = 0; i < count; i++) {
@@ -631,6 +643,12 @@ int32_t CGCommentator::OnSkirmishPlayersInQueue(void* param, NETMESSAGE msgId, u
 int32_t CGCommentator::OnReceiveMapInfo(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     uint32_t count = 0;
     msg->Get(count);
+    uint32_t remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    if (count > remaining / 16) {
+        count = remaining / 16;
+    }
+
     CGCommentator::s_Commentator.m_maps.SetCount(count);
 
     WOWGUID current;
@@ -658,6 +676,12 @@ int32_t CGCommentator::OnReceiveMapInfo(void* param, NETMESSAGE msgId, uint32_t 
 
         value = 0;
         msg->Get(value);
+        remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+        if (value > remaining / 23) {
+            value = remaining / 23;
+        }
+
         map->m_instances.SetCount(value);
 
         for (uint32_t j = 0; j < map->m_instances.Count(); j++) {

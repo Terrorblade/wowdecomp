@@ -344,7 +344,10 @@ static int32_t Script_TurnOrActionStart(lua_State* L) {
 
         if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
             input->m_pendingDefaultAction = INPUT_RELEASE_ACTION;
-            CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
+
+            if (CGWorldFrame::s_currentWorldFrame) {
+                CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
+            }
         }
 
         if (input->SetControlBit(INPUT_TURN_PLAYER, time)) {
@@ -385,7 +388,10 @@ static int32_t Script_CameraOrSelectOrMoveStart(lua_State* L) {
 
         if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
             input->m_pendingDefaultAction = INPUT_RELEASE_SELECT;
-            CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
+
+            if (CGWorldFrame::s_currentWorldFrame) {
+                CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
+            }
         }
 
         if (input->SetControlBit(INPUT_TURN_CAMERA, time)) {
@@ -774,7 +780,10 @@ static int32_t Script_MoveAndSteerStart(lua_State* L) {
 
     if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
         input->m_pendingDefaultAction = INPUT_RELEASE_SELECT;
-        CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
+
+        if (CGWorldFrame::s_currentWorldFrame) {
+            CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
+        }
     }
 
     if (input->SetControlBit(INPUT_TURN_CAMERA, time)) {
@@ -787,7 +796,10 @@ static int32_t Script_MoveAndSteerStart(lua_State* L) {
 
     if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
         input->m_pendingDefaultAction = INPUT_RELEASE_ACTION;
-        CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
+
+        if (CGWorldFrame::s_currentWorldFrame) {
+            CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
+        }
     }
 
     if (input->SetControlBit(INPUT_TURN_PLAYER, time)) {

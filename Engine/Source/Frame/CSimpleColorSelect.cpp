@@ -271,7 +271,7 @@ void CSimpleColorSelect::SetColorWheelThumbTexture(CSimpleTexture* texture) {
     }
 
     if (this->m_wheelThumbTexture) {
-        delete this->m_wheelThumbTexture;
+        CSimpleRegion::DeferDelete(this->m_wheelThumbTexture);
     }
 
     if (texture) {
@@ -291,7 +291,7 @@ void CSimpleColorSelect::SetColorValueTexture(CSimpleTexture* texture) {
     }
 
     if (this->m_valueTexture) {
-        delete this->m_valueTexture;
+        CSimpleRegion::DeferDelete(this->m_valueTexture);
     }
 
     if (texture) {
@@ -330,7 +330,7 @@ void CSimpleColorSelect::SetColorValueThumbTexture(CSimpleTexture* texture) {
     }
 
     if (this->m_valueThumbTexture) {
-        delete this->m_valueThumbTexture;
+        CSimpleRegion::DeferDelete(this->m_valueThumbTexture);
     }
 
     if (texture) {
@@ -449,7 +449,7 @@ void CSimpleColorSelect::SetColorWheelTexture(CSimpleTexture* texture) {
     }
 
     if (this->m_wheelTexture) {
-        delete this->m_wheelTexture;
+        CSimpleRegion::DeferDelete(this->m_wheelTexture);
     }
 
     if (texture) {

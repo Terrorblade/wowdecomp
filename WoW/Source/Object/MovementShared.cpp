@@ -2004,13 +2004,20 @@ void CMovementShared::TransformSpline(const C44Matrix& matrix, float facing) {
     *reinterpret_cast<C3Vector*>(this->m_spline->m_face.m_point) *= matrix;
     this->m_spline->m_face.m_angle = CMath::normalizeangle0to2pi_(this->m_spline->m_face.m_angle + facing);
 
-    TSStackArray<C3Vector> points(static_cast<C3Vector*>(alloca(sizeof(C3Vector) * this->m_spline->m_spline.m_pointCount)), this->m_spline->m_spline.m_pointCount, 1);
+    uint32_t count = this->m_spline->m_spline.m_pointCount;
+    bool onHeap = count > 1024;
+    C3Vector* buffer = static_cast<C3Vector*>(onHeap ? SMemAlloc(sizeof(C3Vector) * count, __FILE__, __LINE__, 0) : alloca(sizeof(C3Vector) * count));
+    TSStackArray<C3Vector> points(buffer, count, 1);
 
     for (uint32_t i = 0; i < points.m_count; i++) {
         points.m_data[i] = this->m_spline->m_spline.Point(i) * matrix;
     }
 
     this->m_spline->m_spline.SetPoints(points.m_data, points.m_count);
+
+    if (onHeap) {
+        SMemFree(buffer, __FILE__, __LINE__, 0);
+    }
 }
 
 // VERIFY: 4a68cfb3 manual

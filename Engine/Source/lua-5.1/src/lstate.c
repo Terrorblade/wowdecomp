@@ -97,7 +97,7 @@ static void preinit_state (lua_State *L, global_State *g) {
   resethookcount(L);
   L->openupval = NULL;
   L->size_ci = 0;
-  L->nCcalls = 0;
+  L->nCcalls = L->baseCcalls = 0;
   L->status = 0;
   L->base_ci = L->ci = NULL;
   L->savedpc = NULL;

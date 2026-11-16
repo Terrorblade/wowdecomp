@@ -48,6 +48,11 @@ int32_t Packet_MSG_LIST_STABLED_PETS(void* param, NETMESSAGE msgId, uint32_t tim
     memset(&CGStableInfo::m_pets[0], 0, sizeof(CGStableInfo::m_pets[0]));
 
     for (uint32_t i = 0; i < CGStableInfo::m_numPets; i++) {
+        if (i + 1 >= sizeof(CGStableInfo::m_pets) / sizeof(CGStableInfo::m_pets[0])) {
+            CGStableInfo::m_numPets = i;
+            break;
+        }
+
         StablePetInfo& pet = CGStableInfo::m_pets[i + 1];
         msg->Get(pet.m_petNumber);
         msg->Get(reinterpret_cast<uint32_t&>(pet.m_entry));

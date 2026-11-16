@@ -66,7 +66,7 @@ static int32_t Script_SetCheckedTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = checkbox->GetName();
             luaL_error(L, "%s:SetCheckedTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;
@@ -126,7 +126,7 @@ static int32_t Script_SetDisabledCheckedTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = checkbox->GetName();
             luaL_error(L, "%s:SetDisabledCheckedTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;

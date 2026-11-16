@@ -482,7 +482,14 @@ static int32_t Script_Spawn(lua_State* L) {
     Kind kind = kindText && !strcmp(kindText, "gameobject") ? Kind::GameObject : Kind::Unit;
     lua_pop(L, 1);
 
+    // Every field is read before s_objects is touched, a metamethod on the table can remove slots.
     uint32_t displayId = static_cast<uint32_t>(Number(L, 2, "displayId", 0.0));
+    uint32_t parent = static_cast<uint32_t>(Number(L, 2, "parent", 0.0));
+    uint32_t entry = static_cast<uint32_t>(Number(L, 2, "entry", 0.0));
+    uint32_t vehicleId = static_cast<uint32_t>(Number(L, 2, "vehicleId", 0.0));
+    uint8_t seat = static_cast<uint8_t>(Number(L, 2, "seat", 0.0));
+    float scale = static_cast<float>(Number(L, 2, "scale", 1.0));
+    uint32_t anim = AnimOption(L, 2);
     bool known = kind == Kind::GameObject ? g_gameObjectDisplayInfoDB.GetRecord(displayId) != nullptr : g_creatureDisplayInfoDB.GetRecord(displayId) != nullptr;
 
     if (!displayId || !known) {
@@ -491,11 +498,23 @@ static int32_t Script_Spawn(lua_State* L) {
         return 2;
     }
 
-    uint32_t parent = static_cast<uint32_t>(Number(L, 2, "parent", 0.0));
-
     if (parent == slot || (parent && !s_objects.count(parent))) {
         lua_pushboolean(L, false);
         lua_pushstring(L, "Unknown vehicle slot");
+        return 2;
+    }
+
+    bool loop = false;
+
+    for (uint32_t at = kind == Kind::Unit ? parent : 0, hops = 0; at && hops <= kMaxObjects && !loop; hops++) {
+        auto link = s_objects.find(at);
+        loop = at == slot;
+        at = link == s_objects.end() ? 0 : link->second.parent;
+    }
+
+    if (loop) {
+        lua_pushboolean(L, false);
+        lua_pushstring(L, "Vehicle slots cannot form a loop");
         return 2;
     }
 
@@ -503,12 +522,12 @@ static int32_t Script_Spawn(lua_State* L) {
     Object& object = s_objects[slot];
     object.kind = kind;
     object.displayId = displayId;
-    object.entry = static_cast<uint32_t>(Number(L, 2, "entry", 0.0));
-    object.vehicleId = kind == Kind::Unit ? static_cast<uint32_t>(Number(L, 2, "vehicleId", 0.0)) : 0;
+    object.entry = entry;
+    object.vehicleId = kind == Kind::Unit ? vehicleId : 0;
     object.parent = kind == Kind::Unit ? parent : 0;
-    object.seat = static_cast<uint8_t>(Number(L, 2, "seat", 0.0));
-    object.scale = static_cast<float>(Number(L, 2, "scale", 1.0));
-    object.anim = AnimOption(L, 2);
+    object.seat = seat;
+    object.scale = scale;
+    object.anim = anim;
 
     if (object.scale <= 0.0f) {
         object.scale = 1.0f;

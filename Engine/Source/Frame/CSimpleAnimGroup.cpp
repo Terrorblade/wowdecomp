@@ -962,8 +962,12 @@ void CSimpleAnimGroup::NotifyAnimRemoved(CSimpleAnim* anim) {
         return;
     }
 
-    if (this->RemoveAnimListNode(this->FindAnimList(anim->m_order), anim)) {
-        this->ComputeDuration();
+    // SetParent can change the order first, so search every list for the node.
+    for (uint32_t i = 0; i < this->m_animLists.Count(); i++) {
+        if (this->RemoveAnimListNode(this->m_animLists[i], anim)) {
+            this->ComputeDuration();
+            return;
+        }
     }
 }
 

@@ -932,8 +932,9 @@ static int32_t Script_SetGlyph(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
     CGTalentGroup_C* group = TalentInfoGetTalentGroup(TalentInfoGetScriptGroupIndex(L, 3), 0, 0);
 
-    if (player && group) {
-        uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
+
+    if (player && group && index < 6) {
         tooltip->SetGlyph(player->m_player->m_playerFieldGlyphSlots1[index], group->GetGlyph(index), (player->m_player->m_playerGlyphsEnabled & (1 << index)) != 0, 0, 0);
     }
 
@@ -992,6 +993,11 @@ static int32_t Script_SetAction(lua_State* L) {
         SStrCopy(text, FrameScript_GetText("ATTACK", -1, GENDER_NOT_APPLICABLE), sizeof(text));
         tooltip->AddLine(text, nullptr, textColor, textColor, 0);
         tooltip->Show();
+        lua_pushnil(L);
+        return 1;
+    }
+
+    if (slot >= sizeof(CGActionBar::m_slotActions) / sizeof(CGActionBar::m_slotActions[0])) {
         lua_pushnil(L);
         return 1;
     }
@@ -1193,7 +1199,7 @@ static int32_t Script_SetHyperlinkCompareItem(lua_State* L) {
             lua_rawgeti(L, 5, 0);
             CGTooltip* compare = static_cast<CGTooltip*>(lua_touserdata(L, -1));
 
-            if (compare->IsA(CGTooltip::GetObjectType()) && SetCompareItem(tooltip, linkInfo.m_itemId, offset, shift, compare)) {
+            if (compare && compare->IsA(CGTooltip::GetObjectType()) && SetCompareItem(tooltip, linkInfo.m_itemId, offset, shift, compare)) {
                 lua_pushnumber(L, 1.0);
                 return 1;
             }
@@ -1800,7 +1806,7 @@ static int32_t Script_SetQuestItem(lua_State* L) {
     uint32_t index;
     int32_t itemId;
 
-    if (!lua_isstring(L, 2) || !lua_isnumber(L, 3) || (type = lua_tolstring(L, 2, nullptr), index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1, itemId = CGQuestInfo::GetQuestItemID(type, index), itemId <= 0)) {
+    if (!lua_isstring(L, 2) || !lua_isnumber(L, 3) || (type = lua_tolstring(L, 2, nullptr), index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3))) - 1, index >= 6 || (itemId = CGQuestInfo::GetQuestItemID(type, index), itemId <= 0))) {
         luaL_error(L, "Invalid quest item in SetQuestItem(\"type\", index)");
         return 0;
     }

@@ -1159,7 +1159,7 @@ int32_t CGWorldMap::GetMapAreaFromPos(float x, float y) {
     double gridX = 0.5 - (rangeY * (1.0 - clampedX) + bottomY) * 0.000029296876;
     double gridY = 0.5 - 0.000029296876 * worldX;
 
-    if (gridX < 0.0 || gridX > 1.0 || gridY < 0.0 || gridY > 1.0) {
+    if (!(gridX >= 0.0 && gridX < 1.0 && gridY >= 0.0 && gridY < 1.0)) {
         return 0;
     }
 

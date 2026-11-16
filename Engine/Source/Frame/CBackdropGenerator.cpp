@@ -313,6 +313,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 0, 1) : nullptr;
         this->m_backgroundTexture = texture;
+        texture->m_internal = true;
 
         texture->SetPoint(FRAMEPOINT_TOPLEFT, frame, FRAMEPOINT_TOPLEFT, this->m_insetLeft, -this->m_insetTop, 0);
         texture->SetPoint(FRAMEPOINT_TOPRIGHT, frame, FRAMEPOINT_TOPRIGHT, -this->m_insetRight, -this->m_insetTop, 0);
@@ -326,6 +327,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_leftTexture = texture;
+        texture->m_internal = true;
 
         texture->SetWidth(this->m_edgeSize);
         texture->SetPoint(FRAMEPOINT_TOPLEFT, frame, FRAMEPOINT_TOPLEFT, 0.0f, -this->m_edgeSize, 0);
@@ -339,6 +341,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_rightTexture = texture;
+        texture->m_internal = true;
 
         texture->SetWidth(this->m_edgeSize);
         texture->SetPoint(FRAMEPOINT_TOPRIGHT, frame, FRAMEPOINT_TOPRIGHT, 0.0f, -this->m_edgeSize, 0);
@@ -352,6 +355,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_topTexture = texture;
+        texture->m_internal = true;
 
         texture->SetHeight(this->m_edgeSize);
         texture->SetPoint(FRAMEPOINT_TOPLEFT, frame, FRAMEPOINT_TOPLEFT, this->m_edgeSize, 0.0f, 0);
@@ -365,6 +369,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_bottomTexture = texture;
+        texture->m_internal = true;
 
         texture->SetHeight(this->m_edgeSize);
         texture->SetPoint(FRAMEPOINT_BOTTOMLEFT, frame, FRAMEPOINT_BOTTOMLEFT, this->m_edgeSize, 0.0f, 0);
@@ -378,6 +383,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_topLeftTexture = texture;
+        texture->m_internal = true;
 
         texture->SetWidth(this->m_edgeSize);
         texture->SetHeight(this->m_edgeSize);
@@ -399,6 +405,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_topRightTexture = texture;
+        texture->m_internal = true;
 
         texture->SetWidth(this->m_edgeSize);
         texture->SetHeight(this->m_edgeSize);
@@ -420,6 +427,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_bottomLeftTexture = texture;
+        texture->m_internal = true;
 
         texture->SetWidth(this->m_edgeSize);
         texture->SetHeight(this->m_edgeSize);
@@ -441,6 +449,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
         void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_bottomRightTexture = texture;
+        texture->m_internal = true;
 
         texture->SetWidth(this->m_edgeSize);
         texture->SetHeight(this->m_edgeSize);

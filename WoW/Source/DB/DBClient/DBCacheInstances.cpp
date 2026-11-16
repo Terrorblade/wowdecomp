@@ -162,7 +162,7 @@ static int32_t ReceivePetName(void* param, NETMESSAGE msgId, uint32_t time, CDat
     msg->GetString(petName.m_name, sizeof(petName.m_name));
     msg->Get(petName.m_timestamp);
 
-    uint8_t hasDeclinedNames;
+    uint8_t hasDeclinedNames = 0;
     msg->Get(hasDeclinedNames);
 
     if (hasDeclinedNames) {
@@ -283,9 +283,9 @@ static int32_t ReceiveName(void* param, NETMESSAGE msgId, uint32_t time, CDataSt
             msg->GetString(name.m_name, sizeof(name.m_name));
             msg->GetString(name.m_realmName, sizeof(name.m_realmName));
 
-            uint8_t race;
-            uint8_t sex;
-            uint8_t classID;
+            uint8_t race = 0;
+            uint8_t sex = 0;
+            uint8_t classID = 0;
             msg->Get(race);
             msg->Get(sex);
             msg->Get(classID);
@@ -293,7 +293,7 @@ static int32_t ReceiveName(void* param, NETMESSAGE msgId, uint32_t time, CDataSt
             name.m_sex = sex;
             name.m_class = classID;
 
-            uint8_t hasDeclinedNames;
+            uint8_t hasDeclinedNames = 0;
             msg->Get(hasDeclinedNames);
 
             if (hasDeclinedNames) {

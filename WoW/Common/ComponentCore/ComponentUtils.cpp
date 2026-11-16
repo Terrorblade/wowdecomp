@@ -5,6 +5,7 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/CharSectionsRec.h"
 #include "WoW/Source/DB/Rec/CharacterFacialHairStylesRec.h"
+#include "WoW/Common/ComponentCore/CharacterComponent.h"
 
 // VERIFY: 764bd294 manual
 // OFFSET: 0x004F39A0
@@ -74,9 +75,17 @@ COMPONENT_CONTEXT GetContextFromSelection(COMPONENT_SELECTION selection) {
     }
 }
 
+static bool ComponentIsValidRaceSex(int32_t raceID, int32_t sexID) {
+    return raceID >= 0 && sexID >= 0 && sexID < 2 && static_cast<uint32_t>(raceID * 2 + sexID) < CCharacterComponent::s_chrVarArrayLength;
+}
+
 // VERIFY: 28ddfb49 manual
 // OFFSET: 0x004F3AE0
 int32_t ComponentGetNumVariations(st_race* lookup, int32_t raceID, int32_t sexID, CHARTEXTUREVARIATIONS variation) {
+    if (!ComponentIsValidRaceSex(raceID, sexID)) {
+        return 0;
+    }
+
     CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 
     if (!list.m_variation) {
@@ -89,6 +98,10 @@ int32_t ComponentGetNumVariations(st_race* lookup, int32_t raceID, int32_t sexID
 // VERIFY: 725a4a25 auto
 // OFFSET: 0x004F3B10
 int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, CHARTEXTUREVARIATIONS variation, int32_t variationIndex) {
+    if (!ComponentIsValidRaceSex(raceID, sexID)) {
+        return 0;
+    }
+
     CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 
     if (!list.m_variation || variationIndex >= list.m_numVariations || list.m_numVariations <= 0 || !list.m_variation[variationIndex].m_color) {
@@ -101,6 +114,10 @@ int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, CH
 // VERIFY: 387cd93c manual
 // OFFSET: 0x004F3B50
 bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, CHARTEXTUREVARIATIONS variation, int32_t variationIndex, int32_t colorIndex) {
+    if (!ComponentIsValidRaceSex(raceID, sexID)) {
+        return false;
+    }
+
     if (static_cast<uint32_t>(variation) >= CHARTEXTUREVARIATIONS_NUM || variationIndex < 0) {
         return false;
     }
@@ -119,7 +136,7 @@ bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, CHART
 // VERIFY: 04a6cba3 manual
 // OFFSET: 0x004F3BA0
 CharSectionsRec* ComponentGetSectionsRecord(st_race* lookup, int32_t raceID, int32_t sexID, CHARTEXTUREVARIATIONS variation, int32_t variationIndex, int32_t colorIndex, bool* found) {
-    if (static_cast<uint32_t>(variation) < CHARTEXTUREVARIATIONS_NUM && variationIndex >= 0) {
+    if (ComponentIsValidRaceSex(raceID, sexID) && static_cast<uint32_t>(variation) < CHARTEXTUREVARIATIONS_NUM && variationIndex >= 0) {
         CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 
         if (variationIndex < list.m_numVariations && list.m_numVariations && colorIndex >= 0) {
@@ -145,6 +162,10 @@ CharSectionsRec* ComponentGetSectionsRecord(st_race* lookup, int32_t raceID, int
 // VERIFY: e6e73c05 manual
 // OFFSET: 0x004F3C10
 bool ComponentValidateSkin(st_race* lookup, int32_t raceID, int32_t sexID, int32_t classID, int32_t colorIndex, COMPONENT_CONTEXT context) {
+    if (!ComponentIsValidRaceSex(raceID, sexID)) {
+        return false;
+    }
+
     CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[CHARTEXTUREVAR_SKIN];
 
     if (list.m_numVariations <= 0 || colorIndex < 0) {
@@ -163,6 +184,10 @@ bool ComponentValidateSkin(st_race* lookup, int32_t raceID, int32_t sexID, int32
 // VERIFY: 4e4d2364 manual
 // OFFSET: 0x004F3C70
 bool ComponentValidateHair(st_race* lookup, int32_t raceID, int32_t sexID, int32_t classID, int32_t colorIndex, int32_t variationIndex, COMPONENT_CONTEXT context) {
+    if (!ComponentIsValidRaceSex(raceID, sexID)) {
+        return false;
+    }
+
     if (variationIndex < 0) {
         return false;
     }
@@ -185,6 +210,10 @@ bool ComponentValidateHair(st_race* lookup, int32_t raceID, int32_t sexID, int32
 // VERIFY: e3e5bf4a manual
 // OFFSET: 0x004F3CE0
 bool ComponentValidateFace(st_race* lookup, int32_t raceID, int32_t sexID, int32_t classID, int32_t colorIndex, int32_t variationIndex, COMPONENT_CONTEXT context) {
+    if (!ComponentIsValidRaceSex(raceID, sexID)) {
+        return false;
+    }
+
     if (variationIndex < 0) {
         return false;
     }
@@ -207,6 +236,10 @@ bool ComponentValidateFace(st_race* lookup, int32_t raceID, int32_t sexID, int32
 // VERIFY: 9668fbd0 auto
 // OFFSET: 0x004F3D50
 bool ComponentValidateFacialFeature(st_race* lookup, uint32_t* facialFeatures, int32_t raceID, int32_t sexID, int32_t classID, int32_t colorIndex, int32_t variationIndex, COMPONENT_CONTEXT context) {
+    if (!ComponentIsValidRaceSex(raceID, sexID)) {
+        return false;
+    }
+
     if (variationIndex < 0) {
         return false;
     }

@@ -126,6 +126,7 @@ CSimpleMessageFrameLineNode::CSimpleMessageFrameLineNode() {
     this->m_string = data ? new (data) CSimpleFontString(nullptr, 2, true) : nullptr;
 
     CSimpleFontString* string = this->m_string;
+    string->m_internal = true;
     uint32_t styleFlags = string->m_styleFlags;
     string->m_settableStyleFlags &= ~0x4000u;
 

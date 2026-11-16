@@ -207,7 +207,8 @@ static int32_t Script_CalendarContextGetEventIndex(lua_State* L) {
 // OFFSET: 0x005BCDA0
 static int32_t Script_CalendarDefaultGuildFilter(lua_State* L) {
     if (ClntObjMgrGetActivePlayerObj()) {
-        double level = s_expansionMaxLevels[ClientServices::Connection()->m_accountExpansion];
+        uint32_t expansion = ClientServices::Connection()->m_accountExpansion;
+        double level = s_expansionMaxLevels[expansion < 3 ? expansion : 2];
         lua_pushnumber(L, level);
         lua_pushnumber(L, level);
         lua_pushnumber(L, CGGuildInfo::m_numRanks);

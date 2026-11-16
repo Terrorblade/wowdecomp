@@ -103,6 +103,7 @@ int32_t CSimpleMessageScrollFrame::GetCurrentScroll() {
 // VERIFY: c1dfae24 manual
 // OFFSET: 0x009691F0
 CSimpleFontStringRecord::CSimpleFontStringRecord(CSimpleFrame* frame, uint32_t drawLayer, bool show) : CSimpleFontString(frame, drawLayer, show) {
+    this->m_internal = true;
 }
 
 // INLINED
@@ -288,6 +289,10 @@ CSimpleMessageScrollFrameDisplayNode::~CSimpleMessageScrollFrameDisplayNode() {
 // VERIFY: 3886d5f4 manual
 // OFFSET: 0x009698E0
 void CSimpleMessageScrollFrame::SetMaxLines(int32_t maxLines) {
+    if (maxLines > 100000) {
+        maxLines = 100000;
+    }
+
     this->m_lines.Clear();
     this->m_displayNodes.Clear();
     this->m_maxMessages = maxLines;

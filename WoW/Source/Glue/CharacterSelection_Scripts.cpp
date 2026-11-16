@@ -30,7 +30,7 @@ static int32_t Script_SetCharSelectModelFrame(lua_State* L) {
 
     CSimpleModelFFX* frame = static_cast<CSimpleModelFFX*>(CScriptObject::GetScriptObjectByName(lua_tolstring(L, 1, nullptr), CSimpleModel::GetObjectType()));
 
-    if (frame) {
+    if (frame && frame->GetScriptMetaTable() == CSimpleModelFFX::s_metatable) {
         CCharacterSelection::m_modelFrame = frame;
     }
 
@@ -121,7 +121,7 @@ static int32_t Script_GetCharacterInfo(lua_State* L) {
         lua_pushnil(L);
     }
 
-    lua_pushnumber(L, g_scriptSexIndex[display->m_characterInfo.m_sexID]);
+    lua_pushnumber(L, display->m_characterInfo.m_sexID < 3 ? g_scriptSexIndex[display->m_characterInfo.m_sexID] : g_scriptSexIndex[2]);
     lua_pushboolean(L, display->m_characterInfo.m_flags & 0x2000);
     lua_pushboolean(L, display->m_characterInfo.m_customizeFlags & 0x1);
     lua_pushboolean(L, display->m_characterInfo.m_customizeFlags & 0x100000);

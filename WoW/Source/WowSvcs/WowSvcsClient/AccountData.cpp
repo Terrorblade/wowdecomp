@@ -444,8 +444,13 @@ static int32_t Packet_SMSG_UPDATE_ACCOUNT_DATA(void* param, NETMESSAGE msgId, ui
     WOWGUID guid;
     msg->Get(guid.m_guid);
 
-    uint32_t type;
+    uint32_t type = 0;
     msg->Get(type);
+
+    if (msg->m_read > msg->m_size || type >= sizeof(s_accountData) / sizeof(s_accountData[0])) {
+        msg->m_read = msg->m_size;
+        return 1;
+    }
 
     AccountDataInfo& info = s_accountData[type];
 
@@ -461,14 +466,17 @@ static int32_t Packet_SMSG_UPDATE_ACCOUNT_DATA(void* param, NETMESSAGE msgId, ui
         HOSFILE file = OpenAccountFile(info.m_global, info.m_cacheFile, true);
 
         if (file != OS_INVALID_FILE) {
-            uint32_t size;
+            uint32_t size = 0;
             msg->Get(size);
 
-            if (size) {
-                uint32_t compressedSize = msg->m_size - msg->m_read;
-                void* compressed;
-                msg->GetDataInSitu(compressed, compressedSize);
+            uint32_t compressedSize = msg->m_read > msg->m_size ? 0 : msg->m_size - msg->m_read;
+            void* compressed = nullptr;
 
+            if (size && compressedSize) {
+                msg->GetDataInSitu(compressed, compressedSize);
+            }
+
+            if (size && compressed) {
                 uint8_t* buffer;
                 bool stackBuffer;
 

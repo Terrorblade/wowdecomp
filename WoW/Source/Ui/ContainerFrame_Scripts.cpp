@@ -1110,9 +1110,14 @@ static int32_t Script_ContainerRefundItemPurchase(lua_State* L) {
     }
 
     CGItem_C* item;
+    CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
+
+    if (!player) {
+        return 0;
+    }
 
     if (static_cast<int32_t>(lua_tonumber(L, 3))) {
-        CGBag_C* bag = &ClntObjMgrGetActivePlayerObj()->m_bag;
+        CGBag_C* bag = &player->m_bag;
         uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2) - 1));
 
         if (!bag || slot > 18) {

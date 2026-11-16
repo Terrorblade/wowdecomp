@@ -61,7 +61,7 @@ static int bit_bxor (lua_State *L) {
 // VERIFY: 5453693c auto
 // OFFSET: 0x00850E80
 static int bit_lshift (lua_State *L) {
-  lua_pushnumber(L, (UInteger)((Integer)(long long)luaL_checknumber(L, 1) << (UInteger)(long long)luaL_checknumber(L, 2)));
+  lua_pushnumber(L, (UInteger)((Integer)(long long)luaL_checknumber(L, 1) << ((UInteger)(long long)luaL_checknumber(L, 2) & 31)));
   return 1;
 }
 
@@ -69,7 +69,7 @@ static int bit_lshift (lua_State *L) {
 // VERIFY: 99a627b4 auto
 // OFFSET: 0x00850EE0
 static int bit_rshift (lua_State *L) {
-  lua_pushnumber(L, (Integer)((UInteger)(long long)luaL_checknumber(L, 1) >> (UInteger)(long long)luaL_checknumber(L, 2)));
+  lua_pushnumber(L, (Integer)((UInteger)(long long)luaL_checknumber(L, 1) >> ((UInteger)(long long)luaL_checknumber(L, 2) & 31)));
   return 1;
 }
 
@@ -77,7 +77,7 @@ static int bit_rshift (lua_State *L) {
 // VERIFY: b56ebf4a auto
 // OFFSET: 0x00850F40
 static int bit_arshift (lua_State *L) {
-  lua_pushnumber(L, (Integer)(long long)luaL_checknumber(L, 1) >> (UInteger)(long long)luaL_checknumber(L, 2));
+  lua_pushnumber(L, (Integer)(long long)luaL_checknumber(L, 1) >> ((UInteger)(long long)luaL_checknumber(L, 2) & 31));
   return 1;
 }
 
@@ -85,11 +85,15 @@ static int bit_arshift (lua_State *L) {
 // VERIFY: 8e98a529 auto
 // OFFSET: 0x00850F90
 static int bit_mod (lua_State *L) {
+  Integer a, b;
   if ((Integer)(long long)luaL_checknumber(L, 2) == 0) {
     lua_pushnumber(L, 1 / lua_tonumber(L, 2));
     return 1;
   }
-  lua_pushnumber(L, (Integer)(long long)luaL_checknumber(L, 1) % (Integer)(long long)luaL_checknumber(L, 2));
+  a = (Integer)(long long)luaL_checknumber(L, 1);
+  b = (Integer)(long long)luaL_checknumber(L, 2);
+  /* INT_MIN % -1 traps on x86 */
+  lua_pushnumber(L, b == -1 ? 0 : a % b);
   return 1;
 }
 

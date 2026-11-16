@@ -63,7 +63,7 @@ NameCache& NameCache::Copy(const NameCache& other) {
 // VERIFY: d7e9cfe1 manual
 // OFFSET: 0x007F74A0
 void NameCache::Unpack(CDataStore* msg) {
-    uint8_t hasDeclinedNames;
+    uint8_t hasDeclinedNames = 0;
     msg->Get(this->m_guid.m_guid);
     msg->GetString(this->m_name, sizeof(this->m_name));
     msg->Get(hasDeclinedNames);

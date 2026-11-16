@@ -16,6 +16,10 @@
 // VERIFY: f74e5b75 auto
 // OFFSET: 0x004DE430
 static int32_t Script_RequestRealmList(lua_State* L) {
+    if (!ClientServices::LoginConnection()) {
+        return 0;
+    }
+
     CGlueMgr::GetRealmList(StringToBOOL(L, 1, 0));
     return 0;
 }
@@ -292,7 +296,7 @@ static int32_t Script_IsInvalidTournamentRealmCategory(lua_State* L) {
         return 0;
     }
 
-    if (ClientServices::LoginConnection()->IsProPassAccount() || ClientServices::LoginConnection()->IsGMAccount()) {
+    if (ClientServices::LoginConnection() && (ClientServices::LoginConnection()->IsProPassAccount() || ClientServices::LoginConnection()->IsGMAccount())) {
         return 0;
     }
 
@@ -348,7 +352,7 @@ static int32_t Script_IsInvalidLocale(lua_State* L) {
         return 0;
     }
 
-    if (ClientServices::LoginConnection()->IsGMAccount()) {
+    if (ClientServices::LoginConnection() && ClientServices::LoginConnection()->IsGMAccount()) {
         return 0;
     }
 

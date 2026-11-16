@@ -19,7 +19,13 @@ static int32_t Script_CameraZoomIn(lua_State* L) {
         distance *= 0.2f;
     }
 
-    CGWorldFrame::GetActiveCamera()->ZoomIn(static_cast<float>(distance), time, 0.0f);
+    CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
+
+    camera->ZoomIn(static_cast<float>(distance), time, 0.0f);
     return 0;
 }
 
@@ -33,7 +39,13 @@ static int32_t Script_CameraZoomOut(lua_State* L) {
         distance *= 0.2f;
     }
 
-    CGWorldFrame::GetActiveCamera()->ZoomOut(static_cast<float>(distance), time, 0.0f);
+    CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
+
+    camera->ZoomOut(static_cast<float>(distance), time, 0.0f);
     return 0;
 }
 
@@ -47,7 +59,13 @@ static int32_t MoveViewStart(lua_State* L, CGCameraMotion motion) {
         speed = static_cast<float>(lua_tonumber(L, 1));
     }
 
-    CGWorldFrame::GetActiveCamera()->StartMotion(motion, time, 0, speed);
+    CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
+
+    camera->StartMotion(motion, time, 0, speed);
     return 0;
 }
 
@@ -62,6 +80,10 @@ static int32_t Script_MoveViewInStart(lua_State* L) {
 static int32_t Script_MoveViewInStop(lua_State* L) {
     uint32_t time = CSimpleTop::s_eventTime;
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
 
     if (camera->m_motionFlags & 0x1) {
         camera->m_motionStopTime[CAMERA_MOVE_IN] = time;
@@ -83,6 +105,10 @@ static int32_t Script_MoveViewOutStop(lua_State* L) {
     uint32_t time = CSimpleTop::s_eventTime;
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
 
+    if (!camera) {
+        return 0;
+    }
+
     if (camera->m_motionFlags & 0x4) {
         camera->m_motionStopTime[CAMERA_MOVE_OUT] = time;
         camera->m_motionFlags |= 0x8;
@@ -102,6 +128,10 @@ static int32_t Script_MoveViewLeftStart(lua_State* L) {
 static int32_t Script_MoveViewLeftStop(lua_State* L) {
     uint32_t time = CSimpleTop::s_eventTime;
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
 
     if (camera->m_motionFlags & 0x40) {
         camera->m_motionStopTime[CAMERA_MOVE_LEFT] = time;
@@ -123,6 +153,10 @@ static int32_t Script_MoveViewRightStop(lua_State* L) {
     uint32_t time = CSimpleTop::s_eventTime;
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
 
+    if (!camera) {
+        return 0;
+    }
+
     if (camera->m_motionFlags & 0x10) {
         camera->m_motionStopTime[CAMERA_MOVE_RIGHT] = time;
         camera->m_motionFlags |= 0x20;
@@ -142,6 +176,10 @@ static int32_t Script_MoveViewUpStart(lua_State* L) {
 static int32_t Script_MoveViewUpStop(lua_State* L) {
     uint32_t time = CSimpleTop::s_eventTime;
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
 
     if (camera->m_motionFlags & 0x100) {
         camera->m_motionStopTime[CAMERA_MOVE_UP] = time;
@@ -163,6 +201,10 @@ static int32_t Script_MoveViewDownStop(lua_State* L) {
     uint32_t time = CSimpleTop::s_eventTime;
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
 
+    if (!camera) {
+        return 0;
+    }
+
     if (camera->m_motionFlags & 0x400) {
         camera->m_motionStopTime[CAMERA_MOVE_DOWN] = time;
         camera->m_motionFlags |= 0x800;
@@ -181,7 +223,7 @@ static int32_t Script_SetView(lua_State* L) {
 
     int32_t view = static_cast<int32_t>(lua_tonumber(L, 1));
 
-    if (static_cast<uint32_t>(view - 1) <= 4) {
+    if (static_cast<uint32_t>(view - 1) <= 4 && CGWorldFrame::GetActiveCamera()) {
         CGWorldFrame::GetActiveCamera()->SetView(view, s_cvCameraViewBlendStyle->m_intValue, 0);
     }
 
@@ -198,7 +240,7 @@ static int32_t Script_SaveView(lua_State* L) {
 
     int32_t view = static_cast<int32_t>(lua_tonumber(L, 1));
 
-    if (static_cast<uint32_t>(view - 1) <= 4 && view) {
+    if (static_cast<uint32_t>(view - 1) <= 4 && view && CGWorldFrame::GetActiveCamera()) {
         CGWorldFrame::GetActiveCamera()->CreateViewFromCamera(view);
     }
 
@@ -215,7 +257,7 @@ static int32_t Script_ResetView(lua_State* L) {
 
     int32_t view = static_cast<int32_t>(lua_tonumber(L, 1));
 
-    if (static_cast<uint32_t>(view - 1) <= 4) {
+    if (static_cast<uint32_t>(view - 1) <= 4 && CGWorldFrame::GetActiveCamera()) {
         CGWorldFrame::GetActiveCamera()->ResetView(view);
     }
 
@@ -226,6 +268,10 @@ static int32_t Script_ResetView(lua_State* L) {
 // OFFSET: 0x00604CE0
 static int32_t Script_NextView(lua_State* L) {
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
     int32_t view = camera->m_viewIndex;
 
     if (view < 5) {
@@ -239,6 +285,10 @@ static int32_t Script_NextView(lua_State* L) {
 // OFFSET: 0x00604D10
 static int32_t Script_PrevView(lua_State* L) {
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
     int32_t view = camera->m_viewIndex;
 
     if (view > 1) {
@@ -258,6 +308,10 @@ static int32_t Script_FlipCameraYaw(lua_State* L) {
 
     float degrees = static_cast<float>(lua_tonumber(L, 1));
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
+
+    if (!camera) {
+        return 0;
+    }
     camera->m_yawOffset = degrees * 0.017453292f + camera->m_yawOffset;
     return 0;
 }

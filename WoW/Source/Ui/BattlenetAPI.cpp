@@ -431,7 +431,7 @@ GeneralFunction::Arg BattlenetAPI::GetSetting(const char* name) {
 // VERIFY: f2e9a292 manual
 // OFFSET: 0x00533C40
 bool BattlenetAPI::IsRIDEnabled() {
-    return g_tumorManager->CallFunction("BattlenetAPI_IsRIDEnabled", 0, nullptr).ToBool();
+    return g_tumorManager && g_tumorManager->CallFunction("BattlenetAPI_IsRIDEnabled", 0, nullptr).ToBool();
 }
 
 // VERIFY: 2090a458 manual

@@ -180,9 +180,14 @@ void CMapArea::LoadTerrainTexture(CMapAreaTexture* areaTexture, int32_t textureI
         }
     } else {
         char fileName[256];
-        SStrCopy(fileName, areaTexture->m_textureName, STORM_MAX_STR);
+        SStrCopy(fileName, areaTexture->m_textureName, sizeof(fileName) - 8);
         char* ext = SStrChrR(fileName, '.');
-        SStrCopy(ext, "_s.blp", STORM_MAX_STR);
+
+        if (!ext) {
+            ext = fileName + SStrLen(fileName);
+        }
+
+        SStrCopy(ext, "_s.blp", sizeof(fileName) - (ext - fileName));
         areaTexture->m_texture = CMap::LoadTexture(fileName);
     }
 }

@@ -310,7 +310,7 @@ void SetHdPatch(bool enabled) {
 }
 
 void SetMaxDownloadMBps(double mbps) {
-    if (mbps < 0.0) {
+    if (!(mbps >= 0.0) || mbps > 1.0e6) {
         mbps = 0.0;
     }
 

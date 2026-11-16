@@ -357,7 +357,7 @@ static int32_t Script_GetQuestItemLink(lua_State* L) {
     }
 
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 2));
-    int32_t itemId = CGQuestInfo::GetQuestItemID(lua_tostring(L, 1), index - 1);
+    int32_t itemId = index >= 1 && index <= 6 ? CGQuestInfo::GetQuestItemID(lua_tostring(L, 1), index - 1) : 0;
     ItemStats_C* stats;
     WOWGUID none = { 0 };
 
@@ -461,7 +461,12 @@ static int32_t Script_SelectAvailableQuest(lua_State* L) {
         return 0;
     }
 
-    CGQuestInfo::QueryQuest(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+
+    if (index < CGQuestInfo::m_numQuests) {
+        CGQuestInfo::QueryQuest(index);
+    }
+
     return 0;
 }
 
@@ -473,7 +478,12 @@ static int32_t Script_SelectActiveQuest(lua_State* L) {
         return 0;
     }
 
-    CGQuestInfo::CompleteQuest(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
+    uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
+
+    if (index < CGQuestInfo::m_numInProgress) {
+        CGQuestInfo::CompleteQuest(index);
+    }
+
     return 0;
 }
 
@@ -630,7 +640,7 @@ static int32_t Script_GetQuestItemInfo(lua_State* L) {
     int32_t quality;
     int32_t usable;
 
-    if (!lua_isstring(L, 1) || !lua_isnumber(L, 2) || !CGQuestInfo::QuestItemInfo(lua_tostring(L, 1), static_cast<int32_t>(lua_tonumber(L, 2)) - 1, name, sizeof(name), texture, sizeof(texture), &count, &quality, &usable)) {
+    if (!lua_isstring(L, 1) || !lua_isnumber(L, 2) || static_cast<uint32_t>(static_cast<int32_t>(lua_tonumber(L, 2)) - 1) >= 6 || !CGQuestInfo::QuestItemInfo(lua_tostring(L, 1), static_cast<int32_t>(lua_tonumber(L, 2)) - 1, name, sizeof(name), texture, sizeof(texture), &count, &quality, &usable)) {
         luaL_error(L, "Invalid quest item in GetQuestItemInfo(\"type\", index)");
         return 0;
     }

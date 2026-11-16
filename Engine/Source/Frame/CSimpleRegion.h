@@ -30,6 +30,11 @@ class CSimpleRegion : public CScriptRegion {
     /* 00CD */ uint8_t m_animSavedAlpha;
     /* 00CE */ uint8_t unused_00CE[2];
     /* 00D0 */ uint32_t unused_00D0;
+    bool m_internal;
+    bool m_deletePending;
+
+    static void DeferDelete(CSimpleRegion* region);
+    static void FlushDeferredDeletes();
 
     virtual ~CSimpleRegion();
     virtual void SetParent(CSimpleFrame* parent);

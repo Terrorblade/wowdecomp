@@ -85,8 +85,13 @@ void NetClient::WCMessageReady(WowConnection* connection, uint32_t timeStamp, CD
     InterlockedExchangeAdd(reinterpret_cast<volatile LONG*>(&this->m_bytesReceived), msg->m_size);
     msg->m_read = 0;
 
-    uint16_t msgId;
+    uint16_t msgId = 0;
     msg->Get(msgId);
+
+    if (msg->m_read > msg->m_size) {
+        msg->m_read = msg->m_size;
+        return;
+    }
 
     switch (msgId) {
         case SMSG_CONNECT_TO:
@@ -275,8 +280,14 @@ void NetClient::ResetHandler(NETMESSAGE msgId) {
 int32_t NetClient::ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_t unused_a4) {
     s_stats[4]++;
 
-    uint16_t msgId;
+    uint16_t msgId = 0;
     msg->Get(msgId);
+
+    if (msg->m_read > msg->m_size) {
+        msg->Reset();
+        return 0;
+    }
+
     this->ValidateMessageId(msgId);
     HoT::OnNetMessage(msgId, msg);
 
@@ -506,14 +517,20 @@ void NetClient::WCDisconnected(WowConnection* connection, uint32_t timeStamp, co
 void NetClient::HandleAuthChallenge(WowConnection* connection, CDataStore* msg) {
     AuthenticationChallenge* challenge = static_cast<AuthenticationChallenge*>(SMemAlloc(sizeof(AuthenticationChallenge), __FILE__, __LINE__, 0));
 
-    uint32_t difficulty;
+    uint32_t difficulty = 0;
     msg->Get(difficulty);
     msg->Get(challenge->m_serverSeed);
 
-    uint32_t seeds[8];
+    uint32_t seeds[8] = {};
 
     for (int32_t i = 0; i < 8; i++) {
         msg->Get(seeds[i]);
+    }
+
+    if (msg->m_read > msg->m_size) {
+        connection->Disconnect();
+        SMemFree(challenge, "delete", SLOG_FUNCTION, 0);
+        return;
     }
 
     SHA1_CONTEXT context;

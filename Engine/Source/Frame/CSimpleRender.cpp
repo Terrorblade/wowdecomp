@@ -5,6 +5,7 @@
 #include <malloc.h>
 #include <cctype>
 #include <cstring>
+#include <vector>
 #include "Engine/Source/Base/ConvertUTF.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Base/Coordinate.h"
@@ -679,8 +680,14 @@ void CSimpleRender::DrawBatch(CRenderBatch* batch) {
         GxRsSet(GxRs_DepthTest, 0);
         GxRsSet(GxRs_DepthWrite, 0);
 
-        uint32_t* vertCounts = static_cast<uint32_t*>(alloca(sizeof(uint32_t) * meshCount));
-        uint32_t* idxCounts = static_cast<uint32_t*>(alloca(sizeof(uint32_t) * meshCount));
+        static std::vector<uint32_t> s_batchCounts;
+
+        if (s_batchCounts.size() < 2 * meshCount) {
+            s_batchCounts.resize(2 * meshCount);
+        }
+
+        uint32_t* vertCounts = s_batchCounts.data();
+        uint32_t* idxCounts = vertCounts + meshCount;
         CSimpleRender::CalcBatchCounts(batch, vertCounts, idxCounts);
 
         CGxBuf* vertexBuf = nullptr;
@@ -2421,7 +2428,7 @@ void CSimpleEmbeddedTexture::InitEmbeddedTexture(CSimpleFontString* string, cons
         }
 
         char path[256];
-        SStrCopy(path, info->m_path, info->m_pathLength + 1);
+        SStrCopy(path, info->m_path, info->m_pathLength < sizeof(path) ? info->m_pathLength + 1 : sizeof(path));
 
         if (this->m_texture->SetTexture(path, 0, 0, CSimpleTexture::s_textureFilterMode, ImageMode_Normal)) {
             float top = 0.0f;

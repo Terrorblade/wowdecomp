@@ -647,7 +647,7 @@ static int32_t Script_GetAbandonQuestItems(lua_State* L) {
             lua_pushstring(L, ", ");
         }
 
-        lua_pushstring(L, stats->m_name[0]);
+        lua_pushstring(L, stats ? stats->m_name[0] : "");
     }
 
     if (total > 1) {
@@ -1473,7 +1473,7 @@ static int32_t Script_GetQuestLogTitle(lua_State* L) {
             }
         }
 
-        if (!failed && index < CGQuestLog::m_numQuest && !CGQuestLog::m_quests[index].m_isHeader && CGQuestLog::m_quests[index].m_expired) {
+        if (!failed && index >= 0 && index < CGQuestLog::m_numQuest && !CGQuestLog::m_quests[index].m_isHeader && CGQuestLog::m_quests[index].m_expired) {
             failed = true;
         }
 

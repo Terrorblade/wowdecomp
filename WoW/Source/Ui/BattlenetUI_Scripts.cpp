@@ -127,7 +127,7 @@ static int32_t Script_BNGetNumFriendToons(lua_State* L) {
 
     double index;
 
-    if (!BattlenetUI::m_friendListLoaded || (index = lua_tonumber(L, 1), index - 1 >= BattlenetUI::m_friends.m_count)) {
+    if (!BattlenetUI::m_friendListLoaded || (index = lua_tonumber(L, 1), !(index >= 1) || index - 1 >= BattlenetUI::m_friends.m_count)) {
         lua_pushnumber(L, 0.0);
         return 1;
     }
@@ -229,6 +229,10 @@ static int32_t Script_BNGetFriendInviteInfo(lua_State* L) {
 
     if (!lua_isnumber(L, 1)) {
         luaL_error(L, "Usage: BNGetFriendInviteInfo(index)");
+    }
+
+    if (!BattlenetUI::m_friendInvites) {
+        return 0;
     }
 
     double number = lua_tonumber(L, 1);
@@ -644,7 +648,7 @@ static int32_t Script_BNLeaveConversation(lua_State* L) {
 
     double channel = lua_tonumber(L, 1) - 1.0;
 
-    if (channel >= 6) {
+    if (!(channel >= 0) || channel >= 6) {
         luaL_error(L, "Invalid Channel");
     }
 
@@ -1086,6 +1090,10 @@ static int32_t Script_BNGetNumFOF(lua_State* L) {
         luaL_error(L, "Usage: BNGetNumFOF(ID,mutual,non)");
     }
 
+    if (!BattlenetUI::s_friendsOfFriend) {
+        return 0;
+    }
+
     double presenceId = lua_tonumber(L, 1);
     Battlenet::Friends::FriendsOfFriendList& list = BattlenetUI::s_friendsOfFriend->m_data;
 
@@ -1125,6 +1133,10 @@ static int32_t Script_BNGetFOFInfo(lua_State* L) {
 
     if (!lua_isnumber(L, 1) || !lua_isnumber(L, 4)) {
         luaL_error(L, "Usage: BNGetFOFInfo(ID, mutual, non, index)");
+    }
+
+    if (!BattlenetUI::s_friendsOfFriend) {
+        return 0;
     }
 
     uint32_t presenceId = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
@@ -1215,8 +1227,8 @@ static int32_t Script_BNSetSelectedFriend(lua_State* L) {
 
     double index = lua_tonumber(L, 1);
 
-    if (index - 1 >= BattlenetUI::m_friends.m_count) {
-        luaL_error(L, "Friend index %d too large, only %d friends.", index, BattlenetUI::m_friends.m_count);
+    if (!(index >= 1) || index - 1 >= BattlenetUI::m_friends.m_count) {
+        luaL_error(L, "Friend index %d too large, only %d friends.", static_cast<int32_t>(index), BattlenetUI::m_friends.m_count);
     }
 
     uint32_t presenceId = BattlenetUI::m_friends[static_cast<uint32_t>(static_cast<int64_t>(index - 1))].m_presenceID;
@@ -1361,8 +1373,8 @@ static int32_t Script_BNGetFriendInfo(lua_State* L) {
 
     double index = lua_tonumber(L, 1);
 
-    if (index - 1 >= BattlenetUI::m_friends.m_count) {
-        luaL_error(L, "Friend index %d too large, only %d friends.", index, BattlenetUI::m_friends.m_count);
+    if (!(index >= 1) || index - 1 >= BattlenetUI::m_friends.m_count) {
+        luaL_error(L, "Friend index %d too large, only %d friends.", static_cast<int32_t>(index), BattlenetUI::m_friends.m_count);
     }
 
     return BattlenetUI::BNGetFriendInfoHelper(L, static_cast<uint32_t>(static_cast<int64_t>(index - 1)));

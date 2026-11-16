@@ -654,7 +654,8 @@ const char* GetModel(uint32_t index) {
 }
 
 bool SetClipboardModel(const char* fileName) {
-    if (!fileName || !*fileName) {
+    // CMapObj::Read and ReadGroup copy the name into 260 and 256 byte buffers.
+    if (!fileName || !*fileName || strlen(fileName) >= 240) {
         return false;
     }
 
@@ -688,6 +689,10 @@ bool SetClipboardModel(const char* fileName) {
                 SMOHeader header;
                 memcpy(&header, bytes + offset + 8, sizeof(header));
                 bounds = header.m_boundingBox;
+                break;
+            }
+
+            if (chunkSize > size - offset - 8) {
                 break;
             }
 

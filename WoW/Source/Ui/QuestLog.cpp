@@ -1817,15 +1817,19 @@ void CGQuestLog::HandlePOIQueryResponse(CDataStore* msg) {
         return;
     }
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
     for (int32_t i = 0; i < static_cast<int32_t>(count); i++) {
-        int32_t questId;
+        int32_t questId = 0;
         msg->Get(reinterpret_cast<uint32_t&>(questId));
 
-        uint32_t numBlobs;
+        uint32_t numBlobs = 0;
         msg->Get(numBlobs);
+
+        if (msg->m_read > msg->m_size || numBlobs > (msg->m_size - msg->m_read) / (8 * sizeof(uint32_t))) {
+            break;
+        }
 
         bool known = CGQuestLog::HasQuestPOI(questId);
         uint32_t slot = CGQuestLog::FindOrFreePOISlot(questId);
@@ -1847,13 +1851,24 @@ void CGQuestLog::HandlePOIQueryResponse(CDataStore* msg) {
 
         for (int32_t j = 0; j < static_cast<int32_t>(numBlobs); j++) {
             int32_t values[7];
-            uint32_t numPoints;
+            uint32_t numPoints = 0;
 
             for (uint32_t k = 0; k < 7; k++) {
                 msg->Get(reinterpret_cast<uint32_t&>(values[k]));
             }
 
             msg->Get(numPoints);
+
+            if (msg->m_read > msg->m_size || numPoints > (msg->m_size - msg->m_read) / (2 * sizeof(uint32_t))) {
+                if (poi) {
+                    poi->m_questId = 0;
+                    poi->m_blobs.Clear();
+                }
+
+                Script_SendUniqueSignal(SCRIPT_EVENT_QUEST_POI_UPDATE);
+                return;
+            }
+
             QuestPOIBlob* blob = poi ? &poi->m_blobs.m_data[j] : nullptr;
 
             if (blob) {
@@ -2018,7 +2033,7 @@ int32_t CGQuestLog::GetQuestPOILeaderBoardByID(int32_t questId, QuestLogLeaderBo
         return CGQuestLog::GetQuestLeaderBoardForItem(questId, quest->m_collectItemId[index - 4], params);
     }
 
-    if (index >= 0 && index < 16) {
+    if (index >= 0 && index < 14) {
         return CGQuestLog::GetQuestLeaderBoardForItem(questId, quest->m_intermediateItemId[index - 10], params);
     }
 

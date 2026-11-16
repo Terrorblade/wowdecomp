@@ -509,6 +509,12 @@ int32_t Packet_SMSG_BATTLEFIELD_STATUS(void* param, NETMESSAGE msgId, uint32_t t
             }
         }
 
+        constexpr uint32_t maxWorldStateStats = sizeof(CGBattlefieldInfo::m_worldStateStats) / sizeof(CGBattlefieldInfo::m_worldStateStats[0]);
+
+        if (CGBattlefieldInfo::m_numWorldStateStats > maxWorldStateStats) {
+            CGBattlefieldInfo::m_numWorldStateStats = maxWorldStateStats;
+        }
+
         for (uint32_t i = 0; i < CGBattlefieldInfo::m_numWorldStateStats; i++) {
             CGBattlefieldInfo::m_worldStateStats[i] = g_worldStateUIDB.GetRecordByIndex(first + i)->m_id;
         }
@@ -647,16 +653,37 @@ int32_t Packet_SMSG_GROUP_JOINED_BATTLEGROUND(void* param, NETMESSAGE msgId, uin
 // VERIFY: ded4dbc4 auto
 // OFFSET: 0x0054B3F0
 int32_t Packet_MSG_BATTLEGROUND_PLAYER_POSITIONS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    msg->Get(CGBattlefieldInfo::m_numPlayerPositions);
+    constexpr uint32_t maxPositions = sizeof(CGBattlefieldInfo::m_playerPositions) / sizeof(CGBattlefieldInfo::m_playerPositions[0]);
+    constexpr uint32_t maxFlags = sizeof(CGBattlefieldInfo::m_flagPositions) / sizeof(CGBattlefieldInfo::m_flagPositions[0]);
 
-    for (uint32_t i = 0; i < CGBattlefieldInfo::m_numPlayerPositions; i++) {
-        msg->Get(CGBattlefieldInfo::m_playerPositionGuids[i].m_guid);
-        msg->Get(CGBattlefieldInfo::m_playerPositions[i].x);
-        msg->Get(CGBattlefieldInfo::m_playerPositions[i].y);
+    uint32_t numPositions = 0;
+    msg->Get(numPositions);
+    CGBattlefieldInfo::m_numPlayerPositions = 0;
+
+    for (uint32_t i = 0; i < numPositions && msg->m_read < msg->m_size; i++) {
+        WOWGUID guid;
+        C2Vector position;
+        msg->Get(guid.m_guid);
+        msg->Get(position.x);
+        msg->Get(position.y);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
+        if (i < maxPositions) {
+            CGBattlefieldInfo::m_playerPositionGuids[i] = guid;
+            CGBattlefieldInfo::m_playerPositions[i] = position;
+            CGBattlefieldInfo::m_numPlayerPositions = i + 1;
+        }
     }
 
-    int32_t numFlags;
+    int32_t numFlags = 0;
     msg->Get(reinterpret_cast<uint32_t&>(numFlags));
+
+    if (numFlags > static_cast<int32_t>(maxFlags)) {
+        numFlags = maxFlags;
+    }
 
     if (numFlags > 0) {
         if (numFlags < 2) {
@@ -1365,22 +1392,22 @@ int32_t QSortScoreData(const void* a, const void* b) {
     if (CGBattlefieldInfo::m_logFilterFaction != -1) {
         int32_t leftFaction;
         ChrRacesRec* leftRace = g_chrRacesDB.GetRecord(leftName->m_race);
-        FactionTemplateRec* leftTemplate = g_factionTemplateDB.GetRecord(leftRace->m_factionID);
+        FactionTemplateRec* leftTemplate = leftRace ? g_factionTemplateDB.GetRecord(leftRace->m_factionID) : nullptr;
 
-        if (leftTemplate->m_factionGroup & 0x4) {
+        if (!leftTemplate || leftTemplate->m_factionGroup & 0x4) {
             leftFaction = 0;
         } else {
-            leftFaction = (g_factionTemplateDB.GetRecord(g_chrRacesDB.GetRecord(leftName->m_race)->m_factionID)->m_factionGroup & 0x2) ? 1 : -1;
+            leftFaction = (leftTemplate->m_factionGroup & 0x2) ? 1 : -1;
         }
 
         int32_t rightFaction;
         ChrRacesRec* rightRace = g_chrRacesDB.GetRecord(rightName->m_race);
-        FactionTemplateRec* rightTemplate = g_factionTemplateDB.GetRecord(rightRace->m_factionID);
+        FactionTemplateRec* rightTemplate = rightRace ? g_factionTemplateDB.GetRecord(rightRace->m_factionID) : nullptr;
 
-        if (rightTemplate->m_factionGroup & 0x4) {
+        if (!rightTemplate || rightTemplate->m_factionGroup & 0x4) {
             rightFaction = 0;
         } else {
-            rightFaction = (g_factionTemplateDB.GetRecord(g_chrRacesDB.GetRecord(rightName->m_race)->m_factionID)->m_factionGroup & 0x2) ? 1 : -1;
+            rightFaction = (rightTemplate->m_factionGroup & 0x2) ? 1 : -1;
         }
 
         if (leftFaction != rightFaction) {
@@ -1495,12 +1522,11 @@ void BattlefieldNameCacheCallback() {
         if (CGBattlefieldInfo::m_instanceType != 4) {
             int32_t faction = 0;
 
-            if (name) {
-                FactionTemplateRec* factionTemplate = g_factionTemplateDB.GetRecord(g_chrRacesDB.GetRecord(name->m_race)->m_factionID);
+            ChrRacesRec* race = name ? g_chrRacesDB.GetRecord(name->m_race) : nullptr;
+            FactionTemplateRec* factionTemplate = race ? g_factionTemplateDB.GetRecord(race->m_factionID) : nullptr;
 
-                if (!(factionTemplate->m_factionGroup & 0x4)) {
-                    faction = (g_factionTemplateDB.GetRecord(g_chrRacesDB.GetRecord(name->m_race)->m_factionID)->m_factionGroup & 0x2) ? 1 : -1;
-                }
+            if (factionTemplate && !(factionTemplate->m_factionGroup & 0x4)) {
+                faction = (factionTemplate->m_factionGroup & 0x2) ? 1 : -1;
             }
 
             CGBattlefieldInfo::m_scores[i]->m_faction = faction;
@@ -1610,6 +1636,10 @@ const char* CGBattlefieldInfo::GetFlagToken(uint32_t index) {
         return s_flagTokens[faction == 0];
     }
 
+    if (faction >= 2) {
+        return nullptr;
+    }
+
     return s_flagTokens[faction];
 }
 
@@ -1648,7 +1678,16 @@ int32_t Packet_MSG_PVP_LOG_DATA(void* param, NETMESSAGE msgId, uint32_t time, CD
     }
 
     CGBattlefieldInfo::m_nameCachePending = 0;
-    msg->Get(CGBattlefieldInfo::m_numScoreEntries);
+    uint32_t numScoreEntries = 0;
+    msg->Get(numScoreEntries);
+
+    constexpr uint32_t maxScoreEntries = sizeof(CGBattlefieldInfo::m_scores) / sizeof(CGBattlefieldInfo::m_scores[0]);
+
+    if (numScoreEntries > maxScoreEntries) {
+        numScoreEntries = maxScoreEntries;
+    }
+
+    CGBattlefieldInfo::m_numScoreEntries = numScoreEntries;
 
     for (uint32_t i = 0; i < CGBattlefieldInfo::m_numScoreEntries; i++) {
         BattlefieldScore* score = CGBattlefieldInfo::m_scores[i];
@@ -1673,13 +1712,18 @@ int32_t Packet_MSG_PVP_LOG_DATA(void* param, NETMESSAGE msgId, uint32_t time, CD
         uint32_t count;
         msg->Get(count);
 
-        for (uint32_t j = 0; j < count; j++) {
+        for (uint32_t j = 0; j < count && msg->m_read <= msg->m_size; j++) {
             uint32_t value;
             msg->Get(value);
 
             if (j < 8) {
                 score->m_stats[j] = value;
             }
+        }
+
+        if (msg->m_read > msg->m_size) {
+            CGBattlefieldInfo::m_numScoreEntries = i;
+            break;
         }
 
         if (!g_nameDBCache.GetRecord(score->m_guid.m_guid, score->m_guid, &ReleaseBattlefieldNameCacheRef, nullptr, false)) {
@@ -1859,8 +1903,14 @@ int32_t Packet_SMSG_BATTLEFIELD_LIST(void* param, NETMESSAGE msgId, uint32_t tim
         CGBattlefieldInfo::m_randomLossHonor = 0;
     }
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
+    uint32_t remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    if (count > remaining / 4) {
+        count = remaining / 4;
+    }
+
     CGBattlefieldInfo::m_instances.SetCount(count);
 
     for (int32_t i = 0; i < static_cast<int32_t>(count); i++) {

@@ -146,7 +146,7 @@ void CSimpleCheckbox::SetCheckedTexture(CSimpleTexture* texture) {
     }
 
     if (this->m_checkedTexture) {
-        delete this->m_checkedTexture;
+        CSimpleRegion::DeferDelete(this->m_checkedTexture);
     }
 
     if (texture) {
@@ -165,7 +165,7 @@ void CSimpleCheckbox::SetDisabledCheckedTexture(CSimpleTexture* texture) {
     }
 
     if (this->m_disabledCheckedTexture) {
-        delete this->m_disabledCheckedTexture;
+        CSimpleRegion::DeferDelete(this->m_disabledCheckedTexture);
     }
 
     if (texture) {

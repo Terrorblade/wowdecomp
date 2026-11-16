@@ -34,10 +34,10 @@ static TSGrowableArray<UniqueSignal> s_uniqueSignals;
 static char s_nameWithRealm[305];
 
 // STATIC: 0x00C25BA0
-static char s_tokenBuffers[8][32];
+static char s_tokenBuffers[10][32];
 
 // STATIC: 0x00AD2780
-static char* s_tokenIDs[8] = { s_tokenBuffers[0], s_tokenBuffers[1], s_tokenBuffers[2], s_tokenBuffers[3], s_tokenBuffers[4], s_tokenBuffers[5], s_tokenBuffers[6], s_tokenBuffers[7] };
+static char* s_tokenIDs[10] = { s_tokenBuffers[0], s_tokenBuffers[1], s_tokenBuffers[2], s_tokenBuffers[3], s_tokenBuffers[4], s_tokenBuffers[5], s_tokenBuffers[6], s_tokenBuffers[7], s_tokenBuffers[8], s_tokenBuffers[9] };
 
 // VERIFY: bb8249cc auto
 // OFFSET: 0x00608880

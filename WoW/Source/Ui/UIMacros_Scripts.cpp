@@ -49,11 +49,15 @@ static int32_t Script_GetNumMacros(lua_State* L) {
 // VERIFY: c78f099b auto
 // OFFSET: 0x00564C10
 static int32_t Script_GetRunningMacro(lua_State* L) {
-    uint32_t id;
+    if (CGUIMacros::m_macroButton) {
+        for (uint32_t i = 0; i < 72; i++) {
+            uint32_t id = CGUIMacros::m_sortedMacros[i];
 
-    if (CGUIMacros::m_macroButton && (id = CGUIMacros::m_macroButton->m_id)) {
-        lua_pushnumber(L, CGUIMacros::GetMacroIndexByID(id) + 1);
-        return 1;
+            if (id && CGUIMacros::GetMacroByID(id) == CGUIMacros::m_macroButton) {
+                lua_pushnumber(L, i + 1);
+                return 1;
+            }
+        }
     }
 
     lua_pushnil(L);
@@ -103,10 +107,12 @@ static int32_t Script_SetMacroSpell(lua_State* L) {
         macro->m_target = target;
         macro->m_itemID = 0;
         macro->m_spellID = spellId;
-        CGActionBar::UpdateMacro(macro->m_id);
+        uint32_t id = macro->m_id;
+        CGActionBar::UpdateMacro(id);
+        macro = CGUIMacros::GetMacroByID(id);
     }
 
-    if (macro->m_dynamic) {
+    if (macro && macro->m_dynamic) {
         macro->m_dynamic = 0;
         CGUIMacros::RemoveDynamicMacro(macro);
     }
@@ -223,6 +229,7 @@ static int32_t Script_RunMacroText(lua_State* L) {
     }
 
     MACRONODE macro;
+    macro.m_id = 0;
     SStrCopy(macro.m_body, lua_tolstring(L, 1, nullptr), sizeof(macro.m_body));
     CGUIMacros::RunMacro(&macro, lua_tolstring(L, 2, nullptr));
     return 0;
@@ -403,10 +410,12 @@ static int32_t Script_SetMacroItem(lua_State* L) {
         macro->m_target = target;
         macro->m_itemID = itemId;
         macro->m_spellID = (itemId != 0) - 1;
-        CGActionBar::UpdateMacro(macro->m_id);
+        uint32_t id = macro->m_id;
+        CGActionBar::UpdateMacro(id);
+        macro = CGUIMacros::GetMacroByID(id);
     }
 
-    if (macro->m_dynamic) {
+    if (macro && macro->m_dynamic) {
         macro->m_dynamic = 0;
         CGUIMacros::RemoveDynamicMacro(macro);
     }

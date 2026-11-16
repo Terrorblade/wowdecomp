@@ -244,7 +244,7 @@ void QuestCache::Unpack(CDataStore* msg) {
     msg->GetString(this->m_objText, sizeof(this->m_objText));
     msg->GetString(this->m_description, sizeof(this->m_description));
     msg->GetString(this->m_endText, sizeof(this->m_endText));
-    msg->GetString(this->m_completionText, 0x7FFFFFFF);
+    msg->GetString(this->m_completionText, sizeof(this->m_completionText));
 
     for (uint32_t i = 0; i < 4; i++) {
         msg->Get(this->m_objectiveId[i]);
@@ -259,7 +259,7 @@ void QuestCache::Unpack(CDataStore* msg) {
     }
 
     for (uint32_t i = 0; i < 4; i++) {
-        msg->GetString(this->m_objectiveText[i], 0x7FFFFFFF);
+        msg->GetString(this->m_objectiveText[i], sizeof(this->m_objectiveText[i]));
     }
 }
 

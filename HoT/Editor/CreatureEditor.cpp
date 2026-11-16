@@ -206,7 +206,7 @@ static void ReadFields(Net::Packet& packet, std::vector<Field>& fields) {
     char buffer[512];
     uint16_t count = packet.GetUInt16();
     fields.clear();
-    fields.reserve(count);
+    fields.reserve(count < packet.Remaining() ? count : packet.Remaining());
 
     for (uint16_t i = 0; i < count && packet.CanRead(1); i++) {
         Field field;
@@ -520,7 +520,7 @@ static int32_t Script_GetTemplateMode(lua_State* L) {
 static int32_t Script_GetData(lua_State* L) {
     const char* which = lua_type(L, 1) == LUA_TSTRING ? lua_tostring(L, 1) : nullptr;
     bool useTemplate = which ? std::strcmp(which, "template") == 0 : s_templateEntry != 0;
-    const Snapshot& data = useTemplate ? s_template : s_data;
+    const Snapshot data = useTemplate ? s_template : s_data;
 
     if (!data.m_valid || (useTemplate && s_templateEntry && data.m_entry != s_templateEntry)) {
         lua_pushnil(L);

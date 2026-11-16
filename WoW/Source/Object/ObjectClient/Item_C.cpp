@@ -438,6 +438,10 @@ uint32_t CGItem_C::GetExpirationTimeLeft() const {
 // VERIFY: dc762275 auto
 // OFFSET: 0x007070E0
 void CGItem_C::UpdateEnchantmentTime(int32_t slot, int32_t seconds) {
+    if (static_cast<uint32_t>(slot) >= sizeof(this->m_enchantmentExpiration) / sizeof(this->m_enchantmentExpiration[0])) {
+        return;
+    }
+
     if (seconds > 0) {
         this->m_enchantmentExpiration[slot] = FrameTime::s_curTimeMs + 1000 * seconds;
     } else {
@@ -448,6 +452,10 @@ void CGItem_C::UpdateEnchantmentTime(int32_t slot, int32_t seconds) {
 // VERIFY: 3cedd503 auto
 // OFFSET: 0x00707120
 uint32_t CGItem_C::GetEnchantmentTimeLeft(int32_t slot) const {
+    if (static_cast<uint32_t>(slot) >= sizeof(this->m_enchantmentExpiration) / sizeof(this->m_enchantmentExpiration[0])) {
+        return 0;
+    }
+
     uint32_t expiration = this->m_enchantmentExpiration[slot];
 
     if (expiration && static_cast<int32_t>(FrameTime::s_curTimeMs - expiration) < 0) {

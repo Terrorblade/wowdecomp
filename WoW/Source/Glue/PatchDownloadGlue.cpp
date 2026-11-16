@@ -193,6 +193,10 @@ void CGlueMgr::PatchDownloadStart() {
 // VERIFY: a565d49b auto
 // OFFSET: 0x004E53A0
 void CGlueMgr::PatchDownloadCancel() {
+    if (!CGlueMgr::m_patchDownload) {
+        return;
+    }
+
     CGlueMgr::m_patchDownload->StopDownload();
 
     if (CGlueMgr::m_patchDownload) {

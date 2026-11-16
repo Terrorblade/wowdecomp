@@ -69,7 +69,13 @@ const char lua_ident[] =
 
 #define api_checkvalidindex(L, i)	api_check(L, (i) != luaO_nilobject)
 
-#define api_incr_top(L)   {api_check(L, L->top < L->ci->top); L->top++;}
+/* C functions that push more than LUA_MINSTACK values without lua_checkstack must not run off the stack */
+static void api_growtop (lua_State *L) {
+  luaD_checkstack(L, LUA_MINSTACK);
+  L->ci->top = L->top + LUA_MINSTACK;
+}
+
+#define api_incr_top(L)   {L->top++; if (L->top >= L->ci->top) api_growtop(L);}
 
 
 
@@ -84,6 +90,7 @@ static TValue *index2adr (lua_State *L, int idx) {
   }
   else if (idx > LUA_REGISTRYINDEX) {
     api_check(L, idx != 0 && -idx <= L->top - L->base);
+    if (idx == 0 || -idx > L->top - L->base) return cast(TValue *, luaO_nilobject);
     return L->top + idx;
   }
   else switch (idx) {  /* pseudo-indices */
@@ -150,6 +157,10 @@ LUA_API void lua_xmove (lua_State *from, lua_State *to, int n) {
   api_checknelems(from, n);
   api_check(from, G(from) == G(to));
   api_check(from, to->ci->top - to->top >= n);
+  if (to->ci->top - to->top < n) {
+    luaD_checkstack(to, n);
+    to->ci->top = to->top + n;
+  }
   from->top -= n;
   for (i = 0; i < n; i++) {
     setobj2s(to, to->top++, from->top + i);
@@ -456,7 +467,9 @@ LUA_API lua_CFunction lua_tocfunction (lua_State *L, int idx) {
 LUA_API void *lua_touserdata (lua_State *L, int idx) {
   StkId o = index2adr(L, idx);
   switch (ttype(o)) {
-    case LUA_TUSERDATA: return (rawuvalue(o) + 1);
+    /* Script object pointers are light userdata. Full userdata only comes from newproxy, and scripts could put
+       one where C expects an object and get a virtual call through its bytes. */
+    case LUA_TUSERDATA: return NULL;
     case LUA_TLIGHTUSERDATA: return pvalue(o);
     default: return NULL;
   }
@@ -1246,6 +1259,11 @@ LUA_API void lua_convertdecimal (char *s) {
 // OFFSET: 0x0084F0D0
 LUA_API void lua_settaint (lua_State *L, int idx, const char *taint) {
   index2adr(L, idx)->taint = taint;
+}
+
+
+LUA_API const char *lua_gettaint (lua_State *L, int idx) {
+  return index2adr(L, idx)->taint;
 }
 
 

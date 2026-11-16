@@ -503,7 +503,8 @@ static int32_t Script_SetMaxLetters(lua_State* L) {
         return 0;
     }
 
-    editBox->m_textMaxLetters = static_cast<int32_t>(lua_tonumber(L, 2));
+    int32_t maxLetters = static_cast<int32_t>(lua_tonumber(L, 2));
+    editBox->m_textMaxLetters = maxLetters < 0 ? 0 : maxLetters;
     return 0;
 }
 

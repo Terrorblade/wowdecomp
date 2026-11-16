@@ -1719,12 +1719,14 @@ static int32_t Script_SetBackdrop(lua_State* L) {
 
     lua_pushstring(L, "bgFile");
     lua_gettable(L, -2);
-    const char* bgFile = lua_tolstring(L, -1, nullptr);
+    backdrop->m_bgFile.Copy(lua_tolstring(L, -1, nullptr));
     lua_settop(L, -2);
 
     lua_pushstring(L, "edgeFile");
     lua_gettable(L, -2);
     const char* edgeFile = lua_tolstring(L, -1, nullptr);
+    backdrop->m_pieces = edgeFile && *edgeFile ? 0xFF : 0;
+    backdrop->m_edgeFile.Copy(edgeFile);
     lua_settop(L, -2);
 
     lua_pushstring(L, "tile");
@@ -1732,11 +1734,7 @@ static int32_t Script_SetBackdrop(lua_State* L) {
     int32_t tile = StringToBOOL(L, -1, 0);
     lua_settop(L, -2);
 
-    uint32_t pieces = edgeFile && *edgeFile ? 0xFF : 0;
-    backdrop->m_bgFile.Copy(bgFile);
-    backdrop->m_pieces = pieces;
     backdrop->m_tile = tile;
-    backdrop->m_edgeFile.Copy(edgeFile);
     backdrop->m_alphaMode = GxBlend_Alpha;
 
     lua_pushstring(L, "tileSize");

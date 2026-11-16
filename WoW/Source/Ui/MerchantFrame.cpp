@@ -108,6 +108,12 @@ void CGMerchantInfo::SetMerchant(WOWGUID merchant, const MerchantItem* items, in
         }
     }
 
+    if (count < 0) {
+        count = 0;
+    } else if (static_cast<uint32_t>(count) > sizeof(CGMerchantInfo::m_items) / sizeof(CGMerchantInfo::m_items[0])) {
+        count = sizeof(CGMerchantInfo::m_items) / sizeof(CGMerchantInfo::m_items[0]);
+    }
+
     CGTutorial::TriggerTutorial(0x13);
     CGGameUI::SetInteractTarget(merchant);
     CGMerchantInfo::m_merchant = merchant;

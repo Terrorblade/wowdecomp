@@ -917,14 +917,14 @@ static void ReadTalentGroups(CDataStore* msg, uint32_t* activeGroup, int32_t* un
         *unspent = static_cast<int32_t>(points) < 0 ? 0 : points;
     }
 
-    uint8_t num;
+    uint8_t num = 0;
     msg->Get(num);
 
     if (numGroups) {
-        *numGroups = num;
+        *numGroups = num < count ? num : count;
     }
 
-    uint8_t active;
+    uint8_t active = 0;
     msg->Get(active);
 
     if (activeGroup) {

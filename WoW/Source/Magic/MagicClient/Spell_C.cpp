@@ -1164,6 +1164,10 @@ int32_t Packet_Group_30(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
 // VERIFY: 2ad579bf manual
 // OFFSET: 0x00722C50
 void CGUnit_C::SetPredictedPower(POWER_TYPE powerType, int32_t value) {
+    if (powerType != POWER_TYPE_HEALTH && static_cast<uint32_t>(powerType) >= NUM_POWER_TYPES) {
+        return;
+    }
+
     uint32_t maximum = powerType == POWER_TYPE_HEALTH ? this->m_unit->m_unitFieldMaxhealth : this->m_unit->m_unitFieldMaxpower[powerType];
 
     if (static_cast<int32_t>(maximum) < value) {
@@ -1718,6 +1722,11 @@ int32_t Packet_SMSG_SPELL_COOLDOWN(void* param, NETMESSAGE msgId, uint32_t time,
         msg->Get(spellId);
         uint32_t cooldown;
         msg->Get(cooldown);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         SpellRec spell;
 
         if (!g_spellDB.GetRecord(spellId, &spell)) {
@@ -1989,15 +1998,27 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         msg->Get(pointCount);
     }
 
-    TSStackArray<SpellCastTargetPoint> points(static_cast<SpellCastTargetPoint*>(alloca(sizeof(SpellCastTargetPoint) * pointCount)), pointCount, 1);
+    // Points live on the stack, so past the cap they are read and dropped.
+    static const uint32_t MAX_SPELL_GO_TARGET_POINTS = 256;
+    uint32_t pointCapacity = pointCount < MAX_SPELL_GO_TARGET_POINTS ? pointCount : MAX_SPELL_GO_TARGET_POINTS;
+    TSStackArray<SpellCastTargetPoint> points(static_cast<SpellCastTargetPoint*>(alloca(sizeof(SpellCastTargetPoint) * pointCapacity)), pointCapacity, 1);
 
     if (this->m_data.m_targetFlags & 0x80000) {
         uint32_t valid = 0;
 
         for (uint32_t i = 0; i < pointCount; i++) {
-            SpellCastTargetPoint& point = points.m_data[valid];
+            SpellCastTargetPoint skipped;
+            SpellCastTargetPoint& point = valid < pointCapacity ? points.m_data[valid] : skipped;
             msg->GetArray(reinterpret_cast<uint32_t*>(&point.m_position), 3);
             msg->Get(point.m_transport.m_guid);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
+
+            if (valid >= pointCapacity) {
+                continue;
+            }
 
             if (point.m_transport.m_guid) {
                 C44Matrix matrix;
@@ -2319,7 +2340,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         }
     }
 
-    if (caster == ClntObjMgrGetActivePlayer()) {
+    if (caster == ClntObjMgrGetActivePlayer() && unit && (unit->m_obj->m_type & TYPE_PLAYER)) {
         CGPlayer_C* player = static_cast<CGPlayer_C*>(unit);
 
         if (castItem == ClntObjMgrGetActivePlayer() && !(castFlags & 0x41)) {
@@ -2366,7 +2387,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
                 for (uint32_t j = 0; j < 8 && action < 0; j++) {
                     switch (lock->m_type[j]) {
                         case 1:
-                            if ((castObject->m_obj->m_type & TYPE_ITEM) && castObject->m_obj->m_entryID == lock->m_index[j]) {
+                            if (castObject && (castObject->m_obj->m_type & TYPE_ITEM) && castObject->m_obj->m_entryID == lock->m_index[j]) {
                                 action = lock->m_action[j];
                             }
 
@@ -2546,7 +2567,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
 // VERIFY: 2af0e265 manual
 // OFFSET: 0x007FDE00
 uint32_t Spell_C_GetPowerDisplayMod(POWER_TYPE powerType) {
-    if (static_cast<int32_t>(powerType) < 0) {
+    if (static_cast<uint32_t>(powerType) >= NUM_POWER_TYPES) {
         return 1;
     }
 
@@ -4946,10 +4967,21 @@ int32_t Packet_SMSG_SPELL_UPDATE_CHAIN_TARGETS(void* param, NETMESSAGE msgId, ui
     msg->Get(reinterpret_cast<uint32_t&>(spellId));
     uint32_t count = 0;
     msg->Get(count);
-    TSStackArray<WOWGUID> targets(static_cast<WOWGUID*>(alloca(sizeof(WOWGUID) * count)), count, 1);
 
-    for (uint32_t i = 0; i < count; i++) {
-        msg->Get(targets.m_data[i].m_guid);
+    // Capped since targets live on the stack, with a spare zeroed slot for the m_data[0] read in UpdateChainTargets.
+    static const uint32_t MAX_CHAIN_TARGETS = 256;
+    uint32_t capacity = count < MAX_CHAIN_TARGETS ? count : MAX_CHAIN_TARGETS;
+    WOWGUID* storage = static_cast<WOWGUID*>(alloca(sizeof(WOWGUID) * (capacity + 1)));
+    storage[0] = WOWGUID();
+    TSStackArray<WOWGUID> targets(storage, capacity, 1);
+
+    for (uint32_t i = 0; i < count && msg->m_read <= msg->m_size; i++) {
+        WOWGUID target = WOWGUID();
+        msg->Get(target.m_guid);
+
+        if (i < capacity) {
+            targets.m_data[i] = target;
+        }
     }
 
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
@@ -7504,6 +7536,10 @@ int32_t Packet_SMSG_NOTIFY_DEST_LOC_SPELL_CAST(void* param, NETMESSAGE msgId, ui
     data.m_destLocation = C3Vector();
     data.m_destPosition = C3Vector();
     msg->GetData(&data, sizeof(data));
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (data.m_caster) {
         CHashKeyGUID key;

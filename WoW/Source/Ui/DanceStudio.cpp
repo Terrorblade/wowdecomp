@@ -23,19 +23,20 @@ static TSHashTable<KNOWNDANCES, HASHKEY_STR> s_knownDances;
 // VERIFY: 5e35e0a7 manual
 // OFFSET: 0x00576730
 int32_t Packet_SMSG_NOTIFY_DANCE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t flags;
+    uint32_t flags = 0;
     msg->Get(flags);
 
     uint32_t error = 0;
     uint32_t danceId = 0;
     uint32_t unk = 0;
     char name[128];
+    name[0] = '\0';
 
     if (flags & 8) {
         msg->Get(error);
     } else {
         msg->Get(danceId);
-        msg->GetString(name, 0x7FFFFFFF);
+        msg->GetString(name, sizeof(name));
         msg->Get(unk);
     }
 

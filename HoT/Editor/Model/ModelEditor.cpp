@@ -50,6 +50,7 @@ using Model::ValueType;
 static constexpr int8_t kRequiredSecurityLevel = 3;
 static constexpr size_t kPreviewsKept = 4;
 static constexpr uint32_t kMaxSkinProfiles = 8;
+static constexpr size_t kMaxListEntries = 0x40000;
 
 struct Entry {
     int32_t m_id = 0;
@@ -59,7 +60,8 @@ struct Entry {
     std::string m_previewPath;
 };
 
-static std::map<int32_t, std::unique_ptr<Entry>> s_docs;
+// Shared so a doc closed from a metamethod or event handler stays alive until the call using it returns.
+static std::map<int32_t, std::shared_ptr<Entry>> s_docs;
 static int32_t s_nextDoc = 1;
 static uint32_t s_nextPreview = 1;
 
@@ -282,6 +284,13 @@ static bool ReadValueList(lua_State* L, int32_t table, const char* key, ValueTyp
     int32_t list = lua_gettop(L);
     size_t count = lua_objlen(L, list);
     uint32_t components = Model::ValueComponents(type);
+
+    if (count > kMaxListEntries) {
+        lua_pop(L, 1);
+        error = std::string(key) + " has too many entries";
+        return false;
+    }
+
     out.resize(count * components);
 
     for (size_t i = 0; i < count; i++) {
@@ -438,7 +447,7 @@ static bool HasAccess() {
     return Session::HasClearance(kRequiredSecurityLevel);
 }
 
-static Entry* DocArg(lua_State* L, int32_t index) {
+static std::shared_ptr<Entry> DocArg(lua_State* L, int32_t index) {
     uint32_t id;
 
     if (!IndexArg(L, index, id)) {
@@ -446,10 +455,10 @@ static Entry* DocArg(lua_State* L, int32_t index) {
     }
 
     auto it = s_docs.find(static_cast<int32_t>(id));
-    return it == s_docs.end() ? nullptr : it->second.get();
+    return it == s_docs.end() ? nullptr : it->second;
 }
 
-static void Changed(Entry* entry) {
+static void Changed(const std::shared_ptr<Entry>& entry) {
     entry->m_doc.MarkChanged();
     Lua::SignalEvent("MODEL_EDITOR_CHANGED", "%d", entry->m_id);
 }
@@ -526,7 +535,7 @@ static int32_t Script_Open(lua_State* L) {
         }
     }
 
-    std::unique_ptr<Entry> entry(new Entry());
+    std::shared_ptr<Entry> entry = std::make_shared<Entry>();
 
     if (!entry->m_doc.Load(path, error)) {
         return PushNilError(L, error);
@@ -551,10 +560,10 @@ static void DropPreviews(Entry* entry) {
 
 // ModelEditor_Close(doc).
 static int32_t Script_Close(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
 
     if (entry) {
-        DropPreviews(entry);
+        DropPreviews(entry.get());
         s_docs.erase(entry->m_id);
     }
 
@@ -635,7 +644,7 @@ static bool SequenceAvailable(const ModelDoc& doc, uint32_t index) {
 }
 
 static int32_t Script_GetInfo(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
 
     if (!entry) {
         return PushNilError(L, "unknown document");
@@ -937,7 +946,7 @@ static bool ApplyTexturePath(ModelDoc& doc, uint32_t index, const std::string& p
 
 // ModelEditor_SetTexture(doc, index, { type, flags, path }) -> ok, err.
 static int32_t Script_SetTexture(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     uint32_t index;
     std::string error;
 
@@ -983,7 +992,7 @@ static int32_t Script_SetTexture(lua_State* L) {
 
 // ModelEditor_AddTexture(doc, { type, flags, path }) -> index or nil, err.
 static int32_t Script_AddTexture(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     std::string error;
 
     if (!entry) {
@@ -1025,7 +1034,7 @@ static int32_t Script_AddTexture(lua_State* L) {
 
 // ModelEditor_SetTextureCombo(doc, comboIndex, textureIndex) -> ok, err.
 static int32_t Script_SetTextureCombo(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     uint32_t combo;
     uint32_t texture;
     std::string error;
@@ -1066,7 +1075,7 @@ static int32_t Script_SetTextureCombo(lua_State* L) {
 
 // ModelEditor_SetMaterial(doc, index, flags, blendMode) -> ok, err.
 static int32_t Script_SetMaterial(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     uint32_t index;
     int64_t flags;
     int64_t blend;
@@ -1417,7 +1426,7 @@ static bool PushField(lua_State* L, const ModelDoc& doc, uint32_t pos, const Fie
 }
 
 static int32_t GetRecord(lua_State* L, const RecordKind& kind) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     uint32_t index;
     std::string error;
 
@@ -2086,7 +2095,7 @@ static bool SetRecordFields(lua_State* L, int32_t table, ModelDoc& doc, const Re
 }
 
 static int32_t SetRecord(lua_State* L, const RecordKind& kind) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     uint32_t index;
     std::string error;
 
@@ -2225,7 +2234,7 @@ static bool WriteRibbonDefaults(ModelDoc& doc, uint32_t index, std::string& erro
 }
 
 static int32_t AddRecord(lua_State* L, const RecordKind& kind) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     std::string error;
 
     if (!entry) {
@@ -2299,7 +2308,7 @@ static int32_t AddRecord(lua_State* L, const RecordKind& kind) {
 }
 
 static int32_t RemoveRecord(lua_State* L, const RecordKind& kind) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     uint32_t index;
     std::string error;
 
@@ -2443,7 +2452,7 @@ static int32_t Script_SetAttachment(lua_State* L) {
     }
 
     int32_t results = SetRecord(L, s_attachments);
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     std::string error;
 
     if (entry && lua_toboolean(L, -1) && !RebuildAttachmentLookup(entry->m_doc, error)) {
@@ -2456,7 +2465,7 @@ static int32_t Script_SetAttachment(lua_State* L) {
 
 // ModelEditor_AddAttachment(doc [, copyIndex] [, id]) -> new index, a copy keeps everything but takes a free id.
 static int32_t Script_AddAttachment(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     std::string error;
 
     if (!entry) {
@@ -2522,7 +2531,7 @@ static int32_t Script_AddAttachment(lua_State* L) {
 }
 
 static int32_t Script_RemoveAttachment(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     uint32_t index;
     std::string error;
 
@@ -2643,7 +2652,7 @@ static int32_t Script_ClearPreviewView(lua_State* L) {
 }
 
 static int32_t Script_GetPreviewPath(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
 
     if (!entry) {
         return PushNilError(L, "unknown document");
@@ -2745,7 +2754,7 @@ static std::string OptionString(lua_State* L, int32_t table, const char* key) {
 
 // ModelEditor_Save(doc, destPath or nil, { overwrite, copyTextures, textureFolder }) -> ok, message.
 static int32_t Script_Save(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
     std::string error;
 
     if (!entry) {
@@ -3042,6 +3051,32 @@ static uint32_t ReloadTexture(const std::string& gamePath) {
     return forgotten;
 }
 
+static bool IsUnderFolder(const std::wstring& path, const std::wstring& folder) {
+    std::error_code error;
+    std::filesystem::path full = std::filesystem::weakly_canonical(std::filesystem::path(path), error);
+
+    if (error) {
+        return false;
+    }
+
+    std::filesystem::path root = std::filesystem::weakly_canonical(std::filesystem::path(folder), error);
+
+    if (error) {
+        return false;
+    }
+
+    std::filesystem::path relative = full.lexically_relative(root);
+    return !relative.empty() && *relative.begin() != std::filesystem::path(".") && *relative.begin() != std::filesystem::path("..");
+}
+
+static bool IsImportSource(const std::string& sourceName, const std::wstring& source) {
+    if (sourceName.size() < 2 || sourceName.rfind("\\\\", 0) == 0 || sourceName.rfind("//", 0) == 0 || sourceName.find(':', 2) != std::string::npos) {
+        return false;
+    }
+
+    return IsUnderFolder(source, ImportDirectory()) || IsUnderFolder(source, ExportDirectory());
+}
+
 // ModelEditor_ImportTexture(sourceName, destPath) -> ok, message, dest or false, err.
 static int32_t Script_ImportTexture(lua_State* L) {
     if (lua_type(L, 1) != LUA_TSTRING || lua_type(L, 2) != LUA_TSTRING) {
@@ -3055,6 +3090,10 @@ static int32_t Script_ImportTexture(lua_State* L) {
 
     if (Platform::IsAbsoluteHostPath(sourceName)) {
         source = Files::Widen(sourceName);
+
+        if (!IsImportSource(sourceName, source)) {
+            return PushFalseError(L, "source must be inside the Import or Export folder");
+        }
     } else if (sourceName.find_first_of("\\/") != std::string::npos || sourceName.find("..") != std::string::npos || sourceName.empty()) {
         return PushFalseError(L, "source must be a file name from the Import folder or an absolute path");
     } else {
@@ -3159,7 +3198,7 @@ static bool ReadSideFile(const std::string& path, uint32_t fileDataId, std::vect
 
 // ModelEditor_Export(doc, { textures = { extra paths }, png = true }) -> ok, message, folder, the edited model with its side files and textures go under Export by game path.
 static int32_t Script_Export(lua_State* L) {
-    Entry* entry = DocArg(L, 1);
+    std::shared_ptr<Entry> entry = DocArg(L, 1);
 
     if (!entry) {
         return PushFalseError(L, "unknown document");
@@ -3260,7 +3299,7 @@ static int32_t Script_Export(lua_State* L) {
             path += ".blp";
         }
 
-        if (HasExport(files, path)) {
+        if (!Files::IsWritableGamePath(path, error) || HasExport(files, path)) {
             continue;
         }
 
@@ -3293,6 +3332,12 @@ static int32_t Script_Export(lua_State* L) {
     }
 
     for (const ExportFile& file : files) {
+        std::string pathError;
+
+        if (!Files::IsWritableGamePath(file.path, pathError)) {
+            return PushFalseError(L, pathError);
+        }
+
         if (!Files::WriteDisk(Files::DiskPath("Export\\" + file.path), file.data.data(), file.data.size())) {
             return PushFalseError(L, "could not write Export\\" + file.path);
         }

@@ -48,7 +48,7 @@ static int32_t SetStateTexture(lua_State* L, CSimpleButtonState state, const cha
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = button->GetName();
             luaL_error(L, "%s:%s(): Wrong object type, expected texture", name ? name : "<unnamed>", method);
             return 0;
@@ -302,7 +302,7 @@ static int32_t Script_SetFontString(lua_State* L) {
             return 0;
         }
 
-        if (!fontString->IsA(CSimpleFontString::GetObjectType())) {
+        if (!fontString->IsA(CSimpleFontString::GetObjectType()) || fontString->m_internal) {
             const char* name = button->GetName();
             luaL_error(L, "%s:SetFontString(): Wrong object type, expected fontstring", name ? name : "<unnamed>");
             return 0;
@@ -426,7 +426,7 @@ static int32_t Script_SetHighlightTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = button->GetName();
             luaL_error(L, "%s:SetHighlightTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;

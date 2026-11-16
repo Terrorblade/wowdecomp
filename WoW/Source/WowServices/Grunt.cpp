@@ -630,6 +630,10 @@ int32_t Grunt::ClientLink::CmdAuthLogonChallenge(CDataStore& msg) {
             if ((securityFlags & 0x2) && !matrixChallengeCount) {
                 return 1;
             }
+
+            if (matrixChallengeCount > matrixWidth * matrixHeight) {
+                return 1;
+            }
         }
 
         uint8_t tokenRequired = 0;
@@ -1224,7 +1228,7 @@ int32_t Grunt::ServerLink::CmdGruntSunkenUpdate(CDataStore& msg) {
     msg.Get(accountId);
     uint32_t sunkenId;
     msg.Get(sunkenId);
-    uint8_t online;
+    uint8_t online = 0;
     msg.Get(online);
 
     this->m_response->SunkenUpdate(accountId, sunkenId, online != 0);
@@ -1585,11 +1589,11 @@ int32_t Grunt::ServerLink::CmdGruntProveSession(CDataStore& msg) {
             }
         }
 
+        msg.Get(info.m_wowLicenseCount);
+
         if (info.m_wowLicenseCount >= 256) {
             return 1;
         }
-
-        msg.Get(info.m_wowLicenseCount);
 
         for (uint32_t i = 0; i < info.m_wowLicenseCount; i++) {
             Grunt::ServerLicense& license = info.m_wowLicenses[i];

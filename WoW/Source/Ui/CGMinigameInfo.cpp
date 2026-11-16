@@ -56,6 +56,11 @@ int32_t Packet_SMSG_MINIGAME_SETUP(void* param, NETMESSAGE msgId, uint32_t time,
     }
 
     CGMinigameInfo::m_minigame = CMinigame_C::CreateMinigame(static_cast<MINIGAME_TYPE>(type), guid);
+
+    if (!CGMinigameInfo::m_minigame) {
+        return 1;
+    }
+
     CGMinigameInfo::m_minigame->UpdateSetup(msg);
     FrameScript_SignalEvent(SCRIPT_EVENT_START_MINIGAME, nullptr);
     FrameScript_SignalEvent(SCRIPT_EVENT_MINIGAME_UPDATE, nullptr);

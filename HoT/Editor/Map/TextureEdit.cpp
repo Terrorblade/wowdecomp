@@ -50,7 +50,8 @@ void ListArchives(int32_t (*callback)(const char* fileName, void* param), void* 
 }
 
 void SetTexture(const char* name) {
-    s_texture = name ? name : "";
+    // CMapArea::LoadTerrainTexture copies the name into a 256 byte buffer and needs an extension.
+    s_texture = name && strlen(name) < 240 && strrchr(name, '.') ? name : "";
 }
 
 const char* GetTexture() {

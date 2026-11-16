@@ -1753,7 +1753,7 @@ static int32_t Script_SetCVar(lua_State* L) {
         return 0;
     }
 
-    if ((var->m_flags & 0x4) || (var->m_flags & 0x100)) {
+    if ((var->m_flags & 0x4) || (var->m_flags & 0x100) || CVar::IsLoginTarget(name, SStrLen(name))) {
         luaL_error(L, "\"%s\" is read-only", name);
         return 0;
     }
@@ -2668,7 +2668,7 @@ static int32_t Script_GetItemInfo(lua_State* L) {
     }
 
     lua_pushnumber(L, stats->m_stackable);
-    lua_pushstring(L, s_inventoryTypeTokens[stats->m_inventoryType]);
+    lua_pushstring(L, stats->m_inventoryType < sizeof(s_inventoryTypeTokens) / sizeof(s_inventoryTypeTokens[0]) ? s_inventoryTypeTokens[stats->m_inventoryType] : "");
     const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     const char* separator = *path ? "\\" : "";
     char texture[260];
@@ -2972,7 +2972,7 @@ static int32_t Script_IsTitleKnown(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     uint32_t mask = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
 
-    if (player && mask && (player->m_player->m_playerFieldKnownTitles[mask >> 6] & (1ull << (mask & 63)))) {
+    if (player && mask && (mask >> 6) < sizeof(player->m_player->m_playerFieldKnownTitles) / sizeof(player->m_player->m_playerFieldKnownTitles[0]) && (player->m_player->m_playerFieldKnownTitles[mask >> 6] & (1ull << (mask & 63)))) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnumber(L, 0.0);
@@ -3181,7 +3181,7 @@ static int32_t Script_SetConsoleKey(lua_State* L) {
         return 0;
     }
 
-    if (toupper(*name) == 'F' && isdigit(name[1])) {
+    if (toupper(static_cast<uint8_t>(*name)) == 'F' && isdigit(static_cast<uint8_t>(name[1]))) {
         SetConsoleKey(static_cast<KEY>(SStrToInt(name + 1) + KEY_F1 - 1));
         return 0;
     }
@@ -3193,7 +3193,7 @@ static int32_t Script_SetConsoleKey(lua_State* L) {
             rest++;
         }
 
-        if (isdigit(*rest)) {
+        if (isdigit(static_cast<uint8_t>(*rest))) {
             SetConsoleKey(static_cast<KEY>(*rest + KEY_NUMPAD0 - '0'));
             return 0;
         }
@@ -3325,6 +3325,12 @@ static int32_t RegisterCVar(lua_State* L, uint32_t flags) {
 
     if (!value) {
         value = "0";
+    }
+
+    CVar* existing = CVar::Lookup(name);
+
+    if (existing && ((existing->m_flags & 0x80000000) || existing->m_callback)) {
+        return 0;
     }
 
     CVar::Register(name, nullptr, flags, value, nullptr, 4, true, nullptr, true);
@@ -4476,6 +4482,10 @@ static int32_t Script_EquipCursorItem(lua_State* L) {
     uint32_t index = slot - 1;
 
     if (slot != 256 && slot) {
+        if (index > 255) {
+            return 0;
+        }
+
         WOWGUID current;
         current.m_guid = player->m_bag.GetItemGuid(index);
 
@@ -4703,7 +4713,7 @@ static int32_t Script_UseSoulstone(lua_State* L) {
 static int32_t Script_ConfirmSummon(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (player->IsDeadOrGhost()) {
+    if (!player || player->IsDeadOrGhost()) {
         return 0;
     }
 
@@ -5758,9 +5768,14 @@ static int32_t Script_StartAttack(lua_State* L) {
 static int32_t Script_GrantLevel(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
     WOWGUID guid = GetGuidByKeyword(lua_tolstring(L, 1, nullptr));
+
+    if (!player) {
+        return 0;
+    }
+
     int32_t error = player->CanGrantLevel(guid);
 
-    if (!player || error) {
+    if (error) {
         BroadcastUIError(error, nullptr);
         return 0;
     }

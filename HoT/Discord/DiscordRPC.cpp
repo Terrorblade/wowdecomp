@@ -16,8 +16,21 @@ static const auto DETECT_INTERVAL = std::chrono::seconds(15);
 static const auto IDLE_SLEEP = std::chrono::milliseconds(500);
 static const auto CONNECTED_SLEEP = std::chrono::milliseconds(100);
 
-static const char* OrEmpty(const char* value) {
-    return value ? value : "";
+// The SDK fields hold 127 bytes plus a terminator, longer text is cut at a UTF-8 boundary.
+static std::string OrEmpty(const char* value) {
+    std::string text = value ? value : "";
+
+    if (text.size() > 127) {
+        size_t end = 127;
+
+        while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xC0) == 0x80) {
+            end--;
+        }
+
+        text.resize(end);
+    }
+
+    return text;
 }
 
 class Client {
@@ -69,14 +82,14 @@ class Client {
 
     void UpdateActivity(const char* state, const char* details, const char* largeImage, const char* largeText, const char* smallImage, const char* smallText) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_pendingActivity.SetState(OrEmpty(state));
-        m_pendingActivity.SetDetails(OrEmpty(details));
+        m_pendingActivity.SetState(OrEmpty(state).c_str());
+        m_pendingActivity.SetDetails(OrEmpty(details).c_str());
 
         discord::ActivityAssets& assets = m_pendingActivity.GetAssets();
-        assets.SetLargeImage(OrEmpty(largeImage));
-        assets.SetLargeText(OrEmpty(largeText));
-        assets.SetSmallImage(OrEmpty(smallImage));
-        assets.SetSmallText(OrEmpty(smallText));
+        assets.SetLargeImage(OrEmpty(largeImage).c_str());
+        assets.SetLargeText(OrEmpty(largeText).c_str());
+        assets.SetSmallImage(OrEmpty(smallImage).c_str());
+        assets.SetSmallText(OrEmpty(smallText).c_str());
 
         m_hasActivity = true;
         m_hasPending = true;

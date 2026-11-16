@@ -1,6 +1,7 @@
 #include <cstdint>
 #include "HoT/Features/Units.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
+#include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameScript/FrameScript_Object.h"
 #include "Engine/Source/Os/TimeManager.h"
@@ -146,6 +147,10 @@ int32_t Script_IsXPUserDisabled(lua_State* L);
 
 // STATIC: 0x009FE7EC
 const int32_t s_unitSexValues[UNITSEX_LAST] = { GENDER_MALE, GENDER_FEMALE, GENDER_NONE };
+
+static int32_t GetUnitSexValue(uint32_t sex) {
+    return sex < UNITSEX_LAST ? s_unitSexValues[sex] : GENDER_NONE;
+}
 
 // STATIC: 0x00AD21BC
 static const char* s_unitClassificationTokens[7] = { "normal", "elite", "rareelite", "worldboss", "rare", "trivial", nullptr };
@@ -343,7 +348,8 @@ static int32_t Script_UnitClassification(lua_State* L) {
     CGUnit_C* unit;
 
     if (Script_GetGUIDFromToken(lua_tolstring(L, 1, nullptr), guid, false) && (unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__)))) {
-        lua_pushstring(L, s_unitClassificationTokens[unit->GetCreatureClassification()]);
+        uint32_t classification = unit->GetCreatureClassification();
+        lua_pushstring(L, s_unitClassificationTokens[classification < 6 ? classification : 0]);
         return 1;
     }
 
@@ -591,17 +597,17 @@ static int32_t Script_UnitSex(lua_State* L) {
     int32_t sex;
 
     if (!SStrCmpI(token, "player", STORM_MAX_STR)) {
-        sex = s_unitSexValues[ClientServices::GetCharacterSex()];
+        sex = GetUnitSexValue(ClientServices::GetCharacterSex());
     } else {
         WOWGUID guid = WOWGUID();
         Script_GetGUIDFromToken(token, guid, false);
         CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
-            sex = s_unitSexValues[unit->m_unit->m_unitFieldBytes0[2]];
+            sex = GetUnitSexValue(unit->m_unit->m_unitFieldBytes0[2]);
         } else {
             NameCache* nameCache = g_nameDBCache.GetRecord(guid.m_guid, WOWGUID(), nullptr, nullptr, false);
-            sex = nameCache ? s_unitSexValues[nameCache->m_sex] : GENDER_NONE;
+            sex = nameCache ? GetUnitSexValue(nameCache->m_sex) : GENDER_NONE;
         }
     }
 
@@ -768,6 +774,10 @@ static int32_t Script_GetGameTime(lua_State* L) {
 static int32_t Script_ConsoleExec(lua_State* L) {
     if (!lua_isstring(L, 1)) {
         luaL_error(L, "Usage: ConsoleExec(\"console_command\")");
+        return 0;
+    }
+
+    if (CVar::CommandSetsLoginTarget(lua_tolstring(L, 1, nullptr))) {
         return 0;
     }
 
@@ -1502,6 +1512,12 @@ static int32_t Script_UnitInParty(lua_State* L) {
 // OFFSET: 0x0060D8F0
 static int32_t Script_PlayerCanTeleport(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
+
+    if (!player) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
     uint32_t flags = player->m_unit->m_unitFieldFlags;
 
     if ((flags & 0x40000) || (flags & 0x800000) || (flags & 0x400000)) {
@@ -4281,7 +4297,7 @@ static int32_t Script_GetPlayerInfoByGUID(lua_State* L) {
         lua_pushnil(L);
     }
 
-    lua_pushnumber(L, s_unitSexValues[record->m_sex]);
+    lua_pushnumber(L, GetUnitSexValue(record->m_sex));
     lua_pushstring(L, record->m_name);
     lua_pushstring(L, record->m_realmName);
     return 7;

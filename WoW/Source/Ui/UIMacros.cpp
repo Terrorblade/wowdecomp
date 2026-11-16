@@ -76,6 +76,8 @@ static uint16_t s_initCounter;
 // STATIC: 0x00BEAF64
 static uint32_t s_pendingLoads;
 
+static int32_t s_macroLocks;
+
 // VERIFY: 395f9dc1 auto
 // OFFSET: 0x00564AB0
 int32_t CGUIMacros::GetMacroIndexByID(uint32_t id) {
@@ -111,11 +113,15 @@ void MACRONODE::DecrementActionBarCount() {
 // VERIFY: 83d22513 auto
 // OFFSET: 0x00566160
 void CGUIMacros::UpdateMacroSpells() {
+    s_macroLocks++;
+
     for (MACRONODE* macro = s_macros.m_fulllist.Head(); macro; macro = s_macros.m_fulllist.Next(macro)) {
         if (macro->m_spellID < 0 && macro->FindSpellID()) {
             CGActionBar::UpdateMacro(macro->m_id);
         }
     }
+
+    s_macroLocks--;
 }
 
 // VERIFY: 27651ef3 auto
@@ -139,11 +145,15 @@ int32_t CGUIMacros::GetSortedIndexByName(const char* name) {
 // VERIFY: e9bab52e manual
 // OFFSET: 0x00566660
 void CGUIMacros::UpdateDynamicMacros() {
+    s_macroLocks++;
+
     for (MACRONODE* macro = s_dynamicMacros.Head(); macro; macro = s_dynamicMacros.Next(macro)) {
         if (macro->FindSpellID()) {
             CGActionBar::UpdateMacro(macro->m_id);
         }
     }
+
+    s_macroLocks--;
 }
 
 // VERIFY: 67f7b9f9 manual
@@ -683,7 +693,7 @@ void CGUIMacros::EditMacro(uint32_t id, const char* name, const char* icon, cons
     HASHKEY_NONE key;
     MACRONODE* macro = s_macros.Ptr(id, key);
 
-    if (!macro) {
+    if (!macro || s_macroLocks) {
         return;
     }
 
@@ -710,7 +720,7 @@ void CGUIMacros::DeleteMacro(uint32_t id) {
     HASHKEY_NONE key;
     MACRONODE* macro = s_macros.Ptr(id, key);
 
-    if (!macro) {
+    if (!macro || s_macroLocks) {
         return;
     }
 
@@ -905,6 +915,8 @@ void CGUIMacros::RunMacro(MACRONODE* macro, const char* button) {
 
     CGUIMacros::m_macroButton = macro;
     CGUIMacros::m_macroRunning = button;
+    uint32_t id = macro->m_id;
+    bool stored = s_macros.Ptr(id, HASHKEY_NONE()) == macro;
     const char* text = macro->m_body;
 
     if (text) {
@@ -918,6 +930,10 @@ void CGUIMacros::RunMacro(MACRONODE* macro, const char* button) {
 
             if (line[0] && line[0] != '-' && line[0] != '#') {
                 FrameScript_SignalEvent(SCRIPT_EVENT_EXECUTE_CHAT_LINE, "%s", line);
+
+                if (stored && s_macros.Ptr(id, HASHKEY_NONE()) != macro) {
+                    break;
+                }
             }
         } while (text);
     }
@@ -1132,7 +1148,7 @@ void CGUIMacros::SaveMacros() {
 // VERIFY: 9cd8630d manual
 // OFFSET: 0x00568020
 uint32_t CGUIMacros::CreateMacro(const char* name, const char* icon, const char* body, int32_t perCharacter) {
-    if (!name || !*name) {
+    if (!name || !*name || s_macroLocks) {
         return 0;
     }
 
@@ -1160,6 +1176,11 @@ uint32_t CGUIMacros::CreateMacro(const char* name, const char* icon, const char*
     CGUIMacros::m_numMacros[type]++;
     CGUIMacros::m_saveMacros = 1;
     CGUIMacros::SortMacros();
+
+    if (s_macros.Ptr(id, key) != macro) {
+        return id;
+    }
+
     CGUIMacros::CountActionBarSlots(macro);
 
     if (macro->m_itemID > 0 || macro->m_spellID > 0) {
@@ -1184,8 +1205,11 @@ void MacroQueryCastSequence(MacroSubstring* text) {
     lua_pushstring(L, "QueryCastSequence");
     lua_rawget(L, LUA_GLOBALSINDEX);
     lua_pushlstring(L, text->m_start, text->m_end - text->m_start);
+    s_macroLocks++;
+    int32_t error = lua_pcall(L, 1, 3, -3);
+    s_macroLocks--;
 
-    if (lua_pcall(L, 1, 3, -3)) {
+    if (error) {
         lua_settop(L, -3);
     } else {
         const char* spell = lua_tolstring(L, -2, nullptr);

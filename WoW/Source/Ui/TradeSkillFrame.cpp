@@ -436,7 +436,8 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
     int32_t skillRank;
 
     if (activePlayer && CGTradeSkillInfo::m_playerGuid == activePlayer->m_obj->m_guid) {
-        skillRank = activePlayer->m_player->m_playerSkillInfo[activePlayer->GetSkillIndex(CGTradeSkillInfo::m_skillLineID)].m_rank;
+        int32_t skillIndex = activePlayer->GetSkillIndex(CGTradeSkillInfo::m_skillLineID);
+        skillRank = skillIndex >= 0 ? activePlayer->m_player->m_playerSkillInfo[skillIndex].m_rank : 0;
     } else {
         skillRank = CGTradeSkillInfo::m_skillRank;
     }

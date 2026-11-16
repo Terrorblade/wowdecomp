@@ -69,11 +69,11 @@ static int32_t Script_GetGossipText(lua_State* L) {
 static int32_t Script_GetGossipOptions(lua_State* L) {
     int32_t count = 0;
 
-    for (GossipOption* option = CGGossipInfo::m_options; option < reinterpret_cast<GossipOption*>(CGGossipInfo::m_gossipText); option++) {
+    for (GossipOption* option = CGGossipInfo::m_options; option < CGGossipInfo::m_options + sizeof(CGGossipInfo::m_options) / sizeof(CGGossipInfo::m_options[0]); option++) {
         if (option && option->m_index >= 0) {
             lua_checkstack(L, 2);
             lua_pushstring(L, option->m_text);
-            lua_pushstring(L, s_gossipTypes[option->m_type]);
+            lua_pushstring(L, static_cast<uint32_t>(option->m_type) < sizeof(s_gossipTypes) / sizeof(s_gossipTypes[0]) ? s_gossipTypes[option->m_type] : nullptr);
             count++;
         }
     }

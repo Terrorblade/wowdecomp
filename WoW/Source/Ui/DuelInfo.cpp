@@ -28,9 +28,24 @@ static uint32_t s_countdownTimer;
 // VERIFY: 516f4f57 auto
 // OFFSET: 0x005CFA50
 int32_t Packet_SMSG_DUEL_COUNTDOWN(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t countdown;
+    uint32_t countdown = 0;
     msg->Get(countdown);
+
+    if (s_countdownTimer) {
+        ClientKillTimer(s_countdownTimer, CGDuelInfo::ProcessCountdown, "ProcessCountdown");
+        s_countdownTimer = 0;
+    }
+
     s_countdown = countdown / 1000;
+
+    if (!s_countdown) {
+        return 1;
+    }
+
+    if (s_countdown > 60) {
+        s_countdown = 60;
+    }
+
     CGDuelInfo::ProcessCountdown(nullptr, nullptr);
     return 1;
 }

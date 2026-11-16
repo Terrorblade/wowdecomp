@@ -361,12 +361,13 @@ static int32_t Script_GetPossessInfo(lua_State* L) {
 
             int32_t enabled = 1;
             SpellRec spell;
+            int32_t found = g_spellDB.GetRecord(CGPetInfo::m_possessSpell, &spell);
 
-            if (g_spellDB.GetRecord(CGPetInfo::m_possessSpell, &spell) && spell.m_attributes < 0) {
+            if (found && spell.m_attributes < 0) {
                 enabled = 0;
             }
 
-            lua_pushstring(L, spell.m_name);
+            lua_pushstring(L, found ? spell.m_name : nullptr);
             lua_pushboolean(L, enabled);
             return 3;
         }
@@ -626,7 +627,7 @@ static int32_t Script_PickupPetAction(lua_State* L) {
 
     uint32_t slot = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
 
-    if (slot > 10) {
+    if (slot > 9) {
         luaL_error(L, "Invalid slot in PickupPetAction");
         return 0;
     }
@@ -672,7 +673,7 @@ static int32_t Script_TogglePetAutocast(lua_State* L) {
 
     uint32_t slot = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
 
-    if (slot > 10) {
+    if (slot > 9) {
         luaL_error(L, "Invalid slot in TogglePetAutocast");
         return 0;
     }
@@ -699,7 +700,7 @@ static int32_t Script_CastPetAction(lua_State* L) {
 
     uint32_t slot = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
 
-    if (slot > 10) {
+    if (slot > 9) {
         luaL_error(L, "Invalid slot in CastPetAction");
         return 0;
     }

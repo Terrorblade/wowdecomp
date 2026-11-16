@@ -316,16 +316,19 @@ static int luaB_assert (lua_State *L) {
 // VERIFY: 164ddea6 auto
 // OFFSET: 0x00854860
 static int luaB_unpack (lua_State *L) {
-  int i, e, n;
+  int i, e;
+  unsigned int n;
   luaL_checktype(L, 1, LUA_TTABLE);
   i = luaL_optint(L, 2, 1);
   e = luaL_opt(L, luaL_checkint, 3, luaL_getn(L, 1));
-  n = e - i + 1;  /* number of elements */
-  if (n <= 0) return 0;  /* empty range */
-  luaL_checkstack(L, n, "table too big to unpack");
-  for (; i<=e; i++)  /* push arg[i...e] */
+  if (i > e) return 0;  /* empty range */
+  n = (unsigned int)e - (unsigned int)i;  /* number of elements minus 1 */
+  if (n >= (unsigned int)INT_MAX || !lua_checkstack(L, (int)++n))
+    return luaL_error(L, "too many results to unpack");
+  lua_rawgeti(L, 1, i);  /* push arg[i] (avoiding overflow problems) */
+  while (i++ < e)  /* push arg[i + 1...e] */
     lua_rawgeti(L, 1, i);
-  return n;
+  return (int)n;
 }
 
 
@@ -470,6 +473,7 @@ static int auxresume (lua_State *L, lua_State *co, int narg) {
     return -1;  /* error flag */
   }
   lua_xmove(L, co, narg);
+  lua_setlevel(L, co);
   status = lua_resume(co, narg);
   if (status == 0 || status == LUA_YIELD) {
     int nres = lua_gettop(co);

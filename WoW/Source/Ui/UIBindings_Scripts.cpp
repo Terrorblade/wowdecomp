@@ -67,7 +67,7 @@ static int32_t Script_GetNumModifiedClickActions(lua_State* L) {
 static int32_t Script_LoadBindings(lua_State* L) {
     int32_t set = static_cast<int32_t>(lua_tonumber(L, 1));
 
-    if (set >= 3) {
+    if (set < 0 || set >= 3) {
         luaL_error(L, "Usage: LoadBindings(0||1||2)");
         return 0;
     }
@@ -382,6 +382,12 @@ static int32_t Script_SetBindingSpell(lua_State* L) {
     CGUIBindings* bindings = CGUIBindings::s_bindings;
     const char* argument = lua_tolstring(L, 2, nullptr);
     size_t length = SStrLen(argument) + 7;
+
+    if (length > 1024) {
+        lua_pushnil(L);
+        return 1;
+    }
+
     char* command = static_cast<char*>(alloca(length));
     SStrPrintf(command, length, "SPELL %s", argument);
 
@@ -416,6 +422,12 @@ static int32_t Script_SetBindingItem(lua_State* L) {
     CGUIBindings* bindings = CGUIBindings::s_bindings;
     const char* argument = lua_tolstring(L, 2, nullptr);
     size_t length = SStrLen(argument) + 7;
+
+    if (length > 1024) {
+        lua_pushnil(L);
+        return 1;
+    }
+
     char* command = static_cast<char*>(alloca(length));
     SStrPrintf(command, length, "ITEM %s", argument);
 
@@ -450,6 +462,12 @@ static int32_t Script_SetBindingMacro(lua_State* L) {
     CGUIBindings* bindings = CGUIBindings::s_bindings;
     const char* argument = lua_tolstring(L, 2, nullptr);
     size_t length = SStrLen(argument) + 7;
+
+    if (length > 1024) {
+        lua_pushnil(L);
+        return 1;
+    }
+
     char* command = static_cast<char*>(alloca(length));
     SStrPrintf(command, length, "MACRO %s", argument);
 
@@ -490,6 +508,12 @@ static int32_t Script_SetBindingClick(lua_State* L) {
     }
 
     size_t length = SStrLen(button) + SStrLen(mouseButton) + 8;
+
+    if (length > 1024) {
+        lua_pushnil(L);
+        return 1;
+    }
+
     char* command = static_cast<char*>(alloca(length));
     SStrPrintf(command, length, "CLICK %s:%s", button, mouseButton);
 
@@ -522,6 +546,11 @@ static int32_t Script_SetOverrideBindingSpell(lua_State* L) {
     CGUIBindings* bindings = CGUIBindings::s_bindings;
     const char* argument = lua_tolstring(L, 4, nullptr);
     size_t length = SStrLen(argument) + 7;
+
+    if (length > 1024) {
+        return 0;
+    }
+
     char* command = static_cast<char*>(alloca(length));
     SStrPrintf(command, length, "SPELL %s", argument);
     const char* key = lua_tolstring(L, 3, nullptr);
@@ -548,6 +577,11 @@ static int32_t Script_SetOverrideBindingItem(lua_State* L) {
     CGUIBindings* bindings = CGUIBindings::s_bindings;
     const char* argument = lua_tolstring(L, 4, nullptr);
     size_t length = SStrLen(argument) + 7;
+
+    if (length > 1024) {
+        return 0;
+    }
+
     char* command = static_cast<char*>(alloca(length));
     SStrPrintf(command, length, "ITEM %s", argument);
     const char* key = lua_tolstring(L, 3, nullptr);
@@ -574,6 +608,11 @@ static int32_t Script_SetOverrideBindingMacro(lua_State* L) {
     CGUIBindings* bindings = CGUIBindings::s_bindings;
     const char* argument = lua_tolstring(L, 4, nullptr);
     size_t length = SStrLen(argument) + 7;
+
+    if (length > 1024) {
+        return 0;
+    }
+
     char* command = static_cast<char*>(alloca(length));
     SStrPrintf(command, length, "MACRO %s", argument);
     const char* key = lua_tolstring(L, 3, nullptr);
@@ -606,6 +645,11 @@ static int32_t Script_SetOverrideBindingClick(lua_State* L) {
     }
 
     size_t length = SStrLen(button) + SStrLen(mouseButton) + 8;
+
+    if (length > 1024) {
+        return 0;
+    }
+
     char* command = static_cast<char*>(alloca(length));
     SStrPrintf(command, length, "CLICK %s:%s", button, mouseButton);
     const char* key = lua_tolstring(L, 3, nullptr);

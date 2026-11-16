@@ -174,55 +174,27 @@ static int32_t Script_strreplace(lua_State* L) {
     const char* replace = luaL_checklstring(L, 3, &replaceLength);
     int32_t limit = luaL_optinteger(L, 4, 0);
 
-    char buffer[4096];
     const char* source = string;
     int32_t count = 0;
-    char* dest = buffer;
-    size_t space = sizeof(buffer);
+    luaL_Buffer buffer;
+    luaL_buffinit(L, &buffer);
 
-    while (!limit || count < limit) {
+    while (searchLength && (!limit || count < limit)) {
         const char* found = SStrStr(source, search);
 
         if (!found) {
             break;
         }
 
-        size_t bytes = found - source;
-
-        if (bytes > space) {
-            bytes = space;
-        }
-
-        memcpy(dest, source, bytes);
-        space -= bytes;
-        dest += bytes;
-
-        bytes = replaceLength;
-
-        if (bytes > space) {
-            bytes = space;
-        }
-
-        memcpy(dest, replace, replaceLength);
-        dest += bytes;
-        space -= bytes;
+        luaL_addlstring(&buffer, source, found - source);
+        luaL_addlstring(&buffer, replace, replaceLength);
 
         count++;
         source = found + searchLength;
     }
 
-    if (count > 0) {
-        size_t bytes = string + length - source;
-
-        if (bytes > space) {
-            bytes = space;
-        }
-
-        memcpy(dest, source, bytes);
-        lua_pushlstring(L, buffer, dest + bytes - buffer);
-    } else {
-        lua_pushlstring(L, string, length);
-    }
+    luaL_addlstring(&buffer, source, string + length - source);
+    luaL_pushresult(&buffer);
 
     lua_pushinteger(L, count);
 

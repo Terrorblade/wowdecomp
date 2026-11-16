@@ -22,6 +22,7 @@
 #include "HoT/Editor/Map/TextureEdit.h"
 #include "HoT/Editor/Map/Runtime.h"
 #include "HoT/Editor/Map/WmoDoodadEdit.h"
+#include "HoT/Editor/Model/ModelFiles.h"
 #include "HoT/Streaming/LooseFiles.h"
 
 namespace HoT::Editor::Map::EditorSave {
@@ -154,6 +155,10 @@ static void BuildObjectTables(const uint8_t* buffer, uint32_t size, const Object
     for (uint32_t offset = 0; offset + 8 <= size;) {
         uint32_t token = ReadU32(buffer + offset);
         uint32_t chunkSize = ReadU32(buffer + offset + 4);
+
+        if (chunkSize > size - offset - 8) {
+            break;
+        }
 
         for (int32_t i = 0; i < 6; i++) {
             if (token == tokens[i]) {
@@ -395,7 +400,7 @@ bool BuildTile(CMapArea* area, std::vector<uint8_t>& out, const ObjectChanges* c
         uint32_t token = ReadU32(buffer + offset);
         uint32_t chunkSize = ReadU32(buffer + offset + 4);
 
-        if (offset + 8 + chunkSize > size) {
+        if (chunkSize > size - offset - 8) {
             return false;
         }
 
@@ -596,8 +601,12 @@ static void BackupOriginal(const std::filesystem::path& path, const char* gamePa
 }
 
 bool WriteGameFile(const std::string& gamePath, const void* data, size_t size) {
-    std::string relative = gamePath;
-    std::replace(relative.begin(), relative.end(), '/', '\\');
+    std::string relative;
+    std::string error;
+
+    if (!Model::Files::NormalizeGamePath(gamePath, relative, error) || !(Model::Files::EndsWith(relative, ".adt") || Model::Files::EndsWith(relative, ".wmo"))) {
+        return false;
+    }
 
     std::filesystem::path path = Platform::GameFilePath(relative);
     CreateDirectories(path.parent_path());

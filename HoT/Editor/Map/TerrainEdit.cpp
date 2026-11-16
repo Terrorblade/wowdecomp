@@ -115,7 +115,14 @@ CMapChunk* GetChunk(int32_t row, int32_t col) {
 }
 
 int32_t ChunkCoord(float coord) {
-    return static_cast<int32_t>(floorf((s_mapOrigin - coord) / s_chunkSize));
+    float value = floorf((s_mapOrigin - coord) / s_chunkSize);
+
+    // Out of map and NaN coordinates land just outside the grid so brush loops stay bounded.
+    if (!(value >= -1.0f)) {
+        return -1;
+    }
+
+    return value > 1024.0f ? 1024 : static_cast<int32_t>(value);
 }
 
 static float TriangleHeight(float u, float v, float u0, float v0, float h0, float u1, float v1, float h1, float u2, float v2, float h2) {
@@ -371,14 +378,20 @@ static void RefreshChunks(int32_t minRow, int32_t maxRow, int32_t minCol, int32_
 static float BlurTarget(const C3Vector& pos, const C3Vector& vertex) {
     float radius = s_flattenBlur.m_radius;
     int32_t steps = std::max(static_cast<int32_t>(radius / s_unitSize), 1);
+    float stride = s_unitSize;
     float totalHeight = 0.0f;
     float totalWeight = 0.0f;
 
+    if (steps > 16) {
+        steps = 16;
+        stride = radius / 16.0f;
+    }
+
     for (int32_t j = -steps * 2; j <= steps * 2; j++) {
-        float ty = pos.y + j * s_unitSize * 0.5f;
+        float ty = pos.y + j * stride * 0.5f;
 
         for (int32_t k = -steps; k <= steps; k++) {
-            float tx = pos.x + k * s_unitSize + (j % 2) * s_unitSize * 0.5f;
+            float tx = pos.x + k * stride + (j % 2) * stride * 0.5f;
             float dx = tx - vertex.x;
             float dy = ty - vertex.y;
             float dist = sqrtf(dx * dx + dy * dy);

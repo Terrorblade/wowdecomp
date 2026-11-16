@@ -58,7 +58,7 @@ void PetNameCache::Pack(CDataStore* msg) {
 // VERIFY: cb4c25ee manual
 // OFFSET: 0x007F75D0
 void PetNameCache::Unpack(CDataStore* msg) {
-    uint8_t hasDeclinedNames;
+    uint8_t hasDeclinedNames = 0;
     msg->Get(this->m_petNumber);
     msg->GetString(this->m_name, sizeof(this->m_name));
     msg->Get(hasDeclinedNames);

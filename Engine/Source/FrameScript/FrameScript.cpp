@@ -2,6 +2,8 @@
 #include <cstdint>
 #include <cstring>
 #include <malloc.h>
+#include <string>
+#include <unordered_map>
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameScript/FrameScript_Object.h"
 #include "Engine/Source/Base/Status.h"
@@ -567,6 +569,12 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
         }
 
         case LUA_TTABLE: {
+            // Deeper tables could not be parsed back and would overflow the C stack here.
+            if (depth > 200) {
+                SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "nil --[[ skipped deep table ]]");
+                break;
+            }
+
             lua_checkstack(L, 3);
             lua_rawgeti(L, LUA_REGISTRYINDEX, s_recursiveTableHash);
             int32_t tableIndex = index - 1;
@@ -910,7 +918,8 @@ int32_t FrameScript_CompileFunction(const char* name, const char* wrapper, const
     lua_State* L = s_context;
 
     size_t size = SStrLen(wrapper) + SStrLen(body) + 1;
-    char* source = static_cast<char*>(alloca(size));
+    std::string sourceStorage(size, '\0');
+    char* source = &sourceStorage[0];
     SStrPrintf(source, size, wrapper, body);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, s_errorHandlerRef);
@@ -1062,7 +1071,8 @@ void FrameScript_PackVariable(lua_State* L, const char* name, int32_t depth, cha
                         SStrPrintf(key, sizeof(key), "%d", static_cast<int32_t>(lua_tonumber(L, -2)));
                         FrameScript_PackVariable(L, key, 1, buffer, bufferLen);
                     } else {
-                        FrameScript_PackVariable(L, lua_tostring(L, -2), 1, buffer, bufferLen);
+                        const char* key = lua_tostring(L, -2);
+                        FrameScript_PackVariable(L, key ? key : "<key>", 1, buffer, bufferLen);
                     }
 
                     lua_pop(L, 1);
@@ -1170,6 +1180,161 @@ int32_t FrameScript_Initialize(int32_t profile) {
     return 1;
 }
 
+// GetText results are used as printf formats in C, and addons can overwrite any global string.
+static std::unordered_map<std::string, std::string> s_secureFormats;
+static std::unordered_map<std::string, std::string> s_escapedFormats;
+
+// Collects the argument-consuming part of each conversion. Returns false for %n or a malformed spec.
+static bool GetFormatSignature(const char* format, std::string& signature) {
+    signature.clear();
+
+    for (const char* c = format; *c; c++) {
+        if (*c != '%') {
+            continue;
+        }
+
+        if (*++c == '%') {
+            continue;
+        }
+
+        const char* start = c;
+
+        while (*c >= '0' && *c <= '9') {
+            c++;
+        }
+
+        if (*c == '$') {
+            signature.append(start, c + 1 - start);
+            c++;
+        } else {
+            c = start;
+        }
+
+        while (*c && strchr("-+ #0", *c)) {
+            c++;
+        }
+
+        for (int32_t part = 0; part < 2; part++) {
+            if (*c == '*') {
+                signature += '*';
+                c++;
+            } else {
+                while (*c >= '0' && *c <= '9') {
+                    c++;
+                }
+            }
+
+            if (part == 0 && *c == '.') {
+                c++;
+            } else {
+                break;
+            }
+        }
+
+        while (*c && strchr("hlLqjztI", *c)) {
+            signature += *c++;
+        }
+
+        if (*c == '3' && c[1] == '2') {
+            signature.append(c, 2);
+            c += 2;
+        } else if (*c == '6' && c[1] == '4') {
+            signature.append(c, 2);
+            c += 2;
+        }
+
+        if (!*c || !strchr("cCdiouxXeEfFgGaAsSp", *c)) {
+            return false;
+        }
+
+        signature += *c;
+    }
+
+    return true;
+}
+
+static const char* GetGlobalTaint(lua_State* L, const char* name) {
+    const char* savedTaint = lua_tainted;
+    lua_tainted = nullptr;
+
+    lua_pushstring(L, name);
+    lua_rawget(L, LUA_GLOBALSINDEX);
+    const char* taint = lua_gettaint(L, -1);
+    lua_pop(L, 1);
+
+    lua_tainted = savedTaint;
+    return taint;
+}
+
+// Run before addons load, so every format string here is still the secure Blizzard value.
+void FrameScript_CaptureFormatStrings() {
+    lua_State* L = s_context;
+    const char* savedTaint = lua_tainted;
+    lua_tainted = nullptr;
+
+    s_secureFormats.clear();
+    s_escapedFormats.clear();
+
+    lua_pushnil(L);
+
+    while (lua_next(L, LUA_GLOBALSINDEX)) {
+        if (lua_type(L, -2) == LUA_TSTRING && lua_type(L, -1) == LUA_TSTRING && !lua_gettaint(L, -1)) {
+            const char* value = lua_tostring(L, -1);
+
+            if (strchr(value, '%')) {
+                s_secureFormats[lua_tostring(L, -2)] = value;
+            }
+        }
+
+        lua_pop(L, 1);
+    }
+
+    lua_tainted = savedTaint;
+}
+
+// A string an addon wrote only stands in for a format when it consumes the same arguments as the secure one.
+static const char* CheckFormatText(const char* name, const char* text) {
+    if (!strchr(text, '%') || !GetGlobalTaint(s_context, name)) {
+        return text;
+    }
+
+    std::string signature;
+    bool valid = GetFormatSignature(text, signature);
+    auto secure = s_secureFormats.find(name);
+
+    if (secure != s_secureFormats.end()) {
+        std::string secureSignature;
+
+        if (valid && GetFormatSignature(secure->second.c_str(), secureSignature) && signature == secureSignature) {
+            return text;
+        }
+
+        return secure->second.c_str();
+    }
+
+    if (valid && signature.empty()) {
+        return text;
+    }
+
+    std::string escaped;
+
+    for (const char* c = text; *c; c++) {
+        if (*c == '%') {
+            escaped += '%';
+        }
+
+        escaped += *c;
+    }
+
+    std::string& stored = s_escapedFormats[name];
+
+    if (stored != escaped) {
+        stored = escaped;
+    }
+
+    return stored.c_str();
+}
+
 // VERIFY: 65dd09ef manual
 // OFFSET: 0x00819D40
 const char* FrameScript_GetText(const char* token, int32_t count, FRAMESCRIPT_GENDER gender) {
@@ -1196,8 +1361,8 @@ const char* FrameScript_GetText(const char* token, int32_t count, FRAMESCRIPT_GE
     }
 
     size_t size = SStrLen(genderSuffix) + SStrLen(token) + SStrLen(pluralSuffix) + 1;
-    char* name = static_cast<char*>(alloca(size));
-    name[0] = '\0';
+    std::string nameStorage(size, '\0');
+    char* name = &nameStorage[0];
 
     SStrPrintf(name, size, "%s%s%s", token, pluralSuffix, genderSuffix);
 
@@ -1208,11 +1373,16 @@ const char* FrameScript_GetText(const char* token, int32_t count, FRAMESCRIPT_GE
             SStrPrintf(name, size, "%s%s", token, genderSuffix);
 
             if (!FrameScript_GetVariable(name, text)) {
-                FrameScript_GetVariable(token, text);
+                if (FrameScript_GetVariable(token, text)) {
+                    text = CheckFormatText(token, text);
+                }
+
+                return text;
             }
         }
     }
 
+    text = CheckFormatText(name, text);
     return text;
 }
 
@@ -1249,10 +1419,6 @@ void FrameScript_Execute(int32_t function, FrameScript_Object* object, int32_t a
         if (!name) {
             name = "<unnamed>";
         }
-
-        char* debugName = static_cast<char*>(alloca(SStrLen(name) + 5));
-        SStrCopy(debugName, "DBG:", STORM_MAX_STR);
-        SStrCopy(debugName + 4, name, STORM_MAX_STR);
 
         lua_pushstring(L, "this");
         lua_rawget(L, LUA_GLOBALSINDEX);
@@ -1452,7 +1618,7 @@ void FrameScript_Destroy() {
 // VERIFY: 8009da99 manual
 // OFFSET: 0x0081AA00
 void FrameScript_SignalEvent(uint32_t index, lua_State* L, int32_t argCount) {
-    if (!s_scriptEvents.Count()) {
+    if (index >= s_scriptEvents.Count()) {
         return;
     }
 
@@ -1517,7 +1683,7 @@ void FrameScript_Flush() {
 // VERIFY: 34c0cd89 manual
 // OFFSET: 0x0081AC90
 void vFrameScript_SignalEvent(uint32_t index, const char* format, va_list args) {
-    if (!s_scriptEvents.Count()) {
+    if (index >= s_scriptEvents.Count()) {
         return;
     }
 

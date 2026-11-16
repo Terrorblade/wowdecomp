@@ -130,7 +130,7 @@ void CSimpleStatusBar::SetBarTexture(CSimpleTexture* texture, uint32_t drawLayer
     }
 
     if (this->m_barTexture) {
-        delete this->m_barTexture;
+        CSimpleRegion::DeferDelete(this->m_barTexture);
     }
 
     if (texture) {

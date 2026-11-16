@@ -57,8 +57,14 @@ WOWGUID CGAchievementInfo::m_inspect;
 // VERIFY: edba74cb manual
 // OFFSET: 0x005B5190
 int32_t Packet_SMSG_QUERY_QUESTS_COMPLETED_RESPONSE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
+    uint32_t remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    if (count > remaining / 4) {
+        count = remaining / 4;
+    }
+
     COMPLETED_QUESTS* node = s_completedQuests.Head();
 
     while (node) {
@@ -301,29 +307,39 @@ int32_t Packet_SMSG_ALL_ACHIEVEMENT_DATA(void* param, NETMESSAGE msgId, uint32_t
     CGAchievementInfo::m_showAchievementUI = 1;
     WowTime date;
     int32_t now = static_cast<int32_t>(::time(nullptr));
-    int32_t id;
+    int32_t id = -1;
     msg->Get(reinterpret_cast<uint32_t&>(id));
 
-    while (id >= 0) {
+    while (id >= 0 && msg->m_read <= msg->m_size) {
         *msg >> date;
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         CGAchievementInfo::UpdateAchievement(id, date);
         msg->Get(reinterpret_cast<uint32_t&>(id));
     }
 
     msg->Get(reinterpret_cast<uint32_t&>(id));
 
-    while (id >= 0) {
+    while (id >= 0 && msg->m_read <= msg->m_size) {
         SmartGUID counter;
         SmartGUID player;
-        uint32_t flags;
-        uint32_t timer1;
-        uint32_t timer2;
+        uint32_t flags = 0;
+        uint32_t timer1 = 0;
+        uint32_t timer2 = 0;
         *msg >> counter;
         *msg >> player;
         msg->Get(flags);
         *msg >> date;
         msg->Get(timer1);
         msg->Get(timer2);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         CGAchievementInfo::UpdateCriteria(id, counter.m_guid, flags, date, player, now - timer1, now - timer2);
         Achievement_CriteriaRec* rec = g_achievement_CriteriaDB.GetRecord(id);
 
@@ -370,29 +386,39 @@ int32_t Packet_SMSG_RESPOND_INSPECT_ACHIEVEMENTS(void* param, NETMESSAGE msgId, 
     int32_t now = static_cast<int32_t>(::time(nullptr));
     SmartGUID guid;
     *msg >> guid;
-    int32_t id;
+    int32_t id = -1;
     msg->Get(reinterpret_cast<uint32_t&>(id));
 
-    while (id >= 0) {
+    while (id >= 0 && msg->m_read <= msg->m_size) {
         *msg >> date;
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         CGAchievementInfo::UpdateInspectAchievement(guid, id, date);
         msg->Get(reinterpret_cast<uint32_t&>(id));
     }
 
     msg->Get(reinterpret_cast<uint32_t&>(id));
 
-    while (id >= 0) {
+    while (id >= 0 && msg->m_read <= msg->m_size) {
         SmartGUID counter;
         SmartGUID player;
-        uint32_t flags;
-        uint32_t timer1;
-        uint32_t timer2;
+        uint32_t flags = 0;
+        uint32_t timer1 = 0;
+        uint32_t timer2 = 0;
         *msg >> counter;
         *msg >> player;
         msg->Get(flags);
         *msg >> date;
         msg->Get(timer1);
         msg->Get(timer2);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         CGAchievementInfo::UpdateInspectCriteria(guid, id, counter.m_guid, player, flags, date, now - timer1, now - timer2);
         msg->Get(reinterpret_cast<uint32_t&>(id));
     }

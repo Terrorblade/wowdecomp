@@ -328,7 +328,12 @@ static int32_t Script_ConfirmLootSlot(lua_State* L) {
         return 0;
     }
 
-    CGLootInfo::ConfirmLootSlot(static_cast<int32_t>(lua_tonumber(L, 1)) - 1);
+    uint32_t slot = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
+
+    if (slot <= 18) {
+        CGLootInfo::ConfirmLootSlot(slot);
+    }
+
     return 0;
 }
 

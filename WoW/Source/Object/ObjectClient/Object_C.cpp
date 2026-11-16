@@ -1149,6 +1149,10 @@ void CGObject_C::SetObjectLocked(int32_t locked) {
 // VERIFY: 1393f91e manual
 // OFFSET: 0x00744400
 void CGObject_C::SetQuestStatus(uint32_t status) {
+    if (status >= sizeof(CGObject_C::s_questStatusIcons) / sizeof(CGObject_C::s_questStatusIcons[0])) {
+        return;
+    }
+
     uint32_t previous = this->m_questStatus;
 
     if (status == previous && (!CGObject_C::s_questStatusIcons[status] || this->m_interactIcon)) {

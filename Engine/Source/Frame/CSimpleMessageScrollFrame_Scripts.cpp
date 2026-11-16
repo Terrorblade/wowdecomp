@@ -580,7 +580,7 @@ static int32_t Script_SetHyperlinksEnabled(lua_State* L) {
 
     if (enabled != frame->m_hyperlinksEnabled) {
         frame->m_hyperlinksEnabled = enabled;
-        frame->RefreshHyperlinks();
+        frame->m_hyperlinksDirty = 1;
     }
 
     return 0;

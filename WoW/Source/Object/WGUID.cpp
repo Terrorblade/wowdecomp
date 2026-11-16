@@ -6,12 +6,12 @@
 CDataStore& operator>>(CDataStore& msg, SmartGUID& guid) {
     guid.m_guid = 0;
 
-    uint8_t mask;
+    uint8_t mask = 0;
     msg.Get(mask);
 
     for (uint32_t i = 0, bit = 0; i < 64; i += 8, bit++) {
         if (mask & (1 << bit)) {
-            uint8_t byte;
+            uint8_t byte = 0;
             msg.Get(byte);
             guid.m_guid |= static_cast<uint64_t>(byte) << i;
         }

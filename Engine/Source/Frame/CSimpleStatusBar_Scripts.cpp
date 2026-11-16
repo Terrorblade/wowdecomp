@@ -166,7 +166,7 @@ static int32_t Script_SetStatusBarTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = statusBar->GetName();
             luaL_error(L, "%s:SetCheckedTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;

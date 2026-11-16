@@ -39,6 +39,8 @@ struct CVar : public TSHashObject<CVar, HASHKEY_STRI> {
     static int32_t LogCvar(const char* name, const char* value, void* arg);
     static CVar* Lookup(const char* name);
     static CVar* LookupRegistered(const char* name);
+    static int32_t IsLoginTarget(const char* name, size_t length);
+    static int32_t CommandSetsLoginTarget(const char* command);
     static CVar* Register(const char* name, const char* help, uint32_t flags, const char* value, bool (*callback)(CVar*, const char*, const char*, void*), uint32_t category, bool setCommand, void* arg, bool unk);
     static int32_t SaveAll();
     static int32_t SaveAll(HOSFILE file, uint32_t category, uint32_t excludeFlags);

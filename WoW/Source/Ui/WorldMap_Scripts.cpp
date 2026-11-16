@@ -73,13 +73,13 @@ static int32_t Script_PositionWorldMapArrowFrame(lua_State* L) {
 
     if (!relative) {
         SStrPrintf(error, sizeof(error), "Couldn't find frame named '%s'", name);
-        luaL_error(L, error);
+        luaL_error(L, "%s", error);
         return 0;
     }
 
     if (relative == frame) {
         SStrPrintf(error, sizeof(error), "Error: %s is anchored to itself", name);
-        luaL_error(L, error);
+        luaL_error(L, "%s", error);
         return 0;
     }
 
@@ -133,13 +133,13 @@ static int32_t Script_PositionMiniWorldMapArrowFrame(lua_State* L) {
 
     if (!relative) {
         SStrPrintf(error, sizeof(error), "Couldn't find frame named '%s'", name);
-        luaL_error(L, error);
+        luaL_error(L, "%s", error);
         return 0;
     }
 
     if (relative == frame) {
         SStrPrintf(error, sizeof(error), "Error: %s is anchored to itself", name);
-        luaL_error(L, error);
+        luaL_error(L, "%s", error);
         return 0;
     }
 
@@ -509,6 +509,11 @@ static int32_t Script_UpdateMapHighlight(lua_State* L) {
     float x = lua_tonumber(L, 1);
     float y = lua_tonumber(L, 2);
 
+    if (x != x || y != y) {
+        luaL_error(L, "Usage: UpdateMapHighlight(x, y)");
+        return 0;
+    }
+
     if (CGWorldMap::m_currentZone >= 0) {
         for (uint32_t i = 0; i < CGWorldMap::m_numOverlays; i++) {
             WorldMapOverlayRec* overlay = g_worldMapOverlayDB.GetRecord(CGWorldMap::m_overlays.m_data[i]);
@@ -739,7 +744,7 @@ static int32_t Script_GetMapOverlayInfo(lua_State* L) {
     }
 
     int64_t index = static_cast<int64_t>(lua_tonumber(L, 1)) - 1;
-    int32_t overlayID = index < CGWorldMap::m_numOverlays ? CGWorldMap::m_overlays.m_data[index] : 0;
+    int32_t overlayID = index >= 0 && index < CGWorldMap::m_numOverlays ? CGWorldMap::m_overlays.m_data[index] : 0;
     WorldMapOverlayRec* overlay = g_worldMapOverlayDB.GetRecord(overlayID);
 
     if (!overlay) {
@@ -787,7 +792,7 @@ static int32_t Script_SetMapZoom(lua_State* L) {
 
     int32_t continent = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
 
-    if ((continent > 0 && static_cast<uint32_t>(continent) >= CGWorldMap::m_continents.m_count) || continent < -2) {
+    if ((continent >= 0 && static_cast<uint32_t>(continent) >= CGWorldMap::m_continents.m_count) || continent < -2) {
         luaL_error(L, "Usage: SetMapZoom(continentIndex [,zoneIndex]) .. requested continent out of bounds");
         return 0;
     }
@@ -852,7 +857,7 @@ static int32_t Script_InitWorldMapPing(lua_State* L) {
 
     CLayoutFrame* layout = parent->GetLayoutFrameByName("WorldMapPing");
 
-    if (!layout) {
+    if (!layout || !static_cast<CScriptRegion*>(layout)->IsA(CSimpleModel::GetObjectType())) {
         return 0;
     }
 
@@ -1086,6 +1091,12 @@ static int32_t Script_ProcessMapClick(lua_State* L) {
 
     float x = lua_tonumber(L, 1);
     float y = lua_tonumber(L, 2);
+
+    if (x != x || y != y) {
+        luaL_error(L, "Usage: ProcessMapClick(x, y)");
+        return 0;
+    }
+
     CGWorldMap::ProcessClick(x, y);
     return 0;
 }

@@ -1266,9 +1266,11 @@ static int32_t Script_GetTop(lua_State* L) {
         entries = &s_published.m_shaders;
     }
 
+    // A copy, since a row's __newindex can run Lua that resets the published lists.
+    const std::vector<TopEntry> list = *entries;
     int32_t row = 0;
 
-    for (const TopEntry& entry : *entries) {
+    for (const TopEntry& entry : list) {
         PushRow(L, ++row);
         SetString(L, "name", entry.m_name.c_str());
         SetNumber(L, "ms", entry.m_ms);
@@ -1317,7 +1319,7 @@ static int32_t Script_GetHitch(lua_State* L) {
         return 1;
     }
 
-    const Hitch& hitch = s_hitches[s_hitches.size() - back];
+    const Hitch hitch = s_hitches[s_hitches.size() - back];
     std::vector<size_t> order;
 
     for (size_t i = 1; i < ZONE_COUNT; i++) {

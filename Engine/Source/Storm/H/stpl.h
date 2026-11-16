@@ -822,7 +822,7 @@ uint32_t TSGrowableArray<T>::Add(uint32_t count, const T* data) {
     if (newcount > this->m_alloc) {
         uint32_t chunk = this->m_chunk ? this->m_chunk : this->CalcChunkSize(newcount);
 
-        if (newcount % chunk) {
+        if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
             newcount += chunk - newcount % chunk;
         }
 
@@ -850,7 +850,7 @@ uint32_t TSGrowableArray<T>::Add(uint32_t count, uint32_t incr, const T* data) {
     if (newcount > this->m_alloc) {
         uint32_t chunk = this->m_chunk ? this->m_chunk : this->CalcChunkSize(newcount);
 
-        if (newcount % chunk) {
+        if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
             newcount += chunk - newcount % chunk;
         }
 
@@ -901,7 +901,7 @@ void TSGrowableArray<T>::GrowToFit(uint32_t index, int32_t zero) {
             uint32_t chunk = this->m_chunk ? this->m_chunk : this->CalcChunkSize(newcount);
             uint32_t alloc = newcount;
 
-            if (newcount % chunk) {
+            if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
                 alloc = newcount + chunk - newcount % chunk;
             }
 
@@ -925,7 +925,7 @@ T* TSGrowableArray<T>::New() {
     if (newcount > this->m_alloc) {
         uint32_t chunk = this->m_chunk ? this->m_chunk : this->CalcChunkSize(newcount);
 
-        if (newcount % chunk) {
+        if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
             newcount += chunk - newcount % chunk;
         }
 
@@ -946,7 +946,7 @@ T* TSGrowableArray<T>::New(const T& source) {
     if (newcount > this->m_alloc) {
         uint32_t chunk = this->m_chunk ? this->m_chunk : this->CalcChunkSize(newcount);
 
-        if (newcount % chunk) {
+        if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
             newcount += chunk - newcount % chunk;
         }
 
@@ -970,7 +970,7 @@ void TSGrowableArray<T>::Reserve(uint32_t count, int32_t round) {
     if (round) {
         uint32_t chunk = this->m_chunk ? this->m_chunk : this->CalcChunkSize(newcount);
 
-        if (newcount % chunk) {
+        if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
             newcount += chunk - newcount % chunk;
         }
     }
@@ -987,7 +987,7 @@ void TSGrowableArray<T>::SetCount(uint32_t count) {
             uint32_t chunk = this->m_chunk ? this->m_chunk : this->CalcChunkSize(count);
             uint32_t alloc = count;
 
-            if (count % chunk) {
+            if (count % chunk && count <= UINT32_MAX - chunk) {
                 alloc = count + chunk - count % chunk;
             }
 

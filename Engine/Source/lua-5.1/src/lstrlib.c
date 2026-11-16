@@ -86,6 +86,11 @@ static int str_lower (lua_State *L) {
     char *e;
     char *p;
     unsigned int c = sgetu8((const unsigned char *)(s+i), &n);
+    if (n <= 0) {
+      luaL_addchar(&b, s[i]);
+      n = 1;
+      continue;
+    }
     if ((c >= 'A' && c <= 'Z') || (c >= 0xC0 && c <= 0xDE) || (c >= 0x410 && c <= 0x42F))
       c += 32;
     else if (c == 0x401)
@@ -113,6 +118,11 @@ static int str_upper (lua_State *L) {
     char *e;
     char *p;
     unsigned int c = sgetu8((const unsigned char *)(s+i), &n);
+    if (n <= 0) {
+      luaL_addchar(&b, s[i]);
+      n = 1;
+      continue;
+    }
     if ((c >= 'a' && c <= 'z') || (c >= 0xE0 && c <= 0xFE) || (c >= 0x430 && c <= 0x44F))
       c -= 32;
     else if (c == 0x451)
@@ -212,11 +222,15 @@ static int str_dump (lua_State *L) {
 #define CAP_UNFINISHED	(-1)
 #define CAP_POSITION	(-2)
 
+/* maximum recursion depth for 'match', deep patterns would otherwise overflow the C stack */
+#define MAXCCALLS	200
+
 typedef struct MatchState {
   const char *src_init;  /* init of source string */
   const char *src_end;  /* end (`\0') of source string */
   lua_State *L;
   int level;  /* total number of captures (finished or unfinished) */
+  int matchdepth;  /* control for recursive depth (to avoid C stack overflow) */
   struct {
     const char *init;
     ptrdiff_t len;
@@ -427,7 +441,7 @@ static const char *match_capture (MatchState *ms, const char *s, int l) {
 
 // VERIFY: 68f5a323 manual
 // OFFSET: 0x00852F60
-static const char *match (MatchState *ms, const char *s, const char *p) {
+static const char *do_match (MatchState *ms, const char *s, const char *p) {
   init: /* using goto's to optimize tail recursion */
   switch (*p) {
     case '(': {  /* start capture */
@@ -504,6 +518,16 @@ static const char *match (MatchState *ms, const char *s, const char *p) {
   }
 }
 
+
+
+static const char *match (MatchState *ms, const char *s, const char *p) {
+  const char *res;
+  if (ms->matchdepth-- == 0)
+    luaL_error(ms->L, "pattern too complex");
+  res = do_match(ms, s, p);
+  ms->matchdepth++;
+  return res;
+}
 
 
 // VERIFY: 331b52e7 manual
@@ -592,6 +616,7 @@ static int str_find_aux (lua_State *L, int find) {
     do {
       const char *res;
       ms.level = 0;
+      ms.matchdepth = MAXCCALLS;
       if ((res=match(&ms, s1, p)) != NULL) {
         if (find) {
           lua_pushinteger(L, s1-s+1);  /* start */
@@ -638,6 +663,7 @@ static int gmatch_aux (lua_State *L) {
        src++) {
     const char *e;
     ms.level = 0;
+    ms.matchdepth = MAXCCALLS;
     if ((e = match(&ms, src, p)) != NULL) {
       lua_Integer newstart = e-s;
       if (e == src) newstart++;  /* empty match? go at least one position */
@@ -738,11 +764,15 @@ static int str_gsub (lua_State *L) {
   size_t srcl;
   const char *src = luaL_checklstring(L, 1, &srcl);
   const char *p = luaL_checkstring(L, 2);
+  int tr = lua_type(L, 3);
   int max_s = luaL_optint(L, 4, srcl+1);
   int anchor = (*p == '^') ? (p++, 1) : 0;
   int n = 0;
   MatchState ms;
   luaL_Buffer b;
+  luaL_argcheck(L, tr == LUA_TNUMBER || tr == LUA_TSTRING ||
+                   tr == LUA_TFUNCTION || tr == LUA_TTABLE, 3,
+                   "string/function/table expected");
   luaL_buffinit(L, &b);
   ms.L = L;
   ms.src_init = src;
@@ -750,6 +780,7 @@ static int str_gsub (lua_State *L) {
   while (n < max_s) {
     const char *e;
     ms.level = 0;
+    ms.matchdepth = MAXCCALLS;
     e = match(&ms, src, p);
     if (e) {
       n++;
@@ -775,11 +806,10 @@ static int str_gsub (lua_State *L) {
 #define MAX_ITEM	512
 /* valid flags in a format specification */
 #define FLAGS	"-+ #0"
-/*
-** maximum size of each format specification (such as '%-099.99d')
-** (+10 accounts for %99.99x plus margin of error)
-*/
-#define MAX_FORMAT	(sizeof(FLAGS) + sizeof(LUA_INTFRMLEN) + 10)
+/* longest flags/width/precision run accepted between '%' and the conversion */
+#define MAX_FORMATSPEC	16
+/* '%' + spec + conversion + integer length modifier + terminator */
+#define MAX_FORMAT	(MAX_FORMATSPEC + 2 + sizeof(LUA_INTFRMLEN))
 
 
 // VERIFY: 8f221840 manual
@@ -857,8 +887,9 @@ static int str_format (lua_State *L) {
       ms.src_init = strfrmt;
       ms.src_end = strfrmt + strlen(strfrmt) + 1;
       ms.level = 0;
+      ms.matchdepth = MAXCCALLS;
       e = match(&ms, p, "[-+ #0]*(%d*)%.?(%d*)");
-      if (ms.capture[0].len > 2 || ms.capture[1].len > 2 || (size_t)(e - p) > 16)
+      if (ms.capture[0].len > 2 || ms.capture[1].len > 2 || (size_t)(e - p) > MAX_FORMATSPEC)
         luaL_error(L, "invalid format (width or precision too long)");
       form[0] = L_ESC;
       strncpy(form + 1, p, e - p + 1);

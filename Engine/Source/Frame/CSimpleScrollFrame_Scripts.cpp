@@ -55,6 +55,8 @@ static int32_t Script_SetScrollChild(lua_State* L) {
         return 0;
     }
 
+    int32_t depth = 0;
+
     for (CSimpleFrame* frame = scrollFrame; frame; frame = frame->m_parent) {
         if (frame == child) {
             const char* childName = child->GetName();
@@ -62,6 +64,13 @@ static int32_t Script_SetScrollChild(lua_State* L) {
             luaL_error(L, "%s:SetScrollChild(): Would create a loop adding child %s", name ? name : "<unnamed>", childName ? childName : "<unnamed>");
             return 0;
         }
+
+        depth++;
+    }
+
+    if (depth + CSimpleFrame_GetTreeHeight(child) > SIMPLEFRAME_MAX_DEPTH) {
+        luaL_error(L, "%s:SetScrollChild(): Frame hierarchy would be too deep", scrollFrame->GetDisplayName());
+        return 0;
     }
 
     scrollFrame->SetScrollChild(child);

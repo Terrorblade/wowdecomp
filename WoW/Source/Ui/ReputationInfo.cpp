@@ -106,6 +106,10 @@ static bool IsHeaderDescendant(int32_t headerIndex, int32_t ancestor) {
         }
 
         headerIndex = GetHeaderIndex(parent);
+
+        if (headerIndex < 0) {
+            return false;
+        }
     }
 
     return false;
@@ -170,7 +174,7 @@ static bool IsFactionPeaceForced(int32_t faction) {
 // VERIFY: 5c19690d auto
 // OFFSET: 0x005D0550
 bool CGReputationInfo::IsFactionInactive(uint32_t index) {
-    int32_t factionId = index <= CGReputationInfo::m_numFactions ? CGReputationInfo::m_factionList.m_data[index]->m_factionId : 0;
+    int32_t factionId = index < CGReputationInfo::m_numFactions ? CGReputationInfo::m_factionList.m_data[index]->m_factionId : 0;
     FactionRec* faction = g_factionDB.GetRecord(factionId);
 
     if (faction && static_cast<uint32_t>(faction->m_reputationIndex) <= 127) {
@@ -479,13 +483,23 @@ static int QSortFactionHeaders(const void* a, const void* b) {
     if (leftParent != rightParent) {
         while (leftParent) {
             int32_t index = GetHeaderIndex(leftParent);
-            left = index >= 0 && index <= 64 ? CGReputationInfo::m_headers[index] : nullptr;
+
+            if (index < 0 || index >= 64) {
+                break;
+            }
+
+            left = CGReputationInfo::m_headers[index];
             leftParent = left->m_parent;
         }
 
         while (rightParent) {
             int32_t index = GetHeaderIndex(rightParent);
-            right = index >= 0 && index <= 64 ? CGReputationInfo::m_headers[index] : nullptr;
+
+            if (index < 0 || index >= 64) {
+                break;
+            }
+
+            right = CGReputationInfo::m_headers[index];
             rightParent = right->m_parent;
         }
     }
@@ -765,16 +779,21 @@ void CGReputationInfo::EnterWorld() {
 // VERIFY: 1ec70342 auto
 // OFFSET: 0x005D2E30
 int32_t Packet_SMSG_INITIALIZE_FACTIONS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    int32_t count;
+    int32_t count = 0;
     msg->Get(reinterpret_cast<uint32_t&>(count));
 
-    for (int32_t i = 0; i < count; i++) {
-        uint8_t flags;
+    for (int32_t i = 0; i < count && i < static_cast<int32_t>(sizeof(CGReputationInfo::m_factionStandings) / sizeof(CGReputationInfo::m_factionStandings[0])); i++) {
+        uint8_t flags = 0;
         msg->Get(flags);
-        CGReputationInfo::m_factionStandings[i].m_flags = flags;
 
-        int32_t standing;
+        int32_t standing = 0;
         msg->Get(reinterpret_cast<uint32_t&>(standing));
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
+        CGReputationInfo::m_factionStandings[i].m_flags = flags;
 
         if (standing != CGReputationInfo::m_factionStandings[i].m_standing) {
             CGReputationInfo::m_factionStandings[i].m_standing = standing;
@@ -803,10 +822,14 @@ static bool IsChildFaction(int32_t faction) {
 // VERIFY: 7442e639 manual
 // OFFSET: 0x005D0850
 int32_t Packet_SMSG_SET_FACTION_ATWAR(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t repListId;
-    uint8_t flags;
+    uint32_t repListId = 0xFFFFFFFF;
+    uint8_t flags = 0;
     msg->Get(repListId);
     msg->Get(flags);
+
+    if (repListId >= sizeof(CGReputationInfo::m_factionStandings) / sizeof(CGReputationInfo::m_factionStandings[0])) {
+        return 1;
+    }
 
     uint8_t current = CGReputationInfo::m_factionStandings[repListId].m_flags;
     CGReputationInfo::m_factionStandings[repListId].m_flags = (flags & 0x2) ? (current | 0x2) : (current & ~0x2);
@@ -824,8 +847,13 @@ int32_t Packet_SMSG_SET_FACTION_ATWAR(void* param, NETMESSAGE msgId, uint32_t ti
 // VERIFY: 5869752b manual
 // OFFSET: 0x005D15D0
 int32_t Packet_SMSG_SET_FORCED_REACTIONS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
+
+    if (msg->m_read > msg->m_size || count > (msg->m_size - msg->m_read) / (2 * sizeof(uint32_t))) {
+        return 1;
+    }
+
     CGReputationInfo::m_forcedReactions.SetCount(count);
 
     for (uint32_t i = 0; i < count; i++) {
@@ -850,8 +878,13 @@ int32_t Packet_SMSG_SET_FORCED_REACTIONS(void* param, NETMESSAGE msgId, uint32_t
 // VERIFY: 8e73460f auto
 // OFFSET: 0x005D2050
 int32_t Packet_SMSG_SET_FACTION_VISIBLE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t repListId;
+    uint32_t repListId = 0xFFFFFFFF;
     msg->Get(repListId);
+
+    if (repListId >= sizeof(CGReputationInfo::m_factionStandings) / sizeof(CGReputationInfo::m_factionStandings[0])) {
+        return 1;
+    }
+
     uint8_t flags = CGReputationInfo::m_factionStandings[repListId].m_flags;
 
     if (!(flags & 0x1)) {
@@ -892,7 +925,7 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
     bool improved = false;
     float bonus;
     uint8_t showEffect;
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(bonus);
     msg->Get(showEffect);
     msg->Get(count);
@@ -902,6 +935,15 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
         int32_t standing;
         msg->Get(reinterpret_cast<uint32_t&>(repListId));
         msg->Get(reinterpret_cast<uint32_t&>(standing));
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
+        if (static_cast<uint32_t>(repListId) >= sizeof(CGReputationInfo::m_factionStandings) / sizeof(CGReputationInfo::m_factionStandings[0])) {
+            continue;
+        }
+
         uint8_t flags = CGReputationInfo::m_factionStandings[repListId].m_flags;
         int32_t logMode = 0;
 

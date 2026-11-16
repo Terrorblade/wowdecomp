@@ -1823,6 +1823,7 @@ void CGGameUI::InitializeFrameXML() {
     }
 
     BugReportRegister();
+    FrameScript_CaptureFormatStrings();
     LoadAddOns(&status);
     FrameXML_RegisterLoadProgressCallback(nullptr, nullptr, 0);
     CGGameUI::Initialize();
@@ -6569,12 +6570,12 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case SMSG_AREA_TRIGGER_MESSAGE: {
-            uint32_t length;
+            uint32_t length = 0;
             msg->Get(length);
             void* text;
             msg->GetDataInSitu(text, length);
 
-            if (text && *static_cast<const char*>(text)) {
+            if (text && length && !static_cast<const char*>(text)[length - 1] && *static_cast<const char*>(text)) {
                 FrameScript_SignalEvent(SCRIPT_EVENT_UI_INFO_MESSAGE, "%s", static_cast<const char*>(text));
             }
 
@@ -6589,7 +6590,7 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
             msg->Get(zoneId);
             msg->Get(areaId);
             bool changed = CGWorldStateInfo::InitWorldStates(mapId, zoneId, areaId);
-            uint16_t count;
+            uint16_t count = 0;
             msg->Get(count);
 
             for (uint16_t i = 0; i < count; i++) {
@@ -6597,6 +6598,10 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
                 uint32_t value;
                 msg->Get(state);
                 msg->Get(value);
+
+                if (msg->m_read > msg->m_size) {
+                    break;
+                }
 
                 if (CGWorldStateInfo::SetWorldState(state, value) || changed) {
                     changed = true;
@@ -7096,9 +7101,9 @@ void CGGameUI::SendRaidDifficultyMessage() {
     }
 
     map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
+    MapDifficultyRec* difficulty = map && map->m_instanceType == 2 ? GetMapDifficultyEntryByMapIdAndDifficulty(CGGameUI::m_iCurrentMapID, CGGameUI::m_instanceDifficulty, nullptr) : nullptr;
 
-    if (map->m_instanceType == 2) {
-        MapDifficultyRec* difficulty = GetMapDifficultyEntryByMapIdAndDifficulty(CGGameUI::m_iCurrentMapID, CGGameUI::m_instanceDifficulty, nullptr);
+    if (difficulty && difficulty->m_difficultystring) {
         CGGameUI::DisplayError(ERR_RAID_DIFFICULTY_CHANGED_S, FrameScript_GetText(difficulty->m_difficultystring, -1, GENDER_NOT_APPLICABLE));
     } else {
         SStrPrintf(token, sizeof(token), "RAID_DIFFICULTY%d", CGGameUI::GetCurrentRaidDifficulty() + 1);
@@ -7999,6 +8004,7 @@ static void PlayMovie() {
 
     if (!file) {
         CGGameUI::StopMovie();
+        return;
     }
 
     char path[1024];

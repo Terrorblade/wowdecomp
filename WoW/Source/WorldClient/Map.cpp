@@ -4981,7 +4981,7 @@ bool CMap::VectorIntersect(C3Vector* start, C3Vector* end, uint32_t flags, uint3
         for (uint32_t i = 0; i < groupCount; i++) {
             CMapObjDefGroup* group = def->m_defGroups[i];
 
-            if (!owner->IsGroupLoaded(i) || !CWorldMath::VectorIntersectAABox2(group->m_bbox, *start, *end)) {
+            if (candidateCount >= 500 || !owner->IsGroupLoaded(i) || !CWorldMath::VectorIntersectAABox2(group->m_bbox, *start, *end)) {
                 continue;
             }
 

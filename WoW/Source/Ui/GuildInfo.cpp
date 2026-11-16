@@ -246,8 +246,13 @@ int32_t Packet_MSG_GUILD_PERMISSIONS(void* param, NETMESSAGE msgId, uint32_t tim
         return 0;
     }
 
-    uint32_t rank;
+    uint32_t rank = 0;
     msg->Get(rank);
+
+    if (msg->m_read > msg->m_size || rank >= sizeof(CGGuildInfo::m_rankInfo) / sizeof(CGGuildInfo::m_rankInfo[0])) {
+        return 1;
+    }
+
     msg->Get(CGGuildInfo::m_rankInfo[rank].m_rights);
     msg->Get(reinterpret_cast<uint32_t&>(CGGuildInfo::m_rankInfo[rank].m_bankMoneyPerDay));
     uint8_t numTabs = 0;
@@ -270,7 +275,15 @@ int32_t Packet_SMSG_GUILD_ROSTER(void* param, NETMESSAGE msgId, uint32_t time, C
     uint32_t allocated = CGGuildInfo::m_roster.m_count;
     CGGuildInfo::m_numOnlineMembers = 0;
     CGGuildInfo::m_numRanks = 0;
-    msg->Get(CGGuildInfo::m_numMembers);
+    uint32_t numMembers = 0;
+    msg->Get(numMembers);
+    uint32_t remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    if (numMembers > remaining / 23) {
+        numMembers = remaining / 23;
+    }
+
+    CGGuildInfo::m_numMembers = numMembers;
 
     if (CGGuildInfo::m_numMembers > allocated) {
         CGGuildInfo::m_roster.SetCount(CGGuildInfo::m_numMembers);
@@ -286,11 +299,14 @@ int32_t Packet_SMSG_GUILD_ROSTER(void* param, NETMESSAGE msgId, uint32_t time, C
     char infoText[2004];
     msg->GetString(infoText, sizeof(infoText));
     ScrubString(infoText, CGGuildInfo::m_infoText, 501, sizeof(CGGuildInfo::m_infoText), 0);
-    msg->Get(CGGuildInfo::m_numRanks);
+    constexpr uint32_t maxRanks = sizeof(CGGuildInfo::m_rankInfo) / sizeof(CGGuildInfo::m_rankInfo[0]);
+    uint32_t numRanks = 0;
+    msg->Get(numRanks);
     uint32_t rank = 0;
 
-    for (; rank < CGGuildInfo::m_numRanks; rank++) {
-        GuildRankInfo& info = CGGuildInfo::m_rankInfo[rank];
+    for (; rank < numRanks && msg->m_read <= msg->m_size; rank++) {
+        GuildRankInfo extra;
+        GuildRankInfo& info = rank < maxRanks ? CGGuildInfo::m_rankInfo[rank] : extra;
         msg->Get(info.m_rights);
         msg->Get(reinterpret_cast<uint32_t&>(info.m_bankMoneyPerDay));
 
@@ -299,6 +315,9 @@ int32_t Packet_SMSG_GUILD_ROSTER(void* param, NETMESSAGE msgId, uint32_t time, C
             msg->Get(reinterpret_cast<uint32_t&>(info.m_bankTabStacksPerDay[i]));
         }
     }
+
+    rank = rank < maxRanks ? rank : maxRanks;
+    CGGuildInfo::m_numRanks = rank;
 
     for (; rank < 10; rank++) {
         memset(&CGGuildInfo::m_rankInfo[rank], 0, sizeof(GuildRankInfo));
@@ -358,7 +377,7 @@ int32_t Packet_SMSG_GUILD_ROSTER(void* param, NETMESSAGE msgId, uint32_t time, C
 // VERIFY: a337f7c7 auto
 // OFFSET: 0x005A41C0
 uint32_t CGGuildInfo::GetGuildBankTabPermissionsByRankID(uint8_t tab, uint32_t rank) {
-    if (tab >= 6) {
+    if (tab >= 6 || rank >= sizeof(CGGuildInfo::m_rankInfo) / sizeof(CGGuildInfo::m_rankInfo[0])) {
         return 0;
     }
 
@@ -368,7 +387,7 @@ uint32_t CGGuildInfo::GetGuildBankTabPermissionsByRankID(uint8_t tab, uint32_t r
 // VERIFY: 1ea3ac33 auto
 // OFFSET: 0x005A41F0
 int32_t CGGuildInfo::GetNumGuildBankTabItemWithdrawalsByRankID(uint8_t tab, uint32_t rank) {
-    if (tab >= 6) {
+    if (tab >= 6 || rank >= sizeof(CGGuildInfo::m_rankInfo) / sizeof(CGGuildInfo::m_rankInfo[0])) {
         return 0;
     }
 
@@ -596,7 +615,8 @@ void CGGuildInfo::SaveToFile() {
             GuildMemberInfo* member = CGGuildInfo::m_roster.m_data[i];
             ChrClassesRec* chrClass = g_chrClassesDB.GetRecord(member->m_class);
             AreaTableRec* area = g_areaTableDB.GetRecord(member->m_zoneID);
-            SStrPrintf(line, sizeof(line), "%s\t%i\t%s\t%s\t%s\t%s\t%s\t%i\r\n", member->m_name, member->m_level, chrClass ? chrClass->m_name : "", area ? area->m_areaName : "", stats->m_rankNames[member->m_rank], member->m_note, member->m_officerNote, member->m_lastOnline);
+            const char* rankName = static_cast<uint32_t>(member->m_rank) < sizeof(stats->m_rankNames) / sizeof(stats->m_rankNames[0]) ? stats->m_rankNames[member->m_rank] : "";
+            SStrPrintf(line, sizeof(line), "%s\t%i\t%s\t%s\t%s\t%s\t%s\t%i\r\n", member->m_name, member->m_level, chrClass ? chrClass->m_name : "", area ? area->m_areaName : "", rankName, member->m_note, member->m_officerNote, member->m_lastOnline);
             OsWriteFile(file, line, SStrLen(line), &written);
         }
 
@@ -611,11 +631,22 @@ void CGGuildInfo::SaveToFile() {
 bool CGGuildInfo::CanEditGuildEvent() {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (!player || !player->m_player->m_playerGuildid) {
+    if (!player || !player->m_player->m_playerGuildid || static_cast<uint32_t>(player->m_player->m_playerGuildrank) >= sizeof(CGGuildInfo::m_rankInfo) / sizeof(CGGuildInfo::m_rankInfo[0])) {
         return false;
     }
 
     return (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights >> 20) & 1;
+}
+
+GuildRankInfo& CGGuildInfo::GetRankInfo(uint32_t rank) {
+    static GuildRankInfo empty;
+
+    if (rank < sizeof(CGGuildInfo::m_rankInfo) / sizeof(CGGuildInfo::m_rankInfo[0])) {
+        return CGGuildInfo::m_rankInfo[rank];
+    }
+
+    empty = GuildRankInfo();
+    return empty;
 }
 
 // VERIFY: 24e11556 manual

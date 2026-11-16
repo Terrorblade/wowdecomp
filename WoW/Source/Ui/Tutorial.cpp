@@ -23,6 +23,19 @@ int32_t CGTutorial::OnTutorialFlags(void* param, NETMESSAGE msgId, uint32_t time
     uint32_t bytes = msg->m_size - msg->m_read;
     void* data;
     msg->GetDataInSitu(data, bytes);
+
+    // Other code reads the first 8 words unchecked, so never load fewer.
+    uint32_t padded[8] = {};
+
+    if (!data || bytes < sizeof(padded)) {
+        if (data) {
+            memcpy(padded, data, bytes);
+        }
+
+        data = padded;
+        bytes = sizeof(padded);
+    }
+
     CGTutorial::m_tutorialShown.Load(data, bytes, -1);
     CGTutorial::m_tutorialFlags.Load(data, bytes, -1);
 
@@ -62,6 +75,10 @@ static int32_t AddCompletedTutorial(uint32_t tutorial) {
 void CGTutorial::FlagTutorial(uint32_t tutorial) {
     uint32_t bit = 1 << (tutorial & 0x1F);
     uint32_t index = tutorial >> 5;
+
+    if (index >= CGTutorial::m_tutorialFlags.m_bits.m_count || index >= CGTutorial::m_tutorialShown.m_bits.m_count) {
+        return;
+    }
 
     if (CGTutorial::m_tutorialFlags.m_bits.m_data[index] & bit) {
         return;

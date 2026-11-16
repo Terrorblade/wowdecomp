@@ -478,7 +478,8 @@ int32_t Packet_SMSG_MAIL_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
             total--;
         } else {
             if (message->m_stationery <= 0) {
-                message->m_stationery = GetStationery(0)->m_id;
+                StationeryInfo* stationery = GetStationery(0);
+                message->m_stationery = stationery ? stationery->m_id : 0;
             }
 
             if (type == 2) {
@@ -486,7 +487,8 @@ int32_t Packet_SMSG_MAIL_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
                 CGMailInfo::ParseInboxSubject(message);
             } else if (type == 5) {
                 message->m_sender.m_guid = SStrToInt64(message->m_subject);
-                SStrCopy(message->m_invoiceSubject, SStrChr(message->m_subject, ':') + 1, sizeof(message->m_invoiceSubject));
+                const char* separator = SStrChr(message->m_subject, ':');
+                SStrCopy(message->m_invoiceSubject, separator ? separator + 1 : "", sizeof(message->m_invoiceSubject));
                 ProfanityFilter(message->m_invoiceSubject, false, false);
                 CGMailInfo::ParseInboxSubject(message);
             }

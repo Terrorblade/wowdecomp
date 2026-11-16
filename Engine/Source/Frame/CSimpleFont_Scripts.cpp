@@ -2,6 +2,8 @@
 #include <cstdint>
 #include "Engine/Source/Frame/CSimpleFont.h"
 #include <cmath>
+#include <utility>
+#include <vector>
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Frame/CScriptObject.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
@@ -9,6 +11,38 @@
 #include "Engine/Source/FrameXML/LoadXML.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
+
+// Attribute updates recurse down the font object chain, so a deeper chain would overflow the C stack.
+static bool CSimpleFont_ChainTooDeep(CSimpleFont* parent, CSimpleFont* font) {
+    int32_t depth = 0;
+
+    for (CSimpleFont* ancestor = parent; ancestor; ancestor = ancestor->m_fontObject) {
+        depth++;
+    }
+
+    std::vector<std::pair<CSimpleFont*, int32_t>> stack;
+    stack.emplace_back(font, depth + 1);
+
+    while (!stack.empty()) {
+        CSimpleFont* current = stack.back().first;
+        int32_t level = stack.back().second;
+        stack.pop_back();
+
+        if (level > 200) {
+            return true;
+        }
+
+        for (CSimpleFontable* fontable = current->m_fontableList.Head(); !TSList<CSimpleFontable, TSGetExplicitLink<CSimpleFontable> >::IsEnd(fontable); fontable = current->m_fontableList.RawNext(fontable)) {
+            CSimpleFont* child = dynamic_cast<CSimpleFont*>(fontable);
+
+            if (child) {
+                stack.emplace_back(child, level + 1);
+            }
+        }
+    }
+
+    return false;
+}
 
 // VERIFY: 5882a621 auto
 // OFFSET: 0x004A3940
@@ -41,6 +75,11 @@ static int32_t CSimpleFont_CopyFontObject(const char* name, CSimpleFont* font, l
             luaL_error(L, "%s:CopyFontObject(): Couldn't find font named %s", name, lua_tolstring(L, 2, nullptr));
             return 0;
         }
+    }
+
+    if (CSimpleFont_ChainTooDeep(source->m_fontObject, font)) {
+        luaL_error(L, "%s:CopyFontObject(): Font object chain would be too deep", name);
+        return 0;
     }
 
     *font = *source;
@@ -112,6 +151,11 @@ int32_t CSimpleFont_SetFontObject(const char* name, CSimpleFont* font, lua_State
             luaL_error(L, "%s:SetFontObject(): Can't create a font object loop", name);
             return 0;
         }
+    }
+
+    if (CSimpleFont_ChainTooDeep(parent, font)) {
+        luaL_error(L, "%s:SetFontObject(): Font object chain would be too deep", name);
+        return 0;
     }
 
     font->SetFontObject(parent);

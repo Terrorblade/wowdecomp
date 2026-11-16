@@ -111,7 +111,7 @@ static int32_t Script_CanWithdrawGuildBankMoney(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid) {
-        const GuildRankInfo& rank = CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank];
+        const GuildRankInfo& rank = CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank);
 
         if (rank.m_bankMoneyPerDay && (rank.m_rights & 0x80000)) {
             lua_pushnumber(L, 1.0);
@@ -226,6 +226,10 @@ static int32_t Script_GetGuildBankMoneyTransaction(lua_State* L) {
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     GuildBankLogEntry* entry = index >= 25 ? nullptr : &CGGuildBankInfo::m_log[6][index];
 
+    if (!entry) {
+        return 0;
+    }
+
     if (entry->m_type == 4) {
         lua_pushstring(L, "deposit");
     } else if (entry->m_type == 5) {
@@ -290,6 +294,10 @@ static int32_t Script_BuyGuildBankTab(lua_State* L) {
     uint8_t tab = CGGuildBankInfo::m_numTabs;
     uint64_t money = CGGuildBankInfo::m_money;
 
+    if (tab >= sizeof(s_guildBankTabCosts) / sizeof(s_guildBankTabCosts[0])) {
+        return 0;
+    }
+
     if (s_guildBankTabCosts[tab] > player->GetCoinage() + money) {
         CGGameUI::DisplayError(ERR_BANKSLOT_INSUFFICIENT_FUNDS);
         return 0;
@@ -309,6 +317,10 @@ static int32_t Script_DepositGuildBankMoney(lua_State* L) {
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     uint32_t amount = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
+
+    if (!player) {
+        return 0;
+    }
 
     if (player->GetCoinage() >= amount) {
         CGGuildBankInfo::DepositMoney(amount);
@@ -720,7 +732,7 @@ static int32_t Script_GetGuildBankTransaction(lua_State* L) {
     uint8_t index = static_cast<int32_t>(lua_tonumber(L, 2)) - 1;
     GuildBankLogEntry* entry = tab >= 7 || index >= 25 ? nullptr : &CGGuildBankInfo::m_log[tab][index];
 
-    if (!ClntObjMgrGetActivePlayerObj()) {
+    if (!entry || !ClntObjMgrGetActivePlayerObj()) {
         return 0;
     }
 

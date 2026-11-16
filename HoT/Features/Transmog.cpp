@@ -272,14 +272,14 @@ static int32_t* HandItemId(INVENTORY_SLOTS hand) {
     return hand == INVSLOT_MAINHAND ? &s_mainHandItemId : &s_offHandItemId;
 }
 
-// Same lookup as FrameScript_GetObjectThis without raising a Lua error.
+// Same lookup as FrameScript_GetObjectThis without raising a Lua error, and only frames store light userdata at [0].
 static CScriptObject* GetFrameObject(lua_State* L, int32_t index) {
     if (lua_type(L, index) != LUA_TTABLE) {
         return nullptr;
     }
 
     lua_rawgeti(L, index, 0);
-    CScriptObject* object = static_cast<CScriptObject*>(lua_touserdata(L, -1));
+    CScriptObject* object = lua_type(L, -1) == LUA_TLIGHTUSERDATA ? static_cast<CScriptObject*>(lua_touserdata(L, -1)) : nullptr;
     lua_settop(L, -2);
     return object;
 }

@@ -1708,19 +1708,23 @@ void ClientServices::StartDownload() {
 // VERIFY: c07ca7da auto
 // OFFSET: 0x006B0B10
 void ClientServices::SendSurveyData(uint16_t size, uint8_t* data) {
-    ClientServices::s_loginObj->SendSurveyData(size, data);
+    if (ClientServices::s_loginObj) {
+        ClientServices::s_loginObj->SendSurveyData(size, data);
+    }
 }
 
 // VERIFY: dd529696 manual
 // OFFSET: 0x006B0B30
 void ClientServices::SendSurveyFailed() {
-    ClientServices::s_loginObj->SendSurveyFailed();
+    if (ClientServices::s_loginObj) {
+        ClientServices::s_loginObj->SendSurveyFailed();
+    }
 }
 
 // VERIFY: 5b32617c manual
 // OFFSET: 0x006B0B40
 int32_t ClientServices::GetSurveyId() {
-    return ClientServices::s_loginObj->GetSurveyId();
+    return ClientServices::s_loginObj ? ClientServices::s_loginObj->GetSurveyId() : 0;
 }
 
 // VERIFY: e32f76a9 auto

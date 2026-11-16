@@ -893,6 +893,8 @@ void CSimpleTop::OnLayerUpdate(float elapsedSec) {
         frame->AllowAttributeChanges(0);
     }
 
+    CSimpleRegion::FlushDeferredDeletes();
+
     CLayoutFrame::ResizePending();
 
     for (int32_t strata = 0; strata < FRAME_STRATA_TOOLTIP + 1; strata++) {

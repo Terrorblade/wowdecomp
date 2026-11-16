@@ -1141,6 +1141,11 @@ VALIDATE_NAME_RESULT ValidateCharacterNameDeclension(int32_t locale, const char*
 // VERIFY: 1233d9c5 manual
 // OFFSET: 0x0076DE70
 static void GetNameInfo(const char* name, RussianNameInfo* info, int32_t sex) {
+    // Character names are short, a long one would overrun the 1024 unit buffers here and in FormatCase.
+    if (!name || SStrLen(name) >= 256) {
+        name = "";
+    }
+
     int32_t length = SStrLenUTF8(name);
     memset(info->m_name, 0, sizeof(info->m_name));
     SUniConvertUTF8to16(info->m_name, 1024, name, 0x7FFFFFFF, nullptr, nullptr);

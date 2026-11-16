@@ -14,6 +14,11 @@ int32_t CSimpleModelFFX::s_metatable = LUA_NOREF;
 static int32_t Script_ResetLights(lua_State* L) {
     CSimpleModelFFX* model = static_cast<CSimpleModelFFX*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
 
+    if (!model || model->GetScriptMetaTable() != CSimpleModelFFX::s_metatable) {
+        luaL_error(L, "Wrong object type for member function");
+        return 0;
+    }
+
     for (uint32_t i = 0; i < 2; i++) {
         model->m_lightArray3[i].m_lightCount = 0;
         model->m_lightArray3[i].m_hasCustomLight = 0;
@@ -31,6 +36,11 @@ static int32_t Script_ResetLights(lua_State* L) {
 static int32_t Script_AddLight(lua_State* L) {
     const char* name = "model";
     CSimpleModelFFX* model = static_cast<CSimpleModelFFX*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
+
+    if (!model || model->GetScriptMetaTable() != CSimpleModelFFX::s_metatable) {
+        luaL_error(L, "Wrong object type for member function");
+        return 0;
+    }
 
     if (model) {
         uint32_t index = 0;
@@ -70,6 +80,11 @@ static int32_t Script_AddCharacterLight(lua_State* L) {
     const char* name = "model";
     CSimpleModelFFX* model = static_cast<CSimpleModelFFX*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
 
+    if (!model || model->GetScriptMetaTable() != CSimpleModelFFX::s_metatable) {
+        luaL_error(L, "Wrong object type for member function");
+        return 0;
+    }
+
     if (model) {
         uint32_t index = 0;
 
@@ -107,6 +122,11 @@ static int32_t Script_AddCharacterLight(lua_State* L) {
 static int32_t Script_AddPetLight(lua_State* L) {
     const char* name = "model";
     CSimpleModelFFX* model = static_cast<CSimpleModelFFX*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
+
+    if (!model || model->GetScriptMetaTable() != CSimpleModelFFX::s_metatable) {
+        luaL_error(L, "Wrong object type for member function");
+        return 0;
+    }
 
     if (model) {
         uint32_t index = 0;

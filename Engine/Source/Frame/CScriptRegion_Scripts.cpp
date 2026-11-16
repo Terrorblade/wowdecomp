@@ -65,6 +65,11 @@ static int32_t Script_SetParent(lua_State* L) {
         return 0;
     }
 
+    if ((region->IsA(CSimpleFontString::GetObjectType()) || region->IsA(CSimpleTexture::GetObjectType())) && static_cast<CSimpleRegion*>(region)->m_internal) {
+        luaL_error(L, "%s:SetParent(): Cannot change the parent of this region", region->GetDisplayName());
+        return 0;
+    }
+
     if (lua_type(L, 2) != LUA_TNIL) {
         CSimpleFrame* parent = nullptr;
 
@@ -87,6 +92,8 @@ static int32_t Script_SetParent(lua_State* L) {
         }
 
         if (parent) {
+            int32_t depth = 0;
+
             for (CSimpleFrame* ancestor = parent; ancestor; ancestor = ancestor->m_parent) {
                 if (ancestor == region) {
                     const char* parentName = parent->GetName();
@@ -94,6 +101,17 @@ static int32_t Script_SetParent(lua_State* L) {
                     luaL_error(L, "%s:SetParent(): Would create a loop parenting to %s", regionName ? regionName : "<unnamed>", parentName ? parentName : "<unnamed>");
                     return 0;
                 }
+
+                depth++;
+            }
+
+            if (region->IsA(CSimpleFrame::GetObjectType())) {
+                depth += CSimpleFrame_GetTreeHeight(static_cast<CSimpleFrame*>(region));
+            }
+
+            if (depth > SIMPLEFRAME_MAX_DEPTH) {
+                luaL_error(L, "%s:SetParent(): Frame hierarchy would be too deep", region->GetDisplayName());
+                return 0;
             }
 
             region->SetParent(parent);
@@ -497,8 +515,9 @@ static int32_t Script_SetPoint(lua_State* L) {
         argIndex = 4;
     } else if (lua_type(L, 3) == LUA_TTABLE) {
         lua_rawgeti(L, 3, 0);
-        relative = static_cast<CScriptRegion*>(lua_touserdata(L, -1));
+        FrameScript_Object* object = static_cast<FrameScript_Object*>(lua_touserdata(L, -1));
         lua_settop(L, -2);
+        relative = object && object->IsA(CScriptRegion::GetObjectType()) ? static_cast<CScriptRegion*>(object) : nullptr;
         argIndex = 4;
     } else if (lua_type(L, 3) == LUA_TNIL) {
         relative = CSimpleTop::s_instance;
@@ -565,8 +584,9 @@ static int32_t Script_SetAllPoints(lua_State* L) {
         relative = region->GetLayoutFrameByName(lua_tolstring(L, 2, nullptr));
     } else if (lua_type(L, 2) == LUA_TTABLE) {
         lua_rawgeti(L, 2, 0);
-        relative = static_cast<CScriptRegion*>(lua_touserdata(L, -1));
+        FrameScript_Object* object = static_cast<FrameScript_Object*>(lua_touserdata(L, -1));
         lua_settop(L, -2);
+        relative = object && object->IsA(CScriptRegion::GetObjectType()) ? static_cast<CScriptRegion*>(object) : nullptr;
     } else if (lua_type(L, 2) == LUA_TNIL) {
         relative = CSimpleTop::s_instance;
     }
@@ -685,6 +705,11 @@ static int32_t Script_CreateAnimationGroup(lua_State* L) {
     XMLNode* inheritNode = nullptr;
     CScriptRegion* region = static_cast<CScriptRegion*>(FrameScript_GetObjectThis(L, CScriptRegion::GetObjectType()));
     const char* name = nullptr;
+
+    if ((region->IsA(CSimpleFontString::GetObjectType()) || region->IsA(CSimpleTexture::GetObjectType())) && static_cast<CSimpleRegion*>(region)->m_internal) {
+        luaL_error(L, "%s:CreateAnimationGroup(): Cannot animate this region", region->GetDisplayName());
+        return 0;
+    }
 
     if (lua_isstring(L, 2)) {
         name = lua_tolstring(L, 2, nullptr);

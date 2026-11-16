@@ -886,6 +886,11 @@ void SendCombatLogEvents() {
             lua_settop(L, -count - 2);
         }
 
+        if (s_pendingEntries != entry) {
+            lua_settop(L, -2);
+            return;
+        }
+
         if (logging) {
             s_pendingEntries->PackEvent(text, sizeof(text));
             CGChat::AddCombatMessage(text);
@@ -1136,7 +1141,7 @@ int32_t Packet_SMSG_DISPEL_FAILED(void* param, NETMESSAGE msgId, uint32_t time, 
     SpellRec failed;
 
     if (g_spellDB.GetRecord(spellId, &spell) && !(spell.m_attributes & 0x180) && *spell.m_name) {
-        while (!msg->IsRead()) {
+        while (msg->m_read < msg->m_size) {
             uint32_t failedId = 0;
             msg->Get(failedId);
 
@@ -1571,7 +1576,7 @@ void UnitCombatLogSpellFail(const WOWGUID& caster, int32_t spellId, const char* 
 // VERIFY: 94b0219d auto
 // OFFSET: 0x00751B80
 void UnitCombatLogSpellMissed(const WOWGUID& casterGuid, const WOWGUID& targetGuid, int32_t spellId, int32_t missType, bool a5, bool a6, int32_t a7) {
-    if (!missType) {
+    if (!missType || static_cast<uint32_t>(missType) >= sizeof(g_spellMissStrings) / sizeof(g_spellMissStrings[0])) {
         return;
     }
 
@@ -1696,13 +1701,13 @@ int32_t CombatLog::HandleSpellLogExecute(CDataStore* msg, int32_t timeOffset) {
         return 1;
     }
 
-    for (int32_t i = effectCount; i > 0; i--) {
+    for (int32_t i = effectCount; i > 0 && msg->m_read <= msg->m_size; i--) {
         uint32_t effect = 0;
         msg->Get(effect);
         uint32_t targetCount = 0;
         msg->Get(targetCount);
 
-        for (int32_t j = targetCount; j > 0; j--) {
+        for (int32_t j = targetCount; j > 0 && msg->m_read <= msg->m_size; j--) {
             SmartGUID target;
 
             switch (effect) {
@@ -1907,6 +1912,10 @@ int32_t CombatLog::HandleSpellLogMiss(CDataStore* msg, int32_t timeOffset) {
         uint8_t missType = 0;
         msg->Get(missType);
 
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         if (hasDebug) {
             float a = 0.0f;
             msg->Get(a);
@@ -2043,6 +2052,10 @@ void SendHealEvent(int32_t event, const WOWGUID& source, const WOWGUID& dest, co
 // VERIFY: f15c546c manual
 // OFFSET: 0x00750A90
 void SendEnergizeEvent(int32_t event, const WOWGUID& source, const WOWGUID& dest, const SpellRec* spell, int32_t powerType, int32_t amount, uint32_t timeOffset) {
+    if (powerType >= NUM_POWER_TYPES) {
+        return;
+    }
+
     int32_t value = amount / Spell_C_GetPowerDisplayMod(static_cast<POWER_TYPE>(powerType));
     CombatLogEntry* entry = GetCombatLogEntry(source, dest, event, spell);
     entry->m_infoFlags |= 0x40;
@@ -2058,6 +2071,10 @@ void SendEnergizeEvent(int32_t event, const WOWGUID& source, const WOWGUID& dest
 // VERIFY: a94001c7 manual
 // OFFSET: 0x00750B60
 void AddPowerDrainEntry(int32_t event, const WOWGUID& source, const WOWGUID& dest, const SpellRec* spell, int32_t amount, int32_t powerType, int32_t extra, uint32_t timeOffset) {
+    if (powerType >= NUM_POWER_TYPES) {
+        return;
+    }
+
     uint32_t mod = Spell_C_GetPowerDisplayMod(static_cast<POWER_TYPE>(powerType));
     int32_t value = amount / mod;
     int32_t extraValue = extra / mod;
@@ -2504,6 +2521,10 @@ int32_t CombatLog::HandleSpellRemoveLog(NETMESSAGE msgId, CDataStore* msg, int32
         msg->Get(spellId);
         uint8_t harmful;
         msg->Get(harmful);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
 
         if (msgId == SMSG_SPELL_BREAK_LOG) {
             CombatLog::AddSpellRemoveEntry(caster, target, dispelSpellId, spellId, harmful != 0);

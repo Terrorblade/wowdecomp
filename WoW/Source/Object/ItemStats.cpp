@@ -1,6 +1,7 @@
 #include "ItemStats.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "WoW/Common/ComponentCore/Types.h"
 #include <cstring>
 
 // INLINED
@@ -56,6 +57,11 @@ void ItemStats_C::Unpack(CDataStore* msg) {
     msg->Get(reinterpret_cast<uint32_t&>(this->m_buyPrice));
     msg->Get(this->m_sellPrice);
     msg->Get(this->m_inventoryType);
+
+    if (this->m_inventoryType > INVTYPE_RELIC) {
+        this->m_inventoryType = 0;
+    }
+
     msg->Get(this->m_allowableClass);
     msg->Get(this->m_allowableRace);
     msg->Get(this->m_itemLevel);
@@ -74,14 +80,29 @@ void ItemStats_C::Unpack(CDataStore* msg) {
 
     memset(this->m_statValue, 0, sizeof(this->m_statValue));
 
+    const int32_t maxStats = sizeof(this->m_statType) / sizeof(this->m_statType[0]);
     int32_t stat = 0;
 
-    for (; stat < this->m_statsCount; stat++) {
-        msg->Get(this->m_statType[stat]);
-        msg->Get(this->m_statValue[stat]);
+    for (int32_t i = 0; i < this->m_statsCount; i++) {
+        uint32_t statType = 0;
+        uint32_t statValue = 0;
+        msg->Get(statType);
+        msg->Get(statValue);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
+        if (stat < maxStats) {
+            this->m_statType[stat] = statType;
+            this->m_statValue[stat] = statValue;
+            stat++;
+        }
     }
 
-    for (; stat < 10; stat++) {
+    this->m_statsCount = stat;
+
+    for (; stat < maxStats; stat++) {
         this->m_statType[stat] = -1;
     }
 

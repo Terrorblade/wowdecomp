@@ -222,4 +222,9 @@ class CSimpleFrame : public CScriptRegion {
     void UnregisterForEvents(int32_t a2);
 };
 
+// Frame trees deeper than this overflow the C stack in the recursive show, level and layout paths.
+const int32_t SIMPLEFRAME_MAX_DEPTH = 256;
+
+int32_t CSimpleFrame_GetTreeHeight(CSimpleFrame* root);
+
 #endif

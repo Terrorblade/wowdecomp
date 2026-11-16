@@ -305,6 +305,11 @@ static bool HasScrapItem(uint64_t guid) {
     return false;
 }
 
+// The slot update event runs Lua that can close the panel or empty the slot before the caller locks the item.
+static bool IsSlotted(uint64_t guid) {
+    return s_open && (HasCatalyst(guid) || HasScrapItem(guid));
+}
+
 static bool PlaceCatalyst(uint64_t guid, uint32_t entry, int32_t preferredSlot) {
     if (s_craftPending || s_scrapPending) {
         SignalError(CRAFT_ERR_BUSY);
@@ -416,7 +421,11 @@ static bool AddCursorItem(Mode mode, int32_t preferredSlot) {
     }
 
     CGGameUI::ClearCursor(1, 1);
-    LockItem(guid);
+
+    if (IsSlotted(guid)) {
+        LockItem(guid);
+    }
+
     return true;
 }
 
@@ -1158,7 +1167,7 @@ bool HandleUseContainerItem(lua_State* L) {
     uint64_t guid = item->m_obj->m_guid.m_guid;
     bool placed = s_mode == MODE_CRAFTING ? PlaceCatalyst(guid, entry, -1) : PlaceScrapItem(guid, entry, -1);
 
-    if (placed) {
+    if (placed && IsSlotted(guid)) {
         LockItem(guid);
     }
 

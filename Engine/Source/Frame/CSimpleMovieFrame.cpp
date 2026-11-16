@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <malloc.h>
+#include <vector>
 #include "Engine/Source/Frame/CSimpleMovieFrame.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -303,6 +304,8 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
     SStrPrintf(path, sizeof(path), "%s.avi", fileName);
 
     if (SFile::OpenEx(nullptr, path, 1, &file)) {
+        std::vector<char> headerStorage;
+        std::vector<char> indexStorage;
         char* header = nullptr;
         uint32_t headerSize = 0;
         char* index = nullptr;
@@ -322,8 +325,13 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
                     size -= 4;
 
                     if (!SStrCmpI(&chunk[0], "hdrl", 4)) {
+                        if (size > 0x1000000) {
+                            break;
+                        }
+
                         headerSize = size;
-                        header = static_cast<char*>(alloca(size));
+                        headerStorage.assign(size, 0);
+                        header = headerStorage.data();
 
                         if (!SFileReadFile(file, header, size, nullptr, nullptr, 0)) {
                             break;
@@ -335,8 +343,13 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
                         SFile::SetFilePointer(file, size, nullptr, 1);
                     }
                 } else if (!SStrCmpI(&chunk[0], "idx1", 4)) {
+                    if (size > 0x1000000) {
+                        break;
+                    }
+
                     indexSize = size;
-                    index = static_cast<char*>(alloca(size));
+                    indexStorage.assign(size, 0);
+                    index = indexStorage.data();
 
                     if (!SFileReadFile(file, index, size, nullptr, nullptr, 0)) {
                         break;
@@ -350,7 +363,7 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
             int32_t videoStream = -1;
             int32_t audioStream = -1;
 
-            for (uint32_t offset = 0; offset < headerSize;) {
+            for (uint32_t offset = 0; offset + 8 <= headerSize;) {
                 if (!SStrCmpI(&header[offset], "LIST", 4)) {
                     offset += 12;
                     continue;
@@ -358,8 +371,16 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
 
                 uint32_t chunkSize = *reinterpret_cast<uint32_t*>(&header[offset + 4]);
 
+                if (chunkSize > headerSize - offset - 8) {
+                    break;
+                }
+
                 if (!SStrCmpI(&header[offset], "strh", 4)) {
                     offset += 8;
+
+                    if (chunkSize < 36) {
+                        break;
+                    }
 
                     if (!SStrCmpI(&header[offset], "vids", 4)) {
                         this->m_fps = static_cast<float>(*reinterpret_cast<uint32_t*>(&header[offset + 24])) / static_cast<float>(*reinterpret_cast<uint32_t*>(&header[offset + 20]));
@@ -376,7 +397,7 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
                     int32_t isFormat = !SStrCmpI(&header[offset], "strf", 4);
                     offset += 8;
 
-                    if (isFormat && videoStream >= 0 && audioStream < 0) {
+                    if (isFormat && videoStream >= 0 && audioStream < 0 && chunkSize >= 12) {
                         this->m_width = *reinterpret_cast<int32_t*>(&header[offset + 4]);
                         this->m_height = *reinterpret_cast<int32_t*>(&header[offset + 8]);
                     }
@@ -385,18 +406,27 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
                 offset += chunkSize;
             }
 
-            this->m_videoDataSize = 0;
-            this->m_audioDataSize = 0;
+            uint64_t videoTotal = 0;
+            uint64_t audioTotal = 0;
 
-            for (uint32_t i = 0; i < indexSize; i += 16) {
+            for (uint32_t i = 0; i + 16 <= indexSize; i += 16) {
                 if (index[i + 2] == 'd') {
-                    this->m_videoDataSize += *reinterpret_cast<uint32_t*>(&index[i + 12]) + 4;
+                    videoTotal += static_cast<uint64_t>(*reinterpret_cast<uint32_t*>(&index[i + 12])) + 4;
                 }
 
                 if (index[i + 2] == 'w') {
-                    this->m_audioDataSize += *reinterpret_cast<uint32_t*>(&index[i + 12]);
+                    audioTotal += *reinterpret_cast<uint32_t*>(&index[i + 12]);
                 }
             }
+
+            if (videoTotal > 0x40000000 || audioTotal > 0x40000000) {
+                videoTotal = 0;
+                audioTotal = 0;
+                indexSize = 0;
+            }
+
+            this->m_videoDataSize = static_cast<uint32_t>(videoTotal);
+            this->m_audioDataSize = static_cast<uint32_t>(audioTotal);
 
             this->m_videoData = static_cast<uint8_t*>(SMemAlloc(this->m_videoDataSize, __FILE__, __LINE__, 0));
             this->m_audioData = static_cast<uint8_t*>(SMemAlloc(this->m_audioDataSize, __FILE__, __LINE__, 0));
@@ -404,9 +434,15 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
             uint8_t* video = this->m_videoData;
             uint8_t* audio = this->m_audioData;
 
-            for (uint32_t i = 0; i < indexSize; i += 16) {
+            for (uint32_t i = 0; i + 16 <= indexSize; i += 16) {
                 if (index[i + 2] == 'd') {
                     uint32_t size = *reinterpret_cast<uint32_t*>(&index[i + 12]);
+                    size_t videoLeft = this->m_videoDataSize - (video - this->m_videoData);
+
+                    if (!video || videoLeft < 4 || size > videoLeft - 4) {
+                        break;
+                    }
+
                     *reinterpret_cast<uint32_t*>(video) = size;
                     video += 4;
                     SFile::SetFilePointer(file, *reinterpret_cast<uint32_t*>(&index[i + 8]) + moviOffset + 4, nullptr, 0);
@@ -416,6 +452,11 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
 
                 if (index[i + 2] == 'w') {
                     uint32_t size = *reinterpret_cast<uint32_t*>(&index[i + 12]);
+
+                    if (!audio || size > this->m_audioDataSize - (audio - this->m_audioData)) {
+                        break;
+                    }
+
                     SFile::SetFilePointer(file, *reinterpret_cast<uint32_t*>(&index[i + 8]) + moviOffset + 4, nullptr, 0);
                     SFileReadFile(file, audio, size, nullptr, nullptr, 0);
                     audio += size;
@@ -486,7 +527,18 @@ void CSimpleMovieFrame::CloseAudio() {
 // VERIFY: 90a9a30a manual
 // OFFSET: 0x0095E1C0
 bool CSimpleMovieFrame::DecodeFrame(bool render) {
+    size_t videoLeft = this->m_videoData ? this->m_videoDataSize - (this->m_videoPos - this->m_videoData) : 0;
+
+    if (videoLeft < 4) {
+        return false;
+    }
+
     uint32_t size = *reinterpret_cast<uint32_t*>(this->m_videoPos);
+
+    if (size > videoLeft - 4) {
+        return false;
+    }
+
     this->m_videoPos += 4;
 
     DivxDecodeFrame frame = {};
@@ -664,7 +716,7 @@ int32_t CSimpleMovieFrame::OpenCaptions(const char* fileName) {
     if (SFile::LoadFile(path, &data, nullptr, 1, nullptr)) {
         const char* text = static_cast<const char*>(data);
 
-        if (*reinterpret_cast<const uint8_t*>(text) == 0xEF) {
+        if (*reinterpret_cast<const uint8_t*>(text) == 0xEF && text[1] && text[2]) {
             text += 3;
         }
 
@@ -723,6 +775,14 @@ void CSimpleMovieFrame::CloseCaptions() {
 // VERIFY: 26d17828 auto
 // OFFSET: 0x0095EB30
 int32_t CSimpleMovieFrame::StartMovie(const char* fileName, int32_t volume) {
+    // A movie that is still playing would keep using buffers the new one replaces or frees.
+    if (this->m_isPlaying) {
+        this->CloseCaptions();
+        this->CloseVideo();
+        this->CloseAudio();
+        this->m_isPlaying = 0;
+    }
+
     if (!this->ParseAVIFile(fileName) || !this->OpenVideo(fileName)) {
         return 0;
     }

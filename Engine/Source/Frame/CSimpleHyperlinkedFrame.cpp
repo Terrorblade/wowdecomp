@@ -20,19 +20,19 @@ void CSimpleHyperlinkButton::operator delete(void* ptr) {
 // VERIFY: 5a02c721 auto
 // OFFSET: 0x00978540
 void CSimpleHyperlinkButton::OnLayerCursorEnter(int32_t motion) {
-    static_cast<CSimpleHyperlinkedFrame*>(this->m_parent)->OnHyperlinkEnter(this->m_linkData, this->m_linkText);
+    this->m_owner->OnHyperlinkEnter(this->m_linkData, this->m_linkText);
 }
 
 // VERIFY: e8af4768 auto
 // OFFSET: 0x00978570
 void CSimpleHyperlinkButton::OnLayerCursorExit(int32_t motion, int32_t a3) {
-    static_cast<CSimpleHyperlinkedFrame*>(this->m_parent)->OnHyperlinkLeave(this->m_linkData, this->m_linkText);
+    this->m_owner->OnHyperlinkLeave(this->m_linkData, this->m_linkText);
 }
 
 // VERIFY: 4678b058 auto
 // OFFSET: 0x009785A0
 void CSimpleHyperlinkButton::OnClick(const char* btn, int32_t down) {
-    static_cast<CSimpleHyperlinkedFrame*>(this->m_parent)->OnHyperlinkClick(this->m_linkData, this->m_linkText, btn);
+    this->m_owner->OnHyperlinkClick(this->m_linkData, this->m_linkText, btn);
 }
 
 // VERIFY: 33c565d4 manual
@@ -88,6 +88,7 @@ CSimpleHyperlinkButton::CSimpleHyperlinkButton(CSimpleHyperlinkedFrame* parent) 
     this->SetClickAction(0xFFFFFFFF80000000ULL);
     this->m_linkData = nullptr;
     this->m_linkText = nullptr;
+    this->m_owner = parent;
 }
 
 // VERIFY: e4fd8db4 auto
@@ -105,7 +106,7 @@ CSimpleHyperlinkButton::~CSimpleHyperlinkButton() {
 // VERIFY: b8408a8d auto
 // OFFSET: 0x00978420
 void CSimpleHyperlinkedFrame::RunOnHyperlinkEnterScript(const char* link, const char* text) {
-    this->m_inHyperlinkScript = 1;
+    this->m_inHyperlinkScript++;
 
     if (this->m_onHyperlinkEnter.m_luaRef) {
         lua_State* L = FrameScript_GetContext();
@@ -114,13 +115,13 @@ void CSimpleHyperlinkedFrame::RunOnHyperlinkEnterScript(const char* link, const 
         this->RunScript(this->m_onHyperlinkEnter, 2, nullptr);
     }
 
-    this->m_inHyperlinkScript = 0;
+    this->m_inHyperlinkScript--;
 }
 
 // VERIFY: 2fce4294 auto
 // OFFSET: 0x00978480
 void CSimpleHyperlinkedFrame::RunOnHyperlinkLeaveScript(const char* link, const char* text) {
-    this->m_inHyperlinkScript = 1;
+    this->m_inHyperlinkScript++;
 
     if (this->m_onHyperlinkLeave.m_luaRef) {
         lua_State* L = FrameScript_GetContext();
@@ -129,13 +130,13 @@ void CSimpleHyperlinkedFrame::RunOnHyperlinkLeaveScript(const char* link, const 
         this->RunScript(this->m_onHyperlinkLeave, 2, nullptr);
     }
 
-    this->m_inHyperlinkScript = 0;
+    this->m_inHyperlinkScript--;
 }
 
 // VERIFY: bcc9be72 auto
 // OFFSET: 0x009784E0
 void CSimpleHyperlinkedFrame::RunOnHyperlinkClickScript(const char* link, const char* text, const char* btn) {
-    this->m_inHyperlinkScript = 1;
+    this->m_inHyperlinkScript++;
 
     if (this->m_onHyperlinkClick.m_luaRef) {
         lua_State* L = FrameScript_GetContext();
@@ -145,7 +146,7 @@ void CSimpleHyperlinkedFrame::RunOnHyperlinkClickScript(const char* link, const 
         this->RunScript(this->m_onHyperlinkClick, 3, nullptr);
     }
 
-    this->m_inHyperlinkScript = 0;
+    this->m_inHyperlinkScript--;
 }
 
 // VERIFY: 0524d7db auto

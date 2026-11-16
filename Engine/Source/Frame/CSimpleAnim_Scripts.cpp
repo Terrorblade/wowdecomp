@@ -239,6 +239,12 @@ static int32_t Script_SetOrder(lua_State* L) {
         return 0;
     }
 
+    // A playing group walks its order lists while running scripts, so they must not change under it.
+    if (anim->m_group && anim->m_group->m_loopState) {
+        luaL_error(L, "%s:SetOrder(): Cannot change the order while the animation group is playing", anim->GetDisplayName());
+        return 0;
+    }
+
     anim->SetOrder(lua_tointeger(L, 2) - 1, true, false);
     return 0;
 }
@@ -323,6 +329,11 @@ static int32_t Script_SetParent(lua_State* L) {
     if (!group) {
         const char* name = anim->GetName();
         luaL_error(L, "%s:SetParent(): Couldn't find animation group named '%s'", name ? name : "<unnamed>", lua_tolstring(L, 2, nullptr));
+        return 0;
+    }
+
+    if ((anim->m_group && anim->m_group->m_loopState) || group->m_loopState) {
+        luaL_error(L, "%s:SetParent(): Cannot move an animation while its animation group is playing", anim->GetDisplayName());
         return 0;
     }
 

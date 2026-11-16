@@ -11,6 +11,14 @@
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/Ui/ChatFrame.h"
 
+static bool IsGameDataPath(const char* path) {
+    if (!path || !*path || path[0] == '\\' || path[0] == '/' || SStrChr(path, ':') || SStrStr(path, "..")) {
+        return false;
+    }
+
+    return true;
+}
+
 // VERIFY: 1ef15c2e auto
 // OFFSET: 0x009858B0
 static int32_t Script_PlaySound(lua_State* L) {
@@ -38,7 +46,13 @@ static int32_t Script_PlayMusic(lua_State* L) {
         lua_error(L);
     }
 
-    SI2::PlaySoundFile(lua_tolstring(L, 1, nullptr), 5);
+    const char* filename = lua_tolstring(L, 1, nullptr);
+
+    if (!IsGameDataPath(filename)) {
+        return 0;
+    }
+
+    SI2::PlaySoundFile(filename, 5);
     lua_pushnumber(L, 1.0);
     return 1;
 }
@@ -51,7 +65,13 @@ static int32_t Script_PlaySoundFile(lua_State* L) {
         lua_error(L);
     }
 
-    SI2::PlaySoundFile(lua_tolstring(L, 1, nullptr), 4);
+    const char* filename = lua_tolstring(L, 1, nullptr);
+
+    if (!IsGameDataPath(filename)) {
+        return 0;
+    }
+
+    SI2::PlaySoundFile(filename, 4);
     lua_pushnumber(L, 1.0);
     return 1;
 }
@@ -81,7 +101,11 @@ static int32_t Script_Sound_ChatSystem_GetInputDriverNameByIndex(lua_State* L) {
     int32_t index = static_cast<int32_t>(lua_tointeger(L, 1));
     char name[2048];
     memset(name, 0, sizeof(name));
-    SI2::GetInputDriverName_Cached(index, name, sizeof(name), 1);
+
+    if (index >= 0 && index < SI2::GetNumInputDrivers_Cached(1)) {
+        SI2::GetInputDriverName_Cached(index, name, sizeof(name), 1);
+    }
+
     lua_pushstring(L, name);
     return 1;
 }
@@ -105,7 +129,7 @@ static int32_t Script_Sound_ChatSystem_GetOutputDriverNameByIndex(lua_State* L) 
     char name[2048];
     memset(name, 0, sizeof(name));
 
-    if (index >= 0 && index <= SI2::GetNumOutputDrivers_Cached(1)) {
+    if (index >= 0 && index < SI2::GetNumOutputDrivers_Cached(1)) {
         SI2::GetOutputDriverName_Cached(index, name, sizeof(name), 1);
     }
 
@@ -154,7 +178,11 @@ static int32_t Script_Sound_GameSystem_GetOutputDriverNameByIndex(lua_State* L) 
     int32_t index = static_cast<int32_t>(lua_tointeger(L, 1));
     char name[2048];
     memset(name, 0, sizeof(name));
-    SI2::GetOutputDriverName_Cached(index, name, sizeof(name), 0);
+
+    if (index >= 0 && index < SI2::GetNumOutputDrivers_Cached(0)) {
+        SI2::GetOutputDriverName_Cached(index, name, sizeof(name), 0);
+    }
+
     lua_pushstring(L, name);
     return 1;
 }
@@ -183,7 +211,14 @@ static int32_t Script_VoiceChat_RecordLoopbackSound(lua_State* L) {
         return 0;
     }
 
-    SI2::VoiceChat_RecordLoopbackSound(static_cast<int32_t>(lua_tonumber(L, 1)));
+    double seconds = lua_tonumber(L, 1);
+
+    if (!(seconds >= 0.0 && seconds <= 60.0)) {
+        luaL_error(L, "Usage: VoiceChat_RecordLoopbackSound(MaxRecordTimeInSeconds)");
+        return 0;
+    }
+
+    SI2::VoiceChat_RecordLoopbackSound(static_cast<int32_t>(seconds));
     return 0;
 }
 

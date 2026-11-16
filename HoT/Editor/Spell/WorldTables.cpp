@@ -132,6 +132,10 @@ static bool ReadValue(Net::Packet& packet, uint8_t type, Value& value) {
             value.f = packet.GetFloat();
             return true;
         case VALUE_STRING:
+            if (!packet.CanRead(1)) {
+                return false;
+            }
+
             value.text = ReadCString(packet);
             return true;
         case VALUE_UINT64:
@@ -218,7 +222,7 @@ static int32_t Packet_SMSG_EDITOR_WORLD_ROWS(void* param, NETMESSAGE msgId, uint
     }
 
     uint16_t rowCount = packet.GetUInt16();
-    set.rows.reserve(rowCount);
+    set.rows.reserve(rowCount < packet.Remaining() ? rowCount : packet.Remaining());
 
     for (uint16_t r = 0; r < rowCount; r++) {
         std::vector<Value> row(columnCount);
@@ -547,7 +551,7 @@ static int32_t Script_Save(lua_State* L) {
 
     int rowCount = static_cast<int>(lua_objlen(L, rowsIndex));
 
-    if (columns.size() > 0xFFFF || rowCount > 0xFFFF || (rowCount && columns.empty())) {
+    if (columns.size() > 0xFFFF || rowCount > 0xFFFF || (rowCount && columns.empty()) || columns.size() * static_cast<size_t>(rowCount) > 0x100000) {
         lua_pushboolean(L, 0);
         return 1;
     }

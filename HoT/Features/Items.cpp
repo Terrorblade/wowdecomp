@@ -123,7 +123,8 @@ static int32_t Packet_SMSG_ITEM_DB_CACHE(void* param, NETMESSAGE msgId, uint32_t
     int32_t soundOverride = packet.GetInt32();
     int32_t sheatheType = packet.GetInt32();
 
-    if (id <= 0) {
+    // The client indexes inventory type tables with this record's value.
+    if (id <= 0 || inventoryType < INVTYPE_NON_EQUIP || inventoryType > INVTYPE_RELIC) {
         return 1;
     }
 

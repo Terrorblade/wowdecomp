@@ -29,6 +29,7 @@ class FrameScript_Object {
     /* 0004 */ int32_t m_luaRegistered;
     /* 0008 */ int32_t m_luaObjectRef;
     /* 000C */ FrameScript_Object::ScriptIx m_onEvent;
+    bool m_hasScriptEvents;
 
     static int32_t CreateScriptMetaTable(lua_State* L, void (*registerFunc)(lua_State*));
     static void FillScriptMethodTable(lua_State* L, FrameScript_Method* methods, int32_t count);

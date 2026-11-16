@@ -329,6 +329,7 @@ bool ModelDoc::Parse(const std::vector<uint8_t>& file, std::string& error) {
         { HEADER_TEXTURES, TEXTURE_STRIDE },
         { HEADER_MATERIALS, MATERIAL_STRIDE },
         { HEADER_TEXTURE_COMBOS, 2 },
+        { HEADER_ATTACHMENTS, ATTACHMENT_STRIDE },
         { HEADER_RIBBONS, RIBBON_STRIDE },
         { HEADER_PARTICLES, this->ParticleStride() },
     };

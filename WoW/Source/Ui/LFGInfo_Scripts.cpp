@@ -121,7 +121,7 @@ static int32_t Script_GetLFGDeserterExpiration(lua_State* L) {
 // OFFSET: 0x005548F0
 static int32_t Script_GetAvailableRoles(lua_State* L) {
     ChrClassesRec* rec = g_chrClassesDB.GetRecord(ClientServices::GetCharacterClass());
-    uint8_t roles = CGLookingForGroup::GetClassRoles(rec->m_id);
+    uint8_t roles = CGLookingForGroup::GetClassRoles(rec ? rec->m_id : 0);
     lua_pushboolean(L, roles & 0x2);
     lua_pushboolean(L, roles & 0x4);
     lua_pushboolean(L, roles & 0x8);
@@ -146,7 +146,7 @@ static int32_t Script_SetLFGRoles(lua_State* L) {
     }
 
     ChrClassesRec* rec = g_chrClassesDB.GetRecord(ClientServices::GetCharacterClass());
-    s_cvLfgSelectedRoles->Set(roles & CGLookingForGroup::GetClassRoles(rec->m_id), true, false, false, true);
+    s_cvLfgSelectedRoles->Set(roles & CGLookingForGroup::GetClassRoles(rec ? rec->m_id : 0), true, false, false, true);
     FrameScript_SignalEvent(SCRIPT_EVENT_LFG_ROLE_UPDATE, nullptr);
     return 0;
 }
@@ -354,6 +354,11 @@ static int32_t Script_GetPartyLFGBackfillInfo(lua_State* L) {
     }
 
     LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecord(CGPartyInfo::m_lfgSlot & 0xFFFFFF);
+
+    if (!rec) {
+        return 0;
+    }
+
     lua_pushstring(L, rec->m_name);
     lua_pushnumber(L, rec->m_id);
     lua_pushnumber(L, rec->m_typeID);
@@ -1684,9 +1689,9 @@ static int32_t Script_SearchLFGGetResults(lua_State* L) {
     char comment[256];
 
     if (party) {
-        SStrCopy(comment, party->m_comment, STORM_MAX_STR);
+        SStrCopy(comment, party->m_comment, sizeof(comment));
     } else {
-        SStrCopy(comment, player->m_comment, STORM_MAX_STR);
+        SStrCopy(comment, player->m_comment, sizeof(comment));
     }
 
     ProfanityFilter(comment, false, false);
@@ -1747,7 +1752,7 @@ static int32_t Script_SearchLFGGetPartyResults(lua_State* L) {
         AreaTableRec* area = g_areaTableDB.GetRecord(player->m_areaID);
         lua_pushstring(L, area ? area->m_areaName : FrameScript_GetText("UNKNOWN", -1, GENDER_NOT_APPLICABLE));
         char comment[256];
-        SStrCopy(comment, player->m_comment, STORM_MAX_STR);
+        SStrCopy(comment, player->m_comment, sizeof(comment));
         ProfanityFilter(comment, false, false);
         lua_pushstring(L, comment);
         return AddLFGPlayerInfo(L, player) + 6;

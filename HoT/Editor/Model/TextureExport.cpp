@@ -138,7 +138,7 @@ bool BlpToPng(const std::vector<uint8_t>& blp, std::vector<uint8_t>& png, std::s
         return false;
     }
 
-    if (header.m_mipSizes[0] < needed || header.m_mipOffsets[0] > data.size() || data.size() - header.m_mipOffsets[0] < needed) {
+    if (header.m_mipSizes[0] < needed || header.m_mipOffsets[0] > data.size() || data.size() - header.m_mipOffsets[0] < header.m_mipSizes[0]) {
         error = "damaged BLP";
         return false;
     }

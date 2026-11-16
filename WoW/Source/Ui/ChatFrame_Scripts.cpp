@@ -93,7 +93,7 @@ static int32_t Script_SendChatMessage(lua_State* L) {
         target = lua_tolstring(L, 4, nullptr);
     }
 
-    if (type == CHAT_MSG_WHISPER) {
+    if (type == CHAT_MSG_WHISPER || type == CHAT_MSG_BATTLENET) {
         if (!target || !*target) {
             luaL_error(L, "SendChatMessage(): Whisper message missing target player!");
         }
@@ -739,7 +739,7 @@ static int32_t Script_ListChannels(lua_State* L) {
             char entry[138];
             SStrPrintf(entry, sizeof(entry), "[%d. %s] ", channel->m_channelNumber, channel->m_name);
 
-            if (SStrLen(&text[SStrLen(entry)]) >= sizeof(text)) {
+            if (SStrLen(text) + SStrLen(entry) >= sizeof(text)) {
                 CGChat::AddChatMessage(text, CHAT_MSG_CHANNEL_LIST, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
                 text[0] = 0;
             }
@@ -1275,7 +1275,7 @@ static int32_t Script_GetChannelDisplayInfo(lua_State* L) {
         lua_pushstring(L, name ? name : "");
         lua_pushnil(L);
         lua_pushnil(L);
-        lua_pushnumber(L, CGChat::s_channels.m_data[display->m_channelIndex].m_channelNumber);
+        lua_pushnumber(L, static_cast<uint32_t>(channelIndex) < CGChat::s_channels.Count() ? CGChat::s_channels.m_data[channelIndex].m_channelNumber : 0);
 
         if (display->m_count) {
             lua_pushnumber(L, display->m_count);

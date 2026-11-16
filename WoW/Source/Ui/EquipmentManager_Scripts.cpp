@@ -559,7 +559,7 @@ static int32_t Script_SaveEquipmentSet(lua_State* L) {
         uint32_t index = iconIndex - 1;
 
         if (index < GetNumMacroIcons()) {
-            SStrCopy(icon, GetMacroIcon(index), STORM_MAX_STR);
+            SStrCopy(icon, GetMacroIcon(index), sizeof(icon));
         }
     } else {
         int32_t slot = abs(iconIndex) - 1;
@@ -582,14 +582,14 @@ static int32_t Script_SaveEquipmentSet(lua_State* L) {
                 }
 
                 if (displayId) {
-                    SStrCopy(icon, CGItem_C::GetInventoryArt(displayId), STORM_MAX_STR);
+                    SStrCopy(icon, CGItem_C::GetInventoryArt(displayId), sizeof(icon));
                 }
             }
         }
     }
 
     if (!icon[0]) {
-        SStrCopy(icon, "INV_Misc_QuestionMark", STORM_MAX_STR);
+        SStrCopy(icon, "INV_Misc_QuestionMark", sizeof(icon));
     }
 
     if (CGEquipmentManager::HasSet(name)) {

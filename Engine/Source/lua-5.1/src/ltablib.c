@@ -153,9 +153,10 @@ static int tremovemulti (lua_State *L) {
   int n = luaL_optint(L, 3, 1);
   int i;
   if (e == 0) return 0;
-  if (pos <= 0 || n < 0 || pos > e || pos + n - 1 > e)
+  if (pos <= 0 || n < 0 || pos > e || n > e - pos + 1)
     luaL_error(L, "parameters out of bounds");
-  lua_checkstack(L, n);
+  if (!lua_checkstack(L, n))
+    luaL_error(L, "too many results to removemulti");
   for (i = pos; i < pos + n; i++)
     lua_rawgeti(L, 1, i);
   for ( ; pos < e; pos++) {

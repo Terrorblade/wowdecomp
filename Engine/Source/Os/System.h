@@ -52,6 +52,7 @@ int32_t OsGetUserName(char* buffer, uint32_t* size);
 OsType OsGetVersion();
 void OsGetVersionString(char* buffer, int32_t size);
 int32_t OsIsRemoteSession();
+int32_t OsIsSafeLaunchURL(const char* url);
 int32_t OsLaunchURL(const char* url);
 void OsSetBackgroundSleepMs(uint32_t milliseconds);
 void OsSetSleepInBackground(int32_t sleep);

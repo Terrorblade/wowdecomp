@@ -449,7 +449,7 @@ static bool WriteBugReport(const char* arg) {
         ReportFile(file, checked.m_name, checked.m_enUSMd5);
     }
 
-    if (arg && arg[0] && (strchr(arg, '\\') || strchr(arg, '/')) && !strchr(arg, ' ')) {
+    if (arg && arg[0] && (strchr(arg, '\\') || strchr(arg, '/')) && !strchr(arg, ' ') && !strchr(arg, ':') && !strstr(arg, "..") && arg[0] != '\\' && arg[0] != '/') {
         ReportFile(file, arg);
     }
 

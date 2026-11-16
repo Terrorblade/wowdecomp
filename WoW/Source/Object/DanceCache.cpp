@@ -26,14 +26,14 @@ DanceCache& DanceCache::operator=(const DanceCache& source) {
     SStrCopy(this->m_name, source.m_name, sizeof(this->m_name));
 
     if (this->m_dataCount < source.m_dataCount) {
-        if (this->m_data) {
-            SMemReAlloc(this->m_data, source.m_dataCount, __FILE__, __LINE__, 0);
-        } else {
-            this->m_data = new (__FILE__, __LINE__) DANCEMOVE[source.m_dataCount];
-        }
+        delete[] this->m_data;
+        this->m_data = new (__FILE__, __LINE__) DANCEMOVE[source.m_dataCount];
     }
 
-    memcpy(this->m_data, source.m_data, 4 * source.m_dataCount);
+    if (source.m_dataCount) {
+        memcpy(this->m_data, source.m_data, sizeof(DANCEMOVE) * source.m_dataCount);
+    }
+
     this->m_dataCount = source.m_dataCount;
     this->m_version = source.m_version;
 
@@ -63,6 +63,12 @@ void DanceCache::Unpack(CDataStore* msg) {
     *msg >> static_cast<SmartGUID&>(this->m_guid);
     msg->GetString(this->m_name, sizeof(this->m_name));
     msg->Get(this->m_dataCount);
+
+    if (msg->m_read > msg->m_size || this->m_dataCount > (msg->m_size - msg->m_read) / sizeof(DANCEMOVE)) {
+        this->m_dataCount = 0;
+        return;
+    }
+
     this->m_data = new (__FILE__, __LINE__) DANCEMOVE[this->m_dataCount];
     msg->GetData(this->m_data, 4 * this->m_dataCount);
     msg->Get(this->m_version);

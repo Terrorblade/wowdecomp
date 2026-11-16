@@ -58,7 +58,7 @@ static int32_t Script_SetColorWheelTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = colorSelect->GetName();
             luaL_error(L, "%s:SetColorWheelTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;
@@ -113,7 +113,7 @@ static int32_t Script_SetColorWheelThumbTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = colorSelect->GetName();
             luaL_error(L, "%s:SetColorWheelThumbTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;
@@ -173,7 +173,7 @@ static int32_t Script_SetColorValueTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = colorSelect->GetName();
             luaL_error(L, "%s:SetColorValueTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;
@@ -228,7 +228,7 @@ static int32_t Script_SetColorValueThumbTexture(lua_State* L) {
             return 0;
         }
 
-        if (!texture->IsA(CSimpleTexture::GetObjectType())) {
+        if (!texture->IsA(CSimpleTexture::GetObjectType()) || texture->m_internal) {
             const char* name = colorSelect->GetName();
             luaL_error(L, "%s:SetColorValueThumbTexture(): Wrong object type, expected texture", name ? name : "<unnamed>");
             return 0;

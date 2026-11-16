@@ -978,8 +978,8 @@ void CGxDeviceD3d9Ex::IStateSyncScissorRect() {
 
 // VERIFY: 982ac480 auto
 // OFFSET: 0x006A78C0
-void CGxDeviceD3d9Ex::ISetVertexBuffer(uint32_t stream, LPDIRECT3DVERTEXBUFFER9 buffer, uint32_t offset, uint32_t stride) {
-    if (!this->m_caps.m_streamOffset) {
+void CGxDeviceD3d9Ex::ISetVertexBuffer(uint32_t stream, LPDIRECT3DVERTEXBUFFER9 buffer, uint32_t offset, uint32_t stride, int32_t keepOffset) {
+    if (!this->m_caps.m_streamOffset && !keepOffset) {
         offset = 0;
     }
 
@@ -2018,7 +2018,8 @@ void CGxDeviceD3d9Ex::IStateSyncVertexPtrs() {
 
     for (uint32_t stream = 0; stream < streamCount; stream++) {
         CGxBuf* buf = streamBufs[stream];
-        this->ISetVertexBuffer(stream, static_cast<LPDIRECT3DVERTEXBUFFER9>(buf->m_pool->m_apiSpecific), buf->m_index, streamStrides[stream]);
+        // FIX: BaseVertexIndex does not reach per-instance streams, so they bind at their real offset.
+        this->ISetVertexBuffer(stream, static_cast<LPDIRECT3DVERTEXBUFFER9>(buf->m_pool->m_apiSpecific), buf->m_index, streamStrides[stream], instanceStreams & (1 << stream));
     }
 
     this->m_d3dStreamCount = streamCount;

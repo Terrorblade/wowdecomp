@@ -454,7 +454,7 @@ static int32_t Script_GetGuildInfo(lua_State* L) {
 
             if (guild) {
                 char rankName[64];
-                SStrCopy(rankName, guild->m_rankNames[player->m_player->m_playerGuildrank], STORM_MAX_STR);
+                SStrCopy(rankName, player->m_player->m_playerGuildrank < sizeof(guild->m_rankNames) / sizeof(guild->m_rankNames[0]) ? guild->m_rankNames[player->m_player->m_playerGuildrank] : "", sizeof(rankName));
                 lua_pushstring(L, guild->m_name);
                 lua_pushstring(L, rankName);
                 lua_pushnumber(L, player->m_player->m_playerGuildrank);

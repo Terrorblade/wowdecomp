@@ -474,7 +474,8 @@ static int32_t Script_GetTradeSkillLine(lua_State* L) {
     int32_t rank;
 
     if (player && CGTradeSkillInfo::m_playerGuid == player->m_obj->m_guid) {
-        rank = player->GetSkillValue(player->GetSkillIndex(CGTradeSkillInfo::m_skillLineID));
+        int32_t skillIndex = player->GetSkillIndex(CGTradeSkillInfo::m_skillLineID);
+        rank = skillIndex < 0 ? 0 : player->GetSkillValue(skillIndex);
     } else {
         rank = CGTradeSkillInfo::m_skillRank;
     }

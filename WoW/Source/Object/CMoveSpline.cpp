@@ -24,6 +24,12 @@ void CMoveSpline::Skip(CDataStore* msg) {
 
     uint32_t count = 0;
     msg->Get(count);
+
+    if (count > (UINT32_MAX - 13) / 12) {
+        msg->m_read = msg->m_size + 1;
+        return;
+    }
+
     msg->GetDataInSitu(data, 12 * count + 13);
 }
 

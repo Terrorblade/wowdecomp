@@ -74,7 +74,7 @@ void C3Spline::Pos(float t, C3Vector& pos, EvalType type) {
     }
 
     if (t >= 1.0f) {
-        pos = this->Point(this->m_pointCount - 1);
+        pos = this->m_pointCount ? this->Point(this->m_pointCount - 1) : this->points[0];
         return;
     }
 

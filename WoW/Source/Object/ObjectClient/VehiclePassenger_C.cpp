@@ -1902,7 +1902,7 @@ void CVehiclePassenger_C::UpdateModel() {
         CM2Model* oldModel;
 
         if (this->m_vehicleGuid && (oldVehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_vehicleGuid, TYPE_UNIT, __FILE__, __LINE__))) != nullptr && ((oldSeat = oldVehicle->GetVehicleSeatRec(this->m_seat)), (oldModel = oldVehicle->GetObjectModel()), oldSeat) && oldSeat->m_attachmentID >= 0 && oldModel && oldModel->IsLoaded(0, 0)) {
-            attachment = static_cast<uint32_t>(seatRec->m_attachmentID) >= 22 ? 0xFFFFFFFF : s_seatAttachments[oldSeat->m_attachmentID];
+            attachment = static_cast<uint32_t>(seatRec->m_attachmentID) >= 22 || static_cast<uint32_t>(oldSeat->m_attachmentID) >= 22 ? 0xFFFFFFFF : s_seatAttachments[oldSeat->m_attachmentID];
             this->ComputeModelTransform(matrix, oldModel, vehicle, oldSeat, attachment, this->m_startTargetFacing);
             parent = oldModel;
             useMatrix = 1;

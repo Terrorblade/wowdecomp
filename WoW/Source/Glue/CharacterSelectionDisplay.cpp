@@ -46,13 +46,13 @@ void CharacterSelectionDisplay::SetCharacterFacing(float rotation) {
 
     CCharacterSelection::s_charFacing = rotation;
 
-    if (CCharacterSelection::s_characterList.Count() <= 0) {
+    if (CCharacterSelection::s_selectionIndex < 0 || CCharacterSelection::s_selectionIndex >= static_cast<int32_t>(CCharacterSelection::s_characterList.Count())) {
         return;
     }
 
     CharacterSelectionDisplay& display = CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex];
 
-    if (display.m_component->m_data.m_model) {
+    if (display.m_component && display.m_component->m_data.m_model) {
         C3Vector position(0.0f, 0.0f, 0.0f);
         // HoT: an HD character model is scaled to match the stock one.
         display.m_component->m_data.m_model->SetWorldTransform(position, rotation, HoT::HD::GlueScale(display.m_component->m_data.m_model));

@@ -521,6 +521,10 @@ int32_t OsLaunchURL(const char* url) {
 
     *dst = '\0';
 
+    if (!OsIsSafeLaunchURL(file)) {
+        return 0;
+    }
+
     char shell[] = "/bin/sh";
     char option[] = "-c";
     char script[] = "command -v xdg-open >/dev/null 2>&1 || exit 1; xdg-open \"$1\" </dev/null >/dev/null 2>&1 &";

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cwctype>
 #include <new>
+#include <string>
 #include <typeinfo>
 #include "Engine/Source/Frame/CSimpleEditBox.h"
 #include "Engine/Source/Base/ConvertUTF.h"
@@ -184,6 +185,7 @@ CSimpleEditBox::CSimpleEditBox(CSimpleFrame* parent) : CSimpleFrame(parent) {
 
     void* data = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
     this->m_fontString = data ? new (data) CSimpleFontString(this, 2, true) : nullptr;
+    this->m_fontString->m_internal = true;
     this->m_fontString->SetFontObject(this->m_font);
 
     this->SetMultiLine(0);
@@ -191,6 +193,7 @@ CSimpleEditBox::CSimpleEditBox(CSimpleFrame* parent) : CSimpleFrame(parent) {
     for (uint32_t i = 0; i < 3; i++) {
         data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
         this->m_highlightTextures[i] = data ? new (data) CSimpleTexture(this, 2, 0) : nullptr;
+        this->m_highlightTextures[i]->m_internal = true;
     }
 
     CImVector highlightColor;
@@ -205,6 +208,7 @@ CSimpleEditBox::CSimpleEditBox(CSimpleFrame* parent) : CSimpleFrame(parent) {
 
     data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
     this->m_cursorTexture = data ? new (data) CSimpleTexture(this, 3, 1) : nullptr;
+    this->m_cursorTexture->m_internal = true;
     this->m_cursorTexture->Hide();
 
     CImVector cursorColor;
@@ -808,9 +812,9 @@ void CSimpleEditBox::CopyToClipboard() {
     }
 
     uint32_t length = right - left;
-    char* buffer = static_cast<char*>(alloca(length + 1));
-    GxuFontStripEscapeCodes(&this->m_text[left], length, 0x1500, buffer, length + 1);
-    OsClipboardPutString(buffer);
+    std::string buffer(length + 1, '\0');
+    GxuFontStripEscapeCodes(&this->m_text[left], length, 0x1500, &buffer[0], length + 1);
+    OsClipboardPutString(buffer.c_str());
 }
 
 // VERIFY: 5501d9d4 manual
@@ -846,6 +850,7 @@ void CSimpleEditBox::CreateClauseHighlight() {
 
     void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
     this->m_clauseHighlight = data ? new (data) CSimpleTexture(this, 3, 1) : nullptr;
+    this->m_clauseHighlight->m_internal = true;
 
     CImVector color;
     color.b = 0x10;
@@ -1496,6 +1501,10 @@ void CSimpleEditBox::AddHistoryLine(const char* text, const char* taint) {
         return;
     }
 
+    if (!text) {
+        text = "";
+    }
+
     CSimpleEditBox::EditHistory& history = this->m_history.m_data[this->m_historyIndex];
     history.m_text = static_cast<char*>(SMemReAlloc(history.m_text, SStrLen(text) + 1, __FILE__, __LINE__, 0));
     this->m_history.m_data[this->m_historyIndex].m_taint = taint;
@@ -1992,6 +2001,7 @@ void CSimpleEditBox::CreateCandidatesFrame() {
 
     if (data) {
         background = new (data) CSimpleTexture(this->m_candidatesFrame, 0, 1);
+        background->m_internal = true;
     }
 
     CImVector backgroundColor;
@@ -2004,6 +2014,7 @@ void CSimpleEditBox::CreateCandidatesFrame() {
 
     data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
     this->m_candidateHighlight = data ? new (data) CSimpleTexture(this->m_candidatesFrame, 2, 1) : nullptr;
+    this->m_candidateHighlight->m_internal = true;
 
     CImVector highlightColor;
     highlightColor.b = 0x80;
@@ -2521,6 +2532,11 @@ void CSimpleEditBox::ForwardHistory() {
 void CSimpleEditBox::UpdateVisibleText() {
     float width = this->m_fontString->GetWidth();
 
+    // A scroll offset left from single line mode or a longer text would index past the buffer.
+    if ((this->m_editBoxFlags & 0x2) || this->m_visiblePosition > this->m_textLength) {
+        this->m_visiblePosition = 0;
+    }
+
     if (this->m_editBoxFlags & 0x8) {
         uint32_t length = SStrLen(this->m_text);
         this->m_textHidden = static_cast<char*>(SMemReAlloc(this->m_textHidden, length + 1, __FILE__, __LINE__, 0));
@@ -2621,11 +2637,9 @@ void CSimpleEditBox::UpdateVisibleText() {
     }
 
     if (colorCode) {
-        char* buffer = static_cast<char*>(alloca(this->m_visibleLength + 11));
-        memcpy(buffer, colorCode, 10);
-        memcpy(&buffer[10], &text[this->m_visiblePosition], this->m_visibleLength);
-        buffer[this->m_visibleLength + 10] = 0;
-        this->m_fontString->SetText(buffer, 0);
+        std::string buffer(colorCode, strnlen(colorCode, 10));
+        buffer.append(&text[this->m_visiblePosition], this->m_visibleLength);
+        this->m_fontString->SetText(buffer.c_str(), 0);
     } else {
         int32_t end = this->m_visiblePosition + this->m_visibleLength;
         char saved = text[end];
@@ -2672,6 +2686,12 @@ bool CSimpleEditBox::IsA(const char* typeName) {
 // VERIFY: 59f6a6f7 manual
 // OFFSET: 0x00966FD0
 void CSimpleEditBox::SetHistoryLines(int32_t lines) {
+    if (lines > 10000) {
+        lines = 10000;
+    } else if (lines < 0) {
+        lines = 0;
+    }
+
     this->m_history.SetCount(lines);
     this->m_historyLines = lines;
 

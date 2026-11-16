@@ -752,7 +752,7 @@ static int32_t Script_GetAchievementInfo(lua_State* L) {
 
             AchievementRec* achievement = g_achievementDB.GetRecord(node->m_id);
 
-            if (categoryId == -1 && !(achievement->m_flags & 0x1)) {
+            if (categoryId == -1 && achievement && !(achievement->m_flags & 0x1)) {
                 if (!(achievement->m_flags & 0x2)) {
                     index--;
                 }
@@ -790,7 +790,7 @@ static int32_t Script_GetAchievementInfo(lua_State* L) {
 
                 AchievementRec* achievement = g_achievementDB.GetRecord(node->m_id);
 
-                if (categoryId == -1 && !(achievement->m_flags & 0x1)) {
+                if (categoryId == -1 && achievement && !(achievement->m_flags & 0x1)) {
                     if (!(achievement->m_flags & 0x2)) {
                         index--;
                     }
@@ -828,7 +828,7 @@ static int32_t Script_GetAchievementInfo(lua_State* L) {
 
                     AchievementRec* achievement = g_achievementDB.GetRecord(node->m_id);
 
-                    if (categoryId == -1 && !(achievement->m_flags & 0x1)) {
+                    if (categoryId == -1 && achievement && !(achievement->m_flags & 0x1)) {
                         if (!(achievement->m_flags & 0x2)) {
                             index--;
                         }
@@ -1494,6 +1494,10 @@ static int32_t Script_GetAchievementLink(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
     ACHIEVEMENT* source = s_achievements.Ptr(id, HASHKEY_NONE());
 
+    if (!player || !source) {
+        return 0;
+    }
+
     if (source->m_rec->m_sharesCriteria) {
         source = s_achievements.Ptr(source->m_rec->m_sharesCriteria, HASHKEY_NONE());
     }
@@ -1531,7 +1535,7 @@ static int32_t Script_GetAchievementLink(lua_State* L) {
     }
 
     if (done) {
-        if (!source->m_rec->m_minimumCriteria) {
+        if (!source || !source->m_rec->m_minimumCriteria) {
             criteriaBits[0] = 0xFFFFFFFF;
             criteriaBits[1] = 0xFFFFFFFF;
             criteriaBits[2] = 0xFFFFFFFF;

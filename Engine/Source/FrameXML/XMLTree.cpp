@@ -246,29 +246,38 @@ void XMLNode::SetAttribute(const char* name, const char* value) {
 // VERIFY: ec65dbaa manual
 // OFFSET: 0x00814CE0
 void XMLNode::Recycle() {
-    if (this->m_userData) {
-        this->m_userData->Release();
-        this->m_userData = nullptr;
-    }
+    XMLNode* node = this;
 
-    if (this->m_next) {
-        this->m_next->Recycle();
-        this->m_next = nullptr;
-    }
+    while (node) {
+        if (node->m_child) {
+            XMLNode* last = node->m_child;
 
-    if (this->m_child) {
-        this->m_child->Recycle();
-        this->m_child = nullptr;
-    }
+            while (last->m_next) {
+                last = last->m_next;
+            }
 
-    if (this->m_body) {
-        SMemFree(this->m_body, __FILE__, __LINE__, 0);
-        this->m_body = nullptr;
-    }
+            last->m_next = node->m_next;
+            node->m_next = node->m_child;
+            node->m_child = nullptr;
+        }
 
-    this->m_attributes.Clear();
-    this->m_next = s_freeNodes;
-    s_freeNodes = this;
+        XMLNode* next = node->m_next;
+
+        if (node->m_userData) {
+            node->m_userData->Release();
+            node->m_userData = nullptr;
+        }
+
+        if (node->m_body) {
+            SMemFree(node->m_body, __FILE__, __LINE__, 0);
+            node->m_body = nullptr;
+        }
+
+        node->m_attributes.Clear();
+        node->m_next = s_freeNodes;
+        s_freeNodes = node;
+        node = next;
+    }
 }
 
 // VERIFY: 6710e971 manual
@@ -281,9 +290,31 @@ void XMLTree_Free(XMLTree* tree) {
     SMemFree(tree, __FILE__, __LINE__, 0);
 }
 
+// Entity declarations and UTF-16 input are refused, the bundled expat cannot limit entity expansion.
+static bool XMLTree_IsSafeInput(const char* data, uint32_t size) {
+    static const char doctype[] = "<!DOCTYPE";
+    const uint32_t length = sizeof(doctype) - 1;
+
+    if (size >= 2 && (!data[0] || !data[1] || static_cast<uint8_t>(data[0]) >= 0xFE)) {
+        return false;
+    }
+
+    for (uint32_t i = 0; i + length <= size; i++) {
+        if (data[i] == '<' && !memcmp(&data[i], doctype, length)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // VERIFY: 5504e9d7 manual
 // OFFSET: 0x00814D90
 XMLTree* XMLTree_Load(const char* data, uint32_t size) {
+    if (!XMLTree_IsSafeInput(data, size)) {
+        return nullptr;
+    }
+
     XMLTree* tree = static_cast<XMLTree*>(SMemAlloc(sizeof(XMLTree), __FILE__, __LINE__, SMEM_FLAG_ZEROMEMORY));
 
     if (s_parser) {

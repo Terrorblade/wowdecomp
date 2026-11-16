@@ -247,10 +247,10 @@ int32_t Packet_MSG_INSPECT_ARENA_TEAMS(void* param, NETMESSAGE msgId, uint32_t t
         return 1;
     }
 
-    uint8_t slot;
+    uint8_t slot = 0xFF;
     msg->Get(slot);
 
-    if (slot > 3) {
+    if (slot >= sizeof(CGCharacterInfo::m_inspectArenaTeams) / sizeof(CGCharacterInfo::m_inspectArenaTeams[0])) {
         msg->m_read = msg->m_size;
         return 1;
     }

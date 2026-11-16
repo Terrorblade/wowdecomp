@@ -651,6 +651,8 @@ static int32_t Script_GetBattlefieldInfo(lua_State* L) {
         lua_pushstring(L, map->m_mapDescription0);
     } else if (faction == 1) {
         lua_pushstring(L, map->m_mapDescription1);
+    } else {
+        lua_pushnil(L);
     }
 
     lua_pushnumber(L, rec->m_maxGroupSize);

@@ -42,6 +42,7 @@ class CSimpleHyperlinkButton : public CSimpleButton {
     /* 02F8 */ char* m_linkData;
     /* 02FC */ char* m_linkText;
     /* 0300 */ TSLink<CSimpleHyperlinkButton> m_hyperlinkLink;
+    CSimpleHyperlinkedFrame* m_owner;
 
     virtual ~CSimpleHyperlinkButton();
     virtual void OnLayerCursorEnter(int32_t motion);

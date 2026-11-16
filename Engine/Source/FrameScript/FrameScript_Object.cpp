@@ -91,11 +91,52 @@ FrameScript_Object::ScriptIx::~ScriptIx() {
 FrameScript_Object::FrameScript_Object() {
     this->m_luaRegistered = 0;
     this->m_luaObjectRef = LUA_NOREF;
+    this->m_hasScriptEvents = false;
 }
 
 // VERIFY: b0bf6152 auto
 // OFFSET: [0x00819850, 0x00819E50]
 FrameScript_Object::~FrameScript_Object() {
+    lua_State* L = s_context;
+
+    if (L && this->m_hasScriptEvents) {
+        for (FrameScript_EventObject* event = s_scriptEventsHash.m_fulllist.Head(); event; event = s_scriptEventsHash.m_fulllist.Next(event)) {
+            for (EVENTLISTENERNODE* node = event->m_registerListeners.Head(); !event->m_registerListeners.IsEnd(node); node = event->m_registerListeners.RawNext(node)) {
+                if (node->m_listener == this) {
+                    event->m_registerListeners.DeleteNode(node);
+                    break;
+                }
+            }
+
+            FrameScript_UnregisterScriptEvent(this, event);
+        }
+    }
+
+    // Clear t[0] so Lua tables that outlive this object cannot reach freed memory.
+    if (L && this->m_luaRegistered > 0 && this->m_luaObjectRef != LUA_NOREF) {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, this->m_luaObjectRef);
+
+        if (lua_type(L, -1) == LUA_TTABLE) {
+            lua_rawgeti(L, -1, 0);
+            bool owned = lua_touserdata(L, -1) == this;
+            lua_pop(L, 1);
+
+            if (owned) {
+                lua_pushnumber(L, 0.0);
+                lua_pushnil(L);
+                lua_rawset(L, -3);
+                lua_pop(L, 1);
+                luaL_unref(L, LUA_REGISTRYINDEX, this->m_luaObjectRef);
+            } else {
+                lua_pop(L, 1);
+            }
+        } else {
+            lua_pop(L, 1);
+        }
+
+        this->m_luaRegistered = 0;
+        this->m_luaObjectRef = LUA_NOREF;
+    }
 }
 
 // VERIFY: 12e14749 auto
@@ -219,6 +260,7 @@ int32_t FrameScript_Object::RegisterScriptEvent(const char* name) {
         }
     }
 
+    this->m_hasScriptEvents = true;
     FrameScript_RegisterScriptEvent(this, event);
 
     return 1;

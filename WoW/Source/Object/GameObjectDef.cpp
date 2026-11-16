@@ -104,7 +104,7 @@ const CGameObjectDef::TypeInfo CGameObjectDef::s_typeInfo[NUM_GAMEOBJECT_TYPE] =
 // VERIFY: 65bb1e58 auto
 // OFFSET: 0x00746190
 int32_t CGameObjectDef::GetPropNum(int32_t typeId, int32_t prop) {
-    if (typeId >= NUM_GAMEOBJECT_TYPE || prop >= 129) {
+    if (typeId < 0 || typeId >= NUM_GAMEOBJECT_TYPE || prop >= 129) {
         return -1;
     }
 

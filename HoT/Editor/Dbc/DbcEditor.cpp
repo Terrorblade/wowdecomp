@@ -33,6 +33,8 @@ static constexpr int8_t kRequiredSecurityLevel = 3;
 static constexpr int32_t kDefaultFindLimit = 200;
 static constexpr int32_t kMaxFindLimit = 2000;
 static constexpr uint32_t kDefaultLocaleFlags = 0x00FF01FE;
+// A new id grows the by-id index to cover it, this keeps that index a sane size.
+static constexpr int32_t kMaxServerRecordId = 0x00FFFFFF;
 
 struct Value {
     uint32_t raw = 0;
@@ -552,6 +554,11 @@ static int32_t Packet_SMSG_DBC_RECORD_UPDATE(void* param, NETMESSAGE msgId, uint
         return 1;
     }
 
+    if (id < 0 || id > kMaxServerRecordId) {
+        LOG_WARN << "DBC update for " << name << " has out of range id " << id;
+        return 1;
+    }
+
     const Schema& schema = *table.schema;
 
     if (count != schema.columns.size()) {
@@ -979,7 +986,7 @@ static int32_t Script_ApplyLocal(lua_State* L) {
     Table table;
     int32_t id;
 
-    if (!TableArgument(L, 1, table) || !IdArgument(L, 2, id) || lua_type(L, 3) != LUA_TTABLE) {
+    if (!TableArgument(L, 1, table) || !IdArgument(L, 2, id) || id < 0 || id > kMaxServerRecordId || lua_type(L, 3) != LUA_TTABLE) {
         lua_pushboolean(L, 0);
         return 1;
     }
@@ -1174,7 +1181,7 @@ static int32_t Script_GetClassMaskNames(lua_State* L) {
         return 1;
     }
 
-    const std::vector<ClassMaskBit>& bits = ClassMaskBits(family);
+    const std::vector<ClassMaskBit> bits = ClassMaskBits(family);
     lua_newtable(L);
     int result = lua_gettop(L);
 

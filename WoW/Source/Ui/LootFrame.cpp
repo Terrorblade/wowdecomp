@@ -580,7 +580,10 @@ void CGLootInfo::ConfirmLootSlot(uint32_t slot) {
     }
 
     ItemStats_C* stats = g_itemDBCache.GetRecord(CGLootInfo::m_slots[slot].m_itemID, CGLootInfo::m_lootObj, nullptr, nullptr, false);
-    SI2::PlayItemSound(ITEMSOUND_PICKUP, stats->m_displayId);
+
+    if (stats) {
+        SI2::PlayItemSound(ITEMSOUND_PICKUP, stats->m_displayId);
+    }
     CGPlayer_C::AutoStoreLootItem(CGLootInfo::m_slots[slot].m_slot);
     s_bindConfirmSlot = -1;
 }

@@ -740,6 +740,10 @@ void SetAddOnInfoRequest(CDataStore* msg) {
         cache.m_lastModified = lastModified;
         msg->Get(reinterpret_cast<uint32_t&>(cache.m_flags));
 
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         BannedAddOnCache* registered = RegisterBannedAddOn(cache.m_id, nullptr, nullptr);
 
         if (registered) {

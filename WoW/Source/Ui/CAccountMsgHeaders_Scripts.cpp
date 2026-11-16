@@ -106,6 +106,11 @@ static int32_t Script_AccountMsg_GetBody(lua_State* L) {
         g_accountMsgBody._GetRoot(g_accountMsgBody.m_iterator);
     }
 
+    if (!g_accountMsgBody.m_iterator.m_node) {
+        lua_pushnil(L);
+        return 1;
+    }
+
     lua_pushstring(L, g_accountMsgBody._GetBodyString(g_accountMsgBody.m_iterator.m_node));
     return 1;
 }

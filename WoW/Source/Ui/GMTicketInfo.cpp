@@ -323,7 +323,7 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
             for (int32_t i = 0; i < 4; i++) {
                 char line[4000];
                 msg->GetString(line, sizeof(line));
-                SStrPack(response, line, 0x7FFFFFFF);
+                SStrPack(response, line, sizeof(response));
             }
 
             FrameScript_SignalEvent(SCRIPT_EVENT_GMRESPONSE_RECEIVED, "%s%s", text, response);

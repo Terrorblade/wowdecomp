@@ -432,12 +432,12 @@ void CMapObj::PostloadCallback(void* arg) {
 // VERIFY: 737e6a62 manual
 // OFFSET: 0x007D80C0
 bool CMapObj::Read(char* fileName) {
-    SStrCopy(this->m_wmoName, fileName, STORM_MAX_STR);
+    SStrCopy(this->m_wmoName, fileName, sizeof(this->m_wmoName));
 
     SFileImpl* file = nullptr;
 
     if (CMap::SafeOpen(fileName, &file)) {
-        SStrCopy(this->m_wmoName, fileName, STORM_MAX_STR);
+        SStrCopy(this->m_wmoName, fileName, sizeof(this->m_wmoName));
     } else {
         CMap::SafeOpen("world\\wmo\\Dungeon\\test\\missingwmo.wmo", &file);
         SStrCopy(this->m_wmoName, "world\\wmo\\Dungeon\\test\\missingwmo.wmo", STORM_MAX_STR);
@@ -608,9 +608,14 @@ void CMapObj::ReadGroup(uint32_t index, bool preLoad) {
     CMapObjGroup* group = this->m_mapObjGroupArray[index];
 
     char fileName[256];
-    strcpy(fileName, this->m_wmoName);
-    SStrPrintf(strrchr(fileName, '.'), sizeof(fileName), "_%03d", index);
-    strcat(fileName, ".wmo");
+    SStrCopy(fileName, this->m_wmoName, sizeof(fileName) - 16);
+    char* ext = strrchr(fileName, '.');
+
+    if (!ext) {
+        ext = fileName + strlen(fileName);
+    }
+
+    SStrPrintf(ext, sizeof(fileName) - (ext - fileName), "_%03d.wmo", index);
 
     SFileImpl* file = nullptr;
     CMap::SafeOpen(fileName, &file);

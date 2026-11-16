@@ -160,8 +160,8 @@ FriendInfo* FriendList::ClearRecruitAFriend(WOWGUID guid) {
 // OFFSET: 0x006B7DD0
 void FriendList::ReadPacket(CDataStore* msg) {
     uint32_t friendIndex = 0;
-    uint32_t flags;
-    uint32_t count;
+    uint32_t flags = 0;
+    uint32_t count = 0;
     msg->Get(flags);
     msg->Get(count);
 
@@ -185,17 +185,21 @@ void FriendList::ReadPacket(CDataStore* msg) {
 
     for (uint32_t n = 0; n < count; n++) {
         WOWGUID guid;
-        uint32_t entryFlags;
+        uint32_t entryFlags = 0;
         char note[512];
         msg->Get(guid.m_guid);
         msg->Get(entryFlags);
         msg->GetString(note, sizeof(note));
 
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         if (entryFlags & 0x1) {
             uint32_t area = 0;
             uint32_t level = 0;
             uint32_t classId = 0;
-            uint8_t status;
+            uint8_t status = 0;
             msg->Get(status);
 
             if (status) {
@@ -609,7 +613,7 @@ void FriendList::SendWho(const char* filter) {
     char text[128];
     name[0] = '\0';
     guild[0] = '\0';
-    SStrCopy(text, filter, sizeof(text));
+    SStrCopy(text, filter, sizeof(text) - 1);
     uint32_t length = SStrLen(text);
     text[length] = ' ';
     text[length + 1] = '\0';
@@ -935,7 +939,7 @@ int32_t FriendList::DoLocalWho() {
         sprintf(buffer, "%s-", name->m_name);
         uint32_t length = strlen(name->m_name) + 1;
 
-        for (const char* realm = name->m_realmName; *realm; realm++) {
+        for (const char* realm = name->m_realmName; *realm && length < sizeof(buffer) - 1; realm++) {
             if (*realm != ' ') {
                 buffer[length++] = *realm;
             }
@@ -979,8 +983,8 @@ int32_t Packet_SMSG_WHO(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
-    uint32_t count;
-    uint32_t total;
+    uint32_t count = 0;
+    uint32_t total = 0;
     msg->Get(count);
     msg->Get(total);
     FriendList::s_numWhoResults = count >= 50 ? 50 : count;
@@ -1011,6 +1015,11 @@ int32_t Packet_SMSG_WHO(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
         uint32_t zone = 0;
         msg->Get(zone);
 
+        if (msg->m_read > msg->m_size) {
+            FriendList::s_numWhoResults = i >= 50 ? 50 : i;
+            break;
+        }
+
         if (i < 50) {
             WhoResult& result = FriendList::s_whoResults[i];
             SStrCopy(result.m_name, name, sizeof(result.m_name));
@@ -1029,7 +1038,7 @@ int32_t Packet_SMSG_WHO(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
 
     MapRec* map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
 
-    if ((map && map->m_instanceType == 3) || map->m_instanceType == 4) {
+    if (map && (map->m_instanceType == 3 || map->m_instanceType == 4)) {
         if (FriendList::s_friendList) {
             count += FriendList::s_friendList->DoLocalWho();
         }
@@ -1150,6 +1159,10 @@ uint32_t FriendList::GetFriendIndexByGuid(WOWGUID guid) {
             empty = index;
             break;
         }
+    }
+
+    if (empty < 0) {
+        return empty;
     }
 
     FriendInfo* info = &this->m_friends[empty];
@@ -1984,9 +1997,18 @@ int32_t Packet_SMSG_RWHOIS(void* param, NETMESSAGE msgId, uint32_t time, CDataSt
         uint32_t current = 0;
         msg->Get(current);
 
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         for (int32_t j = 0; j < static_cast<int32_t>(characters); j++) {
             char name[48];
             msg->GetString(name, sizeof(name));
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             ConsoleWriteA("  %s\n", j != static_cast<int32_t>(current) ? DEFAULT_COLOR : WARNING_COLOR, name);
         }
     }

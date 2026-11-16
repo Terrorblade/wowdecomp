@@ -13,6 +13,11 @@ static const C44Matrix s_catmullRomBasis(-0.5f, 1.0f, -0.5f, 0.0f, 1.5f, -2.5f, 
 // STATIC: 0x00AC37F8
 static const C34Matrix s_catmullRomDer1 = { -1.5f, 2.0f, -0.5f, 4.5f, -5.0f, 0.0f, -4.5f, 4.0f, 0.5f, 1.5f, -1.0f, 0.0f };
 
+// Server splines can have fewer than 3 points, which would underflow the segment count.
+static uint32_t CatmullRomSegCount(uint32_t pointCount) {
+    return pointCount > 3 ? pointCount - 3 : 0;
+}
+
 // VERIFY: e9bcea7f auto
 // OFFSET: 0x00409740
 C3Spline_CatmullRom::C3Spline_CatmullRom() {
@@ -70,13 +75,13 @@ void C3Spline_CatmullRom::ParametricSegT(float t, uint32_t& seg, float& segT) {
 // VERIFY: 90d58011 auto
 // OFFSET: 0x004C41B0
 float C3Spline_CatmullRom::ILength() {
-    return C3Spline::ILength(this->m_pointCount - 3);
+    return C3Spline::ILength(CatmullRomSegCount(this->m_pointCount));
 }
 
 // VERIFY: a9242506 manual
 // OFFSET: 0x004C41C0
 void C3Spline_CatmullRom::IValidateCache() {
-    uint32_t segCount = this->m_pointCount - 3;
+    uint32_t segCount = CatmullRomSegCount(this->m_pointCount);
 
     for (uint32_t i = 0; i < segCount; i++) {
         this->SetCachedSegLength(this->SegLength(i), i);
@@ -89,7 +94,7 @@ void C3Spline_CatmullRom::IPosArclength(float t, C3Vector& pos) {
     uint32_t seg;
     float segT;
 
-    this->ArclengthSegT(t, s_catmullRomBasis, this->m_pointCount - 3, seg, segT);
+    this->ArclengthSegT(t, s_catmullRomBasis, CatmullRomSegCount(this->m_pointCount), seg, segT);
     this->Evaluate(seg, segT, pos);
 }
 
@@ -119,7 +124,7 @@ void C3Spline_CatmullRom::IVelArclength(float t, C3Vector& vel) {
     uint32_t seg;
     float segT;
 
-    this->ArclengthSegT(clamped, s_catmullRomBasis, this->m_pointCount - 3, seg, segT);
+    this->ArclengthSegT(clamped, s_catmullRomBasis, CatmullRomSegCount(this->m_pointCount), seg, segT);
     C3Spline::EvaluateDer1(seg, segT, C44Matrix(s_catmullRomDer1), vel);
 }
 
@@ -149,7 +154,7 @@ void C3Spline_CatmullRom::IFrameArclength(float t, C44Matrix& frame) {
     uint32_t seg;
     float segT;
 
-    this->ArclengthSegT(t, s_catmullRomBasis, this->m_pointCount - 3, seg, segT);
+    this->ArclengthSegT(t, s_catmullRomBasis, CatmullRomSegCount(this->m_pointCount), seg, segT);
     this->Evaluate(seg, segT, *reinterpret_cast<C3Vector*>(&frame.d0));
 
     const C3Vector& a = this->Point(seg + 1);
@@ -213,13 +218,13 @@ void C3Spline_CatmullRom::IFrameArclength(float t, C44Matrix& frame) {
 // VERIFY: 936d407a manual
 // OFFSET: 0x004C4600
 uint32_t C3Spline_CatmullRom::IGetPoints(float t, C3Vector* points, uint32_t count) {
-    uint32_t pointCount = this->m_pointCount;
+    uint32_t segCount = CatmullRomSegCount(this->m_pointCount);
     uint32_t seg;
     float segT;
 
-    this->ArclengthSegT(t, s_catmullRomBasis, pointCount - 3, seg, segT);
+    this->ArclengthSegT(t, s_catmullRomBasis, segCount, seg, segT);
 
-    uint32_t remaining = pointCount - seg - 3;
+    uint32_t remaining = segCount > seg ? segCount - seg : 0;
 
     if (!points) {
         return remaining;
@@ -240,7 +245,7 @@ uint32_t C3Spline_CatmullRom::IGetPoints(float t, C3Vector* points, uint32_t cou
 // OFFSET: 0x004C4DA0
 void C3Spline_CatmullRom::ISetPoints(const C3Vector* points, uint32_t count) {
     if (count) {
-        uint32_t segCount = count - 3;
+        uint32_t segCount = CatmullRomSegCount(count);
         this->m_segCount = segCount;
 
         if (segCount > 25) {
@@ -259,6 +264,11 @@ void C3Spline_CatmullRom::ISetPoints(const C3Vector* points, uint32_t count) {
 CDataStore& operator>>(CDataStore& msg, C3Spline_CatmullRom& spline) {
     uint32_t count = 0;
     msg.Get(count);
+
+    if (count > UINT32_MAX / sizeof(C3Vector)) {
+        msg.m_read = msg.m_size + 1;
+        return msg;
+    }
 
     void* points;
     msg.GetDataInSitu(points, sizeof(C3Vector) * count);

@@ -464,7 +464,16 @@ void CSimplePathAnim::NotifyControlPointAdded(CSimpleControlPoint* point) {
 // VERIFY: 72b6007e auto
 // OFFSET: 0x0049C140
 void CSimplePathAnim::NotifyControlPointRemoved(CSimpleControlPoint* point) {
-    if (point && this->FindControlPoint(point->m_order) >= 0) {
+    // SetParent can change the order first, so look the point up by pointer to drop every stale entry.
+    bool found = false;
+
+    for (uint32_t i = 0; point && i < this->m_sortedPoints.Count(); i++) {
+        if (this->m_sortedPoints[i] == point) {
+            found = true;
+        }
+    }
+
+    if (found) {
         this->BuildSpline();
         this->UpdateControlPointPositions();
     }

@@ -474,6 +474,10 @@ int32_t UnitDisplayPowerUpdateHandler(WOWGUID guid, uint32_t fieldOffset, uint32
         return 1;
     }
 
+    if (static_cast<uint32_t>(powerType) >= NUM_POWER_TYPES) {
+        return 1;
+    }
+
     unit->SetPredictedPower(powerType, unit->m_unit->m_unitFieldPower[powerType]);
 
     return 1;
@@ -9122,6 +9126,11 @@ void CGUnit_C::SetEmoteQueue(const QUESTGIVEREMOTENODE* nodes, uint32_t count) {
     }
 
     uint32_t queued = 0;
+    uint32_t maxQueued = sizeof(this->m_emoteQueue) / sizeof(this->m_emoteQueue[0]);
+
+    if (count > maxQueued) {
+        count = maxQueued;
+    }
 
     for (uint32_t i = 0; i < count; i++) {
         if (nodes[i].m_emote) {
@@ -12022,6 +12031,10 @@ int32_t CGUnit_C::GetPredictedHealth() const {
 // VERIFY: cbdca188 auto
 // OFFSET: 0x0071C2E0
 int32_t CGUnit_C::GetPredictedPower(POWER_TYPE powerType) const {
+    if (static_cast<int32_t>(powerType) >= NUM_POWER_TYPES) {
+        return 0;
+    }
+
     if (g_predictedPowerCVar->m_intValue) {
         return this->m_predictedPower[powerType];
     }
@@ -13080,9 +13093,22 @@ void CGUnit_C::OnMonsterMove(CDataStore* msg, NETMESSAGE msgId, uint64_t transpo
         }
 
         msg->Get(waypoints);
+
+        if (msg->m_read > msg->m_size || waypoints > (msg->m_size - msg->m_read) / 4 + 1) {
+            return;
+        }
     }
 
-    C3Vector* points = static_cast<C3Vector*>(alloca(sizeof(C3Vector) * (waypoints + 4)));
+    size_t pointsSize = sizeof(C3Vector) * (static_cast<size_t>(waypoints) + 5);
+    C3Vector* heapPoints = nullptr;
+    C3Vector* points;
+
+    if (pointsSize > 0x4000) {
+        heapPoints = static_cast<C3Vector*>(SMemAlloc(pointsSize, __FILE__, __LINE__, 0));
+        points = heapPoints;
+    } else {
+        points = static_cast<C3Vector*>(alloca(pointsSize));
+    }
     C3Vector direction = { 0.0f, 0.0f, 0.0f };
     C3Vector end = { 0.0f, 0.0f, 0.0f };
     float facing = this->GetRawFacing();
@@ -13260,6 +13286,8 @@ void CGUnit_C::OnMonsterMove(CDataStore* msg, NETMESSAGE msgId, uint64_t transpo
 
         this->m_movementData.OnSplineSnap(splineId, end, splineFlags, flush);
     }
+
+    SMemFree(heapPoints, __FILE__, __LINE__, 0);
 
     if (this->m_vehicle && this->m_vehicle->m_vehicleRec) {
         this->m_vehicle->UpdateWorldMatrix();
@@ -13650,7 +13678,7 @@ void CGUnit_C::OnAuraUpdate(CDataStore* msg, bool updateAll) {
         memset(updated, 0, sizeof(updated));
     }
 
-    while (!msg->IsRead()) {
+    while (msg->m_read < msg->m_size) {
         uint8_t slot;
         msg->Get(slot);
         updated[slot] = 1;
@@ -13817,7 +13845,7 @@ void CGUnit_C::ModifyPredictedPower(POWER_TYPE powerType, int32_t delta) {
         return;
     }
 
-    if (powerType != this->m_unit->m_unitFieldBytes0[3]) {
+    if (powerType != this->m_unit->m_unitFieldBytes0[3] || static_cast<uint32_t>(powerType) >= NUM_POWER_TYPES) {
         return;
     }
 
@@ -15123,6 +15151,10 @@ static bool IsOwnedByActivePlayer(const WOWGUID& guid, bool* isPlayer) {
 // VERIFY: d0bc6fd3 auto
 // OFFSET: 0x0071F990
 void CGUnit_C::AddWorldText(const WOWGUID& source, MISS_REASON reason, const SpellRec* spell, bool periodic) {
+    if (static_cast<uint32_t>(reason) >= MISS_NUMMISSTYPES) {
+        return;
+    }
+
     bool melee = !spell || (spell->m_attributesExC & 0x8000);
     bool isPlayer;
 
@@ -15319,7 +15351,7 @@ int32_t Packet_SMSG_POWER_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, C
     msg->Get(value);
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
-    if (unit) {
+    if (unit && msg->m_read <= msg->m_size && powerType < NUM_POWER_TYPES) {
         unit->SetPredictedPower(static_cast<POWER_TYPE>(powerType), value);
     }
 
@@ -15778,7 +15810,7 @@ void CGUnit_C::SetUIChannelDirect(int32_t spellId, uint32_t start, uint32_t end)
 // VERIFY: 49e3df47 auto
 // OFFSET: 0x00741210
 void CGUnit_C::UpdateChainTargets(const TSStackArray<WOWGUID>& targets, int32_t spellId) {
-    WOWGUID first = targets.m_data[0];
+    WOWGUID first = targets.m_count ? targets.m_data[0] : WOWGUID();
 
     if (first && first != this->m_unit->m_unitFieldChannelObject) {
         SpellRec spell;
@@ -17793,15 +17825,36 @@ void CGUnit_C::UpdateThreat(CDataStore* msg, bool highest) {
         }
     }
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
-    UnitThreat** entries = static_cast<UnitThreat**>(alloca(count * sizeof(UnitThreat*)));
+    uint32_t remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    // Each entry is at least a packed guid mask byte plus the threat value.
+    if (count > remaining / 5) {
+        count = remaining / 5;
+    }
+
+    UnitThreat** heapEntries = nullptr;
+    UnitThreat** entries;
+
+    if (count > 512) {
+        heapEntries = static_cast<UnitThreat**>(SMemAlloc(count * sizeof(UnitThreat*), __FILE__, __LINE__, 0));
+        entries = heapEntries;
+    } else {
+        entries = static_cast<UnitThreat**>(alloca(count * sizeof(UnitThreat*)));
+    }
 
     for (uint32_t i = 0; i < count; i++) {
         SmartGUID guid;
         *msg >> guid;
         uint32_t threat;
         msg->Get(threat);
+
+        if (msg->m_read > msg->m_size) {
+            count = i;
+            break;
+        }
+
         WOWGUID target = guid;
         UnitThreat* entry = this->CreateThreatEntry(target);
         entry->m_threat = threat;
@@ -17835,6 +17888,8 @@ void CGUnit_C::UpdateThreat(CDataStore* msg, bool highest) {
             }
         }
     }
+
+    SMemFree(heapEntries, __FILE__, __LINE__, 0);
 
     if (highest || changed) {
         this->UpdateThreatStatus();
@@ -17969,6 +18024,10 @@ int32_t Packet_SMSG_PET_ACTION_SOUND(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: 4b8cff5c manual
 // OFFSET: 0x00722D80
 void CGUnit_C::DoPowerRegen(POWER_TYPE powerType, uint32_t elapsed) {
+    if (static_cast<uint32_t>(powerType) >= NUM_POWER_TYPES) {
+        return;
+    }
+
     if (this->m_obj->m_guid == ClntObjMgrGetActivePlayer() && (reinterpret_cast<const uint8_t*>(&static_cast<CGPlayer_C*>(this)->m_player->m_playerFieldBytes2)[2] & (1 << powerType))) {
         return;
     }
@@ -21876,7 +21935,7 @@ CM2Model* CGUnit_C::CreateItemModel(uint32_t displayId, uint32_t inventoryType, 
         int32_t sex = this->m_displayInfoExtra ? this->m_displayInfoExtra->m_displaySexID : this->m_unit->m_unitFieldBytes0[2];
         ChrRacesRec* race = g_chrRacesDB.GetRecord(sex);
 
-        if (!race) {
+        if (!race || static_cast<uint32_t>(sex) >= sizeof(s_genderSuffix) / sizeof(s_genderSuffix[0])) {
             return nullptr;
         }
 
@@ -22198,36 +22257,67 @@ void CGUnit_C::ComputeSmoothedSwimMatrix(C44Matrix* matrix, float elapsed, int32
 // VERIFY: 37162a11 manual
 // OFFSET: 0x007169A0
 static int32_t UnpackAndProcessOpcodes(CDataStore* msg, uint32_t time, int32_t compressed) {
-    uint32_t size;
+    uint32_t size = 0;
     msg->Get(size);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     uint32_t unpackedSize = size;
     void* data;
+    uint8_t* heapBuffer = nullptr;
 
     if (compressed) {
-        uint8_t* buffer = static_cast<uint8_t*>(alloca(size));
+        if (size > 0x100000) {
+            return 1;
+        }
+
+        uint8_t* buffer;
+
+        if (size >= 0x2000) {
+            heapBuffer = static_cast<uint8_t*>(SMemAlloc(size, __FILE__, __LINE__, 0));
+            buffer = heapBuffer;
+        } else {
+            buffer = static_cast<uint8_t*>(alloca(size));
+        }
+
         uint32_t packedSize = msg->m_size - msg->m_read;
         void* packed;
         msg->GetDataInSitu(packed, packedSize);
-        zlib_uncompress(buffer, &unpackedSize, static_cast<const uint8_t*>(packed), packedSize);
+
+        if (!packed || zlib_uncompress(buffer, &unpackedSize, static_cast<const uint8_t*>(packed), packedSize)) {
+            SMemFree(heapBuffer, __FILE__, __LINE__, 0);
+            return 1;
+        }
+
         data = buffer;
     } else {
         unpackedSize = msg->m_size - msg->m_read;
         msg->GetDataInSitu(data, unpackedSize);
+
+        if (!data) {
+            return 1;
+        }
     }
 
     CDataStore stream(static_cast<uint8_t*>(data), unpackedSize);
 
-    if (unpackedSize) {
-        do {
-            uint8_t length;
-            stream.Get(length);
-            void* message;
-            stream.GetDataInSitu(message, length);
-            CDataStore packet(static_cast<uint8_t*>(message), length);
-            ClientServices::Connection()->ProcessMessage(time, &packet, 0);
-        } while (stream.m_read != stream.m_size);
+    while (stream.m_read < stream.m_size) {
+        uint8_t length = 0;
+        stream.Get(length);
+        void* message;
+        stream.GetDataInSitu(message, length);
+
+        if (!message) {
+            break;
+        }
+
+        CDataStore packet(static_cast<uint8_t*>(message), length);
+        ClientServices::Connection()->ProcessMessage(time, &packet, 0);
     }
 
+    SMemFree(heapBuffer, __FILE__, __LINE__, 0);
     return 1;
 }
 
@@ -23754,8 +23844,8 @@ void CGUnit_C::FillPartyMemberPetState(CGPartyPetState* state) {
     state->m_maxHealth = this->m_unit->m_unitFieldMaxhealth;
     uint8_t powerType = this->m_unit->m_unitFieldBytes0[3];
     state->m_powerType = powerType;
-    state->m_power = this->m_unit->m_unitFieldPower[powerType];
-    state->m_maxPower = this->m_unit->m_unitFieldMaxpower[powerType];
+    state->m_power = powerType < NUM_POWER_TYPES ? this->m_unit->m_unitFieldPower[powerType] : 0;
+    state->m_maxPower = powerType < NUM_POWER_TYPES ? this->m_unit->m_unitFieldMaxpower[powerType] : 0;
 
     uint32_t count = 0;
 
@@ -23813,6 +23903,10 @@ void CGUnit_C::OnReceiveMirrorImageDataFromServer(CDataStore* msg) {
         data.m_preferences.m_hairColorId = value;
         msg->Get(value);
         data.m_preferences.m_facialHairId = value;
+
+        if (data.m_preferences.m_sexID > 1 || 2 * data.m_preferences.m_raceID + data.m_preferences.m_sexID >= CCharacterComponent::s_chrVarArrayLength) {
+            return;
+        }
 
         uint32_t guildId;
         msg->Get(guildId);

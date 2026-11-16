@@ -239,6 +239,11 @@ int32_t Packet_SMSG_ARENA_TEAM_ROSTER(void* param, NETMESSAGE msgId, uint32_t ti
     team->m_numOnline = 0;
     msg->Get(team->m_numMembers);
     msg->Get(team->m_type);
+    uint32_t remaining = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    if (team->m_numMembers > remaining / 36) {
+        team->m_numMembers = remaining / 36;
+    }
 
     if (team->m_numMembers > oldCount) {
         team->m_members.SetCount(team->m_numMembers);

@@ -33,7 +33,8 @@ bool Find(const std::wstring& absPath, ArchiveMount& out);
 size_t Count();
 std::vector<ArchiveMount> All();
 
-bool EnsureWritable(const std::wstring& absPath, std::string* error = nullptr);
+// busy: the archive is fine but another handle still shares it read-only, try again later.
+bool EnsureWritable(const std::wstring& absPath, std::string* error = nullptr, bool* busy = nullptr);
 bool Commit(const std::wstring& absPath, std::string* error = nullptr);
 
 bool Retarget(SArchive* archive, const std::string& openName, std::string* error = nullptr);

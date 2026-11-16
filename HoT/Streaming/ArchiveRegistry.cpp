@@ -139,7 +139,11 @@ static void SetOpenName(SArchive* archive, const std::string& openName) {
     }
 }
 
-static bool Reopen(const std::wstring& absPath, bool writable, std::string* error) {
+static bool Reopen(const std::wstring& absPath, bool writable, std::string* error, bool* busy = nullptr) {
+    if (busy) {
+        *busy = false;
+    }
+
     ArchiveMount m;
 
     if (!Find(absPath, m)) {
@@ -168,6 +172,12 @@ static bool Reopen(const std::wstring& absPath, bool writable, std::string* erro
         m.m_archive->m_archive = restored ? fresh : nullptr;
         SetWritable(m.m_archive, false);
 
+        // Mopaq shares its read handles read-only, and closing the archive keeps that handle
+        // alive while any file read from it is still open.
+        if (busy) {
+            *busy = writable && restored;
+        }
+
         if (!restored) {
             return Fail(error, "archive reopen failed and the read-only handle could not be restored");
         }
@@ -180,8 +190,8 @@ static bool Reopen(const std::wstring& absPath, bool writable, std::string* erro
     return true;
 }
 
-bool EnsureWritable(const std::wstring& absPath, std::string* error) {
-    return Reopen(absPath, true, error);
+bool EnsureWritable(const std::wstring& absPath, std::string* error, bool* busy) {
+    return Reopen(absPath, true, error, busy);
 }
 
 bool Commit(const std::wstring& absPath, std::string* error) {

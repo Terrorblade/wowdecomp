@@ -23,6 +23,7 @@ struct ArchivePatchJob {
 
 struct ArchivePatchResult {
     bool m_ok = false;
+    bool m_busy = false;
     std::vector<std::string> m_writtenNames;
     std::string m_error;
 };

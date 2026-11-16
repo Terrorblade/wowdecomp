@@ -1343,6 +1343,8 @@ struct BatchProgress {
     std::set<std::string> m_seen;
     std::vector<std::string> m_names;
     bool m_anyApplied = false;
+    int32_t m_busyTries = 0;
+    unsigned long long m_retryAtMs = 0;
 };
 
 // Main thread only.
@@ -1482,9 +1484,26 @@ static void ProcessBatch() {
     BatchProgress& bp = s_batchProgress;
 
     if (bp.m_nextJob < batch->m_jobs.size()) {
-        const ArchivePatchJob& job = batch->m_jobs[bp.m_nextJob++];
+        constexpr int32_t kBusyRetries = 10;
+        constexpr unsigned long long kBusyRetryMs = 3000;
+
+        if (Platform::MonotonicMs() < bp.m_retryAtMs) {
+            return;
+        }
+
+        const ArchivePatchJob& job = batch->m_jobs[bp.m_nextJob];
         unsigned long long t0 = Platform::MonotonicMs();
         ArchivePatchResult r = ArchivePatcher::Apply(job);
+
+        if (r.m_busy && ++bp.m_busyTries < kBusyRetries) {
+            StreamLog("stream: in-place %s busy, %s, retry %d/%d in %llu s", job.m_relPath.c_str(), r.m_error.c_str(), bp.m_busyTries, kBusyRetries - 1, kBusyRetryMs / 1000);
+            bp.m_retryAtMs = Platform::MonotonicMs() + kBusyRetryMs;
+            return;
+        }
+
+        bp.m_busyTries = 0;
+        bp.m_retryAtMs = 0;
+        ++bp.m_nextJob;
         StreamLog("stream: in-place %s %s: %d/%d file(s) written in %llu ms%s%s", job.m_relPath.c_str(), r.m_ok ? "OK" : "FAILED", static_cast<int32_t>(r.m_writtenNames.size()), static_cast<int32_t>(job.m_writes.size()), static_cast<unsigned long long>(Platform::MonotonicMs() - t0), r.m_error.empty() ? "" : ", ", r.m_error.c_str());
 
         for (const std::string& n : r.m_writtenNames) {

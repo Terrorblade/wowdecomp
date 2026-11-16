@@ -56,7 +56,7 @@ ArchivePatchResult Apply(const ArchivePatchJob& job) {
     std::string transientName;
 
     if (registered) {
-        if (!ArchiveRegistry::EnsureWritable(job.m_archivePath, &res.m_error)) {
+        if (!ArchiveRegistry::EnsureWritable(job.m_archivePath, &res.m_error, &res.m_busy)) {
             return res;
         }
 

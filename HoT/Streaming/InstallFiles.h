@@ -15,8 +15,12 @@ enum : uint32_t {
     MOVE_WRITE_THROUGH = 0x8,
 };
 
-// MoveFileExW semantics, replacedRunningExe is set when the running binary was renamed over.
+// MoveFileExW semantics, replacedRunningExe is set when the running binary was renamed over. Outside Windows a
+// folder replaces a folder of the same name, which is how an unpacked app bundle is swapped in.
 bool Move(const std::wstring& src, const std::wstring& dst, uint32_t flags, bool& replacedRunningExe);
+
+// The running binary, or a folder holding it such as the app bundle.
+bool HoldsRunningExe(const std::wstring& path);
 
 // Paths in the pending file are written in the code page the swap helper reads.
 std::string NarrowPendingPath(const std::wstring& path, bool* lossy);
@@ -36,6 +40,10 @@ bool IsForeignBinary(const std::string& path);
 
 // The manifest platform tag of this OS, files tagged for any other OS are skipped.
 const char* ManifestPlatform();
+
+// A native build shipped as a tar.gz for this OS, which has to be unpacked into the install to be of use.
+bool IsPackage(const std::string& path, const std::string& platform);
+bool Unpack(const std::wstring& tarball, const std::wstring& into);
 
 }
 

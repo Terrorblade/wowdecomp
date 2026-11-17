@@ -17,6 +17,7 @@ This document lists the Lua functions and events that the HoT client adds to the
 | Function | Returns | Description |
 |---|---|---|
 | `FlashGameWindow()` | nothing | Flashes the game window's taskbar entry. |
+| `GetPhysicalScreenSize()` | width, height | The game window's drawable size in pixels, like retail. nil, nil before the graphics device exists. |
 | `GetShapeshiftFormID()` | number | Current shapeshift form id, or 0 if none. |
 | `GetSpellDescription(spellId)` | string or nil | The spell's tooltip description with all `$` tokens resolved. nil if the spell does not exist. |
 | `GetSpellNameById(spellId)` | name, subtext | Spell name and rank or subtext. nil, nil if the spell does not exist. |

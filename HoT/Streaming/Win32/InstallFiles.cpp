@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <fstream>
 #include <vector>
+#include "HoT/Platform/Process.h"
 #include "HoT/Streaming/StreamLog.h"
 #include <windows.h>
 
@@ -13,6 +14,10 @@ namespace HoT::Streaming::InstallFiles {
 bool Move(const std::wstring& src, const std::wstring& dst, uint32_t flags, bool& replacedRunningExe) {
     replacedRunningExe = false;
     return MoveFileExW(src.c_str(), dst.c_str(), flags) != 0;
+}
+
+bool HoldsRunningExe(const std::wstring& path) {
+    return Platform::IsRunningExecutable(path);
 }
 
 std::string NarrowPendingPath(const std::wstring& s, bool* lossy) {
@@ -191,6 +196,15 @@ void SpawnExitSwapHelper(const fs::path& pendingFile) {
     } else {
         StreamLog("stream: exit swap helper spawn FAILED (err %lu)", GetLastError());
     }
+}
+
+// Every package is a build for another OS.
+bool IsPackage(const std::string& path, const std::string& platform) {
+    return false;
+}
+
+bool Unpack(const std::wstring& tarball, const std::wstring& into) {
+    return false;
 }
 
 }

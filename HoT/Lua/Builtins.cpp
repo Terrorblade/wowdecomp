@@ -1,6 +1,7 @@
 #include "HoT/Lua/Builtins.h"
 #include <cstring>
 #include "Engine/Source/Base/Coordinate.h"
+#include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "HoT/Core/Modules.h"
 #include "HoT/Core/Shell.h"
@@ -30,6 +31,28 @@ static const int32_t NUM_LFG_AFFIXES = 4;
 static int32_t Script_FlashGameWindow(lua_State* L) {
     Shell::FlashGameWindow();
     return 0;
+}
+
+static int32_t Script_GetPhysicalScreenSize(lua_State* L) {
+    if (!g_theGxDevicePtr) {
+        lua_pushnil(L);
+        lua_pushnil(L);
+        return 2;
+    }
+
+    const CRect& window = g_theGxDevicePtr->DeviceCurWindow();
+    float width = window.maxX - window.minX;
+    float height = window.maxY - window.minY;
+
+    if (width <= 0.0f || height <= 0.0f) {
+        lua_pushnil(L);
+        lua_pushnil(L);
+        return 2;
+    }
+
+    lua_pushnumber(L, width);
+    lua_pushnumber(L, height);
+    return 2;
 }
 
 static int32_t Script_OpenUrl(lua_State* L) {
@@ -387,6 +410,7 @@ class BuiltinsModule : public Module {
 
     void OnInitializeGlobal() override {
         Lua::RegisterFunction("FlashGameWindow", Script_FlashGameWindow, Lua::State::Any);
+        Lua::RegisterFunction("GetPhysicalScreenSize", Script_GetPhysicalScreenSize, Lua::State::Any);
         Lua::RegisterFunction("OpenUrl", Script_OpenUrl, Lua::State::Any);
         Lua::RegisterFunction("GetShapeshiftFormID", Script_GetShapeshiftFormID);
         Lua::RegisterFunction("GetSpellDescription", Script_GetSpellDescription);

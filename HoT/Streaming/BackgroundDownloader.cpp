@@ -718,6 +718,117 @@ struct MountAfter {
     std::string m_sha;
 };
 
+static std::string ReadStamp(const fs::path& stamp) {
+    std::ifstream f(stamp, std::ios::binary);
+    std::string s;
+    std::getline(f, s);
+
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
+        s.pop_back();
+    }
+
+    return Text::LowerAscii(s);
+}
+
+// A package holds one folder, everything in it but its README lands in the install. A lone .app is the payload itself.
+static std::vector<fs::path> PackageEntries(const fs::path& unpack) {
+    std::error_code ec;
+    std::vector<fs::path> top;
+
+    for (const fs::directory_entry& e : fs::directory_iterator(unpack, ec)) {
+        top.push_back(e.path());
+    }
+
+    const bool wrapped = top.size() == 1 && fs::is_directory(top[0], ec) && Text::LowerAscii(top[0].extension().string()) != ".app";
+    const fs::path root = wrapped ? top[0] : unpack;
+    std::vector<fs::path> entries;
+
+    for (const fs::directory_entry& e : fs::directory_iterator(root, ec)) {
+        if (Text::LowerAscii(e.path().filename().string()) != "readme.txt") {
+            entries.push_back(e.path());
+        }
+    }
+
+    return entries;
+}
+
+// Native builds for this OS ship as a tar.gz. It is unpacked to a temp folder and each entry goes through the swap
+// chain, so whatever the running game lives in is swapped once it closes. The .installed stamp is the launcher's own,
+// whichever of the two unpacked a build the other leaves it alone.
+static void UnpackIfPackage(const ManifestFile& mf, const std::wstring& local, bool gate) {
+    if (!InstallFiles::IsPackage(mf.m_path, mf.m_platform)) {
+        return;
+    }
+
+    std::error_code ec;
+    const fs::path archive(local);
+    const fs::path stamp = archive.wstring() + L".installed";
+    const fs::path unpack = Paths::WorkDir() / "unpack" / archive.filename();
+    const fs::path stagedStamp = unpack.wstring() + L".installed";
+    const std::string want = Text::LowerAscii(mf.m_sha256);
+
+    const bool stampPending = HasPendingMove(stagedStamp.wstring(), stamp.wstring());
+
+    // What a close swap left behind, the README and the emptied wrapper folder.
+    if (ReadStamp(stamp) == want) {
+        if (!stampPending) {
+            fs::remove_all(unpack, ec);
+        }
+
+        return;
+    }
+
+    if (stampPending && ReadStamp(stagedStamp) == want) {
+        return;
+    }
+
+    fs::remove_all(unpack, ec);
+    fs::create_directories(unpack, ec);
+
+    if (!InstallFiles::Unpack(local, unpack.wstring())) {
+        StreamLog("stream: could not unpack %s", mf.m_path.c_str());
+        fs::remove_all(unpack, ec);
+        return;
+    }
+
+    const std::vector<fs::path> entries = PackageEntries(unpack);
+
+    if (entries.empty()) {
+        StreamLog("stream: %s holds nothing to install", mf.m_path.c_str());
+        fs::remove_all(unpack, ec);
+        return;
+    }
+
+    {
+        std::ofstream f(stagedStamp, std::ios::binary | std::ios::trunc);
+        f << want;
+    }
+
+    bool staged = false;
+
+    for (const fs::path& entry : entries) {
+        const std::wstring dest = (archive.parent_path() / entry.filename()).wstring();
+        const std::string name = entry.filename().string();
+
+        if (!InstallFiles::HoldsRunningExe(dest) && MoveInstallFile(entry.wstring(), dest, InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH, gate)) {
+            StreamLog("stream: installed %s from %s", name.c_str(), mf.m_path.c_str());
+            continue;
+        }
+
+        RecordPending(entry.wstring(), dest, gate);
+        staged = true;
+        StreamLog("stream: staged %s from %s (in use), will swap when the game closes", name.c_str(), mf.m_path.c_str());
+    }
+
+    if (staged) {
+        RecordPending(stagedStamp.wstring(), stamp.wstring(), false);
+        return;
+    }
+
+    MoveInstallFile(stagedStamp.wstring(), stamp.wstring(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH);
+    fs::remove_all(unpack, ec);
+}
+
 static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const ManifestArchive* arc, const std::wstring& local, const std::wstring& part, bool gate) {
     std::error_code ec;
     bool isMpq = IsMpq(mf.m_path);
@@ -734,6 +845,7 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
 
         // The SHA-256 already matched, so the expected digests can be recorded without reading the file back.
         RememberPlaced(local, mf, arc);
+        UnpackIfPackage(mf, local, gate);
 
         if (isMpq) {
             mount = MountAfter{ local, mf.m_sha256 };
@@ -745,6 +857,7 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
     // Swap now when unlocked, else stage a hash named copy, mount it and swap later.
     if (MoveInstallFile(part.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED, gate)) {
         RememberPlaced(local, mf, arc);
+        UnpackIfPackage(mf, local, gate);
 
         if (isMpq) {
             mount = MountAfter{ local, mf.m_sha256 };
@@ -778,6 +891,7 @@ static void SwapOrStage(const std::wstring& np, const std::wstring& local, const
 
     if (MoveInstallFile(np.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED, gate)) {
         RememberPlaced(local, mf, arc);
+        UnpackIfPackage(mf, local, gate);
 
         if (isMpq) {
             EnqueueMount(local, mf.m_sha256);
@@ -2005,6 +2119,8 @@ static void Run() {
             if (restored && IsMpq(mf.m_path)) {
                 EnqueueMount(local, mf.m_sha256);
             }
+
+            UnpackIfPackage(mf, local, binaryGate);
 
             // Nothing left to swap in.
             SweepStagedSiblings(mf, local, L"");

@@ -17,10 +17,6 @@ local trackTabs;
 local keyList;
 local dbcWindow;
 
-local function IsActive()
-	return GameEditor_GetWorkspace() == "camera";
-end
-
 local function HasFocus(spin)
 	local edit = _G[spin:GetName().."Edit"];
 	return edit and edit.HasFocus and edit:HasFocus();
@@ -274,20 +270,29 @@ end
 local function BuildCapture(y)
 	y = Header(y, "Capture");
 
-	local capture = Common.Button(child, "Capture view (K)", 130, CE.Capture, "Key the position and target at the playhead from the current view");
-	capture:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
-	local label = Common.Label(child, "Target distance", nil, NOGGIT_COLOR_DISABLED);
-	label:SetPoint("LEFT", capture, "RIGHT", 10, 0);
+	local append = Common.Button(child, "Add view as next key (Shift+K)", 200, CE.Append, "Add the current view as a new key one step after the last key, the length grows to fit");
+	append:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
+	local capture = Common.Button(child, "Key at playhead (K)", 140, CE.Capture, "Key the view at the playhead, replacing a key already there, then move the playhead on one step");
+	capture:SetPoint("LEFT", append, "RIGHT", 4, 0);
+	y = y - 28;
+
+	Label(child, y, "Step");
+	widgets.advance = NoggitSpinBox_Create(child, 70, 0, 600, 0.5, 2, function(_, value) CE.settings.advance = value; end);
+	widgets.advance:SetPoint("TOPLEFT", child, "TOPLEFT", 48, y);
+	NoggitSpinBox_SetValue(widgets.advance, CE.settings.advance, true);
+	Tip(widgets.advance, "Seconds between keys added with Shift+K, and how far the playhead moves on after K. 0 keeps the playhead still.");
+	local label = Common.Label(child, "s   Target distance", nil, NOGGIT_COLOR_DISABLED);
+	label:SetPoint("LEFT", widgets.advance, "RIGHT", 6, 0);
 	widgets.targetDistance = NoggitSpinBox_Create(child, 70, 0, 1000, 5, 0, function(_, value) CE.settings.targetDistance = value; end);
 	widgets.targetDistance:SetPoint("LEFT", label, "RIGHT", 6, 0);
 	NoggitSpinBox_SetValue(widgets.targetDistance, CE.settings.targetDistance, true);
 	Tip(widgets.targetDistance, "How far ahead of the view the target key goes, 0 puts it on the surface under the middle of the screen");
 	y = y - 26;
 
-	local help = Common.Paragraph(child, "Fly the free camera to frame a shot, move the playhead and press K. Click keys in the world to select them, drag them or use the arrows, ctrl drags them level and alt click drops them on the ground.");
+	local help = Common.Paragraph(child, "Fly the free camera to frame each shot and press Shift+K to add it as the next key. K keys the playhead instead, a key already there is replaced. Click keys in the world to select them, drag them or use the arrows, ctrl drags them level and alt click drops them on the ground.");
 	help:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
 	help:SetPoint("TOPRIGHT", child, "TOPRIGHT", -8, y);
-	return y - 46;
+	return y - 58;
 end
 
 -- Track and key sections ----------------------------------------------------------------------------------
@@ -667,7 +672,8 @@ local function BuildMenus()
 			{ text = "Undo", shortcut = "Ctrl+Z", onClick = CameraEditor_Undo },
 			{ text = "Redo", shortcut = "Ctrl+Y", onClick = CameraEditor_Redo },
 			separator,
-			{ text = "Capture view at the playhead", shortcut = "K", onClick = CE.Capture },
+			{ text = "Add the view as the next key", shortcut = "Shift+K", onClick = CE.Append },
+			{ text = "Key the view at the playhead", shortcut = "K", onClick = CE.Capture },
 			{ text = "Add a key to the shown track", onClick = function() CE.AddKey(); end },
 			{ text = "Delete the selected key", shortcut = "Delete", onClick = CE.DeleteSelected },
 			separator,
@@ -699,7 +705,8 @@ local function BuildMenus()
 end
 
 local KEYS = {
-	{ "K", "Key the position and target at the playhead from the view" },
+	{ "Shift+K", "Add the view as a new key one step after the last key" },
+	{ "K", "Key the view at the playhead (replaces a key there), then step the playhead on" },
 	{ "P", "Play or pause" },
 	{ "V", "Look through the camera at the playhead" },
 	{ "[ and ]", "Previous and next key of the shown track" },
@@ -716,6 +723,7 @@ local KEYS = {
 
 local HOTKEYS = {
 	["K"] = CE.Capture,
+	["SHIFT-K"] = CE.Append,
 	["P"] = CE.TogglePlay,
 	["V"] = CE.TogglePreview,
 	["["] = function() CE.StepKey(-1); end,

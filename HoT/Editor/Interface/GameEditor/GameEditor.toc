@@ -23,6 +23,7 @@ GameObject\GameObject.xml
 Spell\Spell.xml
 Quest\Quest.xml
 Light\Light.xml
+Camera\Camera.xml
 Model\Model.xml
 Vehicle\Vehicle.xml
 Item\Item.xml

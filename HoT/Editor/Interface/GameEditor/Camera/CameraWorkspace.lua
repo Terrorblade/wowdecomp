@@ -32,6 +32,12 @@ local function SetSpin(spin, value)
 	end
 end
 
+-- Hooks so the widget keeps its own hover scripts.
+local function Tip(widget, text)
+	widget:HookScript("OnEnter", function(self) NoggitTooltip_Show(self, text); end);
+	widget:HookScript("OnLeave", NoggitTooltip_Hide);
+end
+
 local function Show(widget, shown)
 	if ( shown ) then
 		widget:Show();
@@ -226,7 +232,7 @@ local function BuildOrigin(y)
 	view:SetPoint("LEFT", character, "RIGHT", 4, 0);
 	local keep = NoggitCheckBox_Create(child, "Keep the path in place", CE.settings.keepWorld, function(_, checked) CE.settings.keepWorld = checked; end);
 	keep:SetPoint("LEFT", view, "RIGHT", 10, 0);
-	Common.Tooltip(keep, "On: moving the origin leaves the path where it is in the world. Off: the path moves with the origin.");
+	Tip(keep, "On: moving the origin leaves the path where it is in the world. Off: the path moves with the origin.");
 	y = y - 28;
 
 	widgets.dbcText = Common.Paragraph(child, "");
@@ -246,7 +252,7 @@ local function BuildTiming(y)
 	seconds:SetPoint("LEFT", widgets.length, "RIGHT", 6, 0);
 	local scale = NoggitCheckBox_Create(child, "Scale keys", CE.settings.scaleKeys, function(_, checked) CE.settings.scaleKeys = checked; end);
 	scale:SetPoint("LEFT", seconds, "RIGHT", 12, 0);
-	Common.Tooltip(scale, "Stretch every key time with the new length, off keeps the keys where they are");
+	Tip(scale, "Stretch every key time with the new length, off keeps the keys where they are");
 	y = y - 28;
 
 	local even = Common.Button(child, "Even out speed", 110, CameraEditor_ConstantSpeed, "Retime the position keys by distance so the camera moves at one speed, the target and roll keys follow");
@@ -275,7 +281,7 @@ local function BuildCapture(y)
 	widgets.targetDistance = NoggitSpinBox_Create(child, 70, 0, 1000, 5, 0, function(_, value) CE.settings.targetDistance = value; end);
 	widgets.targetDistance:SetPoint("LEFT", label, "RIGHT", 6, 0);
 	NoggitSpinBox_SetValue(widgets.targetDistance, CE.settings.targetDistance, true);
-	Common.Tooltip(widgets.targetDistance, "How far ahead of the view the target key goes, 0 puts it on the surface under the middle of the screen");
+	Tip(widgets.targetDistance, "How far ahead of the view the target key goes, 0 puts it on the surface under the middle of the screen");
 	y = y - 26;
 
 	local help = Common.Paragraph(child, "Fly the free camera to frame a shot, move the playhead and press K. Click keys in the world to select them, drag them or use the arrows, ctrl drags them level and alt click drops them on the ground.");
@@ -317,7 +323,7 @@ local function BuildTrack(y)
 		CameraEditor_SetInterp(CE.state.track, index - 1);
 	end);
 	widgets.interp:SetPoint("TOPLEFT", child, "TOPLEFT", LABEL_WIDTH, y);
-	Common.Tooltip(widgets.interp, "Bezier and Hermite are both smooth and convert into each other without changing the path. Linear ignores the handles, None holds each key until the next.");
+	Tip(widgets.interp, "Bezier and Hermite are both smooth and convert into each other without changing the path. Linear ignores the handles, None holds each key until the next.");
 	y = y - 28;
 
 	keyList = NoggitListBox_Create(child, 18, function(row)
@@ -415,7 +421,7 @@ local function BuildKey(y)
 		end
 	end);
 	keyWidgets.mode:SetPoint("TOPLEFT", box, "TOPLEFT", LABEL_WIDTH, row);
-	Common.Tooltip(keyWidgets.mode, "Auto: handles follow the neighbours so the speed is continuous. Smooth: you place them, the other side matches the speed. Aligned: straight through, lengths free. Free: both sides independent. Stop: the camera eases to a halt on the key.");
+	Tip(keyWidgets.mode, "Auto: handles follow the neighbours so the speed is continuous. Smooth: you place them, the other side matches the speed. Aligned: straight through, lengths free. Free: both sides independent. Stop: the camera eases to a halt on the key.");
 	row = row - 28;
 
 	local function Handle(out)

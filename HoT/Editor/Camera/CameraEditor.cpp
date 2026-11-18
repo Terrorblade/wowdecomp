@@ -1178,6 +1178,17 @@ static int32_t Script_SetActive(lua_State* L) {
     }
 
     s_state.m_active = active;
+    const Doc& doc = s_state.m_doc;
+    bool untouched = doc.m_path.empty() && s_state.m_undo.empty() && doc.m_keys[TRACK_POSITION].empty() && doc.m_keys[TRACK_TARGET].empty() && doc.m_keys[TRACK_ROLL].empty();
+
+    // A camera nobody has touched starts at the character instead of the map origin.
+    if (active && untouched) {
+        if (CGPlayer_C* player = ClntObjMgrGetActivePlayerObj()) {
+            s_state.m_doc.m_origin = player->GetPosition();
+            Changed();
+            s_state.m_savedRevision = s_state.m_revision;
+        }
+    }
     return 0;
 }
 

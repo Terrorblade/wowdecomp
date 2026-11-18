@@ -133,8 +133,52 @@ static C3Vector MatchedHandle(const std::vector<Key>& keys, size_t k, bool fromO
     return Scale(handle, -timeTo / timeFrom);
 }
 
-static void RebuildHandles(std::vector<Key>& keys) {
+// Speed through point k of a curve through values at times, in units per millisecond.
+// Limited to 1.5 times the slower neighbouring segment so a handle never reaches past half its segment, which stops loops and overshoot.
+// stopOnReverse makes it zero where the curve turns back, so it cannot swing past a key.
+static C3Vector AutoVelocity(const std::vector<C3Vector>& values, const std::vector<uint32_t>& times, size_t k, bool stopOnReverse) {
+    size_t count = values.size();
+    auto slope = [&](size_t from) {
+        float dt = static_cast<float>(times[from + 1]) - static_cast<float>(times[from]);
+        return Scale(Subtract(values[from + 1], values[from]), 1.0f / (dt > 0.0f ? dt : 1.0f));
+    };
+
+    if (count < 2) {
+        return {};
+    }
+
+    if (k == 0) {
+        return slope(0);
+    }
+
+    if (k == count - 1) {
+        return slope(k - 1);
+    }
+
+    C3Vector left = slope(k - 1);
+    C3Vector right = slope(k);
+    float span = static_cast<float>(times[k + 1]) - static_cast<float>(times[k - 1]);
+    C3Vector velocity = Scale(Subtract(values[k + 1], values[k - 1]), 1.0f / (span > 0.0f ? span : 1.0f));
+
+    if (stopOnReverse && Dot(left, right) <= 0.0f) {
+        return {};
+    }
+
+    float limit = 1.5f * std::min(Length(left), Length(right));
+    float speed = Length(velocity);
+
+    return speed > limit && speed > 0.0f ? Scale(velocity, limit / speed) : velocity;
+}
+
+static void RebuildHandles(std::vector<Key>& keys, bool stopOnReverse) {
     size_t count = keys.size();
+    std::vector<C3Vector> values(count);
+    std::vector<uint32_t> times(count);
+
+    for (size_t k = 0; k < count; k++) {
+        values[k] = keys[k].m_value;
+        times[k] = keys[k].m_time;
+    }
 
     for (size_t k = 0; k < count; k++) {
         Key& key = keys[k];
@@ -146,16 +190,7 @@ static void RebuildHandles(std::vector<Key>& keys) {
         }
 
         if (key.m_mode == TANGENT_AUTO) {
-            C3Vector velocity;
-
-            if (k == 0) {
-                velocity = Scale(Subtract(keys[1].m_value, keys[0].m_value), 1.0f / SegmentTime(keys, 0, 1));
-            } else if (k == count - 1) {
-                velocity = Scale(Subtract(keys[k].m_value, keys[k - 1].m_value), 1.0f / SegmentTime(keys, k - 1, k));
-            } else {
-                velocity = Scale(Subtract(keys[k + 1].m_value, keys[k - 1].m_value), 1.0f / SegmentTime(keys, k - 1, k + 1));
-            }
-
+            C3Vector velocity = AutoVelocity(values, times, k, stopOnReverse);
             key.m_out = k + 1 < count ? Scale(velocity, SegmentTime(keys, k, k + 1) / 3.0f) : C3Vector{};
             key.m_in = k > 0 ? Scale(velocity, -SegmentTime(keys, k - 1, k) / 3.0f) : C3Vector{};
             continue;
@@ -189,7 +224,8 @@ void Normalize(Doc& doc, int32_t track) {
         }
     }
 
-    RebuildHandles(keys);
+    // Roll keeps to the values it was given, a turning path still flows through its keys.
+    RebuildHandles(keys, track == TRACK_ROLL);
 }
 
 void NormalizeAll(Doc& doc) {
@@ -466,6 +502,217 @@ void ConstantSpeed(Doc& doc) {
 
         NormalizeAll(doc);
     }
+}
+
+static constexpr float kPi = 3.14159265f;
+
+// Time weighted Gaussian average, uneven key spacing is fine.
+static void GaussianSmooth(std::vector<C3Vector>& values, const std::vector<uint32_t>& times, float sigma, bool keepEnds) {
+    size_t count = values.size();
+
+    if (sigma <= 0.0f || count < 3) {
+        return;
+    }
+
+    std::vector<C3Vector> result = values;
+
+    for (size_t i = 0; i < count; i++) {
+        if (keepEnds && (i == 0 || i == count - 1)) {
+            continue;
+        }
+
+        C3Vector sum{};
+        float weights = 0.0f;
+
+        for (size_t j = 0; j < count; j++) {
+            float dt = (static_cast<float>(times[j]) - static_cast<float>(times[i])) / sigma;
+
+            if (fabsf(dt) > 3.0f) {
+                continue;
+            }
+
+            float weight = expf(-0.5f * dt * dt);
+            sum = Add(sum, Scale(values[j], weight));
+            weights += weight;
+        }
+
+        result[i] = Scale(sum, 1.0f / weights);
+    }
+
+    values = result;
+}
+
+static C3Vector LookDirection(const C3Vector& look) {
+    return { cosf(look.y) * cosf(look.x), cosf(look.y) * sinf(look.x), sinf(look.y) };
+}
+
+float RollForBank(const C3Vector& forward, float bank, float previous) {
+    C3Vector f = VectorMath::Normalize(forward);
+    C3Vector z{ 0.0f, 0.0f, 1.0f };
+    C3Vector left = Cross(z, f);
+
+    if (Length(left) < 1e-4f) {
+        return previous;
+    }
+
+    left = VectorMath::Normalize(left);
+    C3Vector level = VectorMath::Normalize(Subtract(z, Scale(f, Dot(z, f))));
+    C3Vector up = Add(Scale(level, cosf(bank)), Scale(left, sinf(bank)));
+
+    // The client's up hint is (0, sin r, cos r), it has to lie in the plane of the view and the wanted up.
+    C3Vector normal = Cross(f, up);
+
+    if (normal.y * normal.y + normal.z * normal.z < 1e-6f) {
+        return previous;
+    }
+
+    float roll = atan2f(-normal.z, normal.y);
+
+    if (sinf(roll) * up.y + cosf(roll) * up.z < 0.0f) {
+        roll += kPi;
+    }
+
+    while (roll - previous > kPi) {
+        roll -= 2.0f * kPi;
+    }
+
+    while (roll - previous < -kPi) {
+        roll += 2.0f * kPi;
+    }
+
+    // Near 90 degrees the hint lines up with the view and the client falls back to a fixed axis.
+    return std::clamp(roll, -1.3f, 1.3f);
+}
+
+void SmoothCamera(Doc& doc, const SmoothOptions& options) {
+    std::vector<Key>& positions = doc.m_keys[TRACK_POSITION];
+    size_t count = positions.size();
+
+    if (count < 2) {
+        return;
+    }
+
+    std::vector<uint32_t> times(count);
+
+    for (size_t k = 0; k < count; k++) {
+        times[k] = positions[k].m_time;
+    }
+
+    // Look at each key as yaw, pitch and distance, read before the path moves.
+    std::vector<C3Vector> look(count);
+    bool hasTarget = !doc.m_keys[TRACK_TARGET].empty();
+
+    for (size_t k = 0; k < count; k++) {
+        C3Vector position = positions[k].m_value;
+        C3Vector target = hasTarget ? Evaluate(doc, TRACK_TARGET, static_cast<float>(times[k])) : Add(position, C3Vector{ 20.0f, 0.0f, 0.0f });
+        C3Vector offset = Subtract(target, position);
+        float distance = Length(offset);
+
+        if (distance < 0.01f) {
+            look[k] = k > 0 ? look[k - 1] : C3Vector{ 0.0f, 0.0f, 20.0f };
+            continue;
+        }
+
+        float yaw = atan2f(offset.y, offset.x);
+
+        if (k > 0) {
+            while (yaw - look[k - 1].x > kPi) {
+                yaw -= 2.0f * kPi;
+            }
+
+            while (yaw - look[k - 1].x < -kPi) {
+                yaw += 2.0f * kPi;
+            }
+        }
+
+        look[k] = { yaw, asinf(std::clamp(offset.z / distance, -1.0f, 1.0f)), distance };
+    }
+
+    if (options.m_pathSeconds > 0.0f) {
+        std::vector<C3Vector> values(count);
+
+        for (size_t k = 0; k < count; k++) {
+            values[k] = positions[k].m_value;
+        }
+
+        GaussianSmooth(values, times, options.m_pathSeconds * 1000.0f, true);
+
+        for (size_t k = 0; k < count; k++) {
+            positions[k].m_value = values[k];
+            positions[k].m_mode = TANGENT_AUTO;
+        }
+
+        Normalize(doc, TRACK_POSITION);
+    }
+
+    GaussianSmooth(look, times, options.m_lookSeconds * 1000.0f, true);
+
+    // One distance for every key, so only the direction changes along the path.
+    std::vector<float> distances(count);
+
+    for (size_t k = 0; k < count; k++) {
+        distances[k] = look[k].z;
+    }
+
+    std::nth_element(distances.begin(), distances.begin() + count / 2, distances.end());
+    float distance = std::max(2.0f, distances[count / 2]);
+    std::vector<C3Vector> offsets(count);
+
+    for (size_t k = 0; k < count; k++) {
+        offsets[k] = Scale(LookDirection(look[k]), distance);
+    }
+
+    // Target minus position is its own cubic on every segment, its handles stop where the look turns back.
+    std::vector<Key> targets(count);
+
+    for (size_t k = 0; k < count; k++) {
+        C3Vector velocity = AutoVelocity(offsets, times, k, true);
+        Key& key = targets[k];
+        key.m_time = times[k];
+        key.m_value = Add(positions[k].m_value, offsets[k]);
+        key.m_in = k > 0 ? Add(positions[k].m_in, Scale(velocity, -SegmentTime(positions, k - 1, k) / 3.0f)) : C3Vector{};
+        key.m_out = k + 1 < count ? Add(positions[k].m_out, Scale(velocity, SegmentTime(positions, k, k + 1) / 3.0f)) : C3Vector{};
+        key.m_mode = TANGENT_FREE;
+    }
+
+    doc.m_keys[TRACK_TARGET] = targets;
+    doc.m_interp[TRACK_TARGET] = doc.m_interp[TRACK_POSITION];
+
+    if (!options.m_bank) {
+        return;
+    }
+
+    // Bank like a plane, the lean grows with speed times turn rate.
+    std::vector<C3Vector> banks(count);
+
+    for (size_t k = 0; k < count; k++) {
+        size_t from = k > 0 ? k - 1 : k;
+        size_t to = k + 1 < count ? k + 1 : k;
+        float span = static_cast<float>(times[to]) - static_cast<float>(times[from]);
+        float turnRate = span > 0.0f ? (look[to].x - look[from].x) / span * 1000.0f : 0.0f;
+        float t = static_cast<float>(times[k]);
+        float t0 = std::max(t - 10.0f, static_cast<float>(times.front()));
+        float t1 = std::min(t + 10.0f, static_cast<float>(times.back()));
+        float speed = t1 > t0 ? Length(Subtract(Evaluate(doc, TRACK_POSITION, t1), Evaluate(doc, TRACK_POSITION, t0))) / (t1 - t0) * 1000.0f : 0.0f;
+        float bank = options.m_bankStrength * atanf(speed * turnRate / 9.8f);
+        banks[k] = { std::clamp(bank, -options.m_maxBank, options.m_maxBank), 0.0f, 0.0f };
+    }
+
+    GaussianSmooth(banks, times, options.m_lookSeconds * 1000.0f, false);
+
+    std::vector<Key> rolls(count);
+    float previous = 0.0f;
+
+    for (size_t k = 0; k < count; k++) {
+        previous = RollForBank(DirToWorld(doc, LookDirection(look[k])), banks[k].x, previous);
+        rolls[k].m_time = times[k];
+        rolls[k].m_value = { previous, 0.0f, 0.0f };
+        rolls[k].m_mode = TANGENT_AUTO;
+    }
+
+    doc.m_keys[TRACK_ROLL] = rolls;
+    doc.m_interp[TRACK_ROLL] = IsSpline(doc.m_interp[TRACK_POSITION]) ? doc.m_interp[TRACK_POSITION] : INTERP_LINEAR;
+    Normalize(doc, TRACK_ROLL);
 }
 
 void ShiftTimes(Doc& doc, int32_t delta) {

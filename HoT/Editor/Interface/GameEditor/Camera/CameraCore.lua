@@ -27,7 +27,16 @@ CE.MODE_ITEMS = {
 CE.MODE_SHORT = { [0] = "auto", "smooth", "aligned", "free", "stop" };
 
 CE.state = { revision = -1, doc = {}, keys = { {}, {}, {} }, track = CE.POSITION };
-CE.settings = { keepWorld = false, scaleKeys = true, targetDistance = 20, advance = 2 };
+CE.settings = {
+	keepWorld = false, scaleKeys = true, targetDistance = 20, advance = 2,
+	lookSeconds = 1, pathSeconds = 0, bank = false, bankStrength = 0.5, maxBank = 20,
+};
+
+-- Smooths the look, optionally the path, and banks the roll into turns when that is on.
+function CE.Smooth()
+	local s = CE.settings;
+	CE.Result(CameraEditor_Smooth(s.lookSeconds, s.pathSeconds, s.bank, s.bankStrength, s.maxBank), nil, "Camera smoothed, Ctrl+Z puts it back");
+end
 
 local listeners = {};
 

@@ -1525,6 +1525,39 @@ static int32_t Script_ConstantSpeed(lua_State* L) {
     return 0;
 }
 
+static int32_t Script_Smooth(lua_State* L) {
+    if (s_state.m_doc.m_keys[TRACK_POSITION].size() < 2) {
+        return PushResult(L, false, "needs at least two position keys");
+    }
+
+    SmoothOptions options;
+    options.m_lookSeconds = static_cast<float>(std::clamp(lua_tonumber(L, 1), 0.0, 60.0));
+    options.m_pathSeconds = static_cast<float>(std::clamp(lua_tonumber(L, 2), 0.0, 60.0));
+    options.m_bank = lua_toboolean(L, 3) != 0;
+    options.m_bankStrength = static_cast<float>(std::clamp(lua_tonumber(L, 4), 0.0, 4.0));
+    options.m_maxBank = static_cast<float>(std::clamp(lua_tonumber(L, 5), 0.0, 75.0) * 3.14159265 / 180.0);
+
+    PushUndo();
+    SmoothCamera(s_state.m_doc, options);
+    ClampSelection();
+    Changed();
+    return PushResult(L, true, std::string());
+}
+
+static int32_t Script_ClearTrack(lua_State* L) {
+    int32_t track = TrackArg(L, 1);
+
+    if (track < 0 || s_state.m_doc.m_keys[track].empty()) {
+        return 0;
+    }
+
+    PushUndo();
+    s_state.m_doc.m_keys[track].clear();
+    ClampSelection();
+    Changed();
+    return 0;
+}
+
 static int32_t Script_ShiftTimes(lua_State* L) {
     PushUndo();
     ShiftTimes(s_state.m_doc, static_cast<int32_t>(lua_tonumber(L, 1)));
@@ -1786,6 +1819,8 @@ void Apply() {
     Lua::RegisterFunction("CameraEditor_GetViewPosition", Gated<Script_GetViewPosition>);
     Lua::RegisterFunction("CameraEditor_ConstantSpeed", Gated<Script_ConstantSpeed>);
     Lua::RegisterFunction("CameraEditor_ShiftTimes", Gated<Script_ShiftTimes>);
+    Lua::RegisterFunction("CameraEditor_Smooth", Gated<Script_Smooth>);
+    Lua::RegisterFunction("CameraEditor_ClearTrack", Gated<Script_ClearTrack>);
     Lua::RegisterFunction("CameraEditor_Undo", Gated<Script_Undo>);
     Lua::RegisterFunction("CameraEditor_Redo", Gated<Script_Redo>);
     Lua::RegisterFunction("CameraEditor_New", Gated<Script_New>);

@@ -4,6 +4,7 @@
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "HoT/Core/Modules.h"
+#include "HoT/Editor/Camera/CameraEditor.h"
 #include "HoT/Editor/CreatureEditor.h"
 #include "HoT/Editor/Dbc/DbcEditor.h"
 #include "HoT/Editor/FreeCam.h"
@@ -63,7 +64,9 @@ int32_t OnHitTestPoint(int32_t kind, const HITTESTRESULT* result) {
 }
 
 CameraUpdateScope::~CameraUpdateScope() {
+    C3Vector position = this->m_camera->m_position;
     FreeCam::OnCameraUpdated(this->m_camera);
+    CameraEditor::OnCameraUpdated(this->m_camera, position);
 }
 
 class EditorModule : public Module {
@@ -87,6 +90,7 @@ class EditorModule : public Module {
         TemplateSearch::Apply();
         ModelEditor::Apply();
         WorldPreview::Apply();
+        CameraEditor::Apply();
     }
 
     void OnPlayerClientInitialize() override {
@@ -125,6 +129,7 @@ class EditorModule : public Module {
         WorldTables::OnGameDestroy();
         TemplateSearch::OnGameDestroy();
         ModelEditor::OnGameDestroy();
+        CameraEditor::OnGameDestroy();
     }
 };
 

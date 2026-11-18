@@ -325,6 +325,10 @@ static bool IsLauncherExe(const std::string& path) {
 
 // The launcher entry follows the exe the player actually runs, which settings.json records and may be a renamed copy.
 static std::wstring TargetPath(const ManifestFile& mf) {
+    if (InstallFiles::IsPackage(mf.m_path, mf.m_platform)) {
+        return (Paths::WorkDir() / "platform" / Platform::HostPath(mf.m_path).filename()).wstring();
+    }
+
     if (!IsLauncherExe(mf.m_path)) {
         return LocalPath(mf.m_path);
     }
@@ -807,7 +811,7 @@ static void UnpackIfPackage(const ManifestFile& mf, const std::wstring& local, b
     bool staged = false;
 
     for (const fs::path& entry : entries) {
-        const std::wstring dest = (archive.parent_path() / entry.filename()).wstring();
+        const std::wstring dest = (fs::path(LocalPath(mf.m_path)).parent_path() / entry.filename()).wstring();
         const std::string name = entry.filename().string();
 
         if (!InstallFiles::HoldsRunningExe(dest) && MoveInstallFile(entry.wstring(), dest, InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH, gate)) {
@@ -836,6 +840,7 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
     std::optional<MountAfter> mount;
 
     if (!existed) {
+        fs::create_directories(fs::path(local).parent_path(), ec);
         fs::rename(part, local, ec);
 
         if (ec) {

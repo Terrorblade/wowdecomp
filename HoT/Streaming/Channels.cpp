@@ -41,6 +41,7 @@ static constexpr uint64_t s_kickIntervalMs = 15000;
 static std::mutex s_stateMutex;
 static std::string s_lastChannel = s_release;
 static std::vector<std::string> s_seen = { s_release };
+static std::string s_binaryChannel;
 static std::string s_startupBinaryChannel;
 static bool s_stateLoaded = false;
 static std::string s_requestedShared = s_release;
@@ -145,6 +146,10 @@ static void LoadStateLocked() {
         s_lastChannel = Normalize(value);
     }
 
+    if (FindKey(json, "binaryChannel", i) && ReadJsonString(json, i, value)) {
+        s_binaryChannel = Normalize(value);
+    }
+
     if (FindKey(json, "seen", i)) {
         SkipWs(json, i);
 
@@ -175,8 +180,14 @@ static void LoadStateLocked() {
 
 }
 
+static std::string BinaryChannelLocked() {
+    std::string forced = Override();
+    return forced.empty() ? s_lastChannel : forced;
+}
+
 static void SaveStateLocked() {
-    std::string json = "{ \"lastChannel\": \"" + s_lastChannel + "\", \"seen\": [";
+    s_binaryChannel = BinaryChannelLocked();
+    std::string json = "{ \"lastChannel\": \"" + s_lastChannel + "\", \"binaryChannel\": \"" + s_binaryChannel + "\", \"seen\": [";
 
     for (size_t i = 0; i < s_seen.size(); i++) {
         json += (i ? ", \"" : "\"") + s_seen[i] + "\"";
@@ -243,8 +254,15 @@ bool WantsDev() {
 }
 
 std::string BinaryChannel() {
-    std::string forced = Override();
-    return forced.empty() ? LastChannel() : forced;
+    std::lock_guard<std::mutex> lock(s_stateMutex);
+    LoadStateLocked();
+    std::string channel = BinaryChannelLocked();
+
+    if (channel != s_binaryChannel) {
+        SaveStateLocked();
+    }
+
+    return channel;
 }
 
 bool BinaryChannelChanged() {

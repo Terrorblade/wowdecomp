@@ -431,7 +431,7 @@ static bool ClickSelectsObjects() {
         return true;
     }
 
-    if (ToolHasPrefix("map.")) {
+    if (ToolHasPrefix("map.") || ToolHasPrefix("camera.")) {
         return false;
     }
 

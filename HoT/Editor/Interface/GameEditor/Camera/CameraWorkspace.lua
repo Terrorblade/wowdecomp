@@ -17,10 +17,6 @@ local trackTabs;
 local keyList;
 local dbcWindow;
 
-local function IsActive()
-	return GameEditor_GetWorkspace() == "camera";
-end
-
 local function HasFocus(spin)
 	local edit = _G[spin:GetName().."Edit"];
 	return edit and edit.HasFocus and edit:HasFocus();
@@ -271,23 +267,71 @@ local function BuildTiming(y)
 	return y - 22;
 end
 
+local function BuildSmooth(y)
+	y = Header(y, "Smooth");
+	local settings = CE.settings;
+
+	local function Setting(x, rowY, text, key, minValue, maxValue, step, decimals, tip)
+		local label = Common.Label(child, text, nil, NOGGIT_COLOR_DISABLED);
+		label:SetPoint("TOPLEFT", child, "TOPLEFT", x, rowY - 4);
+		local spin = NoggitSpinBox_Create(child, 64, minValue, maxValue, step, decimals, function(_, value) settings[key] = value; end);
+		spin:SetPoint("LEFT", label, "RIGHT", 6, 0);
+		NoggitSpinBox_SetValue(spin, settings[key], true);
+		Tip(spin, tip);
+		return spin;
+	end
+
+	Setting(8, y, "Look over", "lookSeconds", 0, 30, 0.25, 2, "Seconds to average the aim over, this removes the left and right swing of a hand flown camera. 0 keeps the aim at each key exactly but still stops it swinging between keys.");
+	Setting(200, y, "Path over", "pathSeconds", 0, 30, 0.25, 2, "Seconds to average the position keys over, 0 leaves the path alone. The first and last keys never move.");
+	y = y - 26;
+
+	local bank = NoggitCheckBox_Create(child, "Bank into turns", settings.bank, function(_, checked) settings.bank = checked; end);
+	bank:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
+	Tip(bank, "Rebuild the roll track so the camera leans into turns like a plane, harder the faster it turns. Off leaves the roll track alone.");
+	Setting(140, y, "Strength", "bankStrength", 0, 4, 0.1, 2, "How hard the camera leans for a given turn, 1 is a real plane");
+	Setting(290, y, "Max", "maxBank", 0, 75, 1, 0, "Most lean in degrees");
+	y = y - 28;
+
+	local smooth = Common.Button(child, "Smooth camera", 120, CE.Smooth, "Rebuild the target (and roll) keys on the position keys from a smoothed aim, Ctrl+Z undoes it");
+	smooth:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
+	local clearRoll = Common.Button(child, "Clear roll", 80, function() CameraEditor_ClearTrack(CE.ROLL); end, "Delete every roll key, the camera stays level");
+	clearRoll:SetPoint("LEFT", smooth, "RIGHT", 4, 0);
+	local even = Common.Button(child, "Even out speed", 110, CameraEditor_ConstantSpeed, "Retime the position keys by distance so the camera moves at one speed");
+	even:SetPoint("LEFT", clearRoll, "RIGHT", 4, 0);
+	y = y - 26;
+
+	local help = Common.Paragraph(child, "The client rolls around the world X axis, so banking fades out while the camera faces along Y. Smooth again after moving position keys, the target follows the keys as they were.");
+	help:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
+	help:SetPoint("TOPRIGHT", child, "TOPRIGHT", -8, y);
+	return y - 46;
+end
+
 local function BuildCapture(y)
 	y = Header(y, "Capture");
 
-	local capture = Common.Button(child, "Capture view (K)", 130, CE.Capture, "Key the position and target at the playhead from the current view");
-	capture:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
-	local label = Common.Label(child, "Target distance", nil, NOGGIT_COLOR_DISABLED);
-	label:SetPoint("LEFT", capture, "RIGHT", 10, 0);
+	local append = Common.Button(child, "Add view as next key (Shift+K)", 200, CE.Append, "Add the current view as a new key one step after the last key, the length grows to fit");
+	append:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
+	local capture = Common.Button(child, "Key at playhead (K)", 140, CE.Capture, "Key the view at the playhead, replacing a key already there, then move the playhead on one step");
+	capture:SetPoint("LEFT", append, "RIGHT", 4, 0);
+	y = y - 28;
+
+	Label(child, y, "Step");
+	widgets.advance = NoggitSpinBox_Create(child, 70, 0, 600, 0.5, 2, function(_, value) CE.settings.advance = value; end);
+	widgets.advance:SetPoint("TOPLEFT", child, "TOPLEFT", 48, y);
+	NoggitSpinBox_SetValue(widgets.advance, CE.settings.advance, true);
+	Tip(widgets.advance, "Seconds between keys added with Shift+K, and how far the playhead moves on after K. 0 keeps the playhead still.");
+	local label = Common.Label(child, "s   Target distance", nil, NOGGIT_COLOR_DISABLED);
+	label:SetPoint("LEFT", widgets.advance, "RIGHT", 6, 0);
 	widgets.targetDistance = NoggitSpinBox_Create(child, 70, 0, 1000, 5, 0, function(_, value) CE.settings.targetDistance = value; end);
 	widgets.targetDistance:SetPoint("LEFT", label, "RIGHT", 6, 0);
 	NoggitSpinBox_SetValue(widgets.targetDistance, CE.settings.targetDistance, true);
 	Tip(widgets.targetDistance, "How far ahead of the view the target key goes, 0 puts it on the surface under the middle of the screen");
 	y = y - 26;
 
-	local help = Common.Paragraph(child, "Fly the free camera to frame a shot, move the playhead and press K. Click keys in the world to select them, drag them or use the arrows, ctrl drags them level and alt click drops them on the ground.");
+	local help = Common.Paragraph(child, "Fly the free camera to frame each shot and press Shift+K to add it as the next key. K keys the playhead instead, a key already there is replaced. Click keys in the world to select them, drag them or use the arrows, ctrl drags them level and alt click drops them on the ground.");
 	help:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
 	help:SetPoint("TOPRIGHT", child, "TOPRIGHT", -8, y);
-	return y - 46;
+	return y - 58;
 end
 
 -- Track and key sections ----------------------------------------------------------------------------------
@@ -318,12 +362,26 @@ local function BuildTrack(y)
 	trackTabs[1]:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
 	y = y - 30;
 
+	-- The curve and handle buttons hit the shown track, or all three with All tracks on.
+	local function ForTracks(action)
+		if ( CE.settings.allTracks ) then
+			for track = 1, 3 do
+				action(track);
+			end
+		else
+			action(CE.state.track);
+		end
+	end
+
 	Label(child, y, "Curve");
 	widgets.interp = NoggitComboBox_Create(child, 200, CE.INTERP_ITEMS, 3, function(_, index)
-		CameraEditor_SetInterp(CE.state.track, index - 1);
+		ForTracks(function(track) CameraEditor_SetInterp(track, index - 1); end);
 	end);
 	widgets.interp:SetPoint("TOPLEFT", child, "TOPLEFT", LABEL_WIDTH, y);
 	Tip(widgets.interp, "Bezier and Hermite are both smooth and convert into each other without changing the path. Linear ignores the handles, None holds each key until the next.");
+	local allTracks = NoggitCheckBox_Create(child, "All tracks", CE.settings.allTracks, function(_, checked) CE.settings.allTracks = checked; end);
+	allTracks:SetPoint("LEFT", widgets.interp, "RIGHT", 10, 0);
+	Tip(allTracks, "The curve type, All auto and All free change position, target and roll together instead of only the shown track");
 	y = y - 28;
 
 	keyList = NoggitListBox_Create(child, 18, function(row)
@@ -358,9 +416,9 @@ local function BuildTrack(y)
 	add:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
 	local delete = Common.Button(child, "Delete", 60, CE.DeleteSelected, "Delete the selected key (Delete)");
 	delete:SetPoint("LEFT", add, "RIGHT", 4, 0);
-	local auto = Common.Button(child, "All auto", 70, function() CameraEditor_SetTrackMode(CE.state.track, 0); end, "Every key of this track gets automatic smooth handles");
+	local auto = Common.Button(child, "All auto", 70, function() ForTracks(function(track) CameraEditor_SetTrackMode(track, 0); end); end, "Every key gets automatic smooth handles, on the shown track or all of them with All tracks on");
 	auto:SetPoint("LEFT", delete, "RIGHT", 4, 0);
-	local free = Common.Button(child, "All free", 70, function() CameraEditor_SetTrackMode(CE.state.track, 3); end, "Every key keeps its handles exactly as they are");
+	local free = Common.Button(child, "All free", 70, function() ForTracks(function(track) CameraEditor_SetTrackMode(track, 3); end); end, "Every key keeps its handles exactly as they are, on the shown track or all of them with All tracks on");
 	free:SetPoint("LEFT", auto, "RIGHT", 4, 0);
 	return y - 30;
 end
@@ -619,6 +677,7 @@ local function Build(parent)
 	y = BuildOrigin(y);
 	y = BuildTiming(y);
 	y = BuildCapture(y);
+	y = BuildSmooth(y);
 	y = BuildTrack(y);
 	y = BuildKey(y);
 	y = BuildDisplay(y);
@@ -667,11 +726,14 @@ local function BuildMenus()
 			{ text = "Undo", shortcut = "Ctrl+Z", onClick = CameraEditor_Undo },
 			{ text = "Redo", shortcut = "Ctrl+Y", onClick = CameraEditor_Redo },
 			separator,
-			{ text = "Capture view at the playhead", shortcut = "K", onClick = CE.Capture },
+			{ text = "Add the view as the next key", shortcut = "Shift+K", onClick = CE.Append },
+			{ text = "Key the view at the playhead", shortcut = "K", onClick = CE.Capture },
 			{ text = "Add a key to the shown track", onClick = function() CE.AddKey(); end },
 			{ text = "Delete the selected key", shortcut = "Delete", onClick = CE.DeleteSelected },
 			separator,
 			{ text = "Even out the speed", onClick = CameraEditor_ConstantSpeed },
+			{ text = "Smooth the camera", onClick = CE.Smooth },
+			{ text = "Clear the roll", onClick = function() CameraEditor_ClearTrack(CE.ROLL); end },
 			{ text = "Auto handles on every track", onClick = function()
 				for track = 1, 3 do
 					CameraEditor_SetTrackMode(track, 0);
@@ -699,7 +761,8 @@ local function BuildMenus()
 end
 
 local KEYS = {
-	{ "K", "Key the position and target at the playhead from the view" },
+	{ "Shift+K", "Add the view as a new key one step after the last key" },
+	{ "K", "Key the view at the playhead (replaces a key there), then step the playhead on" },
 	{ "P", "Play or pause" },
 	{ "V", "Look through the camera at the playhead" },
 	{ "[ and ]", "Previous and next key of the shown track" },
@@ -716,6 +779,7 @@ local KEYS = {
 
 local HOTKEYS = {
 	["K"] = CE.Capture,
+	["SHIFT-K"] = CE.Append,
 	["P"] = CE.TogglePlay,
 	["V"] = CE.TogglePreview,
 	["["] = function() CE.StepKey(-1); end,

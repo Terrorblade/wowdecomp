@@ -53,6 +53,8 @@ static const char* const s_walkingCommands[] = {
     "STRAFELEFT",
     "STRAFERIGHT",
     "JUMP",
+    // X, also descends while flying or swimming.
+    "SITORSTAND",
     "PITCHUP",
     "PITCHDOWN",
     "TOGGLEAUTORUN",

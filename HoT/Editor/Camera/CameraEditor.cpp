@@ -1004,7 +1004,16 @@ static C3Vector ViewTarget(const C3Vector& position, const C3Vector& forward, fl
     return Add(position, Scale(forward, kFallbackTargetDistance));
 }
 
-static bool CaptureView(float distance, std::string& error) {
+// Keys past the end would never play, the length grows to reach them.
+static void ReachTime(uint32_t time) {
+    if (time > s_state.m_doc.m_length) {
+        s_state.m_doc.m_length = time;
+    }
+}
+
+// Append puts the keys one step after the last position key, otherwise they go on the playhead.
+// The playhead then moves on by advance so the next capture makes a new key instead of replacing this one.
+static bool CaptureView(float distance, bool append, uint32_t advance, uint32_t& time, bool& added, std::string& error) {
     CGCamera* camera = WorldCamera();
 
     if (!camera) {
@@ -1018,20 +1027,44 @@ static bool CaptureView(float distance, std::string& error) {
     }
 
     Doc& doc = s_state.m_doc;
-    uint32_t time = static_cast<uint32_t>(std::lround(std::max(0.0f, s_state.m_time)));
+    const std::vector<Key>& positions = doc.m_keys[TRACK_POSITION];
+
+    if (append) {
+        time = positions.empty() ? 0 : positions.back().m_time + std::max<uint32_t>(advance, 1);
+    } else {
+        time = static_cast<uint32_t>(std::lround(std::max(0.0f, s_state.m_time)));
+    }
+
+    added = FindKey(doc, TRACK_POSITION, time) < 0;
     C3Vector position = camera->m_position;
     C3Vector target = ViewTarget(position, Normalize(camera->Forward()), distance);
 
     PushUndo();
+    ReachTime(time);
     int32_t index = SetKey(doc, TRACK_POSITION, time, ToLocal(doc, position));
     SetKey(doc, TRACK_TARGET, time, ToLocal(doc, target));
     s_state.m_selected = { TRACK_POSITION, index, PART_VALUE };
-    Changed();
 
+    if (!s_state.m_playing) {
+        uint32_t next = append ? time : time + advance;
+        ReachTime(next);
+        s_state.m_time = static_cast<float>(next);
+    }
+
+    Changed();
     return true;
 }
 
-static int32_t AddKey(int32_t track, uint32_t time) {
+static int32_t AddKey(int32_t track, uint32_t time, bool& added) {
+    added = FindKey(s_state.m_doc, track, time) < 0;
+
+    if (!added) {
+        int32_t index = FindKey(s_state.m_doc, track, time);
+        s_state.m_selected = { track, index, PART_VALUE };
+        Changed();
+        return index;
+    }
+
     Doc& doc = s_state.m_doc;
     C3Vector value;
 
@@ -1045,6 +1078,7 @@ static int32_t AddKey(int32_t track, uint32_t time) {
     }
 
     PushUndo();
+    ReachTime(time);
     int32_t index = SetKey(doc, track, time, value);
     s_state.m_selected = { track, index, PART_VALUE };
     Changed();
@@ -1384,8 +1418,10 @@ static int32_t Script_AddKey(lua_State* L) {
     }
 
     float time = lua_isnumber(L, 2) ? static_cast<float>(lua_tonumber(L, 2)) : s_state.m_time;
-    lua_pushnumber(L, AddKey(track, static_cast<uint32_t>(std::lround(std::max(0.0f, time)))) + 1);
-    return 1;
+    bool added = false;
+    lua_pushnumber(L, AddKey(track, static_cast<uint32_t>(std::lround(std::max(0.0f, time))), added) + 1);
+    lua_pushboolean(L, added ? 1 : 0);
+    return 2;
 }
 
 static int32_t Script_DeleteKey(lua_State* L) {
@@ -1405,8 +1441,18 @@ static int32_t Script_DeleteKey(lua_State* L) {
 
 static int32_t Script_CaptureView(lua_State* L) {
     std::string error;
-    bool ok = CaptureView(static_cast<float>(lua_tonumber(L, 1)), error);
-    return PushResult(L, ok, error);
+    uint32_t time = 0;
+    bool added = false;
+    double advance = std::clamp(lua_tonumber(L, 3), 0.0, 600000.0);
+
+    if (!CaptureView(static_cast<float>(lua_tonumber(L, 1)), lua_toboolean(L, 2) != 0, static_cast<uint32_t>(std::llround(advance)), time, added, error)) {
+        return PushResult(L, false, error);
+    }
+
+    lua_pushboolean(L, 1);
+    lua_pushnumber(L, time);
+    lua_pushboolean(L, added ? 1 : 0);
+    return 3;
 }
 
 static int32_t Script_SetInterp(lua_State* L) {
@@ -1475,6 +1521,39 @@ static int32_t Script_GetViewPosition(lua_State* L) {
 static int32_t Script_ConstantSpeed(lua_State* L) {
     PushUndo();
     ConstantSpeed(s_state.m_doc);
+    Changed();
+    return 0;
+}
+
+static int32_t Script_Smooth(lua_State* L) {
+    if (s_state.m_doc.m_keys[TRACK_POSITION].size() < 2) {
+        return PushResult(L, false, "needs at least two position keys");
+    }
+
+    SmoothOptions options;
+    options.m_lookSeconds = static_cast<float>(std::clamp(lua_tonumber(L, 1), 0.0, 60.0));
+    options.m_pathSeconds = static_cast<float>(std::clamp(lua_tonumber(L, 2), 0.0, 60.0));
+    options.m_bank = lua_toboolean(L, 3) != 0;
+    options.m_bankStrength = static_cast<float>(std::clamp(lua_tonumber(L, 4), 0.0, 4.0));
+    options.m_maxBank = static_cast<float>(std::clamp(lua_tonumber(L, 5), 0.0, 75.0) * 3.14159265 / 180.0);
+
+    PushUndo();
+    SmoothCamera(s_state.m_doc, options);
+    ClampSelection();
+    Changed();
+    return PushResult(L, true, std::string());
+}
+
+static int32_t Script_ClearTrack(lua_State* L) {
+    int32_t track = TrackArg(L, 1);
+
+    if (track < 0 || s_state.m_doc.m_keys[track].empty()) {
+        return 0;
+    }
+
+    PushUndo();
+    s_state.m_doc.m_keys[track].clear();
+    ClampSelection();
     Changed();
     return 0;
 }
@@ -1740,6 +1819,8 @@ void Apply() {
     Lua::RegisterFunction("CameraEditor_GetViewPosition", Gated<Script_GetViewPosition>);
     Lua::RegisterFunction("CameraEditor_ConstantSpeed", Gated<Script_ConstantSpeed>);
     Lua::RegisterFunction("CameraEditor_ShiftTimes", Gated<Script_ShiftTimes>);
+    Lua::RegisterFunction("CameraEditor_Smooth", Gated<Script_Smooth>);
+    Lua::RegisterFunction("CameraEditor_ClearTrack", Gated<Script_ClearTrack>);
     Lua::RegisterFunction("CameraEditor_Undo", Gated<Script_Undo>);
     Lua::RegisterFunction("CameraEditor_Redo", Gated<Script_Redo>);
     Lua::RegisterFunction("CameraEditor_New", Gated<Script_New>);

@@ -27,7 +27,16 @@ CE.MODE_ITEMS = {
 CE.MODE_SHORT = { [0] = "auto", "smooth", "aligned", "free", "stop" };
 
 CE.state = { revision = -1, doc = {}, keys = { {}, {}, {} }, track = CE.POSITION };
-CE.settings = { keepWorld = false, scaleKeys = true, targetDistance = 20 };
+CE.settings = {
+	keepWorld = false, scaleKeys = true, targetDistance = 20, advance = 2,
+	lookSeconds = 1, pathSeconds = 0, bank = false, bankStrength = 0.5, maxBank = 20,
+};
+
+-- Smooths the look, optionally the path, and banks the roll into turns when that is on.
+function CE.Smooth()
+	local s = CE.settings;
+	CE.Result(CameraEditor_Smooth(s.lookSeconds, s.pathSeconds, s.bank, s.bankStrength, s.maxBank), nil, "Camera smoothed, Ctrl+Z puts it back");
+end
 
 local listeners = {};
 
@@ -125,8 +134,25 @@ end
 
 -- Actions shared by the panel, the timeline, the menus and the hotkeys.
 
+-- Append keys one step after the last key, otherwise on the playhead, which then moves on a step.
+local function Capture(append)
+	local ok, result, added = CameraEditor_CaptureView(CE.settings.targetDistance, append, CE.settings.advance * 1000);
+
+	if ( not ok ) then
+		CE.Result(false, result);
+		return;
+	end
+
+	GameEditor_Notify(format("%s the key at %s s", added and "Added" or "Updated", CE.Seconds(result)), added and "ok" or "info");
+end
+
+-- Handlers get no arguments through, buttons pass themselves.
 function CE.Capture()
-	CE.Result(CameraEditor_CaptureView(CE.settings.targetDistance));
+	Capture(false);
+end
+
+function CE.Append()
+	Capture(true);
 end
 
 function CE.TogglePlay()
@@ -159,8 +185,12 @@ function CE.Rewind()
 	CameraEditor_SetTime(0);
 end
 
-function CE.AddKey(track)
-	CameraEditor_AddKey(track or CE.state.track);
+function CE.AddKey(track, time)
+	local _, added = CameraEditor_AddKey(track or CE.state.track, time);
+
+	if ( not added ) then
+		GameEditor_Notify("There is already a key there, it is selected. Move the playhead to add another.", "info");
+	end
 end
 
 function CE.DeleteSelected()

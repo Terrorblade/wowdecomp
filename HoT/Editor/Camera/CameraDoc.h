@@ -100,6 +100,24 @@ void SetOrigin(Doc& doc, const C3Vector& origin, float facing, bool keepWorld);
 // Spaces the position keys by path length so the camera moves at an even speed, target and roll keys follow the remap.
 void ConstantSpeed(Doc& doc);
 
+struct SmoothOptions {
+    // Seconds of look and path to average over, 0 leaves that part alone.
+    float m_lookSeconds = 1.0f;
+    float m_pathSeconds = 0.0f;
+    bool m_bank = false;
+    float m_bankStrength = 0.5f;
+    // Radians.
+    float m_maxBank = 0.35f;
+};
+
+// Rebuilds the target track on the position keys from a smoothed look direction, so the view cannot swing between keys.
+// Optionally smooths the path first and rebuilds the roll track to bank into turns.
+void SmoothCamera(Doc& doc, const SmoothOptions& options);
+
+// The client roll value that gives bank radians at a world view direction, nearest to previous.
+// The client tilts the up vector around world X, so banking fades out as the view turns towards +-Y.
+float RollForBank(const C3Vector& forward, float bank, float previous);
+
 // Moves every key of every track by delta milliseconds, keys stay at 0 or later.
 void ShiftTimes(Doc& doc, int32_t delta);
 

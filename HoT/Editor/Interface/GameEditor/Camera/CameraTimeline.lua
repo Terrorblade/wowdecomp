@@ -303,7 +303,7 @@ local function LaneMouseDown(lane, button)
 	-- Double click adds a key there, a single click scrubs.
 	if ( lastLaneClick.lane == lane and now - (lastLaneClick.time or 0) < DOUBLE_CLICK ) then
 		lastLaneClick = {};
-		CameraEditor_AddKey(lane.track, Snap(CursorTime()));
+		CE.AddKey(lane.track, Snap(CursorTime()));
 		return;
 	end
 
@@ -374,7 +374,7 @@ function CE.BuildTimeline(parent)
 	engineButton = Common.Button(bar, "Play in engine", 104, CE.ToggleEngine, "Build the M2 in memory and play it through the client's own cinematic camera, exactly as the game will");
 	engineButton:SetPoint("LEFT", rateCombo, "RIGHT", 8, 0);
 
-	local capture = Common.Button(bar, "Capture view (K)", 116, CE.Capture, "Key the position and target at the playhead from the current view, fly the free camera to frame the shot first");
+	local capture = Common.Button(bar, "Add view (Shift+K)", 124, CE.Append, "Add the current view as a new key one step after the last key, fly the free camera to frame the shot first. K keys the playhead instead.");
 	capture:SetPoint("LEFT", engineButton, "RIGHT", 8, 0);
 
 	timeText = Common.Label(bar, "", "NoggitFontBold");

@@ -109,7 +109,7 @@ static bool EnsureMonkSpellScan() {
     SpellRec spell;
 
     for (int32_t id = g_spellDB.m_minID; id <= g_spellDB.m_maxID; id++) {
-        if (!g_spellDB.GetRecord(id, &spell)) {
+        if (!g_spellDB.GetRecordPrefix(id, &spell, offsetof(SpellRec, m_effectAura) + sizeof(spell.m_effectAura))) {
             continue;
         }
 

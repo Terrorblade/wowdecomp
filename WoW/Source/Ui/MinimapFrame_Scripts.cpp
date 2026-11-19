@@ -374,15 +374,20 @@ static int32_t Script_SetMaskTexture(lua_State* L) {
         luaL_error(L, "Usage: %s:SetMaskTexture(\"file\")", name ? name : "<unnamed>");
     }
 
-    CStatus status;
+    bool failed;
 
-    if (s_maskTexture) {
-        HandleClose(reinterpret_cast<HOBJECT>(s_maskTexture));
+    {
+        CStatus status;
+
+        if (s_maskTexture) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_maskTexture));
+        }
+
+        s_maskTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
+        failed = status.m_highestSeverity >= STATUS_ERROR;
     }
 
-    s_maskTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
-
-    if (status.m_highestSeverity >= STATUS_ERROR) {
+    if (failed) {
         const char* name = minimap->GetName();
         luaL_error(L, "%s:SetMaskTexture(): Couldn't load the file %s", name ? name : "<unnamed>", lua_tolstring(L, 2, nullptr));
     }
@@ -400,15 +405,20 @@ static int32_t Script_SetPOIArrowTexture(lua_State* L) {
         luaL_error(L, "Usage: %s:SetPOITexture(\"file\")", name ? name : "<unnamed>");
     }
 
-    CStatus status;
+    bool failed;
 
-    if (s_poiArrowTexture) {
-        HandleClose(reinterpret_cast<HOBJECT>(s_poiArrowTexture));
+    {
+        CStatus status;
+
+        if (s_poiArrowTexture) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_poiArrowTexture));
+        }
+
+        s_poiArrowTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
+        failed = status.m_highestSeverity >= STATUS_ERROR;
     }
 
-    s_poiArrowTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
-
-    if (status.m_highestSeverity >= STATUS_ERROR) {
+    if (failed) {
         const char* name = minimap->GetName();
         luaL_error(L, "%s:SetPOITexture(): Couldn't load the file %s", name ? name : "<unnamed>", lua_tolstring(L, 2, nullptr));
     }
@@ -426,15 +436,20 @@ static int32_t Script_SetStaticPOIArrowTexture(lua_State* L) {
         luaL_error(L, "Usage: %s:SetStaticPOITexture(\"file\")", name ? name : "<unnamed>");
     }
 
-    CStatus status;
+    bool failed;
 
-    if (s_staticPOIArrowTexture) {
-        HandleClose(reinterpret_cast<HOBJECT>(s_staticPOIArrowTexture));
+    {
+        CStatus status;
+
+        if (s_staticPOIArrowTexture) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_staticPOIArrowTexture));
+        }
+
+        s_staticPOIArrowTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
+        failed = status.m_highestSeverity >= STATUS_ERROR;
     }
 
-    s_staticPOIArrowTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
-
-    if (status.m_highestSeverity >= STATUS_ERROR) {
+    if (failed) {
         const char* name = minimap->GetName();
         luaL_error(L, "%s:SetStaticPOITexture(): Couldn't load the file %s", name ? name : "<unnamed>", lua_tolstring(L, 2, nullptr));
     }
@@ -452,15 +467,20 @@ static int32_t Script_SetCorpsePOIArrowTexture(lua_State* L) {
         luaL_error(L, "Usage: %s:SetCorpsePOITexture(\"file\")", name ? name : "<unnamed>");
     }
 
-    CStatus status;
+    bool failed;
 
-    if (s_corpseArrowTexture) {
-        HandleClose(reinterpret_cast<HOBJECT>(s_corpseArrowTexture));
+    {
+        CStatus status;
+
+        if (s_corpseArrowTexture) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_corpseArrowTexture));
+        }
+
+        s_corpseArrowTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
+        failed = status.m_highestSeverity >= STATUS_ERROR;
     }
 
-    s_corpseArrowTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
-
-    if (status.m_highestSeverity >= STATUS_ERROR) {
+    if (failed) {
         const char* name = minimap->GetName();
         luaL_error(L, "%s:SetCorspePOITexture(): Couldn't load the file %s", name ? name : "<unnamed>", lua_tolstring(L, 2, nullptr));
     }
@@ -478,15 +498,20 @@ static int32_t Script_SetIconTexture(lua_State* L) {
         luaL_error(L, "Usage: %s:SetIconTexture(\"file\")", name ? name : "<unnamed>");
     }
 
-    CStatus status;
+    bool failed;
 
-    if (s_iconTexture) {
-        HandleClose(reinterpret_cast<HOBJECT>(s_iconTexture));
+    {
+        CStatus status;
+
+        if (s_iconTexture) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_iconTexture));
+        }
+
+        s_iconTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
+        failed = status.m_highestSeverity >= STATUS_ERROR;
     }
 
-    s_iconTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
-
-    if (status.m_highestSeverity >= STATUS_ERROR) {
+    if (failed) {
         const char* name = minimap->GetName();
         luaL_error(L, "%s:SetIconTexture(): Couldn't load the file %s", name ? name : "<unnamed>", lua_tolstring(L, 2, nullptr));
     }
@@ -511,15 +536,20 @@ static int32_t Script_SetBlipTexture(lua_State* L) {
         luaL_error(L, "Usage: %s:SetBlipTexture(\"file\")", name ? name : "<unnamed>");
     }
 
-    CStatus status;
+    bool failed;
 
-    if (s_blipTexture) {
-        HandleClose(reinterpret_cast<HOBJECT>(s_blipTexture));
+    {
+        CStatus status;
+
+        if (s_blipTexture) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_blipTexture));
+        }
+
+        s_blipTexture = TextureCreate(fileName, CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
+        failed = status.m_highestSeverity >= STATUS_ERROR;
     }
 
-    s_blipTexture = TextureCreate(fileName, CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
-
-    if (status.m_highestSeverity >= STATUS_ERROR) {
+    if (failed) {
         const char* name = minimap->GetName();
         luaL_error(L, "%s:SetBlipTexture(): Couldn't load the file %s", name ? name : "<unnamed>", fileName);
     }
@@ -537,15 +567,20 @@ static int32_t Script_SetClassBlipTexture(lua_State* L) {
         luaL_error(L, "Usage: %s:SetClassBlipTexture(\"file\")", name ? name : "<unnamed>");
     }
 
-    CStatus status;
+    bool failed;
 
-    if (s_classBlipTexture) {
-        HandleClose(reinterpret_cast<HOBJECT>(s_classBlipTexture));
+    {
+        CStatus status;
+
+        if (s_classBlipTexture) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_classBlipTexture));
+        }
+
+        s_classBlipTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
+        failed = status.m_highestSeverity >= STATUS_ERROR;
     }
 
-    s_classBlipTexture = TextureCreate(lua_tolstring(L, 2, nullptr), CGxTexFlags(GxTex_Linear, 0, 0, 0, 0, 0, 1), &status, 3);
-
-    if (status.m_highestSeverity >= STATUS_ERROR) {
+    if (failed) {
         const char* name = minimap->GetName();
         luaL_error(L, "%s:SetClassBlipTexture(): Couldn't load the file %s", name ? name : "<unnamed>", lua_tolstring(L, 2, nullptr));
     }

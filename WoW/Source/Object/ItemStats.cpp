@@ -40,11 +40,11 @@ void ItemStats_C::Unpack(CDataStore* msg) {
     for (uint32_t i = 0; i < 4; i++) {
         msg->GetString(name, sizeof(name));
 
-        if (name[0]) {
-            this->m_name[i] = SStrDupA(name, __FILE__, __LINE__);
-        } else {
-            this->m_name[i] = nullptr;
+        if (this->m_name[i] && name[0] && !SStrCmp(this->m_name[i], name, STORM_MAX_STR)) {
+            continue;
         }
+
+        this->m_name[i] = name[0] ? SStrDupA(name, __FILE__, __LINE__) : nullptr;
     }
 
     msg->Get(this->m_displayId);
@@ -135,8 +135,8 @@ void ItemStats_C::Unpack(CDataStore* msg) {
     msg->Get(this->m_bonding);
     msg->GetString(description, sizeof(description));
 
-    if (description[0]) {
-        this->m_description = SStrDupA(description, __FILE__, __LINE__);
+    if (!(this->m_description && description[0] && !SStrCmp(this->m_description, description, STORM_MAX_STR))) {
+        this->m_description = description[0] ? SStrDupA(description, __FILE__, __LINE__) : nullptr;
     }
 
     msg->Get(this->m_pageText);

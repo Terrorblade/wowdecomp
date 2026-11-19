@@ -5,6 +5,7 @@
 #include <typeinfo>
 #include <cstring>
 #include "HoT/Features/Features.h"
+#include "HoT/Features/Items.h"
 #include "HoT/Features/Units.h"
 #include "HoT/Character/AnimationFixes.h"
 #include "HoT/Character/HandItemDisplay.h"
@@ -8714,7 +8715,7 @@ void CGUnit_C::UpdateAuraEffectMask() {
     for (uint32_t i = 0; i < this->GetAuraCount(); i++) {
         AuraData* aura = this->GetAura(i);
 
-        if (!aura->m_spellId || !(aura->m_flags & 0x7) || !g_spellDB.GetRecord(aura->m_spellId, &spell)) {
+        if (!aura->m_spellId || !(aura->m_flags & 0x7) || !g_spellDB.GetRecordPrefix(aura->m_spellId, &spell, offsetof(SpellRec, m_effectAura) + sizeof(spell.m_effectAura))) {
             continue;
         }
 
@@ -9736,6 +9737,7 @@ CGUnit_C::CGUnit_C(uint32_t time, const CClientObjCreate& create)
             item.m_inventoryType = 0;
             item.m_sheatheType = 0;
             this->m_virtualItemDisplayId[i] = 0;
+            HoT::Items::RequestVirtualItem(static_cast<int32_t>(this->m_unit->m_unitVirtualItemSlotId[i]));
         }
 
         item.m_pad[0] = 0;
@@ -10215,6 +10217,7 @@ void CGUnit_C::Reenable() {
             item.m_inventoryType = 0;
             item.m_sheatheType = 0;
             this->m_virtualItemDisplayId[i] = 0;
+            HoT::Items::RequestVirtualItem(static_cast<int32_t>(this->m_unit->m_unitVirtualItemSlotId[i]));
         }
 
         item.m_pad[0] = 0;
@@ -15510,7 +15513,7 @@ void CGUnit_C::OnVisFlagChanged(uint8_t oldFlags) {
 // OFFSET: 0x007260E0
 bool CGUnit_C::IsSpellKnown(int32_t spellId) {
     if (this->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
-        if (static_cast<uint32_t>(spellId) <= static_cast<uint32_t>(g_spellDB.m_maxID)) {
+        if (static_cast<uint32_t>(spellId) <= static_cast<uint32_t>(g_spellDB.m_maxID) && static_cast<uint32_t>(spellId) < s_knownSpellBits.m_count) {
             return (s_knownSpellBits.m_bits.m_data[static_cast<uint32_t>(spellId) >> 5] & (1 << (spellId & 0x1F))) != 0;
         }
     } else if (this->m_obj->m_guid == CGPetInfo::GetPet(0)) {
@@ -16277,7 +16280,7 @@ bool CGUnit_C::CheckAndReportSpellInhibitFlags(PendingSpellCast* cast, const Spe
         return false;
     }
 
-    if (spell->m_minFactionID && GetRepListRepValue(spell->m_minFactionID) < CGReputationInfo::m_reactionThresholds[spell->m_minReputation]) {
+    if (spell->m_minFactionID && GetRepListRepValue(spell->m_minFactionID) < CGReputationInfo::GetReactionThreshold(static_cast<uint32_t>(spell->m_minReputation))) {
         Spell_C_SpellFailed(cast, spell, SPELL_FAILED_REPUTATION, -1, -1, false);
         return false;
     }
@@ -16510,7 +16513,7 @@ uint32_t CGUnit_C::GetSortedAuraSlot(int32_t index, const char* name, const char
 
         SpellRec spell;
 
-        if (g_spellDB.GetRecord(this->GetAuraSpellId(auraIndex), &spell) && !SStrCmpUTF8I(name, spell.m_name, STORM_MAX_STR) && (!rank || !SStrCmpUTF8I(rank, spell.m_nameSubtext, STORM_MAX_STR))) {
+        if (g_spellDB.GetRecordPrefix(this->GetAuraSpellId(auraIndex), &spell, offsetof(SpellRec, m_nameSubtext) + sizeof(spell.m_nameSubtext)) && !SStrCmpUTF8I(name, spell.m_name, STORM_MAX_STR) && (!rank || !SStrCmpUTF8I(rank, spell.m_nameSubtext, STORM_MAX_STR))) {
             return auraIndex;
         }
     }
@@ -22046,6 +22049,7 @@ void CGUnit_C::OnVirtualItemChanged(VIRTUAL_MONSTER_SLOT slot, int32_t oldItemId
         item.m_material = 0;
         item.m_inventoryType = 0;
         item.m_sheatheType = 0;
+        HoT::Items::RequestVirtualItem(static_cast<int32_t>(this->m_unit->m_unitVirtualItemSlotId[slot]));
     }
 
     this->m_virtualItem[slot] = item;

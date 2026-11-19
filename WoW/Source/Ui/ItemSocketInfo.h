@@ -19,6 +19,7 @@ class CGItemSocketInfo {
     static WOWGUID m_socketItem;
     static ItemStats_C* m_socketItemStats;
 
+    static ItemStats_C* GetSocketItemStats();
     static void EnterWorld();
     static void Accept();
     static void GetGemItemForSlot(uint32_t slot, WOWGUID& item, WOWGUID& container, uint8_t& containerSlot);

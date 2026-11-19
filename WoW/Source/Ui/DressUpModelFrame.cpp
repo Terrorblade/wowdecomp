@@ -85,9 +85,13 @@ int32_t CGDressUpModelFrame::GetScriptMetaTable() {
     return CGDressUpModelFrame::s_metatable;
 }
 
+static void DressUpItemCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
+
 // VERIFY: 76453306 manual
 // OFFSET: [0x00597D10, 0x00597DB0]
 CGDressUpModelFrame::~CGDressUpModelFrame() {
+    g_itemDBCache.CancelCallbacksForParam(DressUpItemCallback, this);
+
     if (this->m_component) {
         CCharacterComponent::FreeComponent(this->m_component);
         this->m_component = nullptr;
@@ -249,7 +253,7 @@ static void DressUpItemCallback(int32_t id, const WOWGUID& guid, void* param, bo
 // OFFSET: 0x005980D0
 void CGDressUpModelFrame::TryOnWithVisual(int32_t itemId, int32_t visual, int32_t hand) {
     WOWGUID none = WOWGUID();
-    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, none, DressUpItemCallback, this, false);
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, none, DressUpItemCallback, this, true);
 
     if (!stats || !stats->m_displayId || !this->m_model) {
         return;

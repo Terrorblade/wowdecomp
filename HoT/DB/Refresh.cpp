@@ -6,6 +6,8 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/Magic/MagicClient/SpellTable.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/Ui/LFGInfo.h"
+#include "WoW/Source/Ui/SpellBookFrame.h"
 #include "WoW/Source/WorldClient/CDetailDoodadData.h"
 #include "WoW/Source/WorldClient/DetailDoodad.h"
 #include "WoW/Source/WorldClient/Map.h"
@@ -92,6 +94,44 @@ static void RefreshSpellTable(const char* stem) {
     SpellTableInitialize();
 }
 
+void GrowKnownSpellBits() {
+    if (!s_knownSpellBits.m_count || g_spellDB.m_maxID < 0) {
+        return;
+    }
+
+    uint32_t count = static_cast<uint32_t>(g_spellDB.m_maxID) + 1;
+
+    if (count <= s_knownSpellBits.m_count) {
+        return;
+    }
+
+    uint32_t oldWords = s_knownSpellBits.m_bits.m_count;
+    uint32_t words = ((count - 1) >> 5) + 1;
+
+    if (words > oldWords) {
+        s_knownSpellBits.m_bits.SetCount(words);
+
+        for (uint32_t i = oldWords; i < words; i++) {
+            s_knownSpellBits.m_bits.m_data[i] = 0;
+        }
+    }
+
+    s_knownSpellBits.m_count = count;
+}
+
+static void RefreshSpells(const char* stem) {
+    GrowKnownSpellBits();
+}
+
+static void RefreshLfgEntries(const char* stem) {
+    CGLookingForGroup::UpdateLFDEntries();
+    CGLookingForGroup::UpdateLFREntries();
+
+    if (CGLookingForGroup::m_playerLockInfo.m_valid) {
+        CGLookingForGroup::UpdateRandomDungeons();
+    }
+}
+
 class RefreshModule : public Module {
     public:
     const char* Name() const override {
@@ -113,6 +153,10 @@ class RefreshModule : public Module {
         OnTableReloaded("SkillLineAbility", RefreshSpellTable);
         OnTableReloaded("SkillRaceClassInfo", RefreshSpellTable);
         OnTableReloaded("SkillCostsData", RefreshSpellTable);
+        OnTableReloaded("Spell", RefreshSpells);
+        OnTableReloaded("LfgDungeons", RefreshLfgEntries);
+        OnTableReloaded("LfgDungeonGroup", RefreshLfgEntries);
+        OnTableReloaded("LfgDungeonExpansion", RefreshLfgEntries);
     }
 };
 

@@ -48,6 +48,11 @@ class CGReputationInfo {
     static TSGrowableArray<const FactionRec*>* GetFactionChildren(int32_t faction);
     static FactionStanding m_factionStandings[128];
     static const int32_t m_reactionThresholds[NUM_UNIT_REACTIONS + 1];
+
+    static int32_t GetReactionThreshold(uint32_t rank) {
+        return m_reactionThresholds[rank < NUM_UNIT_REACTIONS ? rank : NUM_UNIT_REACTIONS];
+    }
+
     static FactionHeader* m_headers[64];
     static uint32_t m_numHeaders;
     static uint32_t m_numFactions;

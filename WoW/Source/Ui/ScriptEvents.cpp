@@ -711,13 +711,21 @@ const char* Script_GetAuraTokenFromGUID(const WOWGUID* guid) {
         }
     }
 
+    WOWGUID raidPets[40];
+
     for (uint32_t i = 0; i < CGRaidInfo::m_numMembers; i++) {
         if (*guid == GetRaidMemberGUID(i)) {
             SStrPrintf(s_auraToken, sizeof(s_auraToken), "raid%d", i + 1);
             return s_auraToken;
         }
 
-        if (*guid == CGGameUI::GetRaidMemberPet(i)) {
+        WOWGUID memberPet = CGGameUI::GetRaidMemberPet(i);
+
+        if (i < 40) {
+            raidPets[i] = memberPet;
+        }
+
+        if (*guid == memberPet) {
             SStrPrintf(s_auraToken, sizeof(s_auraToken), "raidpet%d", i + 1);
             return s_auraToken;
         }
@@ -816,7 +824,7 @@ const char* Script_GetAuraTokenFromGUID(const WOWGUID* guid) {
             return s_auraToken;
         }
 
-        WOWGUID memberPet = CGGameUI::GetRaidMemberPet(i);
+        WOWGUID memberPet = i < 40 ? raidPets[i] : CGGameUI::GetRaidMemberPet(i);
 
         if ((owner && owner == memberPet) || (charm && charm == memberPet)) {
             SStrPrintf(s_auraToken, sizeof(s_auraToken), "raidpet%d", i + 1);
@@ -1075,7 +1083,7 @@ int32_t PushUnitAura(lua_State* L, ScriptAuraInfo* info) {
 
             if (aura->m_duration > 0) {
                 lua_pushnumber(L, aura->m_duration * 0.001);
-                lua_pushnumber(L, aura->m_endTime * 0.001);
+                lua_pushnumber(L, static_cast<uint32_t>(aura->m_endTime) * 0.001);
             } else {
                 lua_pushnumber(L, 0.0);
                 lua_pushnumber(L, 0.0);

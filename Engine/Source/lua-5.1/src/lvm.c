@@ -443,8 +443,6 @@ void luaV_execute (lua_State *L, int nexeccalls) {
       }
       base = L->base;
     }
-    if (L->externalabort)
-      luaG_runerror(L, "external abort");
     /* warning!! several calls may realloc the stack and invalidate `ra' */
     ra = RA(i);
     lua_assert(base == L->base && L->base == L->ci->base);
@@ -873,8 +871,6 @@ void luaV_execute_profile (lua_State *L, int nexeccalls) {
       }
       base = L->base;
     }
-    if (L->externalabort)
-      luaG_runerror(L, "external abort");
     /* warning!! several calls may realloc the stack and invalidate `ra' */
     ra = RA(i);
     lua_assert(base == L->base && L->base == L->ci->base);

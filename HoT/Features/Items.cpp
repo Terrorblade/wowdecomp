@@ -8,6 +8,7 @@
 #include "WoW/Source/DB/Rec/ItemRec.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include "WoW/Source/Object/ObjectClient/Unit_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 
 namespace HoT::Items {
@@ -68,22 +69,22 @@ ItemRec* Resolve(int32_t id, ItemRec* dbcRecord) {
         return dbcRecord;
     }
 
+    // A null callback only looks the cache up, it never sends a query.
+    ItemStats_C* stats = g_itemDBCache.GetRecord(id, WOWGUID(), nullptr, nullptr, false);
+
+    if (stats) {
+        ItemRec& rec = s_cacheRecords[id];
+        Fill(rec, id, stats->m_class, stats->m_subClass, stats->m_soundOverrideSubclass, stats->m_material, stats->m_displayId, stats->m_inventoryType, stats->m_sheatheType);
+        return &rec;
+    }
+
     auto server = s_serverRecords.find(id);
 
     if (server != s_serverRecords.end()) {
         return &server->second;
     }
 
-    // A null callback only looks the cache up, it never sends a query.
-    ItemStats_C* stats = g_itemDBCache.GetRecord(id, WOWGUID(), nullptr, nullptr, false);
-
-    if (!stats) {
-        return dbcRecord;
-    }
-
-    ItemRec& rec = s_cacheRecords[id];
-    Fill(rec, id, stats->m_class, stats->m_subClass, stats->m_soundOverrideSubclass, stats->m_material, stats->m_displayId, stats->m_inventoryType, stats->m_sheatheType);
-    return &rec;
+    return dbcRecord;
 }
 
 static int32_t RefreshVisibleItems(WOWGUID guid, void* param) {
@@ -109,6 +110,37 @@ static int32_t RefreshVisibleItems(WOWGUID guid, void* param) {
     }
 
     return 1;
+}
+
+static int32_t RefreshUnitVirtualItems(WOWGUID guid, void* param) {
+    int32_t itemId = *static_cast<int32_t*>(param);
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
+
+    if (!unit) {
+        return 1;
+    }
+
+    for (int32_t slot = 0; slot < NUM_VIRTUAL_MONSTER_SLOTS; slot++) {
+        if (static_cast<int32_t>(unit->m_unit->m_unitVirtualItemSlotId[slot]) == itemId) {
+            unit->OnVirtualItemChanged(static_cast<VIRTUAL_MONSTER_SLOT>(slot), 0);
+        }
+    }
+
+    return 1;
+}
+
+static void VirtualItemCallback(int32_t id, const WOWGUID& guid, void* param, bool success) {
+    if (success && ClntObjMgrGetActivePlayer()) {
+        ClntObjMgrEnumVisibleObjects(RefreshUnitVirtualItems, &id);
+    }
+}
+
+void RequestVirtualItem(int32_t id) {
+    if (id <= 0 || !ClntObjMgrGetActivePlayer()) {
+        return;
+    }
+
+    g_itemDBCache.GetRecord(id, WOWGUID(), VirtualItemCallback, nullptr, true);
 }
 
 // Also registered on the realm connection so records arrive before character select draws.

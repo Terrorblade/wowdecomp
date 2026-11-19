@@ -541,7 +541,7 @@ static int32_t Script_ShowMerchantSellCursor(lua_State* L) {
         return 0;
     }
 
-    if (stats->m_requiredReputationFaction && GetRepListRepValue(stats->m_requiredReputationFaction) < CGReputationInfo::m_reactionThresholds[stats->m_requiredReputationRank]) {
+    if (stats->m_requiredReputationFaction && GetRepListRepValue(stats->m_requiredReputationFaction) < CGReputationInfo::GetReactionThreshold(stats->m_requiredReputationRank)) {
         CursorSetMode(BUY_ERROR_CURSOR);
         return 0;
     }

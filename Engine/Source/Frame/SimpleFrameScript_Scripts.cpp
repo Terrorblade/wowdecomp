@@ -218,30 +218,34 @@ static int32_t Script_CreateFrame(lua_State* L) {
         inherits = lua_tolstring(L, 4, nullptr);
     }
 
-    XMLNode node(nullptr, frameType);
+    CSimpleFrame* frame;
 
-    if (name) {
-        node.SetAttribute("name", name);
+    {
+        XMLNode node(nullptr, frameType);
+
+        if (name) {
+            node.SetAttribute("name", name);
+        }
+
+        if (parent) {
+            node.SetAttribute("parent", "");
+        }
+
+        if (inherits) {
+            node.SetAttribute("inherits", inherits);
+        }
+
+        if (lua_isstring(L, 5)) {
+            node.SetAttribute("id", lua_tolstring(L, 5, nullptr));
+        } else if (lua_isnumber(L, 5)) {
+            char id[256];
+            SStrPrintf(id, sizeof(id), "%d", lua_tointeger(L, 5));
+            node.SetAttribute("id", id);
+        }
+
+        CStatus status;
+        frame = FrameXML_CreateFrame(&node, parent, &status);
     }
-
-    if (parent) {
-        node.SetAttribute("parent", "");
-    }
-
-    if (inherits) {
-        node.SetAttribute("inherits", inherits);
-    }
-
-    if (lua_isstring(L, 5)) {
-        node.SetAttribute("id", lua_tolstring(L, 5, nullptr));
-    } else if (lua_isnumber(L, 5)) {
-        char id[256];
-        SStrPrintf(id, sizeof(id), "%d", lua_tointeger(L, 5));
-        node.SetAttribute("id", id);
-    }
-
-    CStatus status;
-    CSimpleFrame* frame = FrameXML_CreateFrame(&node, parent, &status);
 
     if (!frame) {
         luaL_error(L, "CreateFrame: Unknown frame type '%s'", frameType);

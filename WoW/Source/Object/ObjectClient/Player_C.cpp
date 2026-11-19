@@ -6136,7 +6136,7 @@ void CGPlayer_C::CountEquippedGems() {
                 continue;
             }
 
-            ItemStats_C* gem = g_itemDBCache.GetRecord(enchant->m_srcItemID, WOWGUID{ 0 }, &CountGemsItemCacheCallback, nullptr, false);
+            ItemStats_C* gem = g_itemDBCache.GetRecord(enchant->m_srcItemID, WOWGUID{ 0 }, &CountGemsItemCacheCallback, nullptr, true);
 
             if (!gem) {
                 continue;
@@ -7086,7 +7086,7 @@ int32_t CGPlayer_C::CanUseItem(const ItemStats_C* stats, int32_t& error) {
         return 0;
     }
 
-    if (stats->m_requiredReputationFaction && GetRepListRepValue(stats->m_requiredReputationFaction) < CGReputationInfo::m_reactionThresholds[stats->m_requiredReputationRank]) {
+    if (stats->m_requiredReputationFaction && GetRepListRepValue(stats->m_requiredReputationFaction) < CGReputationInfo::GetReactionThreshold(stats->m_requiredReputationRank)) {
         error = ERR_CANT_USE_ITEM;
         return 0;
     }
@@ -13149,8 +13149,12 @@ int32_t Packet_HandlePartyMemberStats(void* param, NETMESSAGE msgId, uint32_t ti
         memcpy(&newState, &oldState, sizeof(CGPartyMemberState));
     }
 
-    uint32_t mask;
+    uint32_t mask = 0;
     msg->Get(mask);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (mask & 0x1) {
         msg->Get(newState.m_flags);
@@ -14643,8 +14647,8 @@ void CGPlayer_C::FillPartyMemberState(CGPartyMemberState* state) {
     state->m_maxHealth = this->m_unit->m_unitFieldMaxhealth;
     uint8_t powerType = this->m_unit->m_unitFieldBytes0[3];
     state->m_powerType = powerType;
-    state->m_power = this->m_unit->m_unitFieldPower[powerType];
-    state->m_maxPower = this->m_unit->m_unitFieldMaxpower[powerType];
+    state->m_power = powerType < NUM_POWER_TYPES ? this->m_unit->m_unitFieldPower[powerType] : 0;
+    state->m_maxPower = powerType < NUM_POWER_TYPES ? this->m_unit->m_unitFieldMaxpower[powerType] : 0;
     state->m_level = this->m_unit->m_unitFieldLevel;
 
     if (this->GetTransportGUID()) {

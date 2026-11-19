@@ -2,6 +2,7 @@
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/DB/DBClient/GameObjectStats_C.h"
+#include "WoW/Source/Object/ObjectClient/UnitCombatLog_C.h"
 
 // VERIFY: ce0291e3 manual
 // OFFSET: 0x00667FA0
@@ -76,6 +77,15 @@ void GameObjectStats_C::Unpack(CDataStore* msg) {
 
     for (int32_t i = 0; i < 4; i++) {
         msg->GetString(buffer, sizeof(buffer));
+
+        if (this->m_name[i] && !SStrCmp(this->m_name[i], buffer, STORM_MAX_STR)) {
+            continue;
+        }
+
+        if (this->m_name[i]) {
+            UnitCombatLogInvalidateName(this->m_name[i]);
+            SMemFree(this->m_name[i], __FILE__, __LINE__, 0);
+        }
 
         if (buffer[0]) {
             this->m_name[i] = SStrDupA(buffer, __FILE__, __LINE__);

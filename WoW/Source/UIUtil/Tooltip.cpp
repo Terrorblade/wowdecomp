@@ -2181,7 +2181,7 @@ int32_t CGTooltip::SetUnit(const WOWGUID& guid, int32_t showHealth, const WOWGUI
                             }
 
                             WOWGUID itemRequester = { 0 };
-                            ItemStats_C* stats = g_itemDBCache.GetRecord(quest->m_intermediateItemId[k], itemRequester, TooltipUnitNameCallback, this, false);
+                            ItemStats_C* stats = g_itemDBCache.GetRecord(quest->m_intermediateItemId[k], itemRequester, TooltipUnitNameCallback, this, true);
 
                             if (stats) {
                                 SStrPrintf(buffer, sizeof(buffer), " - %s", stats->m_name[0]);
@@ -3055,7 +3055,7 @@ static void AddSpellReputationLine(CGTooltip* tooltip, const SpellRec* spell, CG
         return;
     }
 
-    int32_t reached = GetRepListRepValue(spell->m_minFactionID) >= CGReputationInfo::m_reactionThresholds[spell->m_minReputation];
+    int32_t reached = GetRepListRepValue(spell->m_minFactionID) >= CGReputationInfo::GetReactionThreshold(static_cast<uint32_t>(spell->m_minReputation));
 
     if (reached && brief) {
         return;
@@ -3099,7 +3099,7 @@ static void AddSpellReagentLine(CGTooltip* tooltip, const SpellRec* spell, CGPla
             SStrPack(text, ", ", sizeof(text));
         }
 
-        const char* name = stats->m_name[0];
+        const char* name = stats->m_name[0] ? stats->m_name[0] : "";
 
         if (spell->m_reagentCount[i] <= 1) {
             SStrCopy(reagent, name, sizeof(reagent));
@@ -3950,7 +3950,7 @@ void CGTooltip::AddSpellReagents(const SpellRec* spell, const char* token, void 
             SStrPack(text, ", ", sizeof(text));
         }
 
-        const char* name = stats->m_name[0];
+        const char* name = stats->m_name[0] ? stats->m_name[0] : "";
 
         if (spell->m_reagentCount[i] <= 1) {
             SStrCopy(reagent, name, sizeof(reagent));
@@ -4199,7 +4199,7 @@ static void AddItemNameLines(CGTooltip* tooltip, const ItemStats_C* stats, int32
         return;
     }
 
-    const CImVector* nameColor = destroyGem ? &grayColor : reinterpret_cast<const CImVector*>(&s_itemQualityColors[stats->m_quality]);
+    const CImVector* nameColor = destroyGem ? &grayColor : CGTooltip::GetItemQualityColor(stats->m_quality);
     tooltip->AddLine(name, nullptr, *nameColor, *nameColor, 0);
     CVar* colorblindMode = CVar::Lookup("colorblindMode");
 
@@ -4429,14 +4429,16 @@ static const LockRec* AddItemBindLines(CGTooltip* tooltip, const ItemStats_C* st
         } else if (stats->m_itemLimitCategory) {
             ItemLimitCategoryRec* category = g_itemLimitCategoryDB.GetRecord(stats->m_itemLimitCategory);
 
-            if (category->m_flags & 1) {
-                FormatString("ITEM_LIMIT_CATEGORY_MULTIPLE", -1, GENDER_NOT_APPLICABLE, format, sizeof(format));
-            } else {
-                FormatString("ITEM_LIMIT_CATEGORY", -1, GENDER_NOT_APPLICABLE, format, sizeof(format));
-            }
+            if (category) {
+                if (category->m_flags & 1) {
+                    FormatString("ITEM_LIMIT_CATEGORY_MULTIPLE", -1, GENDER_NOT_APPLICABLE, format, sizeof(format));
+                } else {
+                    FormatString("ITEM_LIMIT_CATEGORY", -1, GENDER_NOT_APPLICABLE, format, sizeof(format));
+                }
 
-            SStrPrintf(text, sizeof(text), format, category->m_name, category->m_quantity);
-            tooltip->AddLine(text, nullptr, textColor, textColor, 0);
+                SStrPrintf(text, sizeof(text), format, category->m_name, category->m_quantity);
+                tooltip->AddLine(text, nullptr, textColor, textColor, 0);
+            }
         }
     }
 
@@ -4550,7 +4552,7 @@ static void AddItemTypeLines(CGTooltip* tooltip, const ItemStats_C* stats, CGPla
 
     if (proficiency && !((1 << stats->m_subClass) & proficiency)) {
         if (stats->m_class == 2) {
-            int32_t prerequisite = subClass->m_prerequisiteProficiency;
+            int32_t prerequisite = subClass ? subClass->m_prerequisiteProficiency : -1;
 
             if (prerequisite != -1) {
                 if ((1 << prerequisite) & proficiency) {
@@ -4559,7 +4561,7 @@ static void AddItemTypeLines(CGTooltip* tooltip, const ItemStats_C* stats, CGPla
                     subClassRed = 1;
                 }
             } else {
-                int32_t postrequisite = subClass->m_postrequisiteProficiency;
+                int32_t postrequisite = subClass ? subClass->m_postrequisiteProficiency : -1;
 
                 if (postrequisite == -1 || !((1 << postrequisite) & proficiency)) {
                     subClassRed = 1;
@@ -5095,7 +5097,7 @@ static int32_t AddItemSocketLines(CGTooltip* tooltip, const ItemStats_C* stats, 
             }
 
             SStrPrintf(format, sizeof(format), "%s%s%s", colorString, text, "|r");
-            SStrPack(format, conditions, sizeof(text));
+            SStrPack(format, conditions, sizeof(format));
             tooltip->AddLine(format, nullptr, titleColor, titleColor, 0);
         }
 
@@ -5646,7 +5648,7 @@ static void AddItemRequirementLines(CGTooltip* tooltip, const ItemStats_C* stats
 
     if (stats->m_requiredReputationFaction) {
         int32_t rank = stats->m_requiredReputationRank;
-        bool reached = GetRepListRepValue(stats->m_requiredReputationFaction) >= CGReputationInfo::m_reactionThresholds[rank];
+        bool reached = GetRepListRepValue(stats->m_requiredReputationFaction) >= CGReputationInfo::GetReactionThreshold(static_cast<uint32_t>(rank));
         FactionRec* faction = g_factionDB.GetRecord(stats->m_requiredReputationFaction);
         SStrPrintf(format, sizeof(format), "FACTION_STANDING_LABEL%d", rank + 1);
         const char* name = faction ? faction->m_name : "UNKNOWN";
@@ -6209,7 +6211,7 @@ static void AddItemUseEnchantLine(CGTooltip* tooltip, CGPlayer_C* player, int32_
     }
 
     if (useCharges && useCharges != -1) {
-        SStrPrintf(charges, sizeof(charges), FrameScript_GetText("ITEM_SPELL_CHARGES", abs(useCharges), GENDER_NOT_APPLICABLE));
+        SStrPrintf(charges, sizeof(charges), FrameScript_GetText("ITEM_SPELL_CHARGES", abs(useCharges), GENDER_NOT_APPLICABLE), abs(useCharges));
         SStrPrintf(format, sizeof(format), " (%s)", charges);
         SStrPack(text, format, sizeof(text));
     }
@@ -7230,7 +7232,7 @@ int32_t CGItemStatsSummary::GetItemComparison(CGTooltip* first, CGTooltip* secon
 int32_t SetCompareItem(CGTooltip* tooltip, uint32_t itemId, int32_t offset, int32_t shift, CGTooltip* compare) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
     WOWGUID none = WOWGUID();
-    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, none, &TooltipItemCallback, tooltip, false);
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, none, &TooltipItemCallback, tooltip, true);
 
     if (!player || !stats) {
         return 0;
@@ -7991,7 +7993,7 @@ void CGTooltip::SetObject(const WOWGUID& guid) {
                     }
 
                     WOWGUID itemRequester = { 0 };
-                    ItemStats_C* itemStats = g_itemDBCache.GetRecord(quest->m_intermediateItemId[k], itemRequester, TooltipUnitNameCallback, this, false);
+                    ItemStats_C* itemStats = g_itemDBCache.GetRecord(quest->m_intermediateItemId[k], itemRequester, TooltipUnitNameCallback, this, true);
 
                     if (itemStats) {
                         SStrPrintf(buffer, sizeof(buffer), " - %s", itemStats->m_name[0]);

@@ -94,7 +94,7 @@ static int32_t Script_GetLFGRandomCooldownExpiration(lua_State* L) {
         return 0;
     }
 
-    lua_pushnumber(L, player->GetAura(index)->m_endTime * 0.001);
+    lua_pushnumber(L, static_cast<uint32_t>(player->GetAura(index)->m_endTime) * 0.001);
     return 1;
 }
 
@@ -113,7 +113,7 @@ static int32_t Script_GetLFGDeserterExpiration(lua_State* L) {
         return 0;
     }
 
-    lua_pushnumber(L, player->GetAura(index)->m_endTime * 0.001);
+    lua_pushnumber(L, static_cast<uint32_t>(player->GetAura(index)->m_endTime) * 0.001);
     return 1;
 }
 
@@ -204,6 +204,11 @@ static int32_t Script_GetRandomDungeonBestChoice(lua_State* L) {
 static void PushLFDChoiceInfo(lua_State* L, int32_t id) {
     if (id < 0) {
         LfgDungeonGroupRec* group = g_lfgDungeonGroupDB.GetRecord(-id);
+
+        if (!group) {
+            return;
+        }
+
         lua_pushnumber(L, 1.0);
         lua_pushstring(L, group->m_name);
         lua_settable(L, -3);
@@ -214,6 +219,11 @@ static void PushLFDChoiceInfo(lua_State* L, int32_t id) {
     }
 
     LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecord(id);
+
+    if (!rec) {
+        return;
+    }
+
     LfgDungeonExpansionRec* expansion = GetLfgDungeonExpansionRec(rec->m_id, ClientServices::Connection()->m_accountExpansion);
     MapDifficultyRec* difficulty = GetMapDifficultyEntryByMapIdAndDifficulty(rec->m_mapID, rec->m_difficulty, nullptr);
     lua_pushnumber(L, 1.0);
@@ -629,7 +639,7 @@ static int32_t Script_GetLFGDungeonRewardInfo(lua_State* L) {
 
     WOWGUID none = WOWGUID();
     const char* name = "";
-    ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_itemID, none, RandomDungeonRewardItemStatsCallback, nullptr, false);
+    ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_itemID, none, RandomDungeonRewardItemStatsCallback, nullptr, true);
 
     if (stats) {
         name = stats->GetName(0);
@@ -1118,7 +1128,7 @@ static int32_t Script_GetLFDChoiceCollapseState(lua_State* L) {
         if (entry.m_id >= 0) {
             LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecord(entry.m_id);
             lua_pushnumber(L, entry.m_id);
-            uint32_t header = rec->m_groupID;
+            uint32_t header = rec ? rec->m_groupID : 0;
             bool collapsed = false;
 
             if (s_cvLfdCollapsedHeaders) {
@@ -1154,7 +1164,7 @@ static int32_t Script_GetLFDChoiceCollapseState(lua_State* L) {
         if (entry.m_id >= 0) {
             LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecord(entry.m_id);
             lua_pushnumber(L, entry.m_id);
-            uint32_t header = rec->m_groupID;
+            uint32_t header = rec ? rec->m_groupID : 0;
             bool collapsed = false;
 
             if (s_cvLfdCollapsedHeaders) {

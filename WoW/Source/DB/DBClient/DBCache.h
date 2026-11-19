@@ -20,6 +20,8 @@ class CHashKeyGUID;
 class ItemStats_C;
 class CWardenKey;
 
+static const uint32_t DBCACHE_MAX_RECORD_SIZE = 0x100000;
+
 struct HASHKEY_INT {
     HASHKEY_INT();
     HASHKEY_INT(int32_t key);
@@ -77,6 +79,7 @@ class DBCache : public Blizzard::Using::GlobalUse {
     void CancelCallback(TKey key, void (*callback)(int32_t id, const WOWGUID& guid, void* param, bool success), void* param);
     void Clear();
     void ClearPending();
+    void CancelCallbacksForParam(void (*callback)(int32_t id, const WOWGUID& guid, void* param, bool success), void* param);
     void DenyItem(TKey key);
     T* GetRecord(TKey key, const WOWGUID& guid, void (*callback)(int32_t id, const WOWGUID& guid, void* param, bool success), void* param, bool unique);
     void Destroy();
@@ -174,6 +177,7 @@ void DBCache<T, TKey, THashKey>::Load() {
 
     if (bytesRead != 6 * sizeof(uint32_t)) {
         OsCloseFile(file);
+        OsDeleteFile(path);
         return;
     }
 
@@ -184,6 +188,7 @@ void DBCache<T, TKey, THashKey>::Load() {
 
     if (signature != this->m_signature) {
         OsCloseFile(file);
+        OsDeleteFile(path);
         return;
     }
 
@@ -240,6 +245,11 @@ void DBCache<T, TKey, THashKey>::Load() {
                 break;
             }
 
+            if (size > DBCACHE_MAX_RECORD_SIZE) {
+                corrupt = true;
+                break;
+            }
+
             if (size > bufferSize) {
                 if (bufferSize > sizeof(localBuffer)) {
                     SMemFree(buffer, __FILE__, __LINE__, 0);
@@ -267,6 +277,12 @@ void DBCache<T, TKey, THashKey>::Load() {
             hash->m_record.Unpack(&data);
             hash->m_loaded = true;
             hash->m_id = key;
+
+            if (data.m_read > data.m_size) {
+                corrupt = true;
+                break;
+            }
+
             this->ItemAdded(&hash->m_record);
 
             OsReadFile(file, buffer, sizeof(TKey) + sizeof(uint32_t), &bytesRead);
@@ -288,6 +304,7 @@ void DBCache<T, TKey, THashKey>::Load() {
 
     if (corrupt) {
         this->Clear();
+        OsDeleteFile(path);
     }
 }
 
@@ -368,6 +385,27 @@ void DBCache<T, TKey, THashKey>::CancelCallback(TKey key, void (*callback)(int32
         }
 
         node = next;
+    }
+}
+
+template <class T, class TKey, class THashKey>
+void DBCache<T, TKey, THashKey>::CancelCallbacksForParam(void (*callback)(int32_t id, const WOWGUID& guid, void* param, bool success), void* param) {
+    for (DBCACHEHASH* hash = this->m_entries.m_fulllist.Head(); hash; hash = this->m_entries.Next(hash)) {
+        if (hash->m_loaded || hash->m_dispatching) {
+            continue;
+        }
+
+        DBCACHECALLBACK* node = hash->m_callbacks.Head();
+
+        while (node) {
+            DBCACHECALLBACK* next = hash->m_callbacks.Next(node);
+
+            if (node->m_callback == callback && node->m_param == param) {
+                hash->m_callbacks.DeleteNode(node);
+            }
+
+            node = next;
+        }
     }
 }
 
@@ -609,7 +647,7 @@ template <class T, class TKey, class THashKey>
 void DBCache<T, TKey, THashKey>::DenyItem(TKey key) {
     DBCACHEHASH* hash = this->m_entries.Ptr(DBCacheHashKey(key), key);
 
-    if (!hash) {
+    if (!hash || hash->m_dispatching) {
         return;
     }
 
@@ -635,10 +673,10 @@ void DBCache<T, TKey, THashKey>::Invalidate(TKey key) {
         return;
     }
 
-    if (!hash->m_loaded) {
-        this->DenyItem(key);
-    } else if (hash->m_dispatching) {
+    if (hash->m_dispatching) {
         hash->m_invalidatePending = true;
+    } else if (!hash->m_loaded) {
+        this->DenyItem(key);
     } else {
         this->m_entries.Delete(hash);
     }

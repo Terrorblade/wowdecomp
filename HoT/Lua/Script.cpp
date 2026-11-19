@@ -1,6 +1,6 @@
 #include "HoT/Lua/Script.h"
 #include <cstring>
-#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 #include "Engine/Source/FrameScript/FrameScript.h"
@@ -29,7 +29,7 @@ static std::vector<EventEntry>& Events() {
     return events;
 }
 
-static std::unordered_map<std::string, uint32_t> s_eventIndex;
+static std::unordered_map<std::string_view, uint32_t> s_eventIndex;
 static State s_state = State::Glue;
 
 void RegisterFunction(const char* name, lua_CFunction function, State state) {

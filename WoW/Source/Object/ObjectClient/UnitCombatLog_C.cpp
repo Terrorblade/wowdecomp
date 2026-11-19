@@ -403,18 +403,34 @@ PendingCombatLogData* GetPendingCombatLogData(CombatLogEntry* entry, const WOWGU
 // VERIFY: 106263c5 manual
 // OFFSET: 0x0074F400
 void UnitCombatLogInvalidateName(const char* name) {
-    InvalidatedName* node = s_invalidatedNames.NewNode(2, 0, 0);
-    node->m_name = SStrDupA(name, __FILE__, __LINE__);
+    if (!name) {
+        return;
+    }
+
+    InvalidatedName* node = nullptr;
 
     for (CombatLogEntry* entry = s_entries.Head(); entry; entry = s_entries.Next(entry)) {
-        if (entry->m_sourceName == name) {
-            entry->m_sourceName = node->m_name;
-        }
+        const char** fields[] = { &entry->m_sourceName, &entry->m_destName, &entry->m_sourceRealm, &entry->m_destRealm };
 
-        if (entry->m_destName == name) {
-            entry->m_destName = node->m_name;
+        for (const char** field : fields) {
+            if (*field != name) {
+                continue;
+            }
+
+            if (!node) {
+                node = s_invalidatedNames.NewNode(2, 0, 0);
+                node->m_name = SStrDupA(name, __FILE__, __LINE__);
+            }
+
+            *field = node->m_name;
         }
     }
+}
+
+static const char* GetExecuteItemName(int32_t itemId) {
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, WOWGUID(), nullptr, nullptr, false);
+    const char* name = stats ? stats->GetName(0) : nullptr;
+    return name ? name : FrameScript_GetText("UNKNOWNOBJECT", -1, GENDER_NOT_APPLICABLE);
 }
 
 // VERIFY: aa58db07 manual
@@ -1444,7 +1460,7 @@ int32_t CombatLogEntry::PushEvent(lua_State* L) {
     if (this->m_infoFlags & 0x200) {
         lua_checkstack(L, 2);
         lua_pushinteger(L, this->m_info.m_values[0]);
-        lua_pushstring(L, this->m_info.m_names[1]);
+        lua_pushstring(L, GetExecuteItemName(this->m_info.m_values[0]));
         count += 2;
     }
 
@@ -3153,7 +3169,7 @@ void CombatLogEntry::PackEvent(char* buffer, uint32_t size) {
 
     if (flags & 0x200) {
         PackInt(cursor, remaining, this->m_info.m_values[0]);
-        PackQuotedString(cursor, remaining, this->m_info.m_names[1]);
+        PackQuotedString(cursor, remaining, GetExecuteItemName(this->m_info.m_values[0]));
     }
 
     if (flags & 0x400) {

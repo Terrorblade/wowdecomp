@@ -460,16 +460,18 @@ static lu_mem sizeobj (GCObject *o) {
 
 // VERIFY: dd628a7b auto
 // OFFSET: 0x0085B0F0
-static void updatesizes (lua_State *L, GCObject *o) {
+static void updatesizes (lua_State *L, GCObject *o, GCUsage **last) {
   for (; o; o = o->gch.next) {
     const char *tag = o->gch.taint;
     if (tag) {
       lu_mem size = sizeobj(o);
       global_State *g = G(L);
-      GCUsage *u;
-      for (u = g->gcusage; u; u = u->next) {
-        if (u->tag == tag)
-          break;
+      GCUsage *u = *last;
+      if (!u || u->tag != tag) {
+        for (u = g->gcusage; u; u = u->next) {
+          if (u->tag == tag)
+            break;
+        }
       }
       if (u)
         u->usage += size;
@@ -480,6 +482,7 @@ static void updatesizes (lua_State *L, GCObject *o) {
         u->usage = size;
         g->gcusage = u;
       }
+      *last = u;
     }
   }
 }
@@ -487,12 +490,17 @@ static void updatesizes (lua_State *L, GCObject *o) {
 
 // VERIFY: 7bbb4677 auto
 // OFFSET: 0x0085B160
-static void addtimetotag (lua_State *L, const char *tag, __int64 time) {
+static void addtimetotag (lua_State *L, const char *tag, __int64 time, GCTime **last) {
   global_State *g = G(L);
-  GCTime *t;
+  GCTime *t = *last;
+  if (t && t->tag == tag) {
+    t->time += time;
+    return;
+  }
   for (t = g->gctime; t; t = t->next) {
     if (t->tag == tag) {
       t->time += time;
+      *last = t;
       return;
     }
   }
@@ -501,15 +509,17 @@ static void addtimetotag (lua_State *L, const char *tag, __int64 time) {
   t->tag = tag;
   t->time = time;
   g->gctime = t;
+  *last = t;
 }
 
 
 // VERIFY: 9bce24e3 auto
 // OFFSET: 0x0085B1C0
 static void updatetimes (lua_State *L, GCObject *o) {
+  GCTime *last = NULL;
   for (; o; o = o->gch.next) {
     if (o->gch.taint && o->gch.tt == LUA_TFUNCTION)
-      addtimetotag(L, o->gch.taint, gco2cl(o)->l.profile->time);
+      addtimetotag(L, o->gch.taint, gco2cl(o)->l.profile->time, &last);
   }
 }
 
@@ -629,12 +639,13 @@ void luaC_freeall (lua_State *L) {
 void luaC_sizeall (lua_State *L) {
   global_State *g = G(L);
   GCUsage *u;
+  GCUsage *last = NULL;
   int i;
   for (u = g->gcusage; u; u = u->next)
     u->usage = 0;
-  updatesizes(L, g->rootgc);
+  updatesizes(L, g->rootgc, &last);
   for (i = 0; i < g->strt.size; i++)
-    updatesizes(L, g->strt.hash[i]);
+    updatesizes(L, g->strt.hash[i], &last);
 }
 
 

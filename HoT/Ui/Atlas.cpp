@@ -22,14 +22,15 @@ struct AtlasEntry {
 
 static std::unordered_map<std::string, AtlasEntry> s_atlases;
 
-static std::string NormalizeName(const char* name) {
-    std::string out(name ? name : "");
+static const std::string& NormalizeName(const char* name) {
+    static std::string s_key;
+    s_key.assign(name ? name : "");
 
-    for (char& c : out) {
+    for (char& c : s_key) {
         c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
     }
 
-    return out;
+    return s_key;
 }
 
 // Paths are typed by hand, so forward slashes and trailing whitespace are accepted.

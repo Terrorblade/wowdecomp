@@ -771,7 +771,7 @@ static int32_t Script_SetInventoryItem(lua_State* L) {
         }
 
         WOWGUID query = { 0 };
-        g_itemDBCache.GetRecord(inspected->m_itemId, query, TooltipItemCallback, tooltip, false);
+        g_itemDBCache.GetRecord(inspected->m_itemId, query, TooltipItemCallback, tooltip, true);
         ItemLinkInfo& link = tooltip->m_itemLinkInfo;
         link.Clear();
         link.m_randomPropertiesId = inspected->m_randomPropertiesId;

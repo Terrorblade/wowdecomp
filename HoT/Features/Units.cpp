@@ -6,6 +6,7 @@
 #include "Engine/Source/Os/TimeManager.h"
 #include "HoT/Core/CVars.h"
 #include "HoT/Core/Modules.h"
+#include "HoT/DB/Tables.h"
 #include "HoT/Lua/Script.h"
 #include "HoT/Net/Handlers.h"
 #include "HoT/Net/Opcodes.h"
@@ -68,6 +69,7 @@ static const uint32_t STALE_AFTER_MS = 3000;
 static const uint32_t MAX_BACKOFF_SHIFT = 5;
 static const size_t PRUNE_UNIT_THRESHOLD = 256;
 static const uint32_t PRUNE_AGE_MS = 60000;
+static const uint32_t PRUNE_INTERVAL_MS = 5000;
 
 struct Entry {
     Values m_values = {};
@@ -89,6 +91,7 @@ static GuidMap<std::unordered_map<uint8_t, Entry>> s_entries;
 static TooltipCall s_pending;
 static TooltipCall s_active;
 static TooltipCall s_displayed;
+static uint32_t s_lastPruneMs;
 
 static void ClearAll() {
     s_entries.clear();
@@ -110,6 +113,12 @@ static void PruneIfLarge() {
     }
 
     uint32_t now = OsGetAsyncTimeMs();
+
+    if (now - s_lastPruneMs < PRUNE_INTERVAL_MS) {
+        return;
+    }
+
+    s_lastPruneMs = now;
 
     for (auto unit = s_entries.begin(); unit != s_entries.end();) {
         for (auto slot = unit->second.begin(); slot != unit->second.end();) {
@@ -264,8 +273,6 @@ static int32_t Packet_SMSG_AURA_VALUES(void* param, NETMESSAGE msgId, uint32_t t
         }
     }
 
-    PruneIfLarge();
-
     Entry& entry = s_entries[guid][slot];
     entry.m_values = values;
     entry.m_receivedMs = OsGetAsyncTimeMs();
@@ -299,6 +306,10 @@ class AuraValuesModule : public Module {
 
     void OnLoadingScreenStarted() override {
         ClearAll();
+    }
+
+    void OnIdle() override {
+        PruneIfLarge();
     }
 };
 
@@ -338,7 +349,7 @@ static const AbsorbEffects& EffectsFor(uint32_t spellId) {
     AbsorbEffects effects = {};
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(spellId, &spell)) {
+    if (g_spellDB.GetRecordPrefix(static_cast<int32_t>(spellId), &spell, offsetof(SpellRec, m_effectAura) + sizeof(spell.m_effectAura))) {
         for (uint32_t i = 0; i < AuraValues::NUM_AURA_EFFECTS; i++) {
             int32_t aura = spell.m_effectAura[i];
 
@@ -516,6 +527,10 @@ static int32_t Script_UnitGetIncomingHeals(lua_State* L) {
     return 1;
 }
 
+static void OnSpellReloaded(const char* stem) {
+    s_spellEffects.clear();
+}
+
 class HealPredictionModule : public Module {
     public:
     const char* Name() const override {
@@ -524,6 +539,7 @@ class HealPredictionModule : public Module {
 
     void OnInitializeGlobal() override {
         Net::RegisterWorldHandler(Net::SMSG_UNIT_HEAL_PREDICTION, Packet_SMSG_UNIT_HEAL_PREDICTION);
+        DB::OnTableReloaded("Spell", OnSpellReloaded);
 
         Lua::RegisterFunction("UnitGetTotalAbsorbs", Script_UnitGetTotalAbsorbs);
         Lua::RegisterFunction("UnitGetTotalHealAbsorbs", Script_UnitGetTotalHealAbsorbs);
@@ -536,10 +552,10 @@ class HealPredictionModule : public Module {
         CVars::Register("healPredictionHealText", "Show the predicted incoming heal amount as text on the health bar.", "0");
         CVars::Register("healPredictionAbsorbColor", "Tint for the absorb shield marker, as rrggbb hex.", "ffffff");
         CVars::Register("healPredictionHealAbsorbColor", "Tint for the heal absorb marker, as rrggbb hex.", "ffffff");
-        CVars::Register("healPredictionMyHealColor", "Colour of your own incoming heal marker, as rrggbb hex.", "00a89b");
-        CVars::Register("healPredictionOtherHealColor", "Colour of other players' incoming heal markers, as rrggbb hex.", "155947");
-        CVars::Register("healPredictionAbsorbTextColor", "Colour of the absorb amount text, as rrggbb hex.", "66b3ff");
-        CVars::Register("healPredictionHealTextColor", "Colour of the incoming heal amount text, as rrggbb hex.", "ffd100");
+        CVars::Register("healPredictionMyHealColor", "Color of your own incoming heal marker, as rrggbb hex.", "00a89b");
+        CVars::Register("healPredictionOtherHealColor", "Color of other players' incoming heal markers, as rrggbb hex.", "155947");
+        CVars::Register("healPredictionAbsorbTextColor", "Color of the absorb amount text, as rrggbb hex.", "66b3ff");
+        CVars::Register("healPredictionHealTextColor", "Color of the incoming heal amount text, as rrggbb hex.", "ffd100");
     }
 
     void OnEnterWorld() override {

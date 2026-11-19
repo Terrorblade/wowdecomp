@@ -707,7 +707,7 @@ static int32_t QSortStationery(const void* a, const void* b) {
         return 2 * (statsA->m_buyPrice >= statsB->m_buyPrice) - 1;
     }
 
-    return SStrSortUTF8I(statsA->GetName(0), statsB->GetName(0), STORM_MAX_STR);
+    return SStrSortUTF8I(statsA->GetName(0) ? statsA->GetName(0) : "", statsB->GetName(0) ? statsB->GetName(0) : "", STORM_MAX_STR);
 }
 
 // VERIFY: 770972ed manual

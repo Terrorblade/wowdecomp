@@ -1,6 +1,7 @@
 #include "CreatureStats.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "WoW/Source/Object/ObjectClient/UnitCombatLog_C.h"
 
 // VERIFY: 5eb2b3d8 auto
 // OFFSET: 0x0053B8E0
@@ -50,11 +51,16 @@ void CreatureStats::Unpack(CDataStore* msg) {
     char buffer[1024];
 
     for (uint32_t i = 0; i < 4; i++) {
-        if (this->m_name[i]) {
-            SMemFree(this->m_name[i], __FILE__, __LINE__, 0);
+        msg->GetString(buffer, sizeof(buffer));
+
+        if (this->m_name[i] && !SStrCmp(this->m_name[i], buffer, STORM_MAX_STR)) {
+            continue;
         }
 
-        msg->GetString(buffer, sizeof(buffer));
+        if (this->m_name[i]) {
+            UnitCombatLogInvalidateName(this->m_name[i]);
+            SMemFree(this->m_name[i], __FILE__, __LINE__, 0);
+        }
 
         if (buffer[0]) {
             this->m_name[i] = SStrDupA(buffer, __FILE__, __LINE__);

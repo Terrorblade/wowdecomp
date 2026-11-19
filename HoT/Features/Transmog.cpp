@@ -141,7 +141,7 @@ static void ReadAppearance(Net::Packet& packet, TransmogAppearance& out) {
     out.m_name = name;
 }
 
-static bool GetDisplayIcon(uint32_t displayId, std::string& out) {
+static bool PushDisplayIcon(lua_State* L, uint32_t displayId) {
     if (!displayId) {
         return false;
     }
@@ -158,8 +158,7 @@ static bool GetDisplayIcon(uint32_t displayId, std::string& out) {
         return false;
     }
 
-    out = "Interface\\Icons\\";
-    out += name;
+    lua_pushfstring(L, "Interface\\Icons\\%s", name);
     return true;
 }
 
@@ -173,11 +172,7 @@ static int32_t PushAppearance(lua_State* L, const TransmogAppearance& appearance
     lua_pushstring(L, appearance.m_name.c_str());
     lua_pushnumber(L, appearance.m_addedTime);
 
-    std::string icon;
-
-    if (GetDisplayIcon(appearance.m_displayId, icon)) {
-        lua_pushstring(L, icon.c_str());
-    } else {
+    if (!PushDisplayIcon(L, appearance.m_displayId)) {
         lua_pushnil(L);
     }
 
@@ -613,14 +608,11 @@ static int32_t Script_TransmogClose(lua_State* L) {
 }
 
 static int32_t Script_TransmogGetDisplayIcon(lua_State* L) {
-    std::string icon;
-
-    if (lua_gettop(L) < 1 || !lua_isnumber(L, 1) || !GetDisplayIcon(static_cast<uint32_t>(lua_tonumber(L, 1)), icon)) {
+    if (lua_gettop(L) < 1 || !lua_isnumber(L, 1) || !PushDisplayIcon(L, static_cast<uint32_t>(lua_tonumber(L, 1)))) {
         lua_pushnil(L);
         return 1;
     }
 
-    lua_pushstring(L, icon.c_str());
     return 1;
 }
 

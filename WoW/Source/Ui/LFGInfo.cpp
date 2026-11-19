@@ -151,6 +151,10 @@ static int QSortLFGDungeons(const void* a, const void* b) {
         return 2 * !leftIsGroup - 1;
     }
 
+    if (leftIsGroup) {
+        return (leftGroupID > rightGroupID) - (leftGroupID < rightGroupID);
+    }
+
     LfgDungeonsRec* leftRec = g_lfgDungeonsDB.GetRecord(leftID);
     LfgDungeonsRec* rightRec = g_lfgDungeonsDB.GetRecord(rightID);
 
@@ -681,12 +685,18 @@ static const LFGJoinResultError s_joinResultErrors[17] = {
 // VERIFY: 5418061a manual
 // OFFSET: 0x0055B080
 void CGLookingForGroup::ParsePartyInfo(CDataStore* msg) {
-    uint8_t count;
+    uint8_t count = 0;
     msg->Get(count);
 
     for (uint32_t i = 0; i < count; i++) {
         WOWGUID guid;
+        guid.m_guid = 0;
         msg->Get(guid.m_guid);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         LFGLockInfo* member = CGLookingForGroup::m_partyLockInfo.AddMember(guid);
         member->ClearDungeons();
         member->m_valid = 1;
@@ -699,7 +709,7 @@ void CGLookingForGroup::ParsePartyInfo(CDataStore* msg) {
 int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     switch (msgId) {
         case SMSG_LFG_TELEPORT_DENIED: {
-            uint32_t reason;
+            uint32_t reason = 0;
             msg->Get(reason);
             DebugLog("LFGMessage: LFG_TELEPORT_DENIED - Reason: %u", reason);
 
@@ -750,11 +760,22 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             msg->Get(itemCount);
 
             for (uint32_t i = 0; i < itemCount; i++) {
+                uint32_t itemID = 0;
+                uint32_t displayID = 0;
+                uint32_t quantity = 0;
+                msg->Get(itemID);
+                msg->Get(displayID);
+                msg->Get(quantity);
+
+                if (msg->m_read > msg->m_size) {
+                    break;
+                }
+
                 LFGRewardItem* item = new (__FILE__, __LINE__) LFGRewardItem;
                 reward.m_items.LinkToTail(item);
-                msg->Get(reinterpret_cast<uint32_t&>(item->m_itemID));
-                msg->Get(reinterpret_cast<uint32_t&>(item->m_displayID));
-                msg->Get(item->m_quantity);
+                item->m_itemID = static_cast<int32_t>(itemID);
+                item->m_displayID = static_cast<int32_t>(displayID);
+                item->m_quantity = quantity;
                 DebugLog("LFG_PLAYER_REWARD: Receiving Item %u, Display %u, Quantity: %u", item->m_itemID, item->m_displayID, item->m_quantity);
             }
 
@@ -786,7 +807,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
         }
 
         case SMSG_LFG_OFFER_CONTINUE: {
-            uint32_t slot;
+            uint32_t slot = 0;
             msg->Get(slot);
             DebugLog("LFGMessage: LFG_OFFER_CONTINUE - Slot: %u", slot);
             LfgDungeonsRec* dungeon = g_lfgDungeonsDB.GetRecord(slot & 0xFFFFFF);
@@ -799,11 +820,11 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
         }
 
         case SMSG_LFG_ROLE_CHOSEN: {
-            uint64_t guid;
+            uint64_t guid = 0;
             msg->Get(guid);
-            uint32_t accepted;
+            uint32_t accepted = 0;
             msg->GetInt8(accepted);
-            uint32_t roles;
+            uint32_t roles = 0;
             msg->Get(roles);
             DebugLog("LFGMessage: ROLE_CHOSEN - GUID: %016I64X, Accepted: %d, Roles Desired: %x", guid, accepted, roles);
             NameCache* name = g_nameDBCache.GetRecord(guid, WOWGUID(), nullptr, nullptr, false);
@@ -828,7 +849,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             msg->Get(proposal.m_proposalId);
             msg->Get(proposal.m_completedMask);
             msg->GetInt8(proposal.m_silent);
-            uint8_t memberCount;
+            uint8_t memberCount = 0;
             msg->Get(memberCount);
             uint8_t declinedSelf = 0;
             uint8_t declinedParty = 0;
@@ -880,9 +901,9 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
         case SMSG_LFG_ROLE_CHECK_UPDATE: {
             msg->Get(reinterpret_cast<uint32_t&>(CGLookingForGroup::m_roleCheckState));
-            uint32_t beginning;
+            uint32_t beginning = 0;
             msg->GetInt8(beginning);
-            uint8_t slotCount;
+            uint8_t slotCount = 0;
             msg->Get(slotCount);
             CGLookingForGroup::m_roleCheckSlots.SetCount(slotCount);
 
@@ -890,7 +911,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 msg->Get(CGLookingForGroup::m_roleCheckSlots.m_data[i]);
             }
 
-            uint8_t memberCount;
+            uint8_t memberCount = 0;
             msg->Get(memberCount);
             CGLookingForGroup::m_roleCheckMembers.SetCount(memberCount);
             uint32_t localIndex = 0;
@@ -950,9 +971,9 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
         }
 
         case SMSG_LFG_JOIN_RESULT: {
-            uint32_t result;
+            uint32_t result = 0;
             msg->Get(result);
-            uint32_t reason;
+            uint32_t reason = 0;
             msg->Get(reason);
             DebugLog("LFGMessage: LFG_JOIN_RESULT - Result: %u, Reason: %u", result, reason);
 
@@ -995,7 +1016,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             msg->Get(status.m_tanksNeeded);
             msg->Get(status.m_healersNeeded);
             msg->Get(status.m_damageNeeded);
-            uint32_t queuedTime;
+            uint32_t queuedTime = 0;
             msg->Get(queuedTime);
             status.m_queuedTime = OsGetAsyncTimeMs() - 1000 * queuedTime;
 
@@ -1012,18 +1033,18 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
         case SMSG_LFG_UPDATE_PLAYER: {
             LFGInfo info;
             uint8_t queued = 0;
-            uint8_t updateType;
+            uint8_t updateType = 0;
             msg->Get(updateType);
-            uint8_t joined;
+            uint8_t joined = 0;
             msg->Get(joined);
             info.m_joined = joined != 0;
             info.m_lfgJoined = joined != 0;
 
             if (joined) {
                 msg->Get(queued);
-                uint8_t flag4;
+                uint8_t flag4 = 0;
                 msg->Get(flag4);
-                uint8_t flag5;
+                uint8_t flag5 = 0;
                 msg->Get(flag5);
                 uint8_t dungeonCount = 0;
                 msg->Get(dungeonCount);
@@ -1032,8 +1053,13 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 info.m_achievements = flag5 != 0;
 
                 for (uint32_t i = 0; i < dungeonCount; i++) {
-                    uint32_t slot;
+                    uint32_t slot = 0;
                     msg->Get(slot);
+
+                    if (msg->m_read > msg->m_size) {
+                        break;
+                    }
+
                     info.AddDungeon(slot);
                 }
 
@@ -1097,9 +1123,9 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             LFGInfo info;
             uint8_t lfgJoined = 0;
             uint8_t queued = 0;
-            uint8_t updateType;
+            uint8_t updateType = 0;
             msg->Get(updateType);
-            uint8_t joined;
+            uint8_t joined = 0;
             msg->Get(joined);
             info.m_joined = joined != 0;
             uint32_t dungeonCount = 0;
@@ -1107,9 +1133,9 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             if (joined) {
                 msg->Get(lfgJoined);
                 msg->Get(queued);
-                uint8_t flag4;
+                uint8_t flag4 = 0;
                 msg->Get(flag4);
-                uint8_t flag5;
+                uint8_t flag5 = 0;
                 msg->Get(flag5);
                 info.m_lfgJoined = lfgJoined != 0;
                 info.m_queued = queued != 0;
@@ -1125,8 +1151,13 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 dungeonCount = count;
 
                 for (uint32_t i = 0; i < dungeonCount; i++) {
-                    uint32_t slot;
+                    uint32_t slot = 0;
                     msg->Get(slot);
+
+                    if (msg->m_read > msg->m_size) {
+                        break;
+                    }
+
                     info.AddDungeon(slot);
                 }
 
@@ -1237,13 +1268,18 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             lockInfo.m_valid = 0;
             lockInfo.m_guid = WOWGUID();
             lockInfo.ClearDungeons();
-            uint8_t dungeonCount;
+            uint8_t dungeonCount = 0;
             msg->Get(dungeonCount);
             DebugLog("LFGMessage: MSG_LFG_PLAYER_INFO");
 
             for (uint32_t i = 0; i < dungeonCount; i++) {
-                uint32_t slot;
+                uint32_t slot = 0;
                 msg->Get(slot);
+
+                if (msg->m_read > msg->m_size) {
+                    break;
+                }
+
                 LFGDungeonEntry* dungeon = lockInfo.AddDungeon(slot);
                 uint8_t rewardDone = 0;
                 msg->Get(rewardDone);
@@ -1252,15 +1288,30 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 msg->Get(reinterpret_cast<uint32_t&>(dungeon->m_baseXP));
                 msg->Get(reinterpret_cast<uint32_t&>(dungeon->m_variableMoney));
                 msg->Get(reinterpret_cast<uint32_t&>(dungeon->m_variableXP));
-                uint8_t itemCount;
+                uint8_t itemCount = 0;
                 msg->Get(itemCount);
 
                 for (uint32_t j = 0; j < itemCount; j++) {
+                    uint32_t itemID = 0;
+                    uint32_t displayID = 0;
+                    uint32_t quantity = 0;
+                    msg->Get(itemID);
+                    msg->Get(displayID);
+                    msg->Get(quantity);
+
+                    if (msg->m_read > msg->m_size) {
+                        break;
+                    }
+
                     LFGRewardItem* item = new (__FILE__, __LINE__) LFGRewardItem;
                     dungeon->m_rewards.LinkToTail(item);
-                    msg->Get(reinterpret_cast<uint32_t&>(item->m_itemID));
-                    msg->Get(reinterpret_cast<uint32_t&>(item->m_displayID));
-                    msg->Get(item->m_quantity);
+                    item->m_itemID = static_cast<int32_t>(itemID);
+                    item->m_displayID = static_cast<int32_t>(displayID);
+                    item->m_quantity = quantity;
+                }
+
+                if (msg->m_read > msg->m_size) {
+                    break;
                 }
             }
 
@@ -1364,11 +1415,11 @@ void CGLookingForGroup::ShutdownGame() {
 // VERIFY: 3776dc9d auto
 // OFFSET: 0x00559B10
 void CGLookingForGroup::ParseBlackList(CDataStore* msg, LFGLockInfo* lockInfo) {
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
     for (uint32_t i = 0; i < count; i++) {
-        uint32_t slot;
+        uint32_t slot = 0;
         msg->Get(slot);
 
         if (msg->m_read > msg->m_size) {
@@ -1377,7 +1428,7 @@ void CGLookingForGroup::ParseBlackList(CDataStore* msg, LFGLockInfo* lockInfo) {
 
         LFGDungeonEntry* entry = lockInfo->AddDungeon(slot);
         entry->m_locked = 1;
-        uint32_t reason;
+        uint32_t reason = 0;
         msg->Get(reason);
         entry->m_lockReason = reason;
     }
@@ -1648,7 +1699,7 @@ void LFGNameCacheCallback(int32_t id, const WOWGUID& guid, void* param, bool suc
 // VERIFY: 74fc5fd3 auto
 // OFFSET: 0x005528D0
 int32_t Packet_SMSG_LFG_OPEN_FROM_GOSSIP(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t slot;
+    uint32_t slot = 0;
     msg->Get(slot);
     FrameScript_SignalEvent(SCRIPT_EVENT_LFG_OPEN_FROM_GOSSIP, "%d", slot);
     return 1;
@@ -1677,11 +1728,11 @@ int32_t Packet_SMSG_LFG_SEARCH_RESULTS(void* param, NETMESSAGE msgId, uint32_t t
     msg->Get(incremental);
 
     if (incremental) {
-        uint32_t count;
+        uint32_t count = 0;
         msg->Get(count);
 
         for (uint32_t i = 0; i < count; i++) {
-            uint64_t guid;
+            uint64_t guid = 0;
             msg->Get(guid);
 
             if (msg->m_read > msg->m_size) {
@@ -1708,12 +1759,12 @@ int32_t Packet_SMSG_LFG_SEARCH_RESULTS(void* param, NETMESSAGE msgId, uint32_t t
     }
 
     list->m_lfgID = lfgID;
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
     msg->Get(list->m_totalParties);
 
     for (uint32_t i = 0; i < count; i++) {
-        uint64_t guid;
+        uint64_t guid = 0;
         msg->Get(guid);
 
         if (msg->m_read > msg->m_size) {

@@ -220,8 +220,6 @@ static bool IsScrapCandidate(uint32_t entry) {
 
     if (ItemRec* record = g_itemDB.GetRecord(static_cast<int32_t>(entry))) {
         itemClass = record->m_classID;
-    } else if (ItemStats_C* stats = g_itemDBCache.GetRecord(static_cast<int32_t>(entry), WOWGUID(), nullptr, nullptr, false)) {
-        itemClass = static_cast<int32_t>(stats->m_class);
     } else {
         return true;
     }
@@ -472,6 +470,7 @@ static void CloseInternal(bool notifyServer, bool signal) {
 }
 
 static void Reset() {
+    UnlockAllSlots();
     s_open = false;
     s_station = 0;
     s_flags = 0;

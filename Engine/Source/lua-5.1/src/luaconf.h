@@ -584,6 +584,11 @@ union luai_Cast { double l_d; long l_l; };
     (i) = (l_d >= -2147483648.5 && l_d < 2147483647.5) ? (int)lrint(l_d) : (int)0x80000000; }
 #define lua_number2integer(i,n)		lua_number2int(i, n)
 
+#elif defined(_M_X64) || defined(__x86_64__)
+#include <emmintrin.h>
+#define lua_number2int(i,d)	((i)=_mm_cvtsd_si32(_mm_set_sd(d)))
+#define lua_number2integer(i,n)	{ int i_; lua_number2int(i_, n); (i) = i_; }
+
 /* this option always works, but may be slow */
 #else
 #define lua_number2int(i,d)	((i)=(int)(d))

@@ -17,6 +17,7 @@
 #include "WoW/Source/Object/NPCText.h"
 #include "WoW/Source/Object/ObjectClient/GuildStats_C.h"
 #include "WoW/Source/Object/ObjectClient/Object_C.h"
+#include "WoW/Source/Object/ObjectClient/UnitCombatLog_C.h"
 #include "WoW/Source/Object/PageTextCache.h"
 #include "WoW/Source/Object/QuestCache.h"
 #include "WoW/Source/Object/WGUID.h"
@@ -206,6 +207,13 @@ static int32_t ReceiveInvalidatePlayer(void* param, NETMESSAGE msgId, uint32_t t
     if ((guid.m_guid & 0xF000000000000000ULL) == 0x1000000000000000ULL && (guid.m_guid & 0x0FF0000000000000ULL) == 0x0FF0000000000000ULL) {
         g_guildInfoCache.Invalidate(static_cast<int32_t>(guid.m_guid));
     } else {
+        NameCache* record = g_nameDBCache.GetRecord(guid.m_guid, WOWGUID(), nullptr, nullptr, false);
+
+        if (record) {
+            UnitCombatLogInvalidateName(record->m_name);
+            UnitCombatLogInvalidateName(record->m_realmName);
+        }
+
         g_nameDBCache.Invalidate(guid.m_guid);
         CGGameUI::InvalidatePlayer(guid);
     }

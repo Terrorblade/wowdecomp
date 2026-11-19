@@ -871,7 +871,9 @@ static int str_format (lua_State *L) {
       char buff[MAX_ITEM];  /* to store the formatted item */
       const char *p = strfrmt;
       const char *e;
-      MatchState ms;
+      const char *d;
+      size_t widthlen;
+      size_t precisionlen;
       if (isdigit(uchar(*strfrmt))) {
         if (strfrmt[1] == '$') {
           arg = *strfrmt - '0';
@@ -883,13 +885,16 @@ static int str_format (lua_State *L) {
         }
       }
       arg++;
-      ms.L = L;
-      ms.src_init = strfrmt;
-      ms.src_end = strfrmt + strlen(strfrmt) + 1;
-      ms.level = 0;
-      ms.matchdepth = MAXCCALLS;
-      e = match(&ms, p, "[-+ #0]*(%d*)%.?(%d*)");
-      if (ms.capture[0].len > 2 || ms.capture[1].len > 2 || (size_t)(e - p) > MAX_FORMATSPEC)
+      e = p;
+      while (*e == '-' || *e == '+' || *e == ' ' || *e == '#' || *e == '0') e++;
+      d = e;
+      while (isdigit(uchar(*e))) e++;
+      widthlen = e - d;
+      if (*e == '.') e++;
+      d = e;
+      while (isdigit(uchar(*e))) e++;
+      precisionlen = e - d;
+      if (widthlen > 2 || precisionlen > 2 || (size_t)(e - p) > MAX_FORMATSPEC)
         luaL_error(L, "invalid format (width or precision too long)");
       form[0] = L_ESC;
       strncpy(form + 1, p, e - p + 1);
@@ -930,7 +935,7 @@ static int str_format (lua_State *L) {
         case 's': {
           size_t l;
           const char *s = luaL_checklstring(L, arg, &l);
-          if (ms.capture[1].len == 0 && l >= 100) {
+          if (precisionlen == 0 && l >= 100) {
             /* no precision and string is too long to be formatted;
                keep original string */
             lua_pushvalue(L, arg);

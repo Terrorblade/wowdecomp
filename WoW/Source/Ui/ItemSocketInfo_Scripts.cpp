@@ -23,7 +23,7 @@ static int32_t Script_GetSocketTypes(lua_State* L) {
     }
 
     lua_checkstack(L, 4);
-    ItemStats_C* stats = CGItemSocketInfo::m_socketItemStats;
+    ItemStats_C* stats = CGItemSocketInfo::GetSocketItemStats();
     int32_t count = 0;
     double index = lua_tonumber(L, 1);
 
@@ -61,7 +61,7 @@ static int32_t Script_CloseSocketInfo(lua_State* L) {
 // OFFSET: 0x005C49D0
 static int32_t Script_GetSocketItemInfo(lua_State* L) {
     CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPE_ITEM, __FILE__, __LINE__));
-    ItemStats_C* stats = CGItemSocketInfo::m_socketItemStats;
+    ItemStats_C* stats = CGItemSocketInfo::GetSocketItemStats();
 
     if (!item || !stats) {
         lua_pushnil(L);
@@ -129,7 +129,7 @@ static int32_t Script_GetNewSocketInfo(lua_State* L) {
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
 
-    if (CGItemSocketInfo::GemMatchesSocket(CGItemSocketInfo::m_socketItemStats, stats, static_cast<int32_t>(number - 1))) {
+    if (CGItemSocketInfo::GemMatchesSocket(CGItemSocketInfo::GetSocketItemStats(), stats, static_cast<int32_t>(number - 1))) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -237,7 +237,7 @@ static int32_t Script_GetExistingSocketInfo(lua_State* L) {
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
 
-    if (CGItemSocketInfo::GemMatchesSocket(CGItemSocketInfo::m_socketItemStats, stats, index)) {
+    if (CGItemSocketInfo::GemMatchesSocket(CGItemSocketInfo::GetSocketItemStats(), stats, index)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);

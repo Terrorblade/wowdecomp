@@ -101,6 +101,7 @@ class WowClientDB_RLE : public WowClientDB_Common<T> {
     WowClientDB_RLE();
     int32_t GetRecordByIndex(int32_t index, T* rec) const;
     int32_t GetRecord(int32_t id, T* rec) const;
+    int32_t GetRecordPrefix(int32_t id, T* rec, uint32_t bytes) const;
 };
 
 // VERIFY: 936b7da3 auto
@@ -479,6 +480,31 @@ int32_t WowClientDB_RLE<T>::GetRecord(int32_t id, T* rec) const {
 
     if constexpr (std::is_same_v<T, SpellRec>) {
         Spell_C_ApplyRowOverrides(rec);
+    }
+
+    return 1;
+}
+
+template <class T>
+int32_t WowClientDB_RLE<T>::GetRecordPrefix(int32_t id, T* rec, uint32_t bytes) const {
+    if (id < this->m_minID || id > this->m_maxID) {
+        return 0;
+    }
+
+    T* row = this->m_recordsById[id - this->m_minID];
+
+    if (!row) {
+        return 0;
+    }
+
+    if (bytes > sizeof(T)) {
+        bytes = sizeof(T);
+    }
+
+    if (g_clientDbPerformCompress) {
+        DecompressRow(reinterpret_cast<const uint8_t*>(row), bytes, reinterpret_cast<uint8_t*>(rec));
+    } else {
+        memcpy(rec, row, bytes);
     }
 
     return 1;

@@ -815,7 +815,7 @@ static int32_t CheckSortCriteria(int32_t column, const AuctionItemInfo* a, const
                 return 0;
             }
 
-            return SStrSortUTF8I(statsA->GetName(0), statsB->GetName(0), STORM_MAX_STR);
+            return SStrSortUTF8I(statsA->GetName(0) ? statsA->GetName(0) : "", statsB->GetName(0) ? statsB->GetName(0) : "", STORM_MAX_STR);
         }
 
         case 6: {

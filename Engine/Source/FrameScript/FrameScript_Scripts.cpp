@@ -92,7 +92,7 @@ static int32_t Script_strsplit(lua_State* L) {
     const char* delimiters = luaL_checkstring(L, 1);
     const char* string = luaL_checkstring(L, 2);
     int32_t limit = luaL_optinteger(L, 3, 0);
-    lua_settop(L, 0);
+    lua_settop(L, 2);
 
     int32_t count = 0;
 

@@ -56,6 +56,13 @@ const uint32_t s_inventoryTypeSlots[29] = { 0, 1, 2, 4, 8, 16, 32, 64, 128, 256,
 // STATIC: 0x00CA1140
 static TSHashTable<INVENTORYART, HASHKEY_NONE> s_inventoryArt;
 
+INVENTORYART::~INVENTORYART() {
+    if (this->m_texture) {
+        SMemFree(this->m_texture, __FILE__, __LINE__, 0);
+        this->m_texture = nullptr;
+    }
+}
+
 // STATIC: 0x00CA1168
 static TSHashTable<ITEMBYNAME, HASHKEY_UTF8I> s_itemByName;
 
@@ -293,20 +300,10 @@ CGItem_C::CGItem_C(uint32_t time, const CClientObjCreate& create) : CGObject_C(t
 
     ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
     this->m_virtualItem.m_classID = rec ? rec->m_classID : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
     this->m_virtualItem.m_subclassID = rec ? rec->m_subclassID : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
     this->m_virtualItem.m_material = rec ? rec->m_material : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
     this->m_virtualItem.m_inventoryType = rec ? rec->m_inventoryType : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
     this->m_virtualItem.m_sheatheType = rec ? rec->m_sheatheType : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
     this->m_virtualItem.m_soundOverrideSubclassID = rec ? rec->m_soundOverrideSubclassID : -1;
 
     memset(this->m_enchantmentExpiration, 0, sizeof(this->m_enchantmentExpiration));

@@ -29,6 +29,15 @@ WOWGUID CGItemSocketInfo::m_socketItem;
 // STATIC: 0x00C20FE8
 ItemStats_C* CGItemSocketInfo::m_socketItemStats;
 
+ItemStats_C* CGItemSocketInfo::GetSocketItemStats() {
+    if (!CGItemSocketInfo::m_socketItemStats) {
+        return nullptr;
+    }
+
+    CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPE_ITEM, __FILE__, __LINE__));
+    return object ? g_itemDBCache.GetRecord(object->m_obj->m_entryID, WOWGUID(), nullptr, nullptr, false) : nullptr;
+}
+
 // VERIFY: ea6a2aaa manual
 // OFFSET: 0x005C4680
 void CGItemSocketInfo::SetItem(WOWGUID item) {
@@ -86,11 +95,11 @@ int32_t CGItemSocketInfo::SetGem(uint32_t slot, WOWGUID item, WOWGUID container,
         return 0;
     }
 
-    ItemStats_C* socketStats = CGItemSocketInfo::m_socketItemStats;
+    ItemStats_C* socketStats = CGItemSocketInfo::GetSocketItemStats();
     GemPropertiesRec* properties = g_gemPropertiesDB.GetRecord(stats->m_gemProperties);
 
     // HoT: meta sockets take any gem and other sockets need a matching color, a gem without properties is refused.
-    if (!properties) {
+    if (!properties || !socketStats) {
         return 0;
     }
 

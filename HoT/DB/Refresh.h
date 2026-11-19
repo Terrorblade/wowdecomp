@@ -10,6 +10,9 @@ namespace HoT::DB {
 
 Module* GetRefreshModule();
 
+// Grows the known spell bit array when Spell.dbc gains ids past the old maximum.
+void GrowKnownSpellBits();
+
 }
 
 #endif

@@ -1361,8 +1361,14 @@ const char* FrameScript_GetText(const char* token, int32_t count, FRAMESCRIPT_GE
     }
 
     size_t size = SStrLen(genderSuffix) + SStrLen(token) + SStrLen(pluralSuffix) + 1;
-    std::string nameStorage(size, '\0');
-    char* name = &nameStorage[0];
+    char nameBuffer[256];
+    std::string nameStorage;
+    char* name = nameBuffer;
+
+    if (size > sizeof(nameBuffer)) {
+        nameStorage.resize(size);
+        name = &nameStorage[0];
+    }
 
     SStrPrintf(name, size, "%s%s%s", token, pluralSuffix, genderSuffix);
 

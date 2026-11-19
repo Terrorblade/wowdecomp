@@ -417,7 +417,7 @@ void ProcessQuestRewardFactions(int32_t factionId, int32_t amount, int32_t upper
 
     if (amount <= 0) {
         if (lowerRank >= 0) {
-            int32_t limit = 100 * CGReputationInfo::m_reactionThresholds[lowerRank];
+            int32_t limit = 100 * CGReputationInfo::GetReactionThreshold(static_cast<uint32_t>(lowerRank));
             int32_t floor = current >= limit ? limit : current;
 
             if (result <= floor) {
@@ -429,7 +429,7 @@ void ProcessQuestRewardFactions(int32_t factionId, int32_t amount, int32_t upper
             }
         }
     } else if (upperRank >= 0) {
-        int32_t limit = 100 * CGReputationInfo::m_reactionThresholds[upperRank + 1] - 100;
+        int32_t limit = 100 * CGReputationInfo::GetReactionThreshold(static_cast<uint32_t>(upperRank + 1)) - 100;
         int32_t ceiling = current <= limit ? limit : current;
 
         if (result >= ceiling) {

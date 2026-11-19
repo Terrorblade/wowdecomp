@@ -3482,6 +3482,10 @@ void OnItemPushResult(WOWGUID guid, uint8_t bag, uint32_t slot, uint32_t itemId,
     ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, none, nullptr, nullptr, false);
 
     if (!stats) {
+        if (!itemId) {
+            return;
+        }
+
         ItemPushData* data = static_cast<ItemPushData*>(SMemAlloc(sizeof(ItemPushData), __FILE__, __LINE__, 0));
         data->m_guid = guid;
         data->m_bag = bag;

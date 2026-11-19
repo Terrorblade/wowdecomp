@@ -12,6 +12,7 @@
 #include <vector>
 #include "HoT/Core/Log.h"
 #include "HoT/DB/Custom.h"
+#include "HoT/DB/Refresh.h"
 #include "HoT/Editor/Dbc/Schema.h"
 #include "HoT/Editor/Dbc/Store.h"
 #include "HoT/Editor/Light/LightEditor.h"
@@ -224,36 +225,11 @@ static bool ReadRow(const Table& table, int32_t id, Row& row) {
     return true;
 }
 
-static void GrowKnownSpellBits() {
-    if (!s_knownSpellBits.m_count || g_spellDB.m_maxID < 0) {
-        return;
-    }
-
-    uint32_t count = static_cast<uint32_t>(g_spellDB.m_maxID) + 1;
-
-    if (count <= s_knownSpellBits.m_count) {
-        return;
-    }
-
-    uint32_t oldWords = s_knownSpellBits.m_bits.m_count;
-    uint32_t words = ((count - 1) >> 5) + 1;
-
-    if (words > oldWords) {
-        s_knownSpellBits.m_bits.SetCount(words);
-
-        for (uint32_t i = oldWords; i < words; i++) {
-            s_knownSpellBits.m_bits.m_data[i] = 0;
-        }
-    }
-
-    s_knownSpellBits.m_count = count;
-}
-
 static void OnRowWritten(const Store& store, int32_t id, bool inserted) {
     std::string stem = store.stem;
 
     if (stem == "Spell") {
-        GrowKnownSpellBits();
+        HoT::DB::GrowKnownSpellBits();
         s_spellsDirty = true;
         s_classMaskBits.clear();
     } else if (stem == "SpellClassMaskExtension") {

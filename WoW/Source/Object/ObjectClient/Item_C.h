@@ -16,6 +16,8 @@ class LockRec;
 
 struct INVENTORYART : public TSHashObject<INVENTORYART, HASHKEY_NONE> {
     /* 0018 */ char* m_texture;
+
+    ~INVENTORYART();
 };
 
 struct ITEMBYNAME : public TSHashObject<ITEMBYNAME, HASHKEY_UTF8I> {

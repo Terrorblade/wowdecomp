@@ -232,7 +232,7 @@ int32_t CGRaidInfo::IsPVPRaid() {
         return 1;
     }
 
-    return map->m_instanceType == 4;
+    return map && map->m_instanceType == 4;
 }
 
 // VERIFY: 0cb73745 auto
@@ -1294,8 +1294,12 @@ void CGRaidInfo::ShutdownGame() {
         CGRaidInfo::m_members[i] = nullptr;
     }
 
+    CGRaidInfo::m_numMembers = 0;
+    CGRaidInfo::m_realNumMembers = 0;
+
     if (CGRaidInfo::m_readyCheckTimer) {
         ClientKillTimer(CGRaidInfo::m_readyCheckTimer, CGRaidInfo::ProcessReadyCheckTimer, "ProcessReadyCheckTimer");
+        CGRaidInfo::m_readyCheckTimer = 0;
     }
 }
 

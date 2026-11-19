@@ -27,7 +27,7 @@ void luaS_resize (lua_State *L, int newsize) {
   int i;
   if (G(L)->gcstate == GCSsweepstring)
     return;  /* cannot resize during GC traverse */
-  newhash = luaM_newvector(L, newsize, GCObject *);
+  newhash = cast(GCObject **, luaM_malloc(L, cast(size_t, newsize) * sizeof(GCObject *)));
   tb = &G(L)->strt;
   for (i=0; i<newsize; i++) newhash[i] = NULL;
   /* rehash */

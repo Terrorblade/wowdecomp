@@ -1714,57 +1714,57 @@ static int32_t Script_SetBackdrop(lua_State* L) {
         return 0;
     }
 
-    void* data = SMemAlloc(sizeof(CBackdropGenerator), __FILE__, __LINE__, 0);
-    CBackdropGenerator* backdrop = data ? new (data) CBackdropGenerator() : nullptr;
+    int32_t table = lua_gettop(L);
 
     lua_pushstring(L, "bgFile");
-    lua_gettable(L, -2);
-    backdrop->m_bgFile.Copy(lua_tolstring(L, -1, nullptr));
-    lua_settop(L, -2);
+    lua_gettable(L, table);
+    const char* bgFile = lua_tolstring(L, -1, nullptr);
 
     lua_pushstring(L, "edgeFile");
-    lua_gettable(L, -2);
+    lua_gettable(L, table);
     const char* edgeFile = lua_tolstring(L, -1, nullptr);
-    backdrop->m_pieces = edgeFile && *edgeFile ? 0xFF : 0;
-    backdrop->m_edgeFile.Copy(edgeFile);
-    lua_settop(L, -2);
 
     lua_pushstring(L, "tile");
-    lua_gettable(L, -2);
+    lua_gettable(L, table);
     int32_t tile = StringToBOOL(L, -1, 0);
     lua_settop(L, -2);
 
-    backdrop->m_tile = tile;
-    backdrop->m_alphaMode = GxBlend_Alpha;
-
+    bool hasTileSize = false;
+    float tileSize = 0.0f;
     lua_pushstring(L, "tileSize");
-    lua_gettable(L, -2);
+    lua_gettable(L, table);
 
     if (lua_isnumber(L, -1)) {
-        float tileSize = lua_tonumber(L, -1);
-        backdrop->m_tileSize = NDCToDDCWidth(tileSize / (CoordinateGetAspectCompensation() * 1024.0f));
+        hasTileSize = true;
+        tileSize = lua_tonumber(L, -1);
+        tileSize = NDCToDDCWidth(tileSize / (CoordinateGetAspectCompensation() * 1024.0f));
     }
 
     lua_settop(L, -2);
 
+    bool hasEdgeSize = false;
+    float edgeSize = 0.0f;
     lua_pushstring(L, "edgeSize");
-    lua_gettable(L, -2);
+    lua_gettable(L, table);
 
     if (lua_isnumber(L, -1)) {
-        float edgeSize = lua_tonumber(L, -1);
-        backdrop->m_edgeSize = NDCToDDCWidth(edgeSize / (CoordinateGetAspectCompensation() * 1024.0f));
+        hasEdgeSize = true;
+        edgeSize = lua_tonumber(L, -1);
+        edgeSize = NDCToDDCWidth(edgeSize / (CoordinateGetAspectCompensation() * 1024.0f));
     }
 
     lua_settop(L, -2);
 
+    bool hasInsets = false;
+    float left = 0.0f;
+    float right = 0.0f;
+    float top = 0.0f;
+    float bottom = 0.0f;
     lua_pushstring(L, "insets");
-    lua_gettable(L, -2);
+    lua_gettable(L, table);
 
     if (lua_type(L, -1) == LUA_TTABLE) {
-        float left = 0.0f;
-        float right = 0.0f;
-        float top = 0.0f;
-        float bottom = 0.0f;
+        hasInsets = true;
 
         lua_pushstring(L, "left");
         lua_gettable(L, -2);
@@ -1805,14 +1805,35 @@ static int32_t Script_SetBackdrop(lua_State* L) {
         }
 
         lua_settop(L, -2);
+    }
 
+    lua_settop(L, -2);
+
+    void* data = SMemAlloc(sizeof(CBackdropGenerator), __FILE__, __LINE__, 0);
+    CBackdropGenerator* backdrop = data ? new (data) CBackdropGenerator() : nullptr;
+
+    backdrop->m_bgFile.Copy(bgFile);
+    backdrop->m_pieces = edgeFile && *edgeFile ? 0xFF : 0;
+    backdrop->m_edgeFile.Copy(edgeFile);
+    backdrop->m_tile = tile;
+    backdrop->m_alphaMode = GxBlend_Alpha;
+
+    if (hasTileSize) {
+        backdrop->m_tileSize = tileSize;
+    }
+
+    if (hasEdgeSize) {
+        backdrop->m_edgeSize = edgeSize;
+    }
+
+    if (hasInsets) {
         backdrop->m_insetLeft = left;
         backdrop->m_insetRight = right;
         backdrop->m_insetTop = top;
         backdrop->m_insetBottom = bottom;
     }
 
-    lua_settop(L, -2);
+    lua_settop(L, table);
 
     frame->SetBackdrop(backdrop);
 

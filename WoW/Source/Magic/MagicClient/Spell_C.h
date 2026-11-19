@@ -303,6 +303,7 @@ bool Spell_C_HasCooldownOnEvent(const SpellRec* spell, WOWGUID guid);
 void Spell_C_ModifyCategoryRecovery(int32_t& recovery, const SpellRec* spell, int32_t pet);
 bool Spell_C_ModifySpellValue(const SpellRec* spell, int32_t& value, int32_t modifier);
 bool Spell_C_ModifySpellValue(const SpellRec* spell, float& value, int32_t modifier);
+void Spell_C_GetItemSpellCooldowns(const SpellRec* spell, int32_t itemCooldown, int32_t itemCategory, int32_t itemCategoryCooldown, int32_t& cooldown, int32_t& category, int32_t& categoryCooldown);
 uint32_t Spell_C_GetSpellLevel(const SpellRec* spell, int32_t isPet, int32_t isUnit);
 int32_t Spell_C_GetPowerCostPerSecond(const SpellRec* spell, const CGUnit_C* unit);
 void Spell_C_GetMinMaxPoints(const SpellRec* spell, uint32_t effectIndex, float* minPoints, float* maxPoints, int32_t spellLevel, int32_t isPet, int32_t isUnit, int32_t noModifiers);

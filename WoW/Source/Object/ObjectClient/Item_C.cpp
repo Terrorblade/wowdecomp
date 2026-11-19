@@ -707,7 +707,7 @@ void CGItem_C::GetCooldowns(int32_t itemId, uint32_t& cooldown, uint32_t& catego
         return;
     }
 
-    // HoT: no delay use spells count too, -1 falls back to the spell's own recovery, and spell modifiers apply.
+    // HoT: no delay use spells count too, and the cooldowns resolve the same way the server starts them.
     for (uint32_t i = 0; i < 5; i++) {
         if (stats->m_spellId[i] && (stats->m_spellTrigger[i] == 0 || stats->m_spellTrigger[i] == 5)) {
             cooldown = stats->m_spellCooldown[i];
@@ -717,23 +717,13 @@ void CGItem_C::GetCooldowns(int32_t itemId, uint32_t& cooldown, uint32_t& catego
             SpellRec spell;
 
             if (g_spellDB.GetRecord(stats->m_spellId[i], &spell)) {
-                if (stats->m_spellCooldown[i] == 0xFFFFFFFF) {
-                    cooldown = spell.m_recoveryTime;
-                }
-
-                if (stats->m_spellCategoryCooldown[i] == 0xFFFFFFFF) {
-                    categoryCooldown = spell.m_categoryRecoveryTime;
-                }
-
-                int32_t flat;
-                int32_t pct;
-
-                if (Spell_C_GetSpellModifiers(&spell, SPELLMOD_GLOBAL_COOLDOWN, flat, pct)) {
-                    int32_t value = (static_cast<int32_t>(cooldown) + flat) * pct / 100;
-                    cooldown = value > 0 ? value : 0;
-                    value = (static_cast<int32_t>(categoryCooldown) + flat) * pct / 100;
-                    categoryCooldown = value > 0 ? value : 0;
-                }
+                int32_t resolvedCooldown;
+                int32_t resolvedCategory;
+                int32_t resolvedCategoryCooldown;
+                Spell_C_GetItemSpellCooldowns(&spell, static_cast<int32_t>(stats->m_spellCooldown[i]), static_cast<int32_t>(stats->m_spellCategory[i]), static_cast<int32_t>(stats->m_spellCategoryCooldown[i]), resolvedCooldown, resolvedCategory, resolvedCategoryCooldown);
+                cooldown = resolvedCooldown;
+                category = resolvedCategory;
+                categoryCooldown = resolvedCategoryCooldown;
             }
 
             return;
@@ -1083,9 +1073,13 @@ void CGItem_C::GetSpellCooldownInfo(uint32_t& cooldown, uint32_t& categoryCooldo
         SpellRec spell;
 
         if (g_spellDB.GetRecord(this->GetEnchantmentSpell(0), &spell)) {
-            cooldown = spell.m_recoveryTime;
-            categoryCooldown = spell.m_categoryRecoveryTime;
-            category = spell.m_category;
+            int32_t resolvedCooldown;
+            int32_t resolvedCategory;
+            int32_t resolvedCategoryCooldown;
+            Spell_C_GetItemSpellCooldowns(&spell, -1, 0, -1, resolvedCooldown, resolvedCategory, resolvedCategoryCooldown);
+            cooldown = resolvedCooldown;
+            categoryCooldown = resolvedCategoryCooldown;
+            category = resolvedCategory;
             return;
         }
     }

@@ -5889,22 +5889,20 @@ static int32_t AddItemSpellTriggerLines(CGTooltip* tooltip, const ItemStats_C* s
 
         switch (stats->m_spellTrigger[i]) {
             case 0: {
-                int32_t spellCooldown = stats->m_spellCooldown[i];
+                int32_t itemCooldown = static_cast<int32_t>(stats->m_spellCooldown[i]);
+                int32_t itemCategoryCooldown = static_cast<int32_t>(stats->m_spellCategoryCooldown[i]);
+                int32_t recoveryTime;
+                int32_t category;
+                int32_t categoryRecoveryTime;
+                Spell_C_GetItemSpellCooldowns(&spell, itemCooldown, static_cast<int32_t>(stats->m_spellCategory[i]), itemCategoryCooldown, recoveryTime, category, categoryRecoveryTime);
+                int32_t spellCooldown;
 
-                if (spellCooldown < 0) {
-                    if (static_cast<int32_t>(stats->m_spellCategoryCooldown[i]) >= 0) {
-                        spellCooldown = 0;
-                    } else {
-                        int32_t recoveryTime = spell.m_recoveryTime;
-                        int32_t categoryRecoveryTime = spell.m_categoryRecoveryTime;
-                        Spell_C_ModifySpellValue(&spell, recoveryTime, 11);
-
-                        if (!(spell.m_attributesExF & 0x80000000)) {
-                            Spell_C_ModifySpellValue(&spell, categoryRecoveryTime, 11);
-                        }
-
-                        spellCooldown = recoveryTime <= categoryRecoveryTime ? categoryRecoveryTime : recoveryTime;
-                    }
+                if (itemCooldown >= 0) {
+                    spellCooldown = recoveryTime;
+                } else if (itemCategoryCooldown >= 0) {
+                    spellCooldown = 0;
+                } else {
+                    spellCooldown = recoveryTime <= categoryRecoveryTime ? categoryRecoveryTime : recoveryTime;
                 }
 
                 if (spellCooldown <= 0) {

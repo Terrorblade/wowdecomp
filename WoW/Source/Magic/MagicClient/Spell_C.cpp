@@ -1409,6 +1409,35 @@ bool Spell_C_ModifySpellValue(const SpellRec* spell, int32_t& value, int32_t mod
     return true;
 }
 
+// HoT: same resolution and SPELLMOD_COOLDOWN rules the server uses when an item spell starts its cooldown.
+void Spell_C_GetItemSpellCooldowns(const SpellRec* spell, int32_t itemCooldown, int32_t itemCategory, int32_t itemCategoryCooldown, int32_t& cooldown, int32_t& category, int32_t& categoryCooldown) {
+    cooldown = itemCooldown;
+    category = itemCategory;
+    categoryCooldown = itemCategoryCooldown;
+
+    if (cooldown < 0 && categoryCooldown < 0) {
+        cooldown = spell->m_recoveryTime;
+        category = spell->m_category;
+        categoryCooldown = spell->m_categoryRecoveryTime;
+    }
+
+    if (cooldown >= 0) {
+        Spell_C_ModifySpellValue(spell, cooldown, SPELLMOD_COOLDOWN);
+    }
+
+    if (categoryCooldown >= 0 && !(spell->m_attributesExF & 0x80000000)) {
+        Spell_C_ModifySpellValue(spell, categoryCooldown, SPELLMOD_COOLDOWN);
+    }
+
+    if (cooldown < 0) {
+        cooldown = 0;
+    }
+
+    if (categoryCooldown < 0) {
+        categoryCooldown = 0;
+    }
+}
+
 // VERIFY: a04d6139 auto
 // OFFSET: 0x007FD790
 CMapEntity* Spell_C_GetSpellWorldObject() {
@@ -7079,13 +7108,18 @@ void Spell_C_PendingItemCooldownCallback(int32_t id, const WOWGUID& guid, void* 
                 memset(&spell, 0, sizeof(spell));
             }
 
-            int32_t recovery = static_cast<int32_t>(stats->m_spellCooldown[index]) >= 0 ? static_cast<int32_t>(stats->m_spellCooldown[index]) : spell.m_recoveryTime;
+            int32_t recovery = 0;
             int32_t category = 0;
             int32_t categoryRecovery = 0;
+            Spell_C_GetItemSpellCooldowns(&spell, static_cast<int32_t>(stats->m_spellCooldown[index]), static_cast<int32_t>(stats->m_spellCategory[index]), static_cast<int32_t>(stats->m_spellCategoryCooldown[index]), recovery, category, categoryRecovery);
 
-            if (param) {
-                category = static_cast<int32_t>(stats->m_spellCategory[index]) > 0 ? static_cast<int32_t>(stats->m_spellCategory[index]) : spell.m_category;
-                categoryRecovery = static_cast<int32_t>(stats->m_spellCategoryCooldown[index]) >= 0 ? static_cast<int32_t>(stats->m_spellCategoryCooldown[index]) : spell.m_categoryRecoveryTime;
+            if (category <= 0) {
+                category = spell.m_category;
+            }
+
+            if (!param) {
+                category = 0;
+                categoryRecovery = 0;
             }
 
             if (recovery || categoryRecovery) {

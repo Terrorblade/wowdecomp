@@ -187,6 +187,11 @@ void OnCooldownDestroyed(const void* frame) {
 
 static int32_t Packet_SMSG_COOLDOWN_RATE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     Net::Packet packet(msg);
+
+    if (!packet.CanRead(sizeof(float) + sizeof(uint8_t))) {
+        return 1;
+    }
+
     float rate = packet.GetFloat();
     uint8_t flags = packet.GetUInt8();
 

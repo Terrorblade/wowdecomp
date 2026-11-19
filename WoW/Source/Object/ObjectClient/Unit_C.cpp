@@ -430,7 +430,7 @@ int32_t UnitPowerUpdateHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fiel
 
     if (g_predictedPowerCVar->m_intValue && (guid == ClntObjMgrGetActivePlayer() || guid == CGPetInfo::GetPet(0))) {
         int32_t power = powerType == POWER_TYPE_HEALTH ? unit->m_unit->m_unitFieldHealth : unit->m_unit->m_unitFieldPower[powerType];
-        int32_t predicted = g_predictedPowerCVar->m_intValue ? unit->m_predictedPower[powerType] : (powerType == POWER_TYPE_HEALTH ? unit->m_unit->m_unitFieldHealth : unit->m_unit->m_unitFieldPower[powerType]);
+        int32_t predicted = unit->GetPredictedPower(powerType);
 
         if (power <= predicted) {
             return 1;
@@ -2155,10 +2155,11 @@ void CGUnit_C::UpdateDelayedSpellVisualKits() {
             }
         }
 
-        delayed->m_flags &= ~0x8;
+        // PlaySpellVisualKit can queue another kit and reallocate the array.
+        this->m_delayedSpellVisualKits.m_data[i].m_flags &= ~0x8;
     }
 
-    if (!pending && count) {
+    if (!pending && count == this->m_delayedSpellVisualKits.m_count) {
         this->m_delayedSpellVisualKits.SetCount(0);
     }
 }
@@ -8255,7 +8256,7 @@ bool CGUnit_C::DoNotPlayWoundAnim() const {
 void CGUnit_C::CreateFishingLineEffect() {
     CGObject_C* bobber = ClntObjMgrObjectPtr(this->m_unit->m_unitFieldChannelObject, TYPE_GAMEOBJECT, __FILE__, __LINE__);
 
-    if (!bobber || !this->m_unit->m_unitChannelSpell || static_cast<CGGameObject_C*>(bobber)->m_gameObject->m_typeID != 17) {
+    if (!bobber || !this->m_unit->m_unitChannelSpell || static_cast<CGGameObject_C*>(bobber)->m_gameObject->m_typeID != 17 || !this->m_worldModel) {
         return;
     }
 
@@ -8713,13 +8714,16 @@ void CGUnit_C::UpdateAuraEffectMask() {
     for (uint32_t i = 0; i < this->GetAuraCount(); i++) {
         AuraData* aura = this->GetAura(i);
 
-        if (!g_spellDB.GetRecord(aura->m_spellId, &spell)) {
+        if (!aura->m_spellId || !(aura->m_flags & 0x7) || !g_spellDB.GetRecord(aura->m_spellId, &spell)) {
             continue;
         }
 
         for (int32_t effect = 0; effect < 3; effect++) {
-            if (aura->m_flags & (1 << effect)) {
-                this->m_auraEffectMask[spell.m_effectAura[effect] / 8] |= 1 << (spell.m_effectAura[effect] % 8);
+            uint32_t auraType = static_cast<uint32_t>(spell.m_effectAura[effect]);
+
+            // Custom aura types can be past the end of the 320 bit mask.
+            if ((aura->m_flags & (1 << effect)) && auraType < sizeof(this->m_auraEffectMask) * 8) {
+                this->m_auraEffectMask[auraType / 8] |= 1 << (auraType % 8);
             }
         }
     }
@@ -8893,6 +8897,10 @@ void CGUnit_C::UpdateObjectEffectAnimationStates() {
 // VERIFY: 91123c63 manual
 // OFFSET: 0x005A1120
 bool CGUnit_C::HasAuraEffect(int32_t auraType) const {
+    if (static_cast<uint32_t>(auraType) >= sizeof(this->m_auraEffectMask) * 8) {
+        return false;
+    }
+
     return (this->m_auraEffectMask[auraType / 8] & (1 << (auraType % 8))) != 0;
 }
 
@@ -12031,16 +12039,16 @@ int32_t CGUnit_C::GetPredictedHealth() const {
 // VERIFY: cbdca188 auto
 // OFFSET: 0x0071C2E0
 int32_t CGUnit_C::GetPredictedPower(POWER_TYPE powerType) const {
-    if (static_cast<int32_t>(powerType) >= NUM_POWER_TYPES) {
+    if (powerType == POWER_TYPE_HEALTH) {
+        return g_predictedPowerCVar->m_intValue ? this->m_predictedHealth : this->m_unit->m_unitFieldHealth;
+    }
+
+    if (static_cast<uint32_t>(powerType) >= NUM_POWER_TYPES) {
         return 0;
     }
 
     if (g_predictedPowerCVar->m_intValue) {
         return this->m_predictedPower[powerType];
-    }
-
-    if (powerType == POWER_TYPE_HEALTH) {
-        return this->m_unit->m_unitFieldHealth;
     }
 
     return this->m_unit->m_unitFieldPower[powerType];
@@ -12051,10 +12059,11 @@ int32_t CGUnit_C::GetPredictedPower(POWER_TYPE powerType) const {
 bool CGUnit_C::IgnoresAuraState(const SpellRec* spell) const {
     const CGUnit_C* unit = this;
 
-    while (unit->m_unit->m_unitFieldCreatedby) {
+    // The depth cap stops a server sent created-by cycle from hanging the client.
+    for (uint32_t depth = 0; unit->m_unit->m_unitFieldCreatedby && depth < 32; depth++) {
         const CGUnit_C* creator = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(unit->m_unit->m_unitFieldCreatedby, TYPE_UNIT, __FILE__, __LINE__));
 
-        if (!creator) {
+        if (!creator || creator == unit) {
             break;
         }
 
@@ -13622,7 +13631,7 @@ void AuraData::Unpack(CGUnit_C* unit, uint32_t time, CDataStore* msg) {
     }
 
     msg->Get(reinterpret_cast<uint32_t&>(this->m_duration));
-    uint32_t remaining;
+    uint32_t remaining = 0;
     msg->Get(remaining);
     this->m_endTime = remaining + time;
 
@@ -15617,7 +15626,7 @@ bool CGUnit_C::AffectedByAura(int32_t auraType, const SpellRec* spell) const {
     for (uint32_t i = 0; i < this->GetAuraCount(); i++) {
         const AuraData* aura = &const_cast<CGUnit_C*>(this)->m_auras[i];
 
-        if (!g_spellDB.GetRecord(aura->m_spellId, &auraSpell)) {
+        if (!aura->m_spellId || !(aura->m_flags & 0x7) || !g_spellDB.GetRecord(aura->m_spellId, &auraSpell)) {
             continue;
         }
 
@@ -16769,7 +16778,7 @@ store:
     }
 
     for (uint32_t i = 0; i < 4; i++) {
-        if (kit->m_charProc[i] == 11 && !this->m_worldModel->IsLoaded(0, 0)) {
+        if (kit->m_charProc[i] == 11 && (!this->m_worldModel || !this->m_worldModel->IsLoaded(0, 0))) {
             this->m_pendingModelAuraSpellId = spell->m_id;
             goto handItems;
         }
@@ -18494,6 +18503,7 @@ void CGUnit_C::ReleaseMissiles(const C3Vector& position) {
         }
 
         if (!g_spellDB.GetRecord(this->m_missiles->m_spellID, &spell)) {
+            this->m_missiles->DeleteSelf();
             continue;
         }
 
@@ -21110,6 +21120,13 @@ void CGUnit_C::CreateProceduralEffect(const SpellRec* spell, const SpellVisualRe
                 CEffect* effect = mem ? new (mem) CEffect() : nullptr;
                 WOWGUID self = this->m_obj->m_guid;
                 effect->AddLightning(expireTime, spellId, kit, &self, flags & 0x300401);
+
+                // An unlinked effect is freed by this Release and must not reach the chain below.
+                if (!effect->m_prevLink) {
+                    effect->Release();
+                    break;
+                }
+
                 effect->Release();
 
                 WOWGUID source = WOWGUID();

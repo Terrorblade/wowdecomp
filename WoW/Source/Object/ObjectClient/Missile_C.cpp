@@ -322,7 +322,6 @@ void CMissile::UpdateProgress(float distance) {
 
     this->m_progress = progress;
 
-    impact = this->TransformPositionByTransport();
     float hx = impact.x - this->m_position.x;
     float hy = impact.y - this->m_position.y;
     float total = sqrt(dxSq + dySq);
@@ -410,7 +409,6 @@ int32_t CMissile::CallMotionScriptFunction(SimpleScriptIO& io) {
     io.m_numbers.m_data[5] = sqrt(dz * dz + dy * dy + dx * dx);
     io.m_numbers.m_data[6] = this->m_initialDistance;
 
-    impact = this->TransformPositionByTransport();
     dx = impact.x - this->m_launchPos.x;
     dy = impact.y - this->m_launchPos.y;
     dz = impact.z - this->m_launchPos.z;
@@ -420,7 +418,20 @@ int32_t CMissile::CallMotionScriptFunction(SimpleScriptIO& io) {
     io.m_numbers.m_data[10] = this->m_random[2];
     io.m_numbers.m_data[11] = this->m_spellID;
 
-    if (!CSimpleScriptManager::s_instance->CallFunction(this->m_motionScriptFunction, io, io)) {
+    CSimpleScriptManager* manager = CSimpleScriptManager::s_instance;
+
+    if (!manager) {
+        return 0;
+    }
+
+    SimpleScriptFunction* function = manager->GetFunction(this->m_motionScriptFunction);
+
+    // Handles from a script manager destroyed by a UI reload resolve to nothing or to another motion's function.
+    if (!function || function->m_id != this->m_motionId) {
+        this->InstallMotionScriptFunction(this->m_motionId);
+    }
+
+    if (!manager->CallFunction(this->m_motionScriptFunction, io, io)) {
         return 0;
     }
 
@@ -946,7 +957,18 @@ CMissile::CMissile() {
     this->m_random[2] = 0.0f;
     this->m_targetingUnit = WOWGUID();
     this->m_targetingEffectTime = 0;
+    this->m_castID = 0;
+    this->m_missReason = 0;
+    this->m_pitch = 0.0f;
+    this->m_trajectorySpeed = 0.0f;
+    this->m_travelTime = 0.0f;
+    this->m_arrivalTime = 0;
+    this->m_adjustTime = 0;
+    this->m_adjustedDuration = 0;
+    this->m_gravity = 0.0f;
+    this->m_fireTime = 0;
     this->m_motionScriptFunction = -1;
+    this->m_motionId = 0;
     this->m_smoothDirection = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_lastTransportPos = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_transportOffset.m_position = C3Vector(0.0f, 0.0f, 0.0f);
@@ -1035,6 +1057,10 @@ CMissile* CMissile::CopyMissile(const CMissile* source) {
     missile->m_casterGuid = source->m_casterGuid;
     missile->m_targetGuid = source->m_targetGuid;
     missile->m_spellID = source->m_spellID;
+    missile->m_castID = source->m_castID;
+    missile->m_pitch = source->m_pitch;
+    missile->m_trajectorySpeed = source->m_trajectorySpeed;
+    missile->m_arrivalTime = source->m_arrivalTime;
     missile->m_speed = source->m_speed;
     missile->m_baseSpeed = source->m_baseSpeed;
     missile->m_position = source->m_position;
@@ -1061,6 +1087,7 @@ CMissile* CMissile::CopyMissile(const CMissile* source) {
     missile->m_missileIndex = source->m_missileIndex;
     missile->m_missileCount = source->m_missileCount;
     missile->m_motionScriptFunction = source->m_motionScriptFunction;
+    missile->m_motionId = source->m_motionId;
     missile->m_initialDistance = source->m_initialDistance;
     missile->m_random[0] = source->m_random[0];
     missile->m_random[1] = source->m_random[1];
@@ -1202,7 +1229,7 @@ void CMissile::InitializeTrajectory() {
     int32_t hasSpell = g_spellDB.GetRecord(this->m_spellID, &spell);
     SpellMissileRec* missile = hasSpell ? g_spellMissileDB.GetRecord(spell.m_spellMissileID) : nullptr;
     this->m_gravity = missile ? missile->m_gravity : 19.291105f;
-    float speed;
+    float speed = this->m_trajectorySpeed;
     int32_t result = SpellUtils_ComputeMissileTrajectory(pitch, &delta, this->m_gravity, &speed, &this->m_travelTime, &velocity);
 
     if (!result) {
@@ -1270,9 +1297,13 @@ void CMissile::InitializeTrajectory() {
         this->m_baseSpeed = newSpeed;
     }
 
-    if ((this->m_flags & 0x200000) && (missile->m_flags & 0x3C)) {
+    if ((this->m_flags & 0x200000) && missile && (missile->m_flags & 0x3C)) {
         CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPE_UNIT, __FILE__, __LINE__));
-        this->m_missileCollision = CMissileCollision::Alloc();
+
+        if (!this->m_missileCollision) {
+            this->m_missileCollision = CMissileCollision::Alloc();
+        }
+
         CGUnit_C* root = caster && caster->m_vehiclePassenger && caster->m_vehiclePassenger->m_transitionVehicleGuid ? caster->m_vehiclePassenger->GetStoredRootVehicleUnit() : caster;
         C3Vector end = this->TransformPositionByTransport();
         this->m_missileCollision->Init(&this->m_launchPos, &end, pitch, speed, missile, root);
@@ -1325,7 +1356,7 @@ void CMissile::HitTargetAreaEffect(const SpellRec* spell, const SpellVisualRec* 
         }
 
         if (hitResultCount) {
-            uint32_t result = this->m_targetHitResults.m_data[i];
+            uint32_t result = i < hitResultCount ? this->m_targetHitResults.m_data[i] : 0;
 
             if (result && !(this->m_flags & 0x100) && !this->m_missileIndex) {
                 if (spell && !(spell->m_attributes & 0x100)) {
@@ -1636,7 +1667,7 @@ void CMissile::HandleMissileTrajectoryCollision(const C3Vector* direction) {
 // OFFSET: 0x007015D0
 void CMissile::CalcPosition(int32_t advance) {
     uint32_t now = OsGetAsyncTimeMs();
-    float elapsed = advance ? (now - this->m_lastUpdateTime) * 0.001f : 0.0f;
+    float elapsed = advance ? static_cast<int32_t>(now - this->m_lastUpdateTime) * 0.001f : 0.0f;
     this->m_lastUpdateTime = now;
 
     if (0.0f == this->m_speed) {
@@ -1660,7 +1691,7 @@ void CMissile::CalcPosition(int32_t advance) {
     if (this->m_victimAnimTime && static_cast<int32_t>(now - this->m_victimAnimTime) >= 0) {
         this->m_victimAnimTime = 0;
 
-        if (targetIsUnit) {
+        if (targetIsUnit && target->m_worldModel) {
             uint32_t animId = (this->m_flags & 0x10) ? 24 : 30;
             M2SequenceInfo info;
             info.Clear();
@@ -1744,11 +1775,10 @@ void CMissile::CalcPosition(int32_t advance) {
         float t = (now - this->m_fireTime) / static_cast<float>(this->m_duration);
         this->m_progress = t;
         this->m_horizontalProgress = t;
-        C3Vector target = this->TransformPositionByTransport();
         float keep = 1.0f - this->m_progress;
-        this->m_position.x = target.x * t + this->m_launchPos.x * keep;
-        this->m_position.y = target.y * t + this->m_launchPos.y * keep;
-        this->m_position.z = keep * this->m_launchPos.z + target.z * t;
+        this->m_position.x = impact.x * t + this->m_launchPos.x * keep;
+        this->m_position.y = impact.y * t + this->m_launchPos.y * keep;
+        this->m_position.z = keep * this->m_launchPos.z + impact.z * t;
     } else {
         if (step > 0.0f) {
             if (this->m_flags & 0x4000) {
@@ -1801,7 +1831,7 @@ void CMissile::CalcPosition(int32_t advance) {
         this->m_lastModelPos = C3Vector(matrix.d0, matrix.d1, matrix.d2);
 
         if (this->m_fizzleTime) {
-            float fade = (this->m_fizzleTime - now) * 0.0020000001f;
+            float fade = static_cast<int32_t>(this->m_fizzleTime - now) * 0.0020000001f;
             this->m_model->m_fadeAlpha = fclamp(fade, 0.0f, 1.0f);
 
             if (fade <= 0.0f) {
@@ -1873,7 +1903,7 @@ void CMissile::MissedTarget(CGUnit_C* target, const C3Vector* direction) {
             this->m_flags |= 0x100;
         }
 
-        if (!(this->m_flags & 0x58)) {
+        if (!(this->m_flags & 0x58) && target->m_worldModel) {
             M2SequenceInfo info;
             info.Clear();
             target->m_worldModel->GetSequenceInfo(30, 0, info);
@@ -2088,7 +2118,11 @@ void CMissile::FireMissiles(const C3Vector* position) {
                 uint32_t animId = (this->m_flags & 0x10) ? 24 : 30;
                 M2SequenceInfo info;
                 info.Clear();
-                target->m_worldModel->GetSequenceInfo(animId, 0, info);
+
+                if (target->m_worldModel) {
+                    target->m_worldModel->GetSequenceInfo(animId, 0, info);
+                }
+
                 int32_t delay = FloatToInt64(remainingTime * 1000.0f) - (info.m_duration >> 1);
 
                 if (delay <= 0) {
@@ -2194,7 +2228,15 @@ void CMissile::UpdateStaticLists() {
 // VERIFY: 589857c0 auto
 // OFFSET: 0x006FF0A0
 void CMissile::InstallMotionScriptFunction(int32_t motionId) {
-    this->m_motionScriptFunction = CSimpleScriptManager::s_instance->FindFunction(motionId);
+    this->m_motionId = motionId;
+    this->m_motionScriptFunction = -1;
+    CSimpleScriptManager* manager = CSimpleScriptManager::s_instance;
+
+    if (!manager) {
+        return;
+    }
+
+    this->m_motionScriptFunction = manager->FindFunction(motionId);
 
     if (this->m_motionScriptFunction != -1) {
         return;
@@ -2213,5 +2255,5 @@ void CMissile::InstallMotionScriptFunction(int32_t motionId) {
     desc.m_body = motion->m_scriptBody;
     desc.m_returns = s_msfReturns;
     desc.m_stringReturns = nullptr;
-    this->m_motionScriptFunction = CSimpleScriptManager::s_instance->CreateFunction(motionId, desc);
+    this->m_motionScriptFunction = manager->CreateFunction(motionId, desc);
 }

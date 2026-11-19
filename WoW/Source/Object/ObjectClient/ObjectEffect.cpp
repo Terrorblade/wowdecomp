@@ -241,6 +241,44 @@ void InitObjectEffectStateMap() {
 // VERIFY: 56342ab3 auto
 // OFFSET: 0x006F2B40
 void ObjectEffectSystem_ShutDown() {
+    for (OBJ_EFFECT_PACKAGE_DEF_LOOKUP* packageLookup = s_packageDefLookup.Head(); packageLookup; packageLookup = s_packageDefLookup.Next(packageLookup)) {
+        CObjectEffectPackageDef& packageDef = packageLookup->m_objectEffectPackageDef;
+
+        for (OBJ_EFFECT_GROUP_DEF_REF_LIST_LOOKUP* refList = packageDef.m_stateGroupRefs.Head(); refList; refList = packageDef.m_stateGroupRefs.Next(refList)) {
+            refList->m_groupDefRefs.Clear();
+        }
+
+        for (OBJ_EFFECT_GROUP_DEF_REF_LIST_LOOKUP* refList = packageDef.m_eventGroupRefs.Head(); refList; refList = packageDef.m_eventGroupRefs.Next(refList)) {
+            refList->m_groupDefRefs.Clear();
+        }
+
+        packageDef.m_stateGroupRefs.Clear();
+        packageDef.m_eventGroupRefs.Clear();
+    }
+
+    for (OBJ_EFFECT_GROUP_DEF_LOOKUP* groupLookup = s_groupDefLookup.Head(); groupLookup; groupLookup = s_groupDefLookup.Next(groupLookup)) {
+        CObjectEffectGroupDef& groupDef = groupLookup->m_objectEffectGroupDef;
+        groupDef.m_enterEffects.Clear();
+        groupDef.m_loopEffects.Clear();
+        groupDef.m_exitEffects.Clear();
+        groupDef.m_eventEffects.Clear();
+    }
+
+    for (OBJ_EFFECT_DEF_LOOKUP* effectLookup = s_effectDefLookup.Head(); effectLookup; effectLookup = s_effectDefLookup.Next(effectLookup)) {
+        CObjectEffectModifier* modifier = effectLookup->m_objectEffectDef.m_modifier;
+
+        if (!modifier) {
+            continue;
+        }
+
+        if (modifier->m_params) {
+            SMemFree(modifier->m_params, __FILE__, __LINE__, 0);
+        }
+
+        SMemFree(modifier, __FILE__, __LINE__, 0);
+        effectLookup->m_objectEffectDef.m_modifier = nullptr;
+    }
+
     s_effectDefLookup.Clear();
     s_groupDefLookup.Clear();
     s_packageDefLookup.Clear();
@@ -278,6 +316,11 @@ void ObjectEffectSystem_Initialize() {
         }
 
         OBJ_EFFECT_GROUP_DEF_LOOKUP* groupLookup = s_groupDefLookup.Ptr(rec->m_objectEffectGroupID, s_hashKeyNone);
+
+        if (!groupLookup) {
+            continue;
+        }
+
         OBJ_EFFECT_GROUP_DEF_REF_LIST_LOOKUP* refList = packageLookup->m_objectEffectPackageDef.m_stateGroupRefs.Ptr(rec->m_stateType, s_hashKeyNone);
 
         if (!refList) {
@@ -304,7 +347,7 @@ void ObjectEffectSystem_Initialize() {
 
         ObjectEffectModifierRec* modifierRec = rec->m_objectEffectModifierID ? g_objectEffectModifierDB.GetRecord(rec->m_objectEffectModifierID) : nullptr;
 
-        if (rec->m_objectEffectModifierID && modifierRec->m_inputType > 0 && modifierRec->m_mapType > 0 && modifierRec->m_outputType > 0) {
+        if (modifierRec && modifierRec->m_inputType == 1 && modifierRec->m_mapType == 1 && modifierRec->m_outputType == 1) {
             effectLookup->m_objectEffectDef.m_modifier = new (SMemAlloc(sizeof(CObjectEffectModifier), __FILE__, __LINE__, 0)) CObjectEffectModifier();
             effectLookup->m_objectEffectDef.m_modifier->Init(modifierRec);
 
@@ -316,6 +359,11 @@ void ObjectEffectSystem_Initialize() {
         }
 
         OBJ_EFFECT_GROUP_DEF_LOOKUP* groupLookup = s_groupDefLookup.Ptr(rec->m_objectEffectGroupID, s_hashKeyNone);
+
+        if (!groupLookup || rec->m_triggerType < 1 || rec->m_triggerType > 4) {
+            continue;
+        }
+
         CObjectEffectDefRef* effectRef = new (SMemAlloc(sizeof(CObjectEffectDefRef), __FILE__, __LINE__, 0)) CObjectEffectDefRef();
         effectRef->m_effectDef = &effectLookup->m_objectEffectDef;
 
@@ -341,7 +389,7 @@ void ObjectEffectSystem_Initialize() {
     for (OBJ_EFFECT_PACKAGE_DEF_LOOKUP* packageLookup = s_packageDefLookup.m_fulllist.Head(); packageLookup; packageLookup = s_packageDefLookup.Next(packageLookup)) {
         CObjectEffectPackageDef& packageDef = packageLookup->m_objectEffectPackageDef;
 
-        for (OBJ_EFFECT_GROUP_DEF_REF_LIST_LOOKUP* stateRefList = packageDef.m_stateGroupRefs.m_fulllist.Head(); stateRefList; stateRefList = packageDef.m_eventGroupRefs.Next(stateRefList)) {
+        for (OBJ_EFFECT_GROUP_DEF_REF_LIST_LOOKUP* stateRefList = packageDef.m_stateGroupRefs.m_fulllist.Head(); stateRefList; stateRefList = packageDef.m_stateGroupRefs.Next(stateRefList)) {
             for (CObjectEffectGroupDefRef* groupRef = stateRefList->m_groupDefRefs.Head(); groupRef; groupRef = stateRefList->m_groupDefRefs.Next(groupRef)) {
                 for (CObjectEffectDefRef* effectRef = groupRef->m_groupDef->m_eventEffects.Head(); effectRef; effectRef = groupRef->m_groupDef->m_eventEffects.Next(effectRef)) {
                     ObjectEffectRec* effectRec = g_objectEffectDB.GetRecord(effectRef->m_effectDef->m_id);
@@ -361,7 +409,9 @@ void ObjectEffectSystem_Initialize() {
                         continue;
                     }
 
-                    eventRefList = packageDef.m_eventGroupRefs.New(effectRec->m_eventType, s_hashKeyNone, 0, 0);
+                    if (!eventRefList) {
+                        eventRefList = packageDef.m_eventGroupRefs.New(effectRec->m_eventType, s_hashKeyNone, 0, 0);
+                    }
 
                     CObjectEffectGroupDefRef* eventRef = new (SMemAlloc(sizeof(CObjectEffectGroupDefRef), __FILE__, __LINE__, 0)) CObjectEffectGroupDefRef();
                     eventRef->m_groupDef = groupRef->m_groupDef;
@@ -590,9 +640,6 @@ void CObjectEffectManager::UpdateAllPlayingEffects() {
                 effect = this->m_oneShotEffects.Next(effect);
                 continue;
             }
-        } else if (effect->m_def->m_effectRecType == 2) {
-            effect = this->m_oneShotEffects.Next(effect);
-            continue;
         }
 
         int32_t modifierId = effect->m_def->m_modifier ? effect->m_def->m_modifier->m_id : 0;
@@ -673,22 +720,25 @@ void CObjectEffectManager::ExitState(uint32_t state, int32_t playExitEffects) {
             }
         }
 
-        int32_t clear = 1;
         OBJ_EFFECT_GROUP_LOOKUP* group = this->m_groups.Ptr(groupRef->m_groupDef->m_id, s_hashKeyNone);
 
         if (!group) {
             continue;
         }
 
-        for (OBJ_EFFECT_REF_LOOKUP* lookup = group->m_effects.m_fulllist.Head(); lookup; lookup = group->m_effects.Next(lookup)) {
+        OBJ_EFFECT_REF_LOOKUP* lookup = group->m_effects.m_fulllist.Head();
+
+        while (lookup) {
             CObjectEffect* effect = lookup->m_effect;
             effect->m_refCount--;
 
-            if (effect->m_refCount) {
-                clear = 0;
+            if (effect->m_refCount > 0) {
+                lookup = group->m_effects.Next(lookup);
                 continue;
             }
 
+            lookup = group->m_effects.DeleteNode(lookup);
+            effect->m_refCount = 0;
             this->m_loopingEffects.UnlinkNode(effect);
             this->m_oneShotEffects.LinkToTail(effect);
 
@@ -699,10 +749,6 @@ void CObjectEffectManager::ExitState(uint32_t state, int32_t playExitEffects) {
                     SI2::StopSound(&effect->m_soundKitObject, 0, -1.0f, 1);
                 }
             }
-        }
-
-        if (clear) {
-            group->m_effects.InternalClear(0);
         }
     }
 }
@@ -728,9 +774,9 @@ void CObjectEffectManager::PlayLoopingEffect(CObjectEffectDef* def, int32_t grou
 
         if (effect->m_def->m_effectRecType == 1) {
             effect->m_soundKitObject.m_sound.FadeInNow();
-            effect->m_refCount++;
         }
 
+        effect->m_refCount++;
         return;
     }
 
@@ -785,6 +831,11 @@ void CObjectEffectManager::ShutDown() {
     }
 
     this->m_refLists.Clear();
+
+    for (OBJ_EFFECT_GROUP_LOOKUP* group = this->m_groups.Head(); group; group = this->m_groups.Next(group)) {
+        group->m_effects.Clear();
+    }
+
     this->m_groups.Clear();
 
     while (CObjectEffect* effect = this->m_loopingEffects.Head()) {

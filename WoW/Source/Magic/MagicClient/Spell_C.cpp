@@ -478,6 +478,10 @@ int32_t QuestTextParser::Spell_C_SpellGetSpellIDForDifficulty(int32_t spellId) {
         return spellId;
     }
 
+    if (index >= sizeof(difficulty->m_difficultySpellID) / sizeof(difficulty->m_difficultySpellID[0])) {
+        index = 0;
+    }
+
     int32_t result = difficulty->m_difficultySpellID[index];
 
     if (result || (index == 3 && (result = difficulty->m_difficultySpellID[1]) != 0)) {
@@ -757,6 +761,15 @@ void Spell_C_Initialize() {
     s_enableErrorSpeechCVar = CVar::Lookup("Sound_EnableErrorSpeech");
 }
 
+// DBC and server values index these masks, anything outside 0..31 has no bit.
+static inline uint32_t SpellMaskBit(int32_t bit) {
+    return bit >= 0 && bit < 32 ? 1u << bit : 0;
+}
+
+static inline uint32_t SpellMaskBitOneBased(int32_t index) {
+    return index >= 1 && index <= 32 ? 1u << (index - 1) : 0;
+}
+
 // INLINED
 inline PendingSpellCast::PendingSpellCast() : m_isTrajectoryCast(0) {
 }
@@ -774,6 +787,8 @@ PendingSpellCast* CreatePendingSpellCast(bool assignCastCount) {
     memset(&cast->m_data, 0, sizeof(PendingSpellCastData));
     cast->m_hidden = 0;
     cast->m_isTrajectoryCast = 0;
+    cast->m_dwordC = 0;
+    cast->m_petGuid = WOWGUID{ 0 };
 
     if (assignCastCount) {
         uint8_t castCount = s_nextCastCount;
@@ -794,10 +809,29 @@ PendingSpellCast* CreatePendingSpellCast(bool assignCastCount) {
 void ReleasePendingSpellCast(PendingSpellCast* cast) {
     for (PendingSpellCast* node = s_pendingSpellCasts.Head(); node; node = s_pendingSpellCasts.Next(node)) {
         if (node == cast) {
+            if (cast == s_delayedTrajectoryCast) {
+                s_delayedTrajectoryCast = nullptr;
+            }
+
             s_freePendingSpellCasts.LinkToTail(cast);
             return;
         }
     }
+}
+
+static void ReleaseOrphanedPendingSpellCast(PendingSpellCast* cast) {
+    if (cast == s_targetingSpell) {
+        s_needTargets = 0;
+        s_targetingSpell = nullptr;
+        CursorSetResetMode(POINT_CURSOR);
+        CursorSetMode(POINT_CURSOR);
+        Spell_C_DestroySpellWorldObject();
+        CGInputControl* input = CGInputControl::GetActive();
+        input->m_mouseModeFlags &= ~0x10u;
+        input->UpdateMouseMode(0);
+    }
+
+    ReleasePendingSpellCast(cast);
 }
 
 // VERIFY: 4917a9ff manual
@@ -997,7 +1031,7 @@ static int32_t Spell_C_GetCasterRecord(const WOWGUID& caster, int32_t spellId, S
 void PendingSpellCast::OnSpellStartPacket(CDataStore* msg) {
     WOWGUID caster = this->m_data.m_caster;
     uint32_t castFlags = this->m_data.m_castFlags;
-    uint32_t castTime;
+    uint32_t castTime = 0;
     msg->Get(castTime);
     SpellGetCastTargets(&this->m_data, msg);
     uint32_t power = 0;
@@ -1055,17 +1089,11 @@ void PendingSpellCast::OnSpellStartPacket(CDataStore* msg) {
     if (hasPower && !(unit->m_unit->m_unitFieldFlags2 & 0x100)) {
         if (spell.m_powerType == POWER_TYPE_HEALTH) {
             unit->SetPredictedHealth(power);
-        } else if (spell.m_powerType == POWER_TYPE_RUNES) {
-            if (caster == ClntObjMgrGetActivePlayer() && hasRunes) {
+        } else {
+            if (spell.m_powerType == POWER_TYPE_RUNES && caster == ClntObjMgrGetActivePlayer() && hasRunes) {
                 CGRuneInfo::SetPredictedRunes(runesBefore, runesAfter, runeCooldowns);
             }
-        } else {
-            unit->SetPredictedPower(static_cast<POWER_TYPE>(spell.m_powerType), power);
-        }
 
-        if (spell.m_powerType == POWER_TYPE_HEALTH) {
-            unit->SetPredictedHealth(power);
-        } else {
             unit->SetPredictedPower(static_cast<POWER_TYPE>(spell.m_powerType), power);
         }
     }
@@ -1128,12 +1156,17 @@ int32_t Packet_Group_30(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
     SmartGUID caster;
     *msg >> castItem;
     *msg >> caster;
-    uint8_t castCount;
+    uint8_t castCount = 0;
     msg->Get(castCount);
-    uint32_t spellId;
+    uint32_t spellId = 0;
     msg->Get(spellId);
-    uint32_t castFlags;
+    uint32_t castFlags = 0;
     msg->Get(castFlags);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     PendingSpellCast local;
     PendingSpellCast* cast = GetPendingSpellCast(castCount, spellId, caster);
 
@@ -1168,20 +1201,23 @@ void CGUnit_C::SetPredictedPower(POWER_TYPE powerType, int32_t value) {
         return;
     }
 
-    uint32_t maximum = powerType == POWER_TYPE_HEALTH ? this->m_unit->m_unitFieldMaxhealth : this->m_unit->m_unitFieldMaxpower[powerType];
+    bool health = powerType == POWER_TYPE_HEALTH;
+    uint32_t maximum = health ? this->m_unit->m_unitFieldMaxhealth : this->m_unit->m_unitFieldMaxpower[powerType];
 
     if (static_cast<int32_t>(maximum) < value) {
         value = maximum;
     }
 
-    if (value == this->m_predictedPower[powerType]) {
+    int32_t& predicted = health ? this->m_predictedHealth : this->m_predictedPower[powerType];
+
+    if (value == predicted) {
         return;
     }
 
-    this->m_predictedPower[powerType] = value;
+    predicted = value;
 
     if (static_cast<uint32_t>(value) == maximum) {
-        Script_SendUnitSignal(this->m_obj->m_guid, powerType + 19);
+        Script_SendUnitSignal(this->m_obj->m_guid, health ? SCRIPT_EVENT_UNIT_HEALTH : powerType + SCRIPT_EVENT_UNIT_MANA);
     }
 
     if (this->m_obj->m_guid == ClntObjMgrGetActivePlayer() || this->m_obj->m_guid == CGPetInfo::GetPet(0)) {
@@ -1606,15 +1642,15 @@ void SpellHistory::ClearOnHold(int32_t spellId, uint32_t time, bool remove) {
 int32_t Packet_SMSG_SPELL_FAILURE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     SmartGUID caster;
     *msg >> caster;
-    uint8_t castCount;
+    uint8_t castCount = 0;
     msg->Get(castCount);
-    uint32_t spellId;
+    uint32_t spellId = 0;
     msg->Get(spellId);
-    uint8_t reason;
+    uint8_t reason = 0;
     msg->Get(reason);
     SpellRec spell;
 
-    if (!g_spellDB.GetRecord(spellId, &spell)) {
+    if (msg->m_read > msg->m_size || !g_spellDB.GetRecord(spellId, &spell)) {
         return 1;
     }
 
@@ -1637,6 +1673,8 @@ int32_t Packet_SMSG_SPELL_FAILURE(void* param, NETMESSAGE msgId, uint32_t time, 
     if (casterUnit) {
         HandleSpellFailedOrGo(casterUnit, cast, &spell, reason);
         FinishPendingSpellCast(cast, &spell, casterUnit);
+    } else {
+        ReleaseOrphanedPendingSpellCast(cast);
     }
 
     return 1;
@@ -1654,12 +1692,17 @@ int32_t Packet_SMSG_PET_CAST_FAILED(void* param, NETMESSAGE msgId, uint32_t time
         pet = WOWGUID();
     }
 
-    uint8_t castCount;
-    uint32_t spellId;
-    uint8_t reason;
+    uint8_t castCount = 0;
+    uint32_t spellId = 0;
+    uint8_t reason = 0;
     msg->Get(castCount);
     msg->Get(spellId);
     msg->Get(reason);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     uint32_t misc1 = -1;
     uint32_t misc2 = -1;
 
@@ -1692,9 +1735,9 @@ int32_t Packet_SMSG_PET_CAST_FAILED(void* param, NETMESSAGE msgId, uint32_t time
 int32_t Packet_SMSG_SPELL_COOLDOWN(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     bool startRecovery = false;
     bool ignoreEvent = false;
-    WOWGUID guid;
+    WOWGUID guid = { 0 };
     msg->Get(guid.m_guid);
-    uint8_t flags;
+    uint8_t flags = 0;
     msg->Get(flags);
 
     if (flags & 0x1) {
@@ -1791,12 +1834,17 @@ int32_t Packet_SMSG_SPELL_COOLDOWN(void* param, NETMESSAGE msgId, uint32_t time,
 // OFFSET: 0x00809AF0
 int32_t Packet_SMSG_CAST_FAILED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID player = ClntObjMgrGetActivePlayer();
-    uint8_t castCount;
+    uint8_t castCount = 0;
     msg->Get(castCount);
-    uint32_t spellId;
+    uint32_t spellId = 0;
     msg->Get(spellId);
-    uint8_t reason;
+    uint8_t reason = 0;
     msg->Get(reason);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     int32_t customError = -1;
     int32_t customArg = -1;
 
@@ -1909,6 +1957,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
     TSStackArray<WOWGUID> hits(static_cast<WOWGUID*>(alloca(sizeof(WOWGUID) * hitCount)), hitCount, 1);
 
     for (uint32_t i = 0; i < hitCount; i++) {
+        hits.m_data[i].m_guid = 0;
         msg->Get(hits.m_data[i].m_guid);
     }
 
@@ -1919,6 +1968,8 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
     TSStackArray<uint32_t> reflectResults(static_cast<uint32_t*>(alloca(sizeof(uint32_t) * missCount)), missCount, 1);
 
     for (uint32_t i = 0; i < missCount; i++) {
+        misses.m_data[i].m_guid = 0;
+        reflectResults.m_data[i] = 0;
         msg->Get(misses.m_data[i].m_guid);
         uint8_t value = 0;
         msg->Get(value);
@@ -1962,15 +2013,12 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         msg->Get(delay);
     }
 
-    uint32_t ammoDisplayId;
-    uint32_t ammoInventoryType;
+    uint32_t ammoDisplayId = 0;
+    uint32_t ammoInventoryType = 0;
 
     if (castFlags & 0x20) {
         msg->Get(ammoDisplayId);
         msg->Get(ammoInventoryType);
-    } else {
-        ammoDisplayId = 0;
-        ammoInventoryType = 0;
     }
 
     uint32_t visualA = 0;
@@ -2464,6 +2512,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         } else if (itemId) {
             if (!g_itemDBCache.GetRecord(itemId, castItem, &Spell_C_PendingItemCooldownCallback, reinterpret_cast<void*>(1), false)) {
                 Spell_C_AddPendingItemCooldown(itemId, spellId, now, onHold);
+                ReleasePendingSpellCast(this);
                 return;
             }
 
@@ -2709,11 +2758,10 @@ bool Spell_C_CanTargetObject(const CGGameObject_C* object) {
 // VERIFY: 6491424d auto
 // OFFSET: 0x00801880
 bool Spell_C_CanTargetMe() {
-    if (s_needTargets & 0x850E) {
+    if ((s_needTargets & 0x850E) && s_targetingSpell) {
         SpellRec spell;
-        g_spellDB.GetRecord(s_targetingSpell->m_data.m_spellId, &spell);
 
-        if (!(spell.m_attributesEx & 0x80000)) {
+        if (g_spellDB.GetRecord(s_targetingSpell->m_data.m_spellId, &spell) && !(spell.m_attributesEx & 0x80000)) {
             return true;
         }
     }
@@ -2733,8 +2781,7 @@ bool Spell_C_CanTargetDead() {
     }
 
     SpellRec spell;
-    g_spellDB.GetRecord(s_targetingSpell->m_data.m_spellId, &spell);
-    return (spell.m_attributesExB & 1) != 0;
+    return g_spellDB.GetRecord(s_targetingSpell->m_data.m_spellId, &spell) && (spell.m_attributesExB & 1) != 0;
 }
 
 // VERIFY: 3e9a6e5e manual
@@ -2745,8 +2792,7 @@ bool Spell_C_CanTargetPossessedFriends() {
     }
 
     SpellRec spell;
-    g_spellDB.GetRecord(s_targetingSpell->m_data.m_spellId, &spell);
-    return (spell.m_attributesExF & 0x200) != 0;
+    return g_spellDB.GetRecord(s_targetingSpell->m_data.m_spellId, &spell) && (spell.m_attributesExF & 0x200) != 0;
 }
 
 // VERIFY: 1509504f manual
@@ -2897,7 +2943,7 @@ bool Spell_C::HandleSpriteRay(const WOWGUID& guid, bool checkRange) {
         }
 
         if (spell.m_targetCreatureType) {
-            if (!unit->GetCreatureType() || !((1 << (unit->GetCreatureType() - 1)) & spell.m_targetCreatureType)) {
+            if (!unit->GetCreatureType() || !(SpellMaskBitOneBased(unit->GetCreatureType()) & spell.m_targetCreatureType)) {
                 return false;
             }
         }
@@ -3045,7 +3091,7 @@ void Spell_C_SetPlayerClass(int32_t classId) {
 // VERIFY: 28235946 manual
 // OFFSET: 0x007FD900
 int32_t Packet_SMSG_GAMEOBJECT_RESET_STATE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = { 0 };
     msg->Get(guid.m_guid);
     CGGameObject_C* gameObject = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(guid, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
@@ -3150,8 +3196,13 @@ void Spell_C_CancelAutoRepeat(bool a1) {
 
     FrameScript_SignalEvent(SCRIPT_EVENT_STOP_AUTOREPEAT_SPELL, nullptr);
 
+    // Lua handlers for the event can start a new auto repeat spell.
     if (s_autoRepeatingSpell) {
-        static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__))->MeleeModeLeave();
+        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
+
+        if (player) {
+            player->MeleeModeLeave();
+        }
     }
 }
 
@@ -3353,6 +3404,7 @@ bool SpellHistory::GetSpellCooldown(int32_t spellId, int32_t itemId, uint32_t* d
 
     uint32_t now = OsGetAsyncTimeMs();
     uint32_t latest = now;
+    SpellRuneCostRec* cost = spell.m_runeCostID ? g_spellRuneCostDB.GetRecord(spell.m_runeCostID) : nullptr;
 
     for (SPELLHISTORY* history = this->m_history.Head(); history; history = this->m_history.Next(history)) {
         if (history->m_spellId == spellId && history->m_itemId == itemId && (history->m_recoveryTime || history->m_onHold)) {
@@ -3375,9 +3427,9 @@ bool SpellHistory::GetSpellCooldown(int32_t spellId, int32_t itemId, uint32_t* d
             }
         }
 
-        SpellCategoryRec* categoryRec = g_spellCategoryDB.GetRecord(history->m_category);
+        SpellCategoryRec* categoryRec = nullptr;
 
-        if (((history->m_category && history->m_category == category) || (categoryRec && (categoryRec->m_flags & 0x2))) && history->m_categoryRecoveryTime) {
+        if (history->m_categoryRecoveryTime && ((history->m_category && history->m_category == category) || ((categoryRec = g_spellCategoryDB.GetRecord(history->m_category)) != nullptr && (categoryRec->m_flags & 0x2)))) {
             uint32_t end = history->m_categoryRecoveryTime + (history->m_onHold ? now : history->m_categoryTime);
 
             if (static_cast<int32_t>(end - latest) >= 0) {
@@ -3419,11 +3471,10 @@ bool SpellHistory::GetSpellCooldown(int32_t spellId, int32_t itemId, uint32_t* d
 
         bool sharesRunes = spellId == history->m_spellId;
 
-        if (!sharesRunes) {
+        if (!sharesRunes && cost) {
             SpellRec other;
 
             if (g_spellDB.GetRecord(history->m_spellId, &other) && other.m_runeCostID) {
-                SpellRuneCostRec* cost = g_spellRuneCostDB.GetRecord(spell.m_runeCostID);
                 SpellRuneCostRec* otherCost = g_spellRuneCostDB.GetRecord(other.m_runeCostID);
 
                 if (cost && otherCost && ((cost->m_blood && otherCost->m_blood) || (cost->m_unholy && otherCost->m_unholy) || (cost->m_frost && otherCost->m_frost))) {
@@ -3584,6 +3635,10 @@ bool SpellRec::IsAffectedBy(const SpellRec* spell, const SpellRec* modifier, int
 
     const int32_t* mask = SpellRec::GetClassMask(modifier, effect);
 
+    if (!mask) {
+        return false;
+    }
+
     for (uint32_t i = 0; i < 3; i++) {
         if (mask[i] & spell->m_spellClassMask[i]) {
             return true;
@@ -3596,7 +3651,7 @@ bool SpellRec::IsAffectedBy(const SpellRec* spell, const SpellRec* modifier, int
 // VERIFY: b26cb571 manual
 // OFFSET: 0x007FE850
 bool SpellRec::UsableInShapeshift(const SpellRec* spell, int32_t form) {
-    return form >= 0 && (spell->m_shapeshiftMask[form / 32] & (1 << (form & 0x1F)));
+    return form >= 0 && form < 64 && (spell->m_shapeshiftMask[form / 32] & (1 << (form & 0x1F)));
 }
 
 // VERIFY: 18bb777f manual
@@ -4482,7 +4537,7 @@ static bool SpellCancelsAura(const SpellRec* spell, const SpellRec* aura, uint32
 // VERIFY: 4e168416 manual
 // OFFSET: 0x007FE3E0
 uint32_t GetRequiredAuraVisionBitmask(const SpellRec* spell) {
-    uint32_t mask = spell->m_requiredAuraVision > 0 ? 1 << (spell->m_requiredAuraVision - 1) : 0;
+    uint32_t mask = SpellMaskBitOneBased(spell->m_requiredAuraVision);
 
     for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
         if (spell->m_effectAura[i] == SPELL_AURA_MOD_STEALTH_DETECT) {
@@ -4500,7 +4555,7 @@ uint32_t GetRequiredAuraVisionBitmask(const SpellRec* spell) {
 // VERIFY: 62cca87e manual
 // OFFSET: 0x007FE890
 bool SpellRec::NotUsableInShapeshiftForm(const SpellRec* spell, int32_t form) {
-    if (form < 0) {
+    if (form < 0 || form >= 64) {
         return false;
     }
 
@@ -4565,7 +4620,7 @@ void GetCustomSpellFailedString(char* buffer, uint32_t size, int32_t customError
 // VERIFY: 0e3e8924 manual
 // OFFSET: 0x007FFF60
 float Spell_C_GetCursorWorldObjectFacing() {
-    if (s_cursorWorldObjectHousing) {
+    if (s_cursorWorldObjectHousing || !s_targetingSpell) {
         return s_cursorWorldObjectFacing;
     }
 
@@ -4597,10 +4652,15 @@ SpellHistory::~SpellHistory() {
 // VERIFY: 7c88da8e auto
 // OFFSET: 0x00804010
 int32_t Packet_Group_31(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t spellId;
-    WOWGUID guid;
+    uint32_t spellId = 0;
+    WOWGUID guid = { 0 };
     msg->Get(spellId);
     msg->Get(guid.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     int32_t pet = guid == CGPetInfo::GetPet(0);
 
     switch (msgId) {
@@ -4624,10 +4684,10 @@ int32_t Packet_Group_31(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
         }
 
         case SMSG_MODIFY_COOLDOWN: {
-            uint32_t delay;
+            uint32_t delay = 0;
             msg->Get(delay);
 
-            if (spellId) {
+            if (spellId && msg->m_read <= msg->m_size) {
                 Spell_C_DelayCooldown(pet, spellId, delay);
             }
 
@@ -4641,8 +4701,12 @@ int32_t Packet_Group_31(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
 // VERIFY: 81391441 auto
 // OFFSET: 0x00804110
 int32_t Packet_SMSG_COOLDOWN_CHEAT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = { 0 };
     msg->Get(guid.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (guid == ClntObjMgrGetActivePlayer()) {
         s_spellHistory[0].ClearAll();
@@ -4961,12 +5025,16 @@ void Spell_C_PetTameFailure(uint8_t reason) {
 // VERIFY: af4cb118 manual
 // OFFSET: 0x00800470
 int32_t Packet_SMSG_SPELL_UPDATE_CHAIN_TARGETS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID caster;
+    WOWGUID caster = { 0 };
     msg->Get(caster.m_guid);
-    int32_t spellId;
+    int32_t spellId = 0;
     msg->Get(reinterpret_cast<uint32_t&>(spellId));
     uint32_t count = 0;
     msg->Get(count);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     // Capped since targets live on the stack, with a spare zeroed slot for the m_data[0] read in UpdateChainTargets.
     static const uint32_t MAX_CHAIN_TARGETS = 256;
@@ -5017,6 +5085,11 @@ int32_t Packet_SMSG_SET_PROJECTILE_POSITION(void* param, NETMESSAGE msgId, uint3
     msg->Get(data.m_position.x);
     msg->Get(data.m_position.y);
     msg->Get(data.m_position.z);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     CMissile::OnRemoteMissileTrajectoryCollision(data);
     ClntObjMgrEnumVisibleObjects(UnitOnRemoteMissileTrajectoryCollision, &data);
     return 1;
@@ -5025,10 +5098,15 @@ int32_t Packet_SMSG_SET_PROJECTILE_POSITION(void* param, NETMESSAGE msgId, uint3
 // VERIFY: 679f44cf manual
 // OFFSET: 0x00800610
 int32_t Packet_SMSG_PLAY_SPELL_VISUAL(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = { 0 };
     msg->Get(guid.m_guid);
-    uint32_t kitId;
+    uint32_t kitId = 0;
     msg->Get(kitId);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     SpellVisualKitRec* kit = g_spellVisualKitDB.GetRecord(kitId);
 
     if (kit) {
@@ -5046,10 +5124,15 @@ int32_t Packet_SMSG_PLAY_SPELL_VISUAL(void* param, NETMESSAGE msgId, uint32_t ti
 // VERIFY: d9c2084e manual
 // OFFSET: 0x008006C0
 int32_t Packet_SMSG_PLAY_SPELL_IMPACT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = { 0 };
     msg->Get(guid.m_guid);
-    uint32_t kitId;
+    uint32_t kitId = 0;
     msg->Get(kitId);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     SpellVisualKitRec* kit = g_spellVisualKitDB.GetRecord(kitId);
 
     if (kit) {
@@ -5169,7 +5252,10 @@ float Spell_C_GetSpellRadius() {
     }
 
     SpellRec spell;
-    g_spellDB.GetRecord(cast->m_data.m_spellId, &spell);
+
+    if (!g_spellDB.GetRecord(cast->m_data.m_spellId, &spell)) {
+        return 0.0f;
+    }
 
     SpellRadiusRec* radiusRec = g_spellRadiusDB.GetRecord(spell.m_effectRadiusIndex[0]);
     float radius = radiusRec ? radiusRec->m_radius + static_cast<int32_t>(caster->m_unit->m_unitFieldLevel) * radiusRec->m_radiusPerLevel : 0.0f;
@@ -5195,9 +5281,15 @@ float Spell_C_GetSpellRadius() {
 // OFFSET: 0x00801B80
 int32_t Packet_SMSG_SPELL_DELAYED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     SmartGUID guid;
+    guid.m_guid = 0;
     *msg >> guid;
-    int32_t delay;
+    int32_t delay = 0;
     msg->Get(reinterpret_cast<uint32_t&>(delay));
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
@@ -5217,7 +5309,7 @@ int32_t Packet_SMSG_SPELL_DELAYED(void* param, NETMESSAGE msgId, uint32_t time, 
 // VERIFY: 5bdf9b1f auto
 // OFFSET: 0x00802090
 int32_t Packet_SMSG_PET_TAME_FAILURE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t reason;
+    uint8_t reason = 0;
     msg->Get(reason);
     Spell_C_PetTameFailure(reason);
     return 1;
@@ -5227,15 +5319,22 @@ int32_t Packet_SMSG_PET_TAME_FAILURE(void* param, NETMESSAGE msgId, uint32_t tim
 // OFFSET: 0x008020C0
 int32_t Packet_SMSG_UNIT_SPELLCAST_START(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     SmartGUID caster;
+    caster.m_guid = 0;
     *msg >> caster;
     SmartGUID target;
+    target.m_guid = 0;
     *msg >> target;
-    int32_t spellId;
+    int32_t spellId = 0;
     msg->Get(reinterpret_cast<uint32_t&>(spellId));
-    uint32_t remaining;
+    uint32_t remaining = 0;
     msg->Get(remaining);
-    uint32_t duration;
+    uint32_t duration = 0;
     msg->Get(duration);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     uint32_t end = OsGetAsyncTimeMs() + remaining;
     uint32_t start = end - duration;
     SpellRec spell;
@@ -5560,6 +5659,11 @@ int32_t Spell_C_HandleTerrainRay(const CTerrainClickEvent& evt, bool checkRange)
     }
 
     PendingSpellCastData* data = s_targetingSpell ? &s_targetingSpell->m_data : nullptr;
+
+    if (!data) {
+        return 1;
+    }
+
     CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(data->m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!caster) {
@@ -5600,6 +5704,8 @@ void Spell_C_FailPendingCast(PendingSpellCast* cast, const SpellRec* spell, int3
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, spell, reason);
         FinishPendingSpellCast(cast, spell, unit);
+    } else {
+        ReleaseOrphanedPendingSpellCast(cast);
     }
 }
 
@@ -5708,6 +5814,8 @@ void Spell_C_CancelSpell(PendingSpellCast* cast, bool stopRecast, bool notifySer
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, &spell, reason);
         FinishPendingSpellCast(cast, &spell, unit);
+    } else {
+        ReleaseOrphanedPendingSpellCast(cast);
     }
 
     if (stopRecast) {
@@ -5822,13 +5930,19 @@ void Spell_C_CancelCastingSpellByMovement() {
 // OFFSET: 0x00806AD0
 int32_t Packet_SMSG_SPELL_FAILED_OTHER(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     SmartGUID caster;
+    caster.m_guid = 0;
     *msg >> caster;
-    uint8_t castCount;
+    uint8_t castCount = 0;
     msg->Get(castCount);
-    uint32_t spellId;
+    uint32_t spellId = 0;
     msg->Get(spellId);
-    uint8_t reason;
+    uint8_t reason = 0;
     msg->Get(reason);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     SpellRec spell;
 
     if (!g_spellDB.GetRecord(spellId, &spell)) {
@@ -5836,12 +5950,17 @@ int32_t Packet_SMSG_SPELL_FAILED_OTHER(void* param, NETMESSAGE msgId, uint32_t t
     }
 
     PendingSpellCast local;
+    memset(&local.m_data, 0, sizeof(local.m_data));
+    local.m_hidden = 0;
+    local.m_petGuid = WOWGUID{ 0 };
     PendingSpellCast* cast = FindPendingSpellCast(caster, &local, castCount, spellId, caster);
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(cast->m_data.m_caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, &spell, reason);
         FinishPendingSpellCast(cast, &spell, unit);
+    } else {
+        ReleaseOrphanedPendingSpellCast(cast);
     }
 
     return 1;
@@ -5850,13 +5969,13 @@ int32_t Packet_SMSG_SPELL_FAILED_OTHER(void* param, NETMESSAGE msgId, uint32_t t
 // VERIFY: 29396807 manual
 // OFFSET: 0x00807060
 int32_t Packet_SMSG_ITEM_COOLDOWN(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = { 0 };
     msg->Get(guid.m_guid);
-    uint32_t spellId;
+    uint32_t spellId = 0;
     msg->Get(spellId);
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(spellId, &spell)) {
+    if (msg->m_read <= msg->m_size && g_spellDB.GetRecord(spellId, &spell)) {
         CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
         if (item) {
@@ -5892,20 +6011,32 @@ int32_t Packet_SMSG_ITEM_COOLDOWN(void* param, NETMESSAGE msgId, uint32_t time, 
 // VERIFY: 011808de manual
 // OFFSET: 0x008071C0
 int32_t Packet_SMSG_MEETINGSTONE_IN_PROGRESS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t cooldown;
+    uint32_t cooldown = 0;
     msg->Get(cooldown);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
+    bool updated = false;
 
     for (uint32_t i = 0; i < s_numSpells; i++) {
         SpellRec spell;
 
         if (g_spellDB.GetRecord(GetSpellIdBySlot(i, 0), &spell) && (spell.m_attributes & 0x2) && !(spell.m_attributesExB & 0x20000) && !(spell.m_attributesExD & 0x10000000)) {
             s_spellHistory[0].AddHistory(spell.m_id, 0, OsGetAsyncTimeMs(), cooldown, 0, 0, 0, false, 0, 0);
-            CGSpellBook::UpdateCooldowns();
+            updated = true;
         }
+    }
+
+    if (updated) {
+        CGSpellBook::UpdateCooldowns();
     }
 
     return 1;
 }
+
+static int32_t Spell_C_Idle(const void* data, void* param);
 
 // VERIFY: d5a8355c auto
 // OFFSET: 0x008073A0
@@ -5955,10 +6086,19 @@ void Spell_C_Destroy() {
         s_spellWorldModel = nullptr;
     }
 
+    s_targetingSpell = nullptr;
+    s_delayedTrajectoryCast = nullptr;
+    s_needTargets = 0;
     s_pendingSpellCasts.Clear();
     s_freePendingSpellCasts.Clear();
+
+    if (s_periodicClientTriggers.Head()) {
+        EventUnregister(EVENT_ID_IDLE, Spell_C_Idle);
+    }
+
     s_periodicClientTriggers.Clear();
     s_destLocSpellCasts.InternalClear(0);
+    Spell_C_ClearInTransitList();
     s_enableErrorSpeechCVar = nullptr;
 }
 
@@ -5982,7 +6122,7 @@ ItemSubClassRec* FindAnyItemSubclassRec(int32_t classId, int32_t subclassMask) {
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
         ItemSubClassRec* rec = i < 0 || i >= g_itemSubClassDB.m_numRecords ? nullptr : &g_itemSubClassDB.m_records[i];
 
-        if (rec->m_classID == classId && ((1 << rec->m_subClassID) & subclassMask)) {
+        if (rec->m_classID == classId && (SpellMaskBit(rec->m_subClassID) & subclassMask)) {
             return rec;
         }
     }
@@ -6055,8 +6195,10 @@ void ShowPetSpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t r
                 CGGameUI::DisplayError(ERR_OUT_OF_POWER_DISPLAY, power);
             } else if (spell->m_powerType == POWER_TYPE_HEALTH) {
                 CGGameUI::DisplayError(ERR_OUT_OF_HEALTH);
-            } else {
+            } else if (static_cast<uint32_t>(spell->m_powerType) < sizeof(s_powerErrors) / sizeof(s_powerErrors[0])) {
                 CGGameUI::DisplayError(s_powerErrors[spell->m_powerType]);
+            } else {
+                CGGameUI::DisplayError(ERR_OUT_OF_MANA);
             }
 
             break;
@@ -6149,6 +6291,8 @@ void ShowPetSpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t r
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, spell, reason);
         FinishPendingSpellCast(cast, spell, unit);
+    } else {
+        ReleaseOrphanedPendingSpellCast(cast);
     }
 }
 
@@ -6578,6 +6722,8 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
         if (unit) {
             HandleSpellFailedOrGo(unit, cast, spell, 27);
             FinishPendingSpellCast(cast, spell, unit);
+        } else {
+            ReleaseOrphanedPendingSpellCast(cast);
         }
 
         return;
@@ -6679,7 +6825,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
         }
 
         case SPELL_FAILED_NEED_EXOTIC_AMMO: {
-            ItemSubClassRec* rec = FindAnyItemSubclassRec(6, 1 << misc1);
+            ItemSubClassRec* rec = FindAnyItemSubclassRec(6, static_cast<int32_t>(SpellMaskBit(misc1)));
 
             if (rec) {
                 SStrPrintf(text, sizeof(text), format, rec->m_displayName);
@@ -6712,8 +6858,10 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
                 CGGameUI::DisplayError(ERR_OUT_OF_POWER_DISPLAY, power);
             } else if (spell->m_powerType == POWER_TYPE_HEALTH) {
                 error = ERR_OUT_OF_HEALTH;
-            } else {
+            } else if (static_cast<uint32_t>(spell->m_powerType) < sizeof(s_powerErrors) / sizeof(s_powerErrors[0])) {
                 error = s_powerErrors[spell->m_powerType];
+            } else {
+                error = ERR_OUT_OF_MANA;
             }
 
             text[0] = 0;
@@ -6872,6 +7020,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             }
 
             SStrPrintf(text, sizeof(text), format, name);
+            message = text;
             break;
         }
 
@@ -6896,6 +7045,8 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
     if (unit) {
         HandleSpellFailedOrGo(unit, cast, spell, reason);
         FinishPendingSpellCast(cast, spell, unit);
+    } else {
+        ReleaseOrphanedPendingSpellCast(cast);
     }
 }
 
@@ -6923,7 +7074,11 @@ void Spell_C_PendingItemCooldownCallback(int32_t id, const WOWGUID& guid, void* 
 
         if (index < 5) {
             SpellRec spell;
-            g_spellDB.GetRecord(node->m_spellId, &spell);
+
+            if (!g_spellDB.GetRecord(node->m_spellId, &spell)) {
+                memset(&spell, 0, sizeof(spell));
+            }
+
             int32_t recovery = static_cast<int32_t>(stats->m_spellCooldown[index]) >= 0 ? static_cast<int32_t>(stats->m_spellCooldown[index]) : spell.m_recoveryTime;
             int32_t category = 0;
             int32_t categoryRecovery = 0;
@@ -7357,7 +7512,7 @@ bool Spell_C_RangeCheckSelected(CGUnit_C* caster, const SpellRec* spell, WOWGUID
             return false;
         }
 
-        if (spell->m_targetCreatureType && (!unit->GetCreatureType() || !((1 << (unit->GetCreatureType() - 1)) & spell->m_targetCreatureType))) {
+        if (spell->m_targetCreatureType && (!unit->GetCreatureType() || !(SpellMaskBitOneBased(unit->GetCreatureType()) & spell->m_targetCreatureType))) {
             return false;
         }
 
@@ -7646,11 +7801,11 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
                 break;
             }
 
-            if (spell->m_targetAuraState && !(target->m_unit->m_unitFieldAurastate & (1 << (spell->m_targetAuraState - 1))) && !caster->IgnoresAuraState(spell)) {
+            if (spell->m_targetAuraState && !(target->m_unit->m_unitFieldAurastate & SpellMaskBitOneBased(spell->m_targetAuraState)) && !caster->IgnoresAuraState(spell)) {
                 continue;
             }
 
-            if (spell->m_excludeTargetAuraState && (target->m_unit->m_unitFieldAurastate & (1 << (spell->m_excludeTargetAuraState - 1))) && !caster->IgnoresAuraState(spell)) {
+            if (spell->m_excludeTargetAuraState && (target->m_unit->m_unitFieldAurastate & SpellMaskBitOneBased(spell->m_excludeTargetAuraState)) && !caster->IgnoresAuraState(spell)) {
                 continue;
             }
 
@@ -7808,6 +7963,15 @@ int32_t Spell_C_PrepareMissileTrajectoryCast(CGUnit_C* caster, PendingSpellCast*
 
         Spell_C_PlayMissileTrajectoryCastVisuals(caster, cast, spell, visual, kit, targets, 1.0f);
         s_delayedTrajectoryCast = cast;
+
+        // The resend goes through Spell_C_CastSpell, whose StopTargeting would otherwise cancel this cast.
+        if (cast == s_targetingSpell) {
+            s_targetingSpell = nullptr;
+            CGInputControl* input = CGInputControl::GetActive();
+            input->m_mouseModeFlags &= ~0x10u;
+            input->UpdateMouseMode(0);
+        }
+
         return 0;
     }
 
@@ -7877,6 +8041,10 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
             input->UpdateMouseMode(0);
         }
 
+        if (cast == s_delayedTrajectoryCast) {
+            s_delayedTrajectoryCast = nullptr;
+        }
+
         ReleasePendingSpellCast(cast);
         return;
     }
@@ -7886,7 +8054,12 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
     }
 
     SpellRec spell;
-    g_spellDB.GetRecord(cast->m_data.m_spellId, &spell);
+
+    if (!g_spellDB.GetRecord(cast->m_data.m_spellId, &spell)) {
+        ReleaseOrphanedPendingSpellCast(cast);
+        return;
+    }
+
     TSStackArray<CGUnit_C*> targets(static_cast<CGUnit_C**>(alloca(sizeof(CGUnit_C*) * 2)), 2, 0);
     bool casterIncluded = false;
 
@@ -8117,6 +8290,7 @@ static int32_t Spell_C_UpdateSpellWorldObject(void* param, uint32_t flags, uint6
 // VERIFY: d383a005 manual
 // OFFSET: 0x007FE9E0
 static void Spell_C_CreateSpellWorldObject(const GameObjectDisplayInfoRec* display) {
+    Spell_C_DestroySpellWorldObject();
     s_spellWorldModel = World::s_m2Scene->CreateModel(display->m_modelName, 0);
 
     if (s_spellWorldModel) {
@@ -8840,7 +9014,7 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
             return false;
         }
 
-        if (spell.m_targetCreatureType && (!unit->GetCreatureType() || !((1 << (unit->GetCreatureType() - 1)) & spell.m_targetCreatureType))) {
+        if (spell.m_targetCreatureType && (!unit->GetCreatureType() || !(SpellMaskBitOneBased(unit->GetCreatureType()) & spell.m_targetCreatureType))) {
             return false;
         }
 
@@ -9075,6 +9249,11 @@ int32_t Spell_C_TargetTradeItem() {
     }
 
     PendingSpellCast* cast = s_targetingSpell;
+
+    if (!cast) {
+        return 0;
+    }
+
     cast->m_data.m_targetFlags |= 0x1000;
     s_needTargets &= 0xFFFFBFEF;
     cast->m_data.m_itemTarget.m_guid = 6;
@@ -9256,10 +9435,12 @@ void Spell_C_PlayMissileTrajectoryCastVisuals(CGUnit_C* unit, PendingSpellCast* 
     }
 
     TSStackArray<WOWGUID> guids(static_cast<WOWGUID*>(alloca(sizeof(WOWGUID) * targets->m_count)), targets->m_count, 0);
-    guids.m_count = targets->m_count;
+    guids.m_count = 0;
 
     for (uint32_t i = 0; i < targets->m_count; i++) {
-        guids.m_data[i] = targets->m_data[i]->m_obj->m_guid;
+        if (targets->m_data[i]) {
+            guids.m_data[guids.m_count++] = targets->m_data[i]->m_obj->m_guid;
+        }
     }
 
     TSStackArray<WOWGUID> misses(nullptr, 0, 0);
@@ -9289,12 +9470,12 @@ int32_t Packet_MSG_CHANNEL_START(void* param, NETMESSAGE msgId, uint32_t time, C
     SmartGUID smartGuid;
     *msg >> smartGuid;
     WOWGUID guid = smartGuid;
-    uint32_t spellId;
+    uint32_t spellId = 0;
     msg->Get(spellId);
-    int32_t duration;
+    int32_t duration = 0;
     msg->Get(reinterpret_cast<uint32_t&>(duration));
 
-    if (duration <= 0) {
+    if (msg->m_read > msg->m_size || duration <= 0) {
         return 1;
     }
 
@@ -9319,8 +9500,13 @@ int32_t Packet_MSG_CHANNEL_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, 
     SmartGUID smartGuid;
     *msg >> smartGuid;
     WOWGUID guid = smartGuid;
-    int32_t remaining;
+    int32_t remaining = 0;
     msg->Get(reinterpret_cast<uint32_t&>(remaining));
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {

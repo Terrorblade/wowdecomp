@@ -578,6 +578,11 @@ void CEffect::AddSpecialEffect(int32_t type, const WOWGUID& target, void (*callb
     }
 
     this->m_effectNameRec = g_spellVisualEffectNameDB.GetRecord(s_specialUnitEffectIDs[type]);
+
+    if (!this->m_effectNameRec) {
+        return;
+    }
+
     CEffect::DestroyMatchingEffects(unit, this->m_effectNameRec, attachment, 0, 0, nullptr);
     this->m_model = World::s_m2Scene->CreateModel(this->m_effectNameRec->m_fileName, 0);
 
@@ -596,7 +601,7 @@ void CEffect::AddSpecialEffect(int32_t type, const WOWGUID& target, void (*callb
 void CEffect::AddSpecialByPosition(int32_t type, C3Vector position, const WOWGUID* guid, uint32_t flags, void (*callback)(CM2Model* model, uint32_t boneId, uint32_t sequenceId, int32_t interrupted, uint32_t time, uint64_t param)) {
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPE_UNIT, __FILE__, __LINE__));
 
-    if (!unit) {
+    if (!unit || static_cast<uint32_t>(type) >= NUM_UNITEFFECTSPECIALS) {
         return;
     }
 
@@ -607,6 +612,11 @@ void CEffect::AddSpecialByPosition(int32_t type, C3Vector position, const WOWGUI
     this->m_position.z = position.z;
     this->m_transportGuid = WOWGUID();
     this->m_effectNameRec = g_spellVisualEffectNameDB.GetRecord(s_specialUnitEffectIDs[type]);
+
+    if (!this->m_effectNameRec) {
+        return;
+    }
+
     this->m_model = World::s_m2Scene->CreateModel(this->m_effectNameRec->m_fileName, 0);
 
     if (this->m_model) {
@@ -672,11 +682,11 @@ void CEffect::ClearItemVisualEffect() {
     }
 
     if (this->m_pendingCacheId) {
-        g_itemDBCache.CancelCallback(this->m_pendingCacheId, CEffect::ApplyItemVisualByItemId, nullptr);
+        g_itemDBCache.CancelCallback(this->m_pendingCacheId, CEffect::ApplyItemVisualByItemId, this);
         this->m_pendingCacheId = 0;
     }
 
-    this->m_flags &= 0x80000;
+    this->m_flags &= ~0x80000;
     this->m_itemSlot = 12;
 }
 
@@ -725,6 +735,11 @@ void CEffect::MoveToDestroyList() {
 
         SpellVisualsCancelMountTransition(this->m_mountTransition);
         this->m_mountTransition = nullptr;
+
+        if (this->m_pendingCacheId) {
+            g_creatureDBCache.CancelCallback(this->m_pendingCacheId, CEffect::MountTransitionCacheCB, this);
+            this->m_pendingCacheId = 0;
+        }
     }
 
     if (this->m_model) {
@@ -880,10 +895,14 @@ void CEffect::AddLootEffect(CGUnit_C* unit, void (*callback)(CM2Model* model, ui
     this->m_attachmentId = 19;
     const SpellVisualEffectNameRec* effectName = GetSpecialSpellVisualEffectNameRec(SPECIALEFFECT_LOOTART);
     this->m_effectNameRec = effectName;
+
+    if (!effectName) {
+        return;
+    }
+
     this->m_model = World::s_m2Scene->CreateModel(effectName->m_fileName, 0);
 
     if (!this->m_model) {
-        delete this;
         return;
     }
 
@@ -922,7 +941,7 @@ C3Vector CEffect::TransformPositionByTransport() {
 float __stdcall CEffect::ComputeModelScaleFromTarget(CGObject_C* object) {
     CM2Model* model = object->GetObjectModel();
 
-    if (model && !model->IsLoaded(0, 1)) {
+    if (!model || !model->IsLoaded(0, 1)) {
         return 1.0f;
     }
 
@@ -1174,7 +1193,7 @@ int32_t CEffect::UpdateAttachment() {
 
     this->m_transportGuid = WOWGUID();
 
-    if (this->m_flags & 0x2000000) {
+    if ((this->m_flags & 0x2000000) && this->m_model) {
         this->m_model->m_fFlags |= 0x100000;
     }
 
@@ -1351,7 +1370,7 @@ void CEffect::PostInitialize() {
 
     SpellRec spell;
 
-    if (this->m_spellId && g_spellDB.GetRecord(this->m_spellId, &spell) && (spell.m_attributesExE & 0x40000000)) {
+    if (this->m_model && this->m_spellId && g_spellDB.GetRecord(this->m_spellId, &spell) && (spell.m_attributesExE & 0x40000000)) {
         this->m_model->m_fFlags |= 0x4;
     }
 
@@ -1591,7 +1610,24 @@ int32_t CEffect::LoadMountTransitionModel() {
         return 0;
     }
 
+    if (this->m_model) {
+        if (this->m_model->m_attachParent) {
+            this->m_model->DetachFromParent();
+        }
+
+        this->m_model->SetSequenceCallback(nullptr, 0);
+        this->m_model->SetEventCallback(nullptr, 0);
+        this->m_model->SetLoadedCallback(nullptr, nullptr);
+        this->m_model->Release();
+        this->m_model = nullptr;
+    }
+
     this->m_model = World::s_m2Scene->CreateModel(modelData->m_modelName, 0);
+
+    if (!this->m_model) {
+        return 0;
+    }
+
     this->m_model->SetSequenceCallback(reinterpret_cast<void*>(&MountTransitionSequenceCB), reinterpret_cast<uintptr_t>(this));
     this->m_model->SetEventCallback(reinterpret_cast<void*>(&CEffect::EffectEvent), reinterpret_cast<uintptr_t>(this));
     CCharacterComponent::ReplaceMonsterSkin(this->m_model, display, modelData);
@@ -1731,6 +1767,11 @@ void CEffect::AddMountTransition(uint32_t spellId, const SpellVisualKitRec* kit,
     for (uint32_t i = 0; i < 3; i++) {
         if (spell.m_effect[i] == SPELL_EFFECT_APPLY_AURA && spell.m_effectAura[i] == SPELL_AURA_MOUNTED) {
             int32_t creatureId = spell.m_effectMiscValue[i];
+
+            if (this->m_pendingCacheId) {
+                g_creatureDBCache.CancelCallback(this->m_pendingCacheId, CEffect::MountTransitionCacheCB, this);
+            }
+
             this->m_pendingCacheId = creatureId;
             WOWGUID key = { static_cast<uint64_t>(spellId) | 0x1FE0000000000000ull };
             CreatureStats_C* stats = g_creatureDBCache.GetRecord(creatureId, key, &CEffect::MountTransitionCacheCB, this, false);

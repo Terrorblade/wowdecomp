@@ -4253,9 +4253,22 @@ int32_t Packet_SMSG_INITIAL_SPELLS(void* param, NETMESSAGE msgId, uint32_t time,
     msg->Get(talentSpec);
     uint16_t count = 0;
     msg->Get(count);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
+    uint32_t maxCount = (msg->m_size - msg->m_read) / 6;
+
+    if (count > maxCount) {
+        count = static_cast<uint16_t>(maxCount);
+    }
+
     s_initialSpells.SetCount(count);
 
     for (uint16_t i = 0; i < count; i++) {
+        s_initialSpells[i].m_spellId = 0;
+        s_initialSpells[i].m_slot = 0;
         msg->Get(s_initialSpells[i].m_spellId);
         msg->Get(s_initialSpells[i].m_slot);
     }
@@ -4401,8 +4414,12 @@ int32_t Packet_Group_18(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
 // VERIFY: 33f6984f manual
 // OFFSET: 0x006E7840
 int32_t Packet_SMSG_REMOVED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t spellId;
+    uint32_t spellId = 0;
     msg->Get(spellId);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
@@ -4423,10 +4440,14 @@ int32_t Packet_SMSG_REMOVED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, 
 // VERIFY: 299341f9 manual
 // OFFSET: 0x006E7D60
 int32_t Packet_SMSG_LEARNED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t spellId;
-    uint16_t slot;
+    uint32_t spellId = 0;
+    uint16_t slot = 0;
     msg->Get(spellId);
     msg->Get(slot);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (SFile::IsStreamingMode() && !LoadingScreenDrawing()) {
         PrefetchSpellVisuals(spellId);
@@ -4448,10 +4469,14 @@ int32_t Packet_SMSG_LEARNED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, 
 // VERIFY: 84e6a81b manual
 // OFFSET: 0x006E7E00
 int32_t Packet_SMSG_SUPERCEDED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t oldSpellId;
-    uint32_t newSpellId;
+    uint32_t oldSpellId = 0;
+    uint32_t newSpellId = 0;
     msg->Get(oldSpellId);
     msg->Get(newSpellId);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (SFile::IsStreamingMode() && !LoadingScreenDrawing()) {
         PrefetchSpellVisuals(newSpellId);

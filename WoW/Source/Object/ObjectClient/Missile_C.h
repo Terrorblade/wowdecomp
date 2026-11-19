@@ -110,7 +110,7 @@ class CMissile {
     /* 0160 */ CMissile** m_prevLink;
     /* 0164 */ CMissile* m_next;
     /* 0168 */ uint32_t m_memHandle;
-    /* 016C */ uint32_t unused_016C;
+    /* 016C */ int32_t m_motionId;
     /* 0170 */ WOWGUID m_targetingUnit;
     /* 0178 */ uint32_t m_targetingEffectTime;
     /* 017C */ int32_t m_motionScriptFunction;

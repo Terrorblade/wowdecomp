@@ -117,7 +117,11 @@ static int32_t Script_SpellTargetUnit(lua_State* L) {
 
     SpellRec spell;
     PendingSpellCast* cast = s_targetingSpell;
-    g_spellDB.GetRecord(cast->m_data.m_spellId, &spell);
+
+    if (!g_spellDB.GetRecord(cast->m_data.m_spellId, &spell)) {
+        return 0;
+    }
+
     Spell_C_SpellFailed(cast, &spell, SPELL_FAILED_OUT_OF_RANGE, -1, -1, false);
     return 0;
 }

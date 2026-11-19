@@ -113,18 +113,7 @@ void CSimpleScriptManager::UnregisterCallback(void (*callback)(uint32_t)) {
 // VERIFY: ef14b3e2 auto
 // OFFSET: 0x00758480
 int32_t CSimpleScriptManager::CallFunction(uint32_t handle, const SimpleScriptIO& in, SimpleScriptIO& out) {
-    if (handle == 0xFFFFFFFF) {
-        return 0;
-    }
-
-    TSGrowableArray<SimpleScriptFunction>& bucket = this->m_buckets[handle >> 16];
-    uint32_t index = handle & 0xFFFF;
-
-    if (index >= bucket.m_count) {
-        return 0;
-    }
-
-    SimpleScriptFunction* function = &bucket.m_data[index];
+    SimpleScriptFunction* function = this->GetFunction(handle);
 
     if (!function || function->m_luaRef == -2) {
         return 0;
@@ -273,17 +262,18 @@ void CSimpleScriptManager::Uninit() {
 // VERIFY: e64eaffe manual
 // OFFSET: 0x00758390
 SimpleScriptFunction* CSimpleScriptManager::GetFunction(uint32_t handle) {
-    if (handle == 0xFFFFFFFF) {
+    if (handle == 0xFFFFFFFF || this->m_hashMask == -1 || (handle >> 16) > static_cast<uint32_t>(this->m_hashMask)) {
         return nullptr;
     }
 
     TSGrowableArray<SimpleScriptFunction>* list = &this->m_buckets[handle >> 16];
+    uint32_t index = handle & 0xFFFF;
 
-    if (handle >= list->m_count) {
+    if (index >= list->m_count) {
         return nullptr;
     }
 
-    return &list->m_data[handle];
+    return &list->m_data[index];
 }
 
 // VERIFY: 2600d97c auto

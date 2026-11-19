@@ -46,6 +46,7 @@ struct Targets {
 };
 
 static State s_state;
+static uint32_t s_generation = 0;
 
 // The fake cast must never chain into a real one or start auto attack, and moving must not cancel it.
 static void StripSideEffects(SpellRec& rec) {
@@ -241,7 +242,14 @@ static void Go() {
         return;
     }
 
+    uint32_t generation = s_generation;
     SendGo(spell, player);
+
+    // A handler for the go events started a new preview, which already ended this one through Stop.
+    if (generation != s_generation) {
+        return;
+    }
+
     Unpatch();
 
     if (!StartChannel(spell, player)) {
@@ -274,6 +282,7 @@ bool Cast(int32_t spellId, uint64_t target) {
         target = caster;
     }
 
+    s_generation++;
     s_state.spellId = spellId;
     s_state.caster = caster;
     s_state.target = target;
@@ -301,16 +310,15 @@ bool Cast(int32_t spellId, uint64_t target) {
 
 void Stop() {
     CGPlayer_C* player = Caster();
-    Phase phase = s_state.phase;
-    int32_t spellId = s_state.spellId;
-    // The events fired below can call back into Stop, which must not end the same cast again.
-    s_state.phase = Phase::Idle;
+    // The events fired below can stop or start a preview, so this one ends from a snapshot and the live state is left to them.
+    State state = s_state;
+    s_state = State();
 
-    if (phase == Phase::Casting) {
-        PendingSpellCast* cast = PendingCast();
+    if (state.phase == Phase::Casting) {
+        PendingSpellCast* cast = GetPendingSpellCast(0, state.spellId, WOWGUID{ state.caster });
         SpellRec spell;
 
-        if (cast && player && g_spellDB.GetRecord(spellId, &spell)) {
+        if (cast && player && g_spellDB.GetRecord(state.spellId, &spell)) {
             StripSideEffects(spell);
             HandleSpellFailedOrGo(player, cast, &spell, 27);
         }
@@ -318,15 +326,24 @@ void Stop() {
         if (cast) {
             ReleasePendingSpellCast(cast);
         }
-    } else if (phase == Phase::Channeling && player) {
-        player->RemoveChannelEffects(spellId);
+    } else if (state.phase == Phase::Channeling && player) {
+        player->RemoveChannelEffects(state.spellId);
 
-        if (player->m_channelSpellId == static_cast<uint32_t>(spellId)) {
+        if (player->m_channelSpellId == static_cast<uint32_t>(state.spellId)) {
             player->ClearUIChannel();
         }
     }
 
-    Finish();
+    if (!state.patched) {
+        return;
+    }
+
+    // A new preview of the same spell could not patch it while this patch was live, so it takes this one over.
+    if (s_state.phase != Phase::Idle && s_state.spellId == state.spellId && !s_state.patched) {
+        s_state.patched = true;
+    } else {
+        Dbc::UnpatchSpell(state.spellId);
+    }
 }
 
 bool IsPlaying() {

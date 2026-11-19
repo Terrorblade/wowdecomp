@@ -540,6 +540,8 @@ void CGUnit_C::UpdateMissileTrajectoryTargeting() {
 // OFFSET: 0x006FC190
 void CGUnit_C::ShutdownMissileTrajectorySystem() {
     SMemFree(CGUnit_C::s_trajectoryPoints, __FILE__, __LINE__, 0);
+    CGUnit_C::s_trajectoryPoints = nullptr;
+    s_trajectoryPointCount = 0;
     CGUnit_C::StopMissileTrajectoryTargeting();
     delete CMissileCollision::s_pool;
     CMissileCollision::s_pool = nullptr;
@@ -550,7 +552,7 @@ void CGUnit_C::ShutdownMissileTrajectorySystem() {
 // VERIFY: 2d5a7665 manual
 // OFFSET: 0x006FDFB0
 void CGUnit_C::RenderMissileTrajectoryTargetingTexture() {
-    if (!(s_trajectoryAlpha > 0.0f) || !s_trajectoryTargetGuid) {
+    if (!(s_trajectoryAlpha > 0.0f) || !s_trajectoryTargetGuid || !s_trajectoryPointCount || !CGUnit_C::s_trajectoryPoints) {
         return;
     }
 

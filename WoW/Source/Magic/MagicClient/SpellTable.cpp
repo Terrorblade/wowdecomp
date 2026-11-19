@@ -122,7 +122,7 @@ int32_t CGSkillInfo::GetSkillCostField(const SkillRaceClassInfoRec* info, int32_
     HASHKEY_NONE key;
     SKILLCOSTSINFO* costs = s_skillCostsInfo.Ptr(skillLine->m_skillCostsID, key);
 
-    if (!costs || skillValue > costs->m_count) {
+    if (!costs || skillValue < 1 || skillValue > costs->m_count || static_cast<uint32_t>(info->m_skillCostIndex) >= 3) {
         return 0;
     }
 
@@ -131,9 +131,7 @@ int32_t CGSkillInfo::GetSkillCostField(const SkillRaceClassInfoRec* info, int32_
 
 // VERIFY: 6585c0df manual
 // OFFSET: 0x00811F20
-static bool SpellTableAddSkillLineRec(int32_t race, int32_t classId, const SkillLineAbilityRec* ability) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
-
+static bool SpellTableAddSkillLineRec(CGPlayer_C* player, int32_t race, int32_t classId, const SkillLineAbilityRec* ability) {
     if (player && race != player->m_unit->m_unitFieldBytes0[0] && classId != player->m_unit->m_unitFieldBytes0[1]) {
         return false;
     }
@@ -158,6 +156,7 @@ static void SpellTableBuildSkillLineLinkInfo() {
     SkillLineLinkInfo* link = nullptr;
     bool first = true;
     int32_t lastSkillLine = -1;
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     for (int32_t i = 0; i < g_charBaseInfoDB.m_numRecords; i++) {
         CharBaseInfoRec* base = (i < 0 || i >= g_charBaseInfoDB.m_numRecords) ? nullptr : &g_charBaseInfoDB.m_records[i];
@@ -169,7 +168,7 @@ static void SpellTableBuildSkillLineLinkInfo() {
 
         for (int32_t j = 0; j < g_skillLineAbilityDB.m_numRecords; j++) {
             SkillLineAbilityRec* ability = (j < 0 || j >= g_skillLineAbilityDB.m_numRecords) ? nullptr : &g_skillLineAbilityDB.m_records[j];
-            SpellTableAddSkillLineRec(race, static_cast<uint8_t>(base->m_classID), ability);
+            SpellTableAddSkillLineRec(player, race, static_cast<uint8_t>(base->m_classID), ability);
 
             if (!first) {
                 continue;

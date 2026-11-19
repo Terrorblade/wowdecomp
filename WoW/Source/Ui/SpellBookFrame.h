@@ -33,6 +33,8 @@ struct SPELLRANKNODE : public TSLinkedNode<SPELLRANKNODE> {
 
 struct SPELLSBYNAME : public TSHashObject<SPELLSBYNAME, HASHKEY_UTF8I> {
     /* 0018 */ TSList<SPELLRANKNODE> m_spells;
+
+    ~SPELLSBYNAME();
 };
 
 class CGPlayer_C;

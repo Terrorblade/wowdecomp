@@ -451,7 +451,8 @@ void CGCooldown::ResetVerts() {
 // VERIFY: a663a649 manual
 // OFFSET: 0x005EC1E0
 void CGCooldown::AnimateVerts() {
-    if (!this->m_flashing) {
+    // A zero duration cannot be swept, so a reverse cooldown falls through to its finished full star below.
+    if (!this->m_flashing && this->m_duration) {
         float elapsed = static_cast<float>(this->m_elapsed);
         float duration = static_cast<float>(this->m_duration);
         float octantTime = duration * 0.125f;
@@ -544,6 +545,10 @@ void CGCooldown::AnimateVerts() {
         this->m_starVerts[9].z = 1.0f;
         this->m_starTexCoords[9].x = 0.5f;
         this->m_starTexCoords[9].y = 0.5f;
+        return;
+    }
+
+    if (!this->m_flashing) {
         return;
     }
 
@@ -640,8 +645,10 @@ void CGCooldown::OnFrameSizeChanged(const CRect& rect) {
 // VERIFY: 9f3e3bf6 manual
 // OFFSET: 0x005EC8F0
 void CGCooldown::OnLayerUpdate(float elapsedSec) {
-    // HoT: follows the spell history when the server scales cooldown rates.
-    HoT::CooldownRate::OnCooldownUpdate(this, this->m_startTime);
+    // HoT: follows the spell history when the server scales cooldown rates, the end flash keeps its own start time.
+    if (!this->m_flashing) {
+        HoT::CooldownRate::OnCooldownUpdate(this, this->m_startTime);
+    }
 
     CSimpleFrame::OnLayerUpdate(elapsedSec);
 
@@ -652,7 +659,7 @@ void CGCooldown::OnLayerUpdate(float elapsedSec) {
             this->m_flashing = 0;
             this->Hide();
         } else if (this->m_reverse) {
-            this->m_elapsed = this->m_duration - 1;
+            this->m_elapsed = this->m_duration ? this->m_duration - 1 : 0;
         } else {
             this->m_startTime = OsGetAsyncTimeMs();
             this->m_flashing = 1;

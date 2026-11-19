@@ -98,24 +98,33 @@ C3Vector LightningObject::GetCasterPosition(CGUnit_C* unit, uint32_t attachment,
 // VERIFY: 3636aab1 manual
 // OFFSET: 0x007FABF0
 C3Vector LightningObject::GetImpactPosition(CGUnit_C* unit, uint32_t spellId) {
+    SpellRec spell;
+    return LightningObject::GetImpactPosition(unit, g_spellDB.GetRecord(spellId, &spell) ? &spell : nullptr);
+}
+
+// HoT: takes the spell row so Tick decompresses it once per frame instead of once per bolt.
+C3Vector LightningObject::GetImpactPosition(CGUnit_C* unit, const SpellRec* spell) {
     CM2Model* model = unit->m_worldModel;
     C3Vector position = unit->m_vehiclePassenger ? unit->GetModelPosition() : unit->GetPosition();
     position.z = unit->GetStandHeight() * 0.75f + position.z;
-    SpellRec spell;
+    SpellVisualRec buffer;
+    const SpellVisualRec* visual = nullptr;
 
-    if (!g_spellDB.GetRecord(spellId, &spell)) {
-        if (model->IsLoaded(0, 0) && (model->m_fFlags & 0x8000) && model->HasAttachment(34)) {
+    if (spell) {
+        visual = (unit->m_obj->m_type & TYPE_UNIT) ? unit->GetAppropriateSpellVisual(spell, buffer, 0, 0) : GetSpellVisual(spell);
+    }
+
+    if (!visual) {
+        if (model && model->IsLoaded(0, 0) && (model->m_fFlags & 0x8000) && model->HasAttachment(34)) {
             return model->GetAttachmentPosition(34);
         }
 
         return position;
     }
 
-    SpellVisualRec buffer;
-    const SpellVisualRec* visual = (unit->m_obj->m_type & TYPE_UNIT) ? unit->GetAppropriateSpellVisual(&spell, buffer, 0, 0) : GetSpellVisual(&spell);
     int32_t raw = visual->m_flags & 0x200;
 
-    if (model->IsLoaded(0, 0) && (model->m_fFlags & 0x8000) && unit->HasAttachmentForEffect(visual->m_missileDestinationAttachment, raw)) {
+    if (model && model->IsLoaded(0, 0) && (model->m_fFlags & 0x8000) && unit->HasAttachmentForEffect(visual->m_missileDestinationAttachment, raw)) {
         position.x = visual->m_missileImpactOffset[0];
         position.y = -visual->m_missileImpactOffset[1];
         position.z = visual->m_missileImpactOffset[2];
@@ -143,6 +152,10 @@ C3Vector LightningObject::GetImpactPosition(CGUnit_C* unit, uint32_t spellId) {
 // VERIFY: 9da237e2 manual
 // OFFSET: 0x007FAE90
 bool LightningObject::Tick(uint32_t time) {
+    SpellRec spellRec;
+    const SpellRec* spell = nullptr;
+    bool spellFetched = false;
+
     for (uint32_t i = 0; i < this->m_bolts.Count(); i++) {
         Bolt& bolt = this->m_bolts[i];
 
@@ -156,10 +169,15 @@ bool LightningObject::Tick(uint32_t time) {
         CGUnit_C* targetUnit = target && (target->m_obj->m_type & TYPE_UNIT) ? static_cast<CGUnit_C*>(target) : nullptr;
 
         if ((this->m_flags & 0x1) || (time >= bolt.m_startTime && time < bolt.m_endTime)) {
+            if (!spellFetched && ((sourceUnit && bolt.m_source) || targetUnit)) {
+                spell = g_spellDB.GetRecord(this->m_spellId, &spellRec) ? &spellRec : nullptr;
+                spellFetched = true;
+            }
+
             C3Vector sourcePos(0.0f, 0.0f, 0.0f);
 
             if (sourceUnit) {
-                sourcePos = bolt.m_source ? LightningObject::GetImpactPosition(sourceUnit, this->m_spellId) : LightningObject::GetCasterPosition(sourceUnit, this->m_sourceAttachment, this->m_sourceOffset, this->m_flags & 0x4);
+                sourcePos = bolt.m_source ? LightningObject::GetImpactPosition(sourceUnit, spell) : LightningObject::GetCasterPosition(sourceUnit, this->m_sourceAttachment, this->m_sourceOffset, this->m_flags & 0x4);
             } else if (source) {
                 sourcePos = this->m_sourceOffset * source->GetMatrix();
             }
@@ -168,7 +186,7 @@ bool LightningObject::Tick(uint32_t time) {
             int32_t hidden = 0;
 
             if (targetUnit) {
-                targetPos = LightningObject::GetImpactPosition(targetUnit, this->m_spellId);
+                targetPos = LightningObject::GetImpactPosition(targetUnit, spell);
             } else if (target) {
                 targetPos = this->m_targetOffset * target->GetMatrix();
             } else if (this->m_flags & 0x2) {
@@ -313,6 +331,7 @@ void SpellVisualsShutdown() {
 
     if (s_lightningManager) {
         delete s_lightningManager;
+        s_lightningManager = nullptr;
     }
 
     s_lastUpdateTime = -1;
@@ -586,6 +605,11 @@ void LightningObject::CreateFromSpell(CGObject_C* caster, CEffect* effect, uint3
         }
 
         if (created >= maxLightning) {
+            break;
+        }
+
+        // Encoded ids never contain a zero byte, so the string length bounds the list.
+        if (!root->m_combo || offset + 4 > SStrLen(root->m_combo)) {
             break;
         }
 
@@ -934,6 +958,11 @@ bool BlizzardObject::Update() {
 
     for (; this->m_shardAccum >= 1.0f; this->m_shardAccum = this->m_shardAccum - 1.0f) {
         Shard* shard = s_shardHeap.New<Shard>(0);
+
+        if (!shard) {
+            continue;
+        }
+
         this->m_shards.LinkToTail(shard);
         float scale = CRandom::ufloat_(g_rndSeed);
         C2Vector direction = CRandom::C2Vector_(g_rndSeed);
@@ -963,6 +992,12 @@ bool BlizzardObject::Update() {
         }
 
         shard->m_model = World::s_m2Scene->CreateModel(this->m_modelName, 0);
+
+        if (!shard->m_model) {
+            s_shardHeap.Delete(shard);
+            continue;
+        }
+
         shard->m_model->SetEventCallback(reinterpret_cast<void*>(&ShardAnimEventCallback), 0);
         shard->m_model->SetSequenceCallback(reinterpret_cast<void*>(&ShardSequenceCallback), reinterpret_cast<uintptr_t>(shard));
         uint32_t now = FrameTime::s_curTimeMs;

@@ -81,6 +81,7 @@ class LightningObject : public TSLinkedNode<LightningObject> {
     static void CreateFromSpell(CGObject_C* caster, CEffect* effect, uint32_t chainEffectsId, const WOWGUID* targets, uint32_t count, uint32_t spellId, bool persist, bool reverse, LightningObject** lightning, uint32_t maxLightning, const C3Vector* location, int32_t attachment);
     static C3Vector GetCasterPosition(CGUnit_C* unit, uint32_t attachment, const C3Vector& offset, int32_t raw);
     static C3Vector GetImpactPosition(CGUnit_C* unit, uint32_t spellId);
+    static C3Vector GetImpactPosition(CGUnit_C* unit, const SpellRec* spell);
 
     /* 0008 */ TSGrowableArray<uint64_t> m_targets;
     /* 0018 */ TSGrowableArray<Bolt> m_bolts;

@@ -87,6 +87,12 @@ int32_t CGxDeviceMetalNative::ICreateMetal() {
         return 0;
     }
 
+    GxMetal::InitFormats(device);
+
+    if (!GxMetal::PackedFormatsSupported()) {
+        GxMetal::Log("metal: no packed 16-bit formats on %s, expanding them to 32-bit", [[device name] UTF8String]);
+    }
+
     this->m_metal = new GxMetal::Context();
 
     if (!this->m_metal->Init(device)) {
@@ -890,7 +896,21 @@ void CGxDeviceMetalNative::ITexUpload(CGxTex* texId) {
                 size.x = static_cast<int32_t>(copyWidth);
                 size.y = static_cast<int32_t>(copyHeight);
 
-                if (Blit(size, BlitAlpha_0, source, texelStrideInBytes, GxGetBlitFormat(texId->m_dataFormat), staging.m_data, pitch, GxGetBlitFormat(texId->m_format))) {
+                bool blitted = false;
+
+                if (info.m_expand != GxMetal::Packed16::None) {
+                    uint32_t packedPitch = copyWidth * 2;
+                    this->m_packedScratch.resize(static_cast<size_t>(packedPitch) * copyHeight);
+
+                    if (Blit(size, BlitAlpha_0, source, texelStrideInBytes, GxGetBlitFormat(texId->m_dataFormat), this->m_packedScratch.data(), packedPitch, GxGetBlitFormat(texId->m_format))) {
+                        GxMetal::ExpandPacked16(info.m_expand, copyWidth, copyHeight, this->m_packedScratch.data(), packedPitch, staging.m_data, pitch);
+                        blitted = true;
+                    }
+                } else {
+                    blitted = Blit(size, BlitAlpha_0, source, texelStrideInBytes, GxGetBlitFormat(texId->m_dataFormat), staging.m_data, pitch, GxGetBlitFormat(texId->m_format)) != 0;
+                }
+
+                if (blitted) {
                     this->m_metal->CopyToTexture(staging, pitch, pitch * rows, texture->m_texture, face, level, MTLOriginMake(left, top, 0), MTLSizeMake(copyWidth, copyHeight, 1), texture->m_use);
                     texture->MarkWritten(level);
                 } else {

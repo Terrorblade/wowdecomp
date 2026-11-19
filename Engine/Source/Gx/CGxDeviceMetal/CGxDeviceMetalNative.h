@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/CGxDeviceMetal/MetalContext.h"
 #include "Engine/Source/Gx/CGxDeviceMetal/MetalPipeline.h"
@@ -175,6 +176,7 @@ class CGxDeviceMetalNative : public CGxDevice {
     uint64_t m_streamPassId;
     // The opaque texture a CGxTex holds after a forced recreation (the shim's m_texture3B58)
     GxMetal::Texture* m_defaultTexture;
+    std::vector<uint8_t> m_packedScratch;
     GxMetal::Texture* m_textureDepthBuffer;
     GxMetal::Target m_savedDepthTarget;
     uint32_t m_samples;

@@ -317,9 +317,17 @@ int32_t CVar::SaveCvar(const char* name, const char* value, void* arg) {
     return written != 0;
 }
 
+static bool IsPrivateCvarName(const char* name) {
+    return !SStrCmpI(name, "accountName", STORM_MAX_STR) || !SStrCmpI(name, "accountList", STORM_MAX_STR) || SStrStrI(name, "password");
+}
+
 // VERIFY: 14646b6b auto
 // OFFSET: 0x007666B0
 int32_t CVar::LogCvar(const char* name, const char* value, void* arg) {
+    if (IsPrivateCvarName(name)) {
+        return 1;
+    }
+
     char line[260];
     SStrPrintf(line, sizeof(line), "SET %s \"%s\"\n", name, value);
 

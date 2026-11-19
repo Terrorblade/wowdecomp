@@ -226,7 +226,7 @@ static const char* sGetPathLeaf(const char* path) {
 static void sLogExeFile(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam) {
     char exeFullPath[MAX_PATH];
     GetModuleFileNameA(nullptr, exeFullPath, sizeof(exeFullPath));
-    logLineProc(logLineProcParam, "%-10s%s", "Exe:", exeFullPath);
+    logLineProc(logLineProcParam, "%-10s%s", "Exe:", sGetPathLeaf(exeFullPath));
 }
 
 // OFFSET: 0x0077CF00
@@ -243,28 +243,49 @@ static void sLogDateTimeString(void (*logLineProc)(void*, const char*, ...), voi
     logLineProc(logLineProcParam, "%-10s%3s %2d, %4d %2d:%02d:%02d.%03d %cM", "Time:", s_monthNames[time->wMonth - 1], time->wDay, time->wYear, hour, time->wMinute, time->wSecond, time->wMilliseconds, ampm);
 }
 
-// OFFSET: 0x0077CF70
-static void sLogUserName(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam) {
-    char userName[MAX_PATH];
-    DWORD size = 257;
-
-    if (!GetUserNameA(userName, &size)) {
-        strcpy(userName, "<unknown>");
-    }
-
-    logLineProc(logLineProcParam, "%-10s%s", "User:", userName);
-}
-
 // OFFSET: 0x0077CFE0
-static void sLogComputerName(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam) {
-    char computerName[16];
-    DWORD size = sizeof(computerName);
+static void sLogOperatingSystem(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam) {
+    using RtlGetVersionProc = LONG(WINAPI*)(RTL_OSVERSIONINFOW*);
+    using WineGetVersionProc = const char*(__cdecl*)();
+    using WineGetHostVersionProc = void(__cdecl*)(const char**, const char**);
 
-    if (!GetComputerNameA(computerName, &size)) {
-        strcpy(computerName, "<unknown>");
+    char os[256];
+    strcpy(os, "Windows");
+
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+
+    if (ntdll) {
+        RtlGetVersionProc rtlGetVersion = reinterpret_cast<RtlGetVersionProc>(GetProcAddress(ntdll, "RtlGetVersion"));
+        RTL_OSVERSIONINFOW info;
+        memset(&info, 0, sizeof(info));
+        info.dwOSVersionInfoSize = sizeof(info);
+
+        if (rtlGetVersion && rtlGetVersion(&info) == 0) {
+            sprintf_s(os, "Windows %lu.%lu.%lu", info.dwMajorVersion, info.dwMinorVersion, info.dwBuildNumber);
+        }
+
+        WineGetVersionProc wineGetVersion = reinterpret_cast<WineGetVersionProc>(GetProcAddress(ntdll, "wine_get_version"));
+
+        if (wineGetVersion) {
+            const char* sysname = nullptr;
+            const char* release = nullptr;
+            WineGetHostVersionProc wineGetHostVersion = reinterpret_cast<WineGetHostVersionProc>(GetProcAddress(ntdll, "wine_get_host_version"));
+
+            if (wineGetHostVersion) {
+                wineGetHostVersion(&sysname, &release);
+            }
+
+            size_t length = strlen(os);
+
+            if (sysname && release) {
+                sprintf_s(os + length, sizeof(os) - length, " (Wine %s on %s %s)", wineGetVersion(), sysname, release);
+            } else {
+                sprintf_s(os + length, sizeof(os) - length, " (Wine %s)", wineGetVersion());
+            }
+        }
     }
 
-    logLineProc(logLineProcParam, "%-10s%s", "Computer:", computerName);
+    logLineProc(logLineProcParam, "%-10s%s", "OS:", os);
 }
 
 // OFFSET: 0x0077D040
@@ -360,6 +381,9 @@ static void sGetLogicalAddress(void* addr, char* moduleName, uint32_t moduleName
         lstrcpynA(moduleName, "<unknown>", moduleNameSize);
         return;
     }
+
+    const char* leaf = sGetPathLeaf(moduleName);
+    memmove(moduleName, leaf, strlen(leaf) + 1);
 
     if (!module) {
         return;
@@ -756,7 +780,7 @@ void UnloadMachineStateSymbols() {
 void LogComputerInfoHeader(uint32_t logOptions, void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, const char* headerTitleLine, const SYSTEMTIME* time) {
     if (InterlockedIncrement(&sgRecursionLevel) == 1) {
         if (!logOptions || (logOptions & LOG_OPTION_DEFAULT)) {
-            logOptions |= LOG_OPTION_EXEFILE | LOG_OPTION_DATETIME | LOG_OPTION_COMPUTERNAME | LOG_OPTION_USERNAME;
+            logOptions |= LOG_OPTION_EXEFILE | LOG_OPTION_DATETIME | LOG_OPTION_OPERATINGSYSTEM;
 
             if (headerTitleLine && *headerTitleLine) {
                 logOptions |= LOG_OPTION_TITLE;
@@ -785,12 +809,8 @@ void LogComputerInfoHeader(uint32_t logOptions, void (*logLineProc)(void*, const
             sLogDateTimeString(logLineProc, logLineProcParam, time);
         }
 
-        if (logOptions & LOG_OPTION_USERNAME) {
-            sLogUserName(logLineProc, logLineProcParam);
-        }
-
-        if (logOptions & LOG_OPTION_COMPUTERNAME) {
-            sLogComputerName(logLineProc, logLineProcParam);
+        if (logOptions & LOG_OPTION_OPERATINGSYSTEM) {
+            sLogOperatingSystem(logLineProc, logLineProcParam);
         }
 
         sLogSeparatorLine(logLineProc, logLineProcParam, '-', 1);

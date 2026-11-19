@@ -10,8 +10,8 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <execinfo.h>
-#include <pwd.h>
 #include <sys/uio.h>
+#include <sys/utsname.h>
 #include <unistd.h>
 #include "Engine/Source/Os/Linux/OsPosix.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -159,7 +159,7 @@ static const char* sGetPathLeaf(const char* path) {
 static void sLogExeFile(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam) {
     char exeFullPath[MAX_PATH * 4];
     StormLinux::GetExePath(exeFullPath, sizeof(exeFullPath));
-    logLineProc(logLineProcParam, "%-10s%s", "Exe:", exeFullPath);
+    logLineProc(logLineProcParam, "%-10s%s", "Exe:", sGetPathLeaf(exeFullPath));
 }
 
 static void sLogDateTimeString(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, const MACHINESTATETIME* time) {
@@ -175,36 +175,17 @@ static void sLogDateTimeString(void (*logLineProc)(void*, const char*, ...), voi
     logLineProc(logLineProcParam, "%-10s%3s %2d, %4d %2d:%02d:%02d.%03d %cM", "Time:", s_monthNames[time->wMonth - 1], time->wDay, time->wYear, hour, time->wMinute, time->wSecond, time->wMilliseconds, ampm);
 }
 
-static void sLogUserName(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam) {
-    char userName[MAX_PATH];
-    userName[0] = 0;
+static void sLogOperatingSystem(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam) {
+    char os[256];
+    struct utsname info;
 
-    passwd entry;
-    passwd* result = nullptr;
-    char buffer[1024];
-
-    if (getpwuid_r(geteuid(), &entry, buffer, sizeof(buffer), &result) == 0 && result && result->pw_name) {
-        SStrCopy(userName, result->pw_name, sizeof(userName));
-    } else if (getenv("USER")) {
-        SStrCopy(userName, getenv("USER"), sizeof(userName));
+    if (uname(&info) == 0) {
+        SStrPrintf(os, sizeof(os), "%s %s %s", info.sysname, info.release, info.machine);
+    } else {
+        SStrCopy(os, "<unknown>", sizeof(os));
     }
 
-    if (!userName[0]) {
-        strcpy(userName, "<unknown>");
-    }
-
-    logLineProc(logLineProcParam, "%-10s%s", "User:", userName);
-}
-
-static void sLogComputerName(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam) {
-    char computerName[256];
-
-    if (gethostname(computerName, sizeof(computerName)) != 0) {
-        strcpy(computerName, "<unknown>");
-    }
-
-    computerName[sizeof(computerName) - 1] = 0;
-    logLineProc(logLineProcParam, "%-10s%s", "Computer:", computerName);
+    logLineProc(logLineProcParam, "%-10s%s", "OS:", os);
 }
 
 static void sLogMemory(uint32_t logOptions, void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, uint8_t* instructionPointer, uint8_t* stackPointer) {
@@ -252,9 +233,11 @@ static void sGetLogicalAddress(void* addr, char* moduleName, uint32_t moduleName
     }
 
     if (info.dli_fname && *info.dli_fname) {
-        SStrCopy(moduleName, info.dli_fname, moduleNameSize);
+        SStrCopy(moduleName, sGetPathLeaf(info.dli_fname), moduleNameSize);
     } else {
-        StormLinux::GetExePath(moduleName, moduleNameSize);
+        char exePath[MAX_PATH * 4];
+        StormLinux::GetExePath(exePath, sizeof(exePath));
+        SStrCopy(moduleName, sGetPathLeaf(exePath), moduleNameSize);
     }
 
     *offset = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(info.dli_fbase));
@@ -411,7 +394,7 @@ void UnloadMachineStateSymbols() {
 void LogComputerInfoHeader(uint32_t logOptions, void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, const char* headerTitleLine, const MACHINESTATETIME* time) {
     if (InterlockedIncrement(&sgRecursionLevel) == 1) {
         if (!logOptions || (logOptions & LOG_OPTION_DEFAULT)) {
-            logOptions |= LOG_OPTION_EXEFILE | LOG_OPTION_DATETIME | LOG_OPTION_COMPUTERNAME | LOG_OPTION_USERNAME;
+            logOptions |= LOG_OPTION_EXEFILE | LOG_OPTION_DATETIME | LOG_OPTION_OPERATINGSYSTEM;
 
             if (headerTitleLine && *headerTitleLine) {
                 logOptions |= LOG_OPTION_TITLE;
@@ -440,12 +423,8 @@ void LogComputerInfoHeader(uint32_t logOptions, void (*logLineProc)(void*, const
             sLogDateTimeString(logLineProc, logLineProcParam, time);
         }
 
-        if (logOptions & LOG_OPTION_USERNAME) {
-            sLogUserName(logLineProc, logLineProcParam);
-        }
-
-        if (logOptions & LOG_OPTION_COMPUTERNAME) {
-            sLogComputerName(logLineProc, logLineProcParam);
+        if (logOptions & LOG_OPTION_OPERATINGSYSTEM) {
+            sLogOperatingSystem(logLineProc, logLineProcParam);
         }
 
         sLogSeparatorLine(logLineProc, logLineProcParam, '-', 1);

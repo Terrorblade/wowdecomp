@@ -210,10 +210,32 @@ void CCharacterSelection::GuildCallback(int32_t guildID, const WOWGUID& guid, vo
         int32_t borderColor;
         int32_t background;
 
-        if (GuildGetGuildTabard(WOWGUID(), guildID, nullptr, nullptr, emblemStyle, emblemColor, borderStyle, borderColor, background)) {
-            CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component->ApplyGuildColor(emblemStyle, emblemColor, borderStyle, borderColor, background);
+        CCharacterComponent* component = CCharacterSelection::s_characterList[i].m_component;
+
+        if (component && GuildGetGuildTabard(WOWGUID(), guildID, nullptr, nullptr, emblemStyle, emblemColor, borderStyle, borderColor, background)) {
+            component->ApplyGuildColor(emblemStyle, emblemColor, borderStyle, borderColor, background);
         }
     }
+}
+
+// The names come from the server, a separator or ".." would move folders outside the account.
+static bool IsPlainFolderName(const char* name) {
+    return name && *name && !strchr(name, '\\') && !strchr(name, '/') && !strchr(name, ':') && !strstr(name, "..");
+}
+
+static void MoveCharacterFolders(const char* oldName, const char* newName) {
+    if (!IsPlainFolderName(oldName) || !IsPlainFolderName(newName)) {
+        return;
+    }
+
+    char oldPath[260];
+    char newPath[260];
+    SStrPrintf(oldPath, sizeof(oldPath), "WTF\\Account\\%s\\%s\\%s", CGlueMgr::m_accountName, ClientServices::GetSelectedRealmName(), oldName);
+    SStrPrintf(newPath, sizeof(newPath), "WTF\\Account\\%s\\%s\\%s", CGlueMgr::m_accountName, ClientServices::GetSelectedRealmName(), newName);
+    OsMoveFile(oldPath, newPath);
+    SStrPrintf(oldPath, sizeof(oldPath), "WTF\\Account\\%s\\%s", CGlueMgr::m_accountName, oldName);
+    SStrPrintf(newPath, sizeof(newPath), "WTF\\Account\\%s\\%s", CGlueMgr::m_accountName, newName);
+    OsMoveFile(oldPath, newPath);
 }
 
 // VERIFY: 9fe08e4d auto
@@ -231,14 +253,7 @@ void CCharacterSelection::UpdateCharacterName(WOWGUID guid, const char* name) {
         return;
     }
 
-    char oldPath[260];
-    char newPath[260];
-    SStrPrintf(oldPath, sizeof(oldPath), "WTF\\Account\\%s\\%s\\%s", CGlueMgr::m_accountName, ClientServices::GetSelectedRealmName(), CCharacterSelection::s_characterList[index].m_characterInfo.m_name);
-    SStrPrintf(newPath, sizeof(newPath), "WTF\\Account\\%s\\%s\\%s", CGlueMgr::m_accountName, ClientServices::GetSelectedRealmName(), name);
-    OsMoveFile(oldPath, newPath);
-    SStrPrintf(oldPath, sizeof(oldPath), "WTF\\Account\\%s\\%s", CGlueMgr::m_accountName, CCharacterSelection::s_characterList[index].m_characterInfo.m_name);
-    SStrPrintf(newPath, sizeof(newPath), "WTF\\Account\\%s\\%s", CGlueMgr::m_accountName, name);
-    OsMoveFile(oldPath, newPath);
+    MoveCharacterFolders(CCharacterSelection::s_characterList[index].m_characterInfo.m_name, name);
     ClearAddOnEnableState(CCharacterSelection::s_characterList[index].m_characterInfo.m_name);
     LoadAddOnEnableState(name);
     SStrCopy(CCharacterSelection::s_characterList[index].m_characterInfo.m_name, name, sizeof(CCharacterSelection::s_characterList[index].m_characterInfo.m_name));
@@ -263,14 +278,7 @@ void CCharacterSelection::UpdateCharacterInfo(WOWGUID guid, const char* name, ui
     }
 
     if (SStrCmpI(name, CCharacterSelection::s_characterList[index].m_characterInfo.m_name, STORM_MAX_STR)) {
-        char oldPath[260];
-        char newPath[260];
-        SStrPrintf(oldPath, sizeof(oldPath), "WTF\\Account\\%s\\%s\\%s", CGlueMgr::m_accountName, ClientServices::GetSelectedRealmName(), CCharacterSelection::s_characterList[index].m_characterInfo.m_name);
-        SStrPrintf(newPath, sizeof(newPath), "WTF\\Account\\%s\\%s\\%s", CGlueMgr::m_accountName, ClientServices::GetSelectedRealmName(), name);
-        OsMoveFile(oldPath, newPath);
-        SStrPrintf(oldPath, sizeof(oldPath), "WTF\\Account\\%s\\%s", CGlueMgr::m_accountName, CCharacterSelection::s_characterList[index].m_characterInfo.m_name);
-        SStrPrintf(newPath, sizeof(newPath), "WTF\\Account\\%s\\%s", CGlueMgr::m_accountName, name);
-        OsMoveFile(oldPath, newPath);
+        MoveCharacterFolders(CCharacterSelection::s_characterList[index].m_characterInfo.m_name, name);
         ClearAddOnEnableState(CCharacterSelection::s_characterList[index].m_characterInfo.m_name);
         LoadAddOnEnableState(name);
         SStrCopy(CCharacterSelection::s_characterList[index].m_characterInfo.m_name, name, sizeof(CCharacterSelection::s_characterList[index].m_characterInfo.m_name));
@@ -434,6 +442,10 @@ void CCharacterSelection::ShowCharacter() {
     int32_t newComponent = 0;
 
     if (!CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component) {
+        if (CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_characterInfo.m_sexID >= 2) {
+            return;
+        }
+
         newComponent = 1;
 
         CreatureModelDataRec* playerRec = GetModelDataRec(CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_characterInfo.m_raceID, CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_characterInfo.m_sexID);
@@ -515,7 +527,7 @@ void CCharacterSelection::ShowCharacter() {
                     }
                 }
             } else if (static_cast<int32_t>(slot) >= 19 && static_cast<int32_t>(slot) <= 22) {
-                if (*itemRec.m_modelName[0]) {
+                if (found && itemRec.m_modelName[0] && *itemRec.m_modelName[0]) {
                     CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component->AddItem(ITEMSLOT_11, &itemRec, 0);
                 }
             } else {
@@ -574,7 +586,7 @@ void CCharacterSelection::ShowCharacter() {
                     level = range;
                 }
 
-                scale = static_cast<float>(level) / range * (familyRec->m_maxScale - familyRec->m_minScale) + familyRec->m_minScale;
+                scale = range > 0 ? static_cast<float>(level) / range * (familyRec->m_maxScale - familyRec->m_minScale) + familyRec->m_minScale : familyRec->m_maxScale;
             }
 
             petModel->m_lightingCallback = &CCharacterSelection::GenericLightingCallback;

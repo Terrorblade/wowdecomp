@@ -377,6 +377,12 @@ extern WowClientDB<LfgDungeonExpansionRec> g_lfgDungeonExpansionDB;
 extern WowClientDB<LfgDungeonGroupRec> g_lfgDungeonGroupDB;
 extern WowClientDB<LfgDungeonsRec> g_lfgDungeonsDB;
 extern WowClientDB<LiquidTypeRec> g_liquidTypeDB;
+
+// Liquid ids come from ADT and WMO data, an id missing from LiquidType.dbc reads as no flags.
+inline int32_t LiquidTypeFlags(int32_t id) {
+    const LiquidTypeRec* rec = g_liquidTypeDB.GetRecord(id);
+    return rec ? rec->m_flags : 0;
+}
 extern WowClientDB<LiquidMaterialRec> g_liquidMaterialDB;
 extern WowClientDB<LoadingScreensRec> g_loadingScreensDB;
 extern WowClientDB<LoadingScreenTaxiSplinesRec> g_loadingScreenTaxiSplinesDB;

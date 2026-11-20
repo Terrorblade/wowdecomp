@@ -470,7 +470,7 @@ int32_t Script_GetBillingTimeRested(lua_State* L) {
 // VERIFY: d99d63b5 auto
 // OFFSET: 0x005150E0
 static int32_t Script_Screenshot(lua_State* L) {
-    ScrnScreenshot(&CGGameUI::HandleScreenshot, reinterpret_cast<uint8_t*>(ClientServices::GetClientStamp()), 88);
+    ScrnScreenshot(&CGGameUI::HandleScreenshot);
     return 0;
 }
 

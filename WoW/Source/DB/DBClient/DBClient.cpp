@@ -9,7 +9,6 @@
 const char* g_localeNames[NUM_DB_LOCALES] = { "deDE", "enGB", "enUS", "esES", "frFR", "koKR", "zhCN", "zhTW", "enCN", "enTW", "esMX", "ruRU" };
 
 // STATIC: 0x00C5DEA0
-int32_t g_clientDbPerformCompress;
 
 // STATIC: 0x00AD2F90
 static int32_t s_physicalDamageClassID = -1;
@@ -1096,6 +1095,10 @@ void InitWeaponSubclasses() {
     s_unarmedWeapon = nullptr;
     LocateWeaponSubclass();
 
+    if (!s_weaponItemClass) {
+        return;
+    }
+
     int32_t weaponClass = s_weaponItemClass->m_classID;
     int32_t count = 0;
 
@@ -1125,21 +1128,6 @@ void InitWeaponSubclasses() {
 // VERIFY: f26ccc9b auto
 // OFFSET: 0x00634E00
 void ClientDBInitialize() {
-    CVar* cvar = CVar::Lookup("dbCompress");
-
-    if (cvar) {
-        switch (cvar->m_intValue) {
-            case -1:
-            case 1:
-                g_clientDbPerformCompress = 1;
-                break;
-
-            case 0:
-                g_clientDbPerformCompress = 0;
-                break;
-        }
-    }
-
     StaticDBLoadAll(&WowClientDB_Base::Load);
     GameTablesInitialize();
     InitResistances();

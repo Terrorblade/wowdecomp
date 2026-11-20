@@ -1,4 +1,5 @@
 #include "Liquid.h"
+#include <cstring>
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Gx/CGxTexFlags.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -172,6 +173,37 @@ void Liquid::InvalidateProceduralTextures() {
     Liquid::s_unk_D43B48[3] = 0;
     Liquid::s_unk_D43B48[2] = 0;
     Liquid::s_unk_D43B48[1] = 0;
+}
+
+// The depth textures only depend on the day/night water colors and alphas, so skip the upload when those did not move.
+void Liquid::InvalidateProceduralTexturesOnChange() {
+    struct WaterBands {
+        CImVector colors[4];
+        float alphas[4];
+    };
+
+    static WaterBands s_last;
+    static bool s_valid = false;
+
+    DayNight::DNInfo* info = DayNight::GetInfo();
+    WaterBands now;
+
+    for (uint32_t i = 0; i < 4; i++) {
+        now.colors[i] = info->m_bands.m_waterColors[i];
+    }
+
+    now.alphas[0] = info->m_bands.m_oceanShallowAlpha;
+    now.alphas[1] = info->m_bands.m_oceanDeepAlpha;
+    now.alphas[2] = info->m_bands.m_waterShallowAlpha;
+    now.alphas[3] = info->m_bands.m_waterDeepAlpha;
+
+    if (s_valid && !memcmp(&now, &s_last, sizeof(now))) {
+        return;
+    }
+
+    s_last = now;
+    s_valid = true;
+    Liquid::InvalidateProceduralTextures();
 }
 
 // VERIFY: 331f7c3c manual

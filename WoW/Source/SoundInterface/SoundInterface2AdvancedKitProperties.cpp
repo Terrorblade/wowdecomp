@@ -528,7 +528,7 @@ float SI2::GetSoundVolume(SESoundUserData* userData) {
     float volume = 1.0f;
     SI2AdvancedSound* sound;
 
-    if (s_vsoundLookup) {
+    if (s_vsoundLookup && data->m_advancedId) {
         SE2::LockSoundList();
         VSOUND_LOOKUP* node = s_vsoundLookup->Ptr(data->m_advancedId, s_vsoundKey);
         SE2::UnlockSoundList();

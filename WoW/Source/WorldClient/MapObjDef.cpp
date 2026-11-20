@@ -262,6 +262,7 @@ void CMapObjDef::SetSequence(uint32_t sequence, int32_t a3, uint16_t doodadSet) 
 // VERIFY: c20df2dc manual
 // OFFSET: 0x007B64F0
 void CMapObjDef::UpdateMoved(CMapObjDef* mapObjDef) {
+    CMap::InvalidateMapObjDefQueries();
     mapObjDef->m_flags = static_cast<MapObjFlag>(mapObjDef->m_flags | MAPOBJ_FLAG_NO_DEPTH_SORT);
     CMapObj* owner = mapObjDef->m_owner;
 

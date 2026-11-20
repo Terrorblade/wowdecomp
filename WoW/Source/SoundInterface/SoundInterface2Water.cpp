@@ -131,6 +131,10 @@ int32_t SI2::HandleWaterSounds(const void* data, void* param) {
     for (uint32_t i = 0; i < results.Count(); i++) {
         LiquidTypeRec* liquidType = g_liquidTypeDB.GetRecord(results[i].m_liquidType);
 
+        if (!liquidType) {
+            continue;
+        }
+
         if (!(liquidType->m_flags & 0x80) || !entity || !World::QueryObjectInside(entity)) {
             C3Vector offset = results[i].m_offset;
             _AddNearestWaterSound(offset.x * offset.x + offset.y * offset.y, C3Vector(position.x + offset.x, position.y + offset.y, position.z + offset.z), liquidType);

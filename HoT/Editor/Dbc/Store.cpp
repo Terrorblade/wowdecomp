@@ -19,6 +19,8 @@ struct PlainTable {
     static inline WowClientDB<T>* s_db = nullptr;
     static inline T* s_block = nullptr;
     static inline int32_t s_capacity = 0;
+    static inline T** s_index = nullptr;
+    static inline int32_t s_indexCapacity = 0;
     // Record arrays replaced by a grow, cached pointers into them still get every in-place write.
     static inline std::vector<std::pair<T*, int32_t>> s_retired;
 
@@ -74,20 +76,33 @@ struct PlainTable {
         return true;
     }
 
+    static bool IndexFits(int32_t minId, int32_t maxId) {
+        WowClientDB<T>& db = *s_db;
+        return db.m_recordsById && db.m_recordsById == s_index && minId == db.m_minID && maxId - minId < s_indexCapacity;
+    }
+
     static void RebuildIndex(int32_t minId, int32_t maxId) {
         WowClientDB<T>& db = *s_db;
 
         if constexpr (s_indexedById<T>) {
-            uint32_t count = static_cast<uint32_t>(maxId - minId) + 1;
-            T** index = new (__FILE__, __LINE__) T*[count];
-            memset(index, 0, sizeof(T*) * count);
+            T** index = db.m_recordsById;
+
+            if (!IndexFits(minId, maxId)) {
+                uint32_t range = static_cast<uint32_t>(maxId - minId) + 1;
+                uint32_t capacity = range + range / 2 + 64;
+                index = new (__FILE__, __LINE__) T*[capacity];
+                memset(index, 0, sizeof(T*) * capacity);
+
+                if (db.m_recordsById) {
+                    HoT::DB::Retire(db.m_recordsById, sizeof(T*) * (s_index == db.m_recordsById ? s_indexCapacity : db.m_maxID - db.m_minID + 1));
+                }
+
+                s_index = index;
+                s_indexCapacity = static_cast<int32_t>(capacity);
+            }
 
             for (int32_t i = 0; i < db.m_numRecords; i++) {
                 index[db.m_records[i].m_id - minId] = &db.m_records[i];
-            }
-
-            if (db.m_recordsById) {
-                HoT::DB::Retire(db.m_recordsById, sizeof(T*) * (db.m_maxID - db.m_minID + 1));
             }
 
             db.m_recordsById = index;
@@ -139,10 +154,15 @@ struct PlainTable {
         int32_t minId = count && db.m_minID < id ? db.m_minID : id;
         int32_t maxId = count && db.m_maxID > id ? db.m_maxID : id;
 
-        if (moved || minId != db.m_minID || maxId != db.m_maxID || !db.m_recordsById) {
+        if constexpr (s_indexedById<T>) {
+            if (moved || !IndexFits(minId, maxId)) {
+                RebuildIndex(minId, maxId);
+            } else {
+                db.m_recordsById[id - minId] = &db.m_records[count];
+                db.m_maxID = maxId;
+            }
+        } else {
             RebuildIndex(minId, maxId);
-        } else if constexpr (s_indexedById<T>) {
-            db.m_recordsById[id - minId] = &db.m_records[count];
         }
 
         db.m_loaded = 1;
@@ -160,28 +180,39 @@ struct RleTable {
     };
 
     static inline WowClientDB_RLE<T>* s_db = nullptr;
+    static inline uint32_t s_generation = 0;
+    static inline T** s_block = nullptr;
+    static inline int32_t s_positionCapacity = 0;
+    static inline int32_t s_idCapacity = 0;
     static inline std::unordered_set<T*> s_owned;
     static inline std::unordered_map<int32_t, Patch> s_patches;
 
-    static void Decode(const T* storage, uint8_t* out) {
-        if (g_clientDbPerformCompress) {
-            DecompressRow(reinterpret_cast<const uint8_t*>(storage), sizeof(T), out);
-        } else {
-            memcpy(out, storage, sizeof(T));
+    // A live reload freed the old index and replaced every row, so nothing this table owned is referenced any more.
+    static void Sync() {
+        if (s_db->m_generation == s_generation) {
+            return;
         }
+
+        s_generation = s_db->m_generation;
+        s_block = nullptr;
+        s_positionCapacity = 0;
+        s_idCapacity = 0;
+        s_patches.clear();
+
+        for (T* row : s_owned) {
+            SMemFree(row, __FILE__, __LINE__, 0);
+        }
+
+        s_owned.clear();
+    }
+
+    static void Decode(const T* storage, uint8_t* out) {
+        memcpy(out, storage, sizeof(T));
     }
 
     static T* Encode(const uint8_t* record) {
-        T* storage;
-
-        if (g_clientDbPerformCompress) {
-            uint32_t size = CompressRow(record, sizeof(T), nullptr);
-            storage = static_cast<T*>(SMemAlloc(size, __FILE__, __LINE__, 0));
-            CompressRow(record, sizeof(T), reinterpret_cast<uint8_t*>(storage));
-        } else {
-            storage = static_cast<T*>(SMemAlloc(sizeof(T), __FILE__, __LINE__, 0));
-            memcpy(storage, record, sizeof(T));
-        }
+        T* storage = static_cast<T*>(SMemAlloc(sizeof(T), __FILE__, __LINE__, 0));
+        memcpy(storage, record, sizeof(T));
 
         s_owned.insert(storage);
         return storage;
@@ -236,6 +267,8 @@ struct RleTable {
     }
 
     static bool Read(int32_t id, uint8_t* out) {
+        Sync();
+
         T** slot = SlotFor(id);
 
         if (!slot) {
@@ -248,6 +281,8 @@ struct RleTable {
     }
 
     static bool ReadIndex(int32_t index, uint8_t* out) {
+        Sync();
+
         WowClientDB_RLE<T>& db = *s_db;
 
         if (index < 0 || index >= db.m_numRecords || !db.m_records) {
@@ -275,6 +310,8 @@ struct RleTable {
     }
 
     static bool Write(int32_t id, const uint8_t* record, bool* inserted) {
+        Sync();
+
         WowClientDB_RLE<T>& db = *s_db;
 
         if (T** slot = SlotFor(id)) {
@@ -302,31 +339,41 @@ struct RleTable {
         int32_t count = db.m_numRecords > 0 && db.m_records ? db.m_numRecords : 0;
         int32_t minId = count && db.m_minID < id ? db.m_minID : id;
         int32_t maxId = count && db.m_maxID > id ? db.m_maxID : id;
-        uint32_t range = static_cast<uint32_t>(maxId - minId) + 1;
+        bool fits = db.m_records && db.m_records == s_block && count < s_positionCapacity && minId == db.m_minID && maxId - minId < s_idCapacity;
 
-        // Same layout as LoadRecords, the index by position then the index by id in one block.
-        T** block = static_cast<T**>(SMemAlloc(sizeof(T*) * (count + 1 + range), __FILE__, __LINE__, 0));
-        T** byId = &block[count + 1];
-        memset(byId, 0, sizeof(T*) * range);
+        if (!fits) {
+            uint32_t range = static_cast<uint32_t>(maxId - minId) + 1;
+            int32_t positionCapacity = count + 16 + count / 4;
+            uint32_t idCapacity = range + range / 2 + 64;
 
-        if (count) {
-            memcpy(block, db.m_records, sizeof(T*) * count);
+            // Same layout as LoadRecords, the index by position then the index by id in one block.
+            T** block = static_cast<T**>(SMemAlloc(sizeof(T*) * (positionCapacity + idCapacity), __FILE__, __LINE__, 0));
+            T** byId = &block[positionCapacity];
+            memset(byId, 0, sizeof(T*) * idCapacity);
 
-            if (db.m_recordsById) {
-                memcpy(&byId[db.m_minID - minId], db.m_recordsById, sizeof(T*) * (db.m_maxID - db.m_minID + 1));
+            if (count) {
+                memcpy(block, db.m_records, sizeof(T*) * count);
+
+                if (db.m_recordsById) {
+                    memcpy(&byId[db.m_minID - minId], db.m_recordsById, sizeof(T*) * (db.m_maxID - db.m_minID + 1));
+                }
             }
+
+            if (db.m_records) {
+                uint32_t oldSize = db.m_records == s_block ? s_positionCapacity + s_idCapacity : count + db.m_maxID - db.m_minID + 1;
+                HoT::DB::Retire(db.m_records, count ? static_cast<uint32_t>(sizeof(T*) * oldSize) : 0);
+            }
+
+            db.m_records = block;
+            db.m_recordsById = byId;
+            s_block = block;
+            s_positionCapacity = positionCapacity;
+            s_idCapacity = static_cast<int32_t>(idCapacity);
         }
 
         T* fresh = Encode(record);
-        block[count] = fresh;
-        byId[id - minId] = fresh;
-
-        if (db.m_records) {
-            HoT::DB::Retire(db.m_records, count ? static_cast<uint32_t>(sizeof(T*) * (count + db.m_maxID - db.m_minID + 1)) : 0);
-        }
-
-        db.m_records = block;
-        db.m_recordsById = byId;
+        db.m_records[count] = fresh;
+        db.m_recordsById[id - minId] = fresh;
         db.m_numRecords = count + 1;
         db.m_minID = minId;
         db.m_maxID = maxId;
@@ -337,6 +384,8 @@ struct RleTable {
     }
 
     static bool ApplyPatch(int32_t id, void (*apply)(T&)) {
+        Sync();
+
         T** slot = SlotFor(id);
 
         if (!slot || LivePatch(id, slot)) {
@@ -355,6 +404,8 @@ struct RleTable {
     }
 
     static void RemovePatch(int32_t id) {
+        Sync();
+
         auto it = s_patches.find(id);
 
         if (it == s_patches.end()) {

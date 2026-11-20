@@ -78,7 +78,6 @@ target_link_libraries(WowClient
         SteelseriesMouse
         Storm
         WoWCommon
-        Battlenet
         Console
         ConsoleDevice
         DB

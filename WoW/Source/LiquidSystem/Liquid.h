@@ -279,6 +279,7 @@ namespace Liquid {
         /* 0054 */ CAaSphere m_bounds;
         /* 0064 */ int32_t m_queued;
         /* 0068 */ int32_t m_refCount;
+        uint32_t m_lastPrepMs;
 
         CInstance();
         void AddRef();
@@ -359,6 +360,7 @@ namespace Liquid {
     C44Matrix* GetTexScrollMtx(const C2Vector& speed);
     int32_t Initialize(int32_t a1, float a2, int32_t a3, const char* a4, IDatabase<LiquidTypeRec>* liquidTypeDB, IDatabase<LiquidMaterialRec>* liquidMaterialDB);
     void InvalidateProceduralTextures();
+    void InvalidateProceduralTexturesOnChange();
     void SetCircularWave(uint32_t index, const C2Vector& a2, const C2Vector& a3, float a4, float a5, float a6, float speed);
     void SetDirectionalWave(uint32_t index, const C2Vector& direction, float a3, float a4, float a5, float speed);
     void SetProcWaterLighting(const CM2Lighting& lighting);

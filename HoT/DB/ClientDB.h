@@ -93,11 +93,20 @@ bool Reload(WowClientDB_RLE<T>& live, const char* file, int32_t line) {
         return false;
     }
 
+    // Rows are only ever copied out of RLE storage, so only the strings that copies point into must outlive the swap.
     if (live.m_loaded) {
-        Retire(live.m_data, 0);
-        Retire(live.m_records, sizeof(T*) * (live.m_numRecords + live.m_maxID - live.m_minID + 1));
+        if (live.m_data) {
+            SMemFree(live.m_data, __FILE__, __LINE__, 0);
+        }
+
+        if (live.m_records) {
+            SMemFree(live.m_records, __FILE__, __LINE__, 0);
+        }
+
         Retire(const_cast<char*>(live.m_strings), 0);
     }
+
+    live.m_generation++;
 
     live.m_data = fresh.m_data;
     live.m_records = fresh.m_records;

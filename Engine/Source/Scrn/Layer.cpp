@@ -1,14 +1,17 @@
 #include <cstddef>
 #include <cstdint>
 #include <new>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 #include "HoT/Profiler/Profiler.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gxu/Gxu.h"
 #include "Engine/Source/Gxu/GxuFont.h"
-#include "Engine/Source/Images/ImageWriter.h"
-#include "Engine/Source/Images/tga.h"
+#include "Engine/Source/Images/PngWriter.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Os/System.h"
@@ -23,12 +26,6 @@
 // STATIC: 0x009EDCB8
 static const RECTF s_defaultRect = { 0.0f, 0.0f, 1.0f, 1.0f };
 
-// STATIC: 0x00AC1B88
-static char s_screenshotFormat[16] = "jpeg";
-
-// STATIC: 0x00AC1B98
-static uint32_t s_screenshotQuality = 60;
-
 // STATIC: 0x00AC1B9C
 static TSExplicitList<CILayer, offsetof(CILayer, m_zorderlink)> s_zorderlist;
 
@@ -41,22 +38,14 @@ static void (*s_screenshotCallback)(int32_t success);
 // STATIC: 0x00B49A18
 static int32_t s_noPresent;
 
-// STATIC: 0x00B49A1C
-static uint8_t* s_screenshotData;
+static std::thread* s_screenshotWriter;
 
-// STATIC: 0x00B49A20
-static uint32_t s_screenshotDataSize;
-
-// VERIFY: 87ac0fd7 manual
-// OFFSET: 0x004A8420
-static void* LAYER_MemAlloc(size_t bytes) {
-    return SMemAlloc(bytes, __FILE__, __LINE__, 0);
-}
-
-// VERIFY: fb9e21ad manual
-// OFFSET: 0x004A8440
-static void LAYER_MemFree(void* ptr) {
-    SMemFree(ptr, __FILE__, __LINE__, 0);
+static void WaitScreenshotWriter() {
+    if (s_screenshotWriter) {
+        s_screenshotWriter->join();
+        delete s_screenshotWriter;
+        s_screenshotWriter = nullptr;
+    }
 }
 
 // VERIFY: cbcfc981 auto
@@ -65,24 +54,6 @@ static int32_t OnIdle(const void* data, void* param) {
     s_elapsedSec += static_cast<const EVENT_DATA_IDLE*>(data)->m_elapsedSec;
 
     return 1;
-}
-
-// VERIFY: f03a908c auto
-// OFFSET: 0x004A8480
-void ScrnSetScreenshotFormat(const char* format) {
-    SStrCopy(s_screenshotFormat, format, sizeof(s_screenshotFormat));
-}
-
-// VERIFY: 228fd240 manual
-// OFFSET: 0x004A84A0
-void ScrnSetScreenshotQuality(uint32_t quality) {
-    if (quality > 10) {
-        quality = 10;
-    } else if (quality < 1) {
-        quality = 1;
-    }
-
-    s_screenshotQuality = static_cast<uint32_t>(static_cast<int64_t>(quality * 5.5f + 45.0f));
 }
 
 // VERIFY: 8f3185ff auto
@@ -105,10 +76,8 @@ void ScrnLayerSetFlags(HLAYER layer, uint32_t flags) {
 
 // VERIFY: 2c71a8fb auto
 // OFFSET: 0x004A8550
-void ScrnScreenshot(void (*callback)(int32_t success), uint8_t* data, uint32_t size) {
+void ScrnScreenshot(void (*callback)(int32_t success)) {
     s_screenshotCallback = callback;
-    s_screenshotData = data;
-    s_screenshotDataSize = size;
 }
 
 // VERIFY: 90b31936 auto
@@ -120,33 +89,22 @@ static int32_t CaptureScreen() {
 
     g_theGxDevicePtr->DeviceReadScreenShot(width, height, pixels);
 
-    if (pixels && ImageWriterInitialize(s_screenshotDataSize, LAYER_MemAlloc, LAYER_MemFree, 0)) {
+    if (pixels) {
         OsCreateDirectory("Screenshots", 0);
 
         char timeStamp[260];
         OsGetTimeStamp(timeStamp, sizeof(timeStamp));
 
-        if (SStrCmpI(s_screenshotFormat, "tga", STORM_MAX_STR) && SStrCmpI(s_screenshotFormat, "png", STORM_MAX_STR) && s_screenshotQuality < 100) {
-            ImageWriterEmbedData(pixels, width, height, 4, s_screenshotData, s_screenshotDataSize);
-        }
-
         char fileName[260];
+        SStrPrintf(fileName, sizeof(fileName), "%s\\WoWScrnShot_%s.png", "Screenshots", timeStamp);
 
-        if (!SStrCmpI(s_screenshotFormat, "tga", STORM_MAX_STR)) {
-            SStrPrintf(fileName, sizeof(fileName), "%s\\WoWScrnShot_%s.tga", "Screenshots", timeStamp);
+        WaitScreenshotWriter();
 
-            CTgaFile tga;
-            tga.SetImage(pixels, width, height, 32, 0, 1, 0);
-            tga.RemoveAlphaChannels();
-            tga.Compress();
-            tga.Write(fileName);
-            tga.Close();
-        } else {
-            SStrPrintf(fileName, sizeof(fileName), "%s\\WoWScrnShot_%s.jpg", "Screenshots", timeStamp);
-            ImageWriterWriteJpeg(fileName, pixels, width, height, 4, s_screenshotQuality);
-        }
-
-        ImageWriterShutdown();
+        std::string path = fileName;
+        std::vector<CImVector> image(pixels, pixels + static_cast<size_t>(width) * height);
+        s_screenshotWriter = new std::thread([path = std::move(path), image = std::move(image), width, height]() {
+            PngWriteBgra(path.c_str(), image.data(), width, height);
+        });
     }
 
     return pixels != nullptr;
@@ -301,6 +259,7 @@ CILayer::~CILayer() {
 void ILayerDestroy() {
     EventUnregister(EVENT_ID_IDLE, OnIdle);
     EventUnregister(EVENT_ID_PAINT, OnPaint);
+    WaitScreenshotWriter();
 }
 
 // VERIFY: 867daeb1 auto

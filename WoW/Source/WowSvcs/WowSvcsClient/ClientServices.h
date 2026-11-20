@@ -89,11 +89,8 @@ class ClientServices : public LoginResponse {
     static ClientServices* m_instance;
     static RealmResponse* s_clientRealmResponse;
     static char s_accountName[1280];
-    static char* GetClientStamp();
     static Login* s_loginObj;
     static CVar* s_serverAlertVar;
-    static CVar* s_realmListBNVar;
-    static CVar* s_portalVar;
     static CVar* s_realmListVar;
     static CVar* s_decorateAccountName;
     static bool s_newLogin;
@@ -130,7 +127,6 @@ class ClientServices : public LoginResponse {
     static void LoginFinalizeMatrix();
     static void FileAccept(bool accept, uint64_t offset);
     static void StartDownload();
-    static void SendSurveyData(uint16_t size, uint8_t* data);
     static void SendSurveyFailed();
     static int32_t GetSurveyId();
     static const char* GetServerAlertURL();
@@ -150,7 +146,6 @@ class ClientServices : public LoginResponse {
     static int32_t ValidDisconnect(const void* connection);
 
     bool GetCdKeys(Grunt::CdKey& cdKey) override;
-    void FileData(const uint8_t* data, uint32_t size) override;
     const char* GetLoginServer() override;
     int32_t GetLoginServerType() override;
     void JoinRealmResult(uint32_t realmId, int32_t a2, int32_t a3, int32_t a4, int32_t a5) override;

@@ -833,6 +833,11 @@ void CMapChunk::CreateLiquids(bool a3) {
         for (uint32_t i = 0; i < chunkDesc->m_layerCount; i++) {
             const SMLiquidInstance* instance = area->m_liquid->GetInstanceDesc(chunkDesc, i);
 
+            // CreateVertXY writes (width + 1) * (height + 1) verts into a 9x9 array.
+            if (!instance || instance->m_xOffset + instance->m_width > 8 || instance->m_yOffset + instance->m_height > 8) {
+                continue;
+            }
+
             CChunkLiquid* chunkLiquid = CMap::AllocChunkLiquid();
             this->m_liquidChunkLinkList.LinkToTail(chunkLiquid);
             chunkLiquid->m_owner = this;

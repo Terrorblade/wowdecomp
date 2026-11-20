@@ -5,6 +5,7 @@
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/LiquidSystem/Liquid.h"
 #include "WoW/Source/WorldClient/CChunkLiquid.h"
@@ -44,7 +45,8 @@ void CChunkLiquid::Purge() {
 // OFFSET: 0x007CDE30
 void CChunkLiquid::UpdateResourcePurging() {
     if (this->m_resPurgeTimer >= 2.0f) {
-        if (this->m_instance) {
+        // Chunk batching shares one instance across a 2x2 group, a neighbour drawn this frame still needs its buffers.
+        if (this->m_instance && (this->m_instance->m_refCount <= 1 || OsGetAsyncTimeMs() - this->m_instance->m_lastPrepMs >= 2000)) {
             this->m_instance->Purge();
         }
 
@@ -574,6 +576,10 @@ void CChunkLiquid::RenderPrep() {
 
     if (this->m_instance && this->m_instance->m_waveManager) {
         static_cast<Liquid::CWaveManager*>(this->m_instance->m_waveManager)->PrepareRenderTransform(World::GetCamPos());
+    }
+
+    if (this->m_instance) {
+        this->m_instance->m_lastPrepMs = OsGetAsyncTimeMs();
     }
 
     this->m_resPurgeTimer = 0.0f;

@@ -80,7 +80,6 @@
 #include "WoW/Source/Ui/AuctionHouse.h"
 #include "WoW/Source/Ui/BarberShop.h"
 #include "WoW/Source/Ui/BattlefieldInfo.h"
-#include "WoW/Source/Ui/BattlenetUI.h"
 #include "WoW/Source/Ui/Calendar.h"
 #include "WoW/Source/Ui/CGAutoCompleteName.h"
 #include "WoW/Source/Ui/CGBankInfo.h"
@@ -111,7 +110,6 @@
 #include "WoW/Source/Ui/InstanceEncounter_C.h"
 #include "WoW/Source/Ui/ItemSocketInfo.h"
 #include "WoW/Source/Ui/ItemTextFrame.h"
-#include "WoW/Source/Ui/KnowledgeBase.h"
 #include "WoW/Source/Ui/LFGInfo.h"
 #include "WoW/Source/Ui/LootFrame.h"
 #include "WoW/Source/Ui/MailInfo.h"
@@ -199,7 +197,7 @@ CImVector s_deadSelectionColor = CImVector(0x7F, 0x7F, 0x7F, 0xFF);
 const char* g_macroTaint = "";
 
 // STATIC: 0x00AC8088
-static const char* s_readOnlyCVars[6] = { "realmList", "realmName", "decorateAccountName", "realmlistbn", "portal", "serverAlert" };
+static const char* s_readOnlyCVars[4] = { "realmList", "realmName", "decorateAccountName", "serverAlert" };
 
 // STATIC: 0x00AC8AF0
 static UIErrorInfo s_errorInfo[ERR_MAX_VALUE] = {
@@ -2097,7 +2095,6 @@ int32_t CGGameUI::Idle(const void* data, void* param) {
     CGChat::ProcessThrottledChat();
     CGQuestLog::UpdateWatchTimers();
     CGUIMacros::UpdateDynamicMacros();
-    CKBPage::UpdateLoadingQueue();
     g_capturePointUIManager.Update();
     DBCache_Idle();
     Script_SendUniqueSignals();

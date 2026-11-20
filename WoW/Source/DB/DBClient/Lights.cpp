@@ -18,6 +18,10 @@ static void GetBandTimeRange(const int32_t* times, int32_t count, int32_t time, 
         return;
     }
 
+    if (count > 16) {
+        count = 16;
+    }
+
     do {
         int32_t start = times[index];
         next = (index + 1) % count;
@@ -114,7 +118,11 @@ void InitLights(bool transform) {
 // OFFSET: 0x007EBF30
 CImVector DayNight::LoadLightIntBand(int32_t time, const LightParamsRec* params, int32_t band) {
     LightIntBandRec rec;
-    g_lightIntBandDB.GetRecord(band + 18 * params->m_id - 17, &rec);
+
+    if (!params || !g_lightIntBandDB.GetRecord(band + 18 * params->m_id - 17, &rec)) {
+        rec.m_num = 0;
+    }
+
     return InterpolateIntBand(rec, time);
 }
 

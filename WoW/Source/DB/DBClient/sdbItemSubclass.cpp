@@ -25,7 +25,7 @@ void SDBItemSubclassInitialize() {
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
         const ItemSubClassRec* rec = i >= 0 && i < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[i] : nullptr;
 
-        if (rec->m_classID >= 0 && counts[rec->m_classID] <= rec->m_subClassID) {
+        if (rec->m_classID >= 0 && rec->m_classID < 17 && rec->m_subClassID >= 0 && counts[rec->m_classID] <= rec->m_subClassID) {
             counts[rec->m_classID] = rec->m_subClassID + 1;
         }
     }
@@ -37,7 +37,7 @@ void SDBItemSubclassInitialize() {
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
         const ItemSubClassRec* rec = i >= 0 && i < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[i] : nullptr;
 
-        if (rec->m_classID >= 0) {
+        if (rec->m_classID >= 0 && rec->m_classID < 17 && rec->m_subClassID >= 0) {
             s_itemSubclasses[rec->m_classID][rec->m_subClassID] = rec;
         }
     }

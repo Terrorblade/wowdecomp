@@ -87,6 +87,25 @@ static int32_t s_atlasEnable;
 
 // STATIC: 0x00B49C90
 static MipBits* s_mipBits;
+static uint32_t s_mipBitsSize;
+
+// The shared scratch was sized for 2048 px ARGB8888, anything larger would write past it.
+static void EnsureScratchMipBits(MipBits** images, uint32_t format, uint32_t width, uint32_t height) {
+    if (!images || !*images || *images != s_mipBits) {
+        return;
+    }
+
+    uint32_t size = MippedImgCalcSize(format, width, height);
+
+    if (size <= s_mipBitsSize) {
+        return;
+    }
+
+    SMemFree(s_mipBits, __FILE__, __LINE__, 0);
+    s_mipBits = static_cast<MipBits*>(SMemAlloc(size, __FILE__, __LINE__, 0));
+    s_mipBitsSize = size;
+    *images = s_mipBits;
+}
 
 // STATIC: 0x00B49C94
 static int32_t s_pumping;
@@ -109,6 +128,12 @@ static void ReleaseReadAhead(const CAsyncObject* object) {
     s_asyncLoadBufferUsed = object->m_size < s_asyncLoadBufferUsed ? s_asyncLoadBufferUsed - object->m_size : 0;
 }
 
+// A texture larger than the whole read-ahead still goes out once nothing else is in flight.
+static uint32_t AsyncReadAheadAvailable() {
+    uint32_t limit = OsGetCacheLimits().m_textureReadAhead;
+    return s_asyncLoadBufferUsed >= limit ? 0 : limit - s_asyncLoadBufferUsed;
+}
+
 // STATIC: 0x00B49CA4
 static TSHashTableReuse<CTexture, HASHKEY_TEXTUREFILE> s_textureCache;
 
@@ -127,6 +152,20 @@ HASHKEY_TEXTUREFILE::HASHKEY_TEXTUREFILE() {
 // INLINED
 bool HASHKEY_TEXTUREFILE::operator==(const HASHKEY_TEXTUREFILE& key) const {
     return !SStrCmpI(this->m_filename, key.m_filename, 260) && (this->m_anyTexFlags || key.m_anyTexFlags || this->m_texFlags == key.m_texFlags);
+}
+
+// INLINED
+CGxTexCache::CGxTexCache() {
+    this->m_gxTex = nullptr;
+    this->m_time = 0;
+    this->m_size = 0;
+}
+
+// INLINED
+CGxTexCache::~CGxTexCache() {
+    if (this->m_gxTex) {
+        GxTexDestroy(this->m_gxTex);
+    }
 }
 
 // INLINED
@@ -220,6 +259,7 @@ int32_t TextureBuildAliasPath(char* buffer, const char* fileName) {
 // OFFSET: 0x004B5280
 MipBits* GetDefaultTexture(uint32_t width, uint32_t height) {
     MipBits* images = s_mipBits;
+    EnsureScratchMipBits(&images, PIXEL_ARGB8888, width, height);
     MipBits* level = images;
 
     MippedImgSet(PIXEL_ARGB8888, width, height, images);
@@ -727,7 +767,10 @@ int32_t TextureLoadBlpMips(char* fileName, char* extension, int32_t flags, MipBi
         *pixelFormat = pixels;
     }
 
-    if (!image.LockChain(pixels, *images, bestMip)) {
+    EnsureScratchMipBits(images, pixels, imageWidth, imageHeight);
+
+    // DXT levels point straight into the loaded file instead of being copied, like PumpBlpTextureAsync does.
+    if (!image.LockChain2(fileName, pixels, *images, bestMip, 1)) {
         return 0;
     }
 
@@ -1226,20 +1269,23 @@ void FillInSolidTexture(const CImVector& color, CTexture* texture) {
     texture->m_gxWidth = 8;
     texture->m_gxHeight = 8;
     texture->m_gxTexFlags = CGxTexFlags();
-    SStrCopy(texture->m_filename, "SolidTexture", 260);
+    // A failed file keeps its name, the hash key points at it and renaming orphaned the cache entry.
+    if (!texture->m_filename[0]) {
+        SStrCopy(texture->m_filename, "SolidTexture", 260);
+    }
 }
 
 // VERIFY: f77dd4dd manual
 // OFFSET: 0x004B69E0
 void AsyncTextureHandler() {
-    uint32_t available = OsGetCacheLimits().m_textureReadAhead - s_asyncLoadBufferUsed;
+    uint32_t available = AsyncReadAheadAvailable();
 
     for (CAsyncObject* object = s_asyncLoadList.Head(); !s_asyncLoadList.IsEnd(object); ) {
         CAsyncObject* next = s_asyncLoadList.RawNext(object);
 
-        if (available >= object->m_size) {
+        if (available >= object->m_size || !s_asyncLoadBufferUsed) {
             AsyncTextureProcess(object, 0);
-            available -= object->m_size;
+            available = AsyncReadAheadAvailable();
         }
 
         object = next;
@@ -1248,9 +1294,9 @@ void AsyncTextureHandler() {
     for (CAsyncObject* object = s_asyncTextureList.Head(); !s_asyncTextureList.IsEnd(object); ) {
         CAsyncObject* next = s_asyncTextureList.RawNext(object);
 
-        if (available >= object->m_size) {
+        if (available >= object->m_size || !s_asyncLoadBufferUsed) {
             AsyncTextureProcess(object, 0);
-            available -= object->m_size;
+            available = AsyncReadAheadAvailable();
         }
 
         object = next;
@@ -1708,6 +1754,8 @@ int32_t LoadTgaMips(char* fileName, char* extension, int32_t flags, MipBits** im
     uint32_t imageHeight = image.Height();
     uint32_t mipCount = TextureCalcMipCount(imageWidth, imageHeight);
 
+    EnsureScratchMipBits(images, PIXEL_ARGB8888, imageWidth, imageHeight);
+
     if (*images) {
         MippedImgSet(PIXEL_ARGB8888, imageWidth, imageHeight, *images);
     } else {
@@ -1861,6 +1909,7 @@ int32_t PumpBlpTextureAsync(CTexture* texture, void* data) {
     TextureGetTextureFormats(pixelFormat, gxTexFormat, static_cast<PIXEL_FORMAT>(image.m_header.m_preferredFormat), image.m_header.m_alphaSize);
 
     s_pumping = 1;
+    EnsureScratchMipBits(&s_mipBits, pixelFormat, width, height);
 
     if (!image.LockChain2(texture->m_filename, pixelFormat, s_mipBits, texture->m_bestMip, 1)) {
         s_pumping = 0;
@@ -1957,7 +2006,8 @@ int32_t AsyncTextureStatus() {
 // OFFSET: 0x004B7F80
 void TextureInitialize() {
     // HoT: modern models use 2048 px textures, which overran the 1024 px mip scratch.
-    s_mipBits = static_cast<MipBits*>(SMemAlloc(MippedImgCalcSize(PIXEL_ARGB8888, 2048, 2048), __FILE__, __LINE__, 0));
+    s_mipBitsSize = MippedImgCalcSize(PIXEL_ARGB8888, 2048, 2048);
+    s_mipBits = static_cast<MipBits*>(SMemAlloc(s_mipBitsSize, __FILE__, __LINE__, 0));
     AsyncFileReadAddPollHandler(AsyncTextureHandler);
     AsyncFileReadAddStatusHandler(AsyncTextureStatus);
     s_currentTime = OsGetAsyncTimeMs();
@@ -2113,6 +2163,7 @@ void TextureDestroy() {
     s_gxTexCacheFree.Clear();
     SMemFree(s_mipBits, __FILE__, __LINE__, 0);
     s_mipBits = nullptr;
+    s_mipBitsSize = 0;
 
     for (int32_t x = 0; x < 6; x++) {
         for (int32_t y = 0; y < 6; y++) {
@@ -2314,7 +2365,7 @@ CTexture* CreateBlpAsync(char* extension, const char* fileName, uint32_t flags, 
 
     CAsyncObject* object = texture->m_asyncObject;
 
-    if (OsGetCacheLimits().m_textureReadAhead - s_asyncLoadBufferUsed < object->m_size) {
+    if (AsyncReadAheadAvailable() < object->m_size && s_asyncLoadBufferUsed) {
         s_asyncTextureList.LinkNode(object, 2, nullptr);
     } else {
         AsyncTextureProcess(object, 0);

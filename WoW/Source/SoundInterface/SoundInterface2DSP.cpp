@@ -204,6 +204,10 @@ void SI2::DSP_Init() {
         SoundFilterElemRec* elem = (i < 0 || i >= g_soundFilterElemDB.m_numRecords) ? nullptr : &g_soundFilterElemDB.m_records[i];
         SoundFilterRec* filter = g_soundFilterDB.GetRecord(elem->m_soundFilterID);
 
+        if (!filter) {
+            continue;
+        }
+
         SI2::DSP_CreateDsp(filter->m_name, elem->m_filterType, elem->m_params);
     }
 

@@ -31,7 +31,6 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/Types.h"
 #include "WoW/Source/UIUtil/PortraitButton.h"
-#include "WoW/Source/WowServices/BattlenetLogin.h"
 #include "WoW/Source/WowServices/GruntLogin.h"
 #include "WoW/Source/WowServices/Login.h"
 #include "WoW/Source/WowServices/LoginResponse.h"
@@ -560,12 +559,6 @@ void ClientConnection::Cancel(int32_t errorCode) {
     LogConnectionStatus(this->m_statusOp, errorCode, 0, 0);
 }
 
-// VERIFY: 625995e6 auto
-// OFFSET: 0x006B0EE0
-void ClientServices::FileData(const uint8_t* data, uint32_t size) {
-    CGlueMgr::DownloadFeed(data, size);
-}
-
 // VERIFY: 74020b91 auto
 // OFFSET: 0x006B0F40
 const char* ClientServices::GetErrorToken(int32_t errorCode) {
@@ -835,20 +828,8 @@ void ClientServices::Logon(const char* username, const char* password) {
         ClientServices::s_newLogin = false;
     }
 
-    bool battlenet = SStrChr(username, '@') != nullptr;
-
-    if (ClientServices::s_loginObj && ((ClientServices::s_loginObj->GetLoginServerType() == 1 && !battlenet) || (ClientServices::s_loginObj->GetLoginServerType() == 0 && battlenet))) {
-        delete ClientServices::s_loginObj;
-        ClientServices::s_loginObj = nullptr;
-    }
-
     if (!ClientServices::s_loginObj) {
-        if (battlenet) {
-            ClientServices::s_loginObj = new (__FILE__, __LINE__) BattlenetLogin();
-        } else {
-            ClientServices::s_loginObj = new (__FILE__, __LINE__) GruntLogin();
-        }
-
+        ClientServices::s_loginObj = new (__FILE__, __LINE__) GruntLogin();
         ClientServices::s_loginObj->Init(ClientServices::CreateLoginResponse());
     }
 
@@ -888,69 +869,7 @@ void ClientServices::Logon(const char* username, const char* password) {
 
     ClientServices::s_loginObj->SetLogonCreds(accountName, password);
 
-    const char* portal = ClientServices::s_loginObj->GetLoginServerType() == 1 ? ClientServices::s_portalVar->m_stringValue.m_str : "";
-    const char* realmList = ClientServices::s_loginObj->GetLoginServerType() == 1 ? ClientServices::s_realmListBNVar->m_stringValue.m_str : ClientServices::s_realmListVar->m_stringValue.m_str;
-    ClientServices::s_loginObj->Logon(realmList, portal);
-}
-
-// STATIC: 0x00C79B40
-static char s_clientStamp[88];
-
-// VERIFY: 7f19facb manual
-// OFFSET: 0x006B1C70
-char* ClientServices::GetClientStamp() {
-    const char* account = ClientServices::s_accountName[0] ? ClientServices::s_accountName : nullptr;
-    REALM_INFO* realm = ClientServices::m_selectRealmInfoValid ? &ClientServices::m_selectRealmInfo : nullptr;
-    uint32_t time;
-    WowTime::WowEncodeTime(time, &g_clientGameTime);
-    memset(s_clientStamp, 0, sizeof(s_clientStamp));
-
-    if (!account || !realm) {
-        return s_clientStamp;
-    }
-
-    SStrCopy(s_clientStamp, account, STORM_MAX_STR);
-    const char* address = realm->m_realmAddress;
-    *reinterpret_cast<uint32_t*>(&s_clientStamp[64]) = time;
-    const char* source = &address[SStrLen(address) - 1];
-    memset(&s_clientStamp[68], '0', 17);
-    char* dest = &s_clientStamp[84];
-
-    while (*source >= '0' && *source <= '9') {
-        *dest-- = *source--;
-    }
-
-    source--;
-    dest = &s_clientStamp[79];
-
-    while (*source >= '0' && *source <= '9') {
-        *dest-- = *source--;
-    }
-
-    source--;
-    dest = &s_clientStamp[76];
-
-    while (*source >= '0' && *source <= '9') {
-        *dest-- = *source--;
-    }
-
-    source--;
-    dest = &s_clientStamp[73];
-
-    while (*source >= '0' && *source <= '9') {
-        *dest-- = *source--;
-    }
-
-    source--;
-
-    for (dest = &s_clientStamp[70]; source >= address; dest--) {
-        *dest = *source--;
-    }
-
-    s_clientStamp[85] = static_cast<char>(0xFF);
-    s_clientStamp[86] = 63;
-    s_clientStamp[87] = 15;
-    return s_clientStamp;
+    ClientServices::s_loginObj->Logon(ClientServices::s_realmListVar->m_stringValue.m_str, "");
 }
 
 // VERIFY: 9a7893f1 auto
@@ -1088,17 +1007,8 @@ void ClientServices::RealmEnumCallback(uint32_t result) {
         return;
     }
 
-    if (ClientServices::s_loginObj->GetLoginServerType() == 1) {
-        if (ClientServices::m_selectRealmInfoValid || ClientServices::SetSelectedRealmInfo(0)) {
-            connection->m_realmConnectPending = 1;
-            ClientServices::s_loginObj->JoinRealm(ClientServices::m_selectRealmInfo.m_regionId, ClientServices::m_selectRealmInfo.m_battlegroupId, ClientServices::m_selectRealmInfo.m_realmId);
-        } else {
-            ClientServices::Connection()->Complete(0, REALM_LIST_REALM_NOT_FOUND);
-        }
-    } else {
-        connection->m_realmConnectPending = 1;
-        ClientServices::ConnectToSelectedServer();
-    }
+    connection->m_realmConnectPending = 1;
+    ClientServices::ConnectToSelectedServer();
 }
 
 // VERIFY: a4f8699b auto
@@ -1509,10 +1419,6 @@ void ClientConnection::HandleLogoutAbortAck() {
 // VERIFY: 52ab6642 manual
 // OFFSET: 0x006B0F00
 const char* ClientServices::GetLoginServer() {
-    if (ClientServices::s_loginObj->GetLoginServerType() == 1) {
-        return ClientServices::s_realmListBNVar->m_stringValue.m_str;
-    }
-
     return ClientServices::s_realmListVar->m_stringValue.m_str;
 }
 
@@ -1553,31 +1459,6 @@ void ClientConnection::HandleLogoutComplete() {
 // VERIFY: a00d1e9e manual
 // OFFSET: 0x006B3070
 void ClientServices::JoinRealmResult(uint32_t realmId, int32_t a2, int32_t a3, int32_t a4, int32_t a5) {
-    if (ClientServices::s_loginObj->GetLoginServerType() != 1) {
-        return;
-    }
-
-    if (!ClientServices::s_currentConnection) {
-        SErrDisplayAppFatalMessage("", "", 0);
-    }
-
-    if (!ClientServices::m_selectRealmInfoValid || !realmId || ClientServices::m_selectRealmInfo.m_realmId != realmId) {
-        ClientServices::s_currentConnection->Complete(0, RESPONSE_FAILED_TO_CONNECT);
-        return;
-    }
-
-    LoginData loginData;
-    SStrCopy(loginData.m_account, ClientServices::s_loginObj->m_username, sizeof(loginData.m_account));
-    loginData.m_loginServerID = ClientServices::s_loginObj->GetServerId();
-    memcpy(loginData.m_sessionKey, ClientServices::s_loginObj->m_sessionKey, sizeof(loginData.m_sessionKey));
-    loginData.m_loginServerType = ClientServices::s_loginObj->GetLoginServerType();
-    ClientServices::Connection()->SetLoginData(&loginData);
-
-    if (a2 || a3) {
-        SStrPrintf(ClientServices::m_selectRealmInfo.m_realmAddress, sizeof(ClientServices::m_selectRealmInfo.m_realmAddress), "%d.%d.%d.%d:%u", (a2 >> 24) & 0xFF, (a2 >> 16) & 0xFF, (a2 >> 8) & 0xFF, a2 & 0xFF, a3);
-    }
-
-    ClientServices::ConnectToSelectedServer();
 }
 
 // VERIFY: bb0724f1 auto
@@ -1703,14 +1584,6 @@ void ClientServices::FileAccept(bool accept, uint64_t offset) {
 // OFFSET: 0x006B0B00
 void ClientServices::StartDownload() {
     ClientServices::s_newLogin = true;
-}
-
-// VERIFY: c07ca7da auto
-// OFFSET: 0x006B0B10
-void ClientServices::SendSurveyData(uint16_t size, uint8_t* data) {
-    if (ClientServices::s_loginObj) {
-        ClientServices::s_loginObj->SendSurveyData(size, data);
-    }
 }
 
 // VERIFY: dd529696 manual

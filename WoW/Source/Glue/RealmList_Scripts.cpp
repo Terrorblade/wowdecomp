@@ -101,6 +101,7 @@ static int32_t Script_GetRealmInfo(lua_State* L) {
             if (category) {
                 if (category->m_numRealms > index) {
                     realm = ClientServices::GetRealmInfoByIndex(category->m_realms[index]);
+                    break;
                 } else {
                     index -= category->m_numRealms;
                 }
@@ -231,6 +232,7 @@ static int32_t Script_ChangeRealm(lua_State* L) {
             if (category) {
                 if (category->m_numRealms > index) {
                     realm = ClientServices::GetRealmInfoByIndex(category->m_realms[index]);
+                    break;
                 } else {
                     index -= category->m_numRealms;
                 }

@@ -133,6 +133,7 @@ Liquid::CInstance::CInstance() {
     this->m_bounds.r = 0.0f;
     this->m_queued = 0;
     this->m_refCount = 1;
+    this->m_lastPrepMs = 0;
 }
 
 // VERIFY: dfea0c3c manual

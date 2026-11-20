@@ -1,5 +1,7 @@
 #include "CharacterCreation.h"
+#include <algorithm>
 #include <cstring>
+#include <vector>
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Model2/M2Model.h"
@@ -40,6 +42,39 @@ CharacterPreferences* CCharacterCreation::m_charPreferences[22][2];
 
 // STATIC: 0x00B6B180
 uint32_t CCharacterCreation::m_raceIndex;
+
+static CharacterPreferences** PreferenceSlot(uint32_t sexID) {
+    if (CCharacterCreation::m_raceIndex >= CCharacterCreation::m_races.Count() || sexID >= 2) {
+        return nullptr;
+    }
+
+    int32_t raceID = CCharacterCreation::m_races.m_data[CCharacterCreation::m_raceIndex];
+
+    if (raceID < 0 || raceID >= static_cast<int32_t>(sizeof(CCharacterCreation::m_charPreferences) / sizeof(CCharacterCreation::m_charPreferences[0]))) {
+        return nullptr;
+    }
+
+    return &CCharacterCreation::m_charPreferences[raceID][sexID];
+}
+
+static void StoreCurrentPreferences() {
+    CharacterPreferences** slot = PreferenceSlot(CCharacterCreation::m_character->m_data.m_preferences.m_sexID);
+
+    if (!slot) {
+        return;
+    }
+
+    if (!*slot) {
+        *slot = static_cast<CharacterPreferences*>(SMemAlloc(sizeof(CharacterPreferences), __FILE__, __LINE__, 0));
+    }
+
+    CCharacterCreation::m_character->GetPreferences(*slot);
+}
+
+static CharacterPreferences* SavedPreferences(uint32_t sexID) {
+    CharacterPreferences** slot = PreferenceSlot(sexID);
+    return slot ? *slot : nullptr;
+}
 
 // STATIC: 0x00B6B184
 CSimpleModelFFX* CCharacterCreation::m_charCustomizeFrame;
@@ -143,14 +178,33 @@ int32_t CCharacterCreation::Idle(const void* data, void* param) {
 void CCharacterCreation::GetRandomRaceAndSex(ComponentData* data) {
     data->m_preferences.m_sexID = static_cast<uint32_t>((static_cast<uint64_t>(2) * CRandom::uint32_(g_rndSeed)) >> 32);
 
-    ChrRacesRec* raceRec;
+    uint32_t count = CCharacterCreation::m_races.Count();
+    uint32_t expansion = ClientServices::Connection()->m_accountExpansion;
 
-    do {
-        uint32_t count = CCharacterCreation::m_races.Count();
-        uint32_t index = count > 0 ? static_cast<uint32_t>((static_cast<uint64_t>(count) * CRandom::uint32_(g_rndSeed)) >> 32) : 0;
-        data->m_preferences.m_raceID = CCharacterCreation::m_races.m_data[index];
-        raceRec = g_chrRacesDB.GetRecord(data->m_preferences.m_raceID);
-    } while (raceRec->m_requiredExpansion > ClientServices::Connection()->m_accountExpansion);
+    if (!count) {
+        return;
+    }
+
+    for (int32_t attempt = 0; attempt < 64; attempt++) {
+        uint32_t index = static_cast<uint32_t>((static_cast<uint64_t>(count) * CRandom::uint32_(g_rndSeed)) >> 32);
+        ChrRacesRec* raceRec = g_chrRacesDB.GetRecord(CCharacterCreation::m_races.m_data[index]);
+
+        if (raceRec && static_cast<uint32_t>(raceRec->m_requiredExpansion) <= expansion) {
+            data->m_preferences.m_raceID = CCharacterCreation::m_races.m_data[index];
+            return;
+        }
+    }
+
+    data->m_preferences.m_raceID = CCharacterCreation::m_races.m_data[0];
+
+    for (uint32_t i = 0; i < count; i++) {
+        ChrRacesRec* raceRec = g_chrRacesDB.GetRecord(CCharacterCreation::m_races.m_data[i]);
+
+        if (raceRec && static_cast<uint32_t>(raceRec->m_requiredExpansion) <= expansion) {
+            data->m_preferences.m_raceID = CCharacterCreation::m_races.m_data[i];
+            return;
+        }
+    }
 }
 
 // VERIFY: 45c27290 auto
@@ -400,23 +454,30 @@ int32_t CCharacterCreation::GetExistingClassIndex() {
 // VERIFY: 6c4329fd manual
 // OFFSET: 0x004E0F50
 int32_t CCharacterCreation::GetRandomClassID() {
-    int32_t classes[10];
-    int32_t count = 0;
     uint8_t expansion = ClientServices::Connection()->m_accountExpansion;
+    uint32_t count = 0;
+
+    for (uint32_t i = 0; i < CCharacterCreation::m_classes.Count(); i++) {
+        if (expansion >= CCharacterCreation::m_classes.m_data[i]->m_requiredExpansion) {
+            count++;
+        }
+    }
+
+    if (!count) {
+        return CCharacterCreation::m_classes.Count() ? CCharacterCreation::m_classes.m_data[0]->m_id : 0;
+    }
+
+    uint32_t pick = static_cast<uint32_t>((static_cast<uint64_t>(count) * CRandom::uint32_(g_rndSeed)) >> 32);
 
     for (uint32_t i = 0; i < CCharacterCreation::m_classes.Count(); i++) {
         ChrClassesRec* rec = CCharacterCreation::m_classes.m_data[i];
 
-        if (expansion >= rec->m_requiredExpansion) {
-            classes[count++] = rec->m_id;
+        if (expansion >= rec->m_requiredExpansion && !pick--) {
+            return rec->m_id;
         }
     }
 
-    if (count <= 0) {
-        return classes[0];
-    }
-
-    return classes[static_cast<uint32_t>((static_cast<uint64_t>(count) * CRandom::uint32_(g_rndSeed)) >> 32)];
+    return 0;
 }
 
 // VERIFY: b15e5451 auto
@@ -560,7 +621,7 @@ void CCharacterCreation::InitCharacterComponents(ComponentData* data, bool rando
     }
 
     if (CCharacterCreation::m_character) {
-        if (CCharacterCreation::m_character->m_data.m_model->m_attachParent) {
+        if (CCharacterCreation::m_character->m_data.m_model && CCharacterCreation::m_character->m_data.m_model->m_attachParent) {
             CCharacterCreation::m_character->m_data.m_model->DetachFromParent();
         }
 
@@ -613,14 +674,7 @@ void CCharacterCreation::SetSelectedSex(uint32_t sexID) {
         return;
     }
 
-    CharacterPreferences* preferences = CCharacterCreation::m_charPreferences[CCharacterCreation::m_races.m_data[CCharacterCreation::m_raceIndex]][CCharacterCreation::m_character->m_data.m_preferences.m_sexID];
-
-    if (!preferences) {
-        preferences = static_cast<CharacterPreferences*>(SMemAlloc(sizeof(CharacterPreferences), __FILE__, __LINE__, 0));
-        CCharacterCreation::m_charPreferences[CCharacterCreation::m_races.m_data[CCharacterCreation::m_raceIndex]][CCharacterCreation::m_character->m_data.m_preferences.m_sexID] = preferences;
-    }
-
-    CCharacterCreation::m_character->GetPreferences(preferences);
+    StoreCurrentPreferences();
 
     ComponentData data;
     int32_t classID = CCharacterCreation::m_selectedClassID;
@@ -650,7 +704,7 @@ void CCharacterCreation::SetSelectedSex(uint32_t sexID) {
         classID = CCharacterCreation::m_selectedClassID;
     }
 
-    CharacterPreferences* saved = CCharacterCreation::m_charPreferences[CCharacterCreation::m_races.m_data[CCharacterCreation::m_raceIndex]][sexID];
+    CharacterPreferences* saved = SavedPreferences(sexID);
 
     if (saved) {
         data.SetPreferences(saved);
@@ -718,27 +772,23 @@ void CCharacterCreation::RandomizeCharCustomization() {
 // VERIFY: f5f53eff manual
 // OFFSET: 0x004E1ED0
 void CCharacterCreation::CalcClasses(int32_t raceID) {
-    uint32_t count = 0;
-
-    for (int32_t i = 0; static_cast<uint32_t>(i) < static_cast<uint32_t>(g_charBaseInfoDB.m_numRecords); i++) {
-        CharBaseInfoRec* rec = i >= 0 && i < g_charBaseInfoDB.m_numRecords ? &g_charBaseInfoDB.m_records[i] : nullptr;
-
-        if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID) {
-            count++;
-        }
-    }
-
-    CCharacterCreation::m_classes.SetCount(count);
-
-    uint32_t index = 0;
+    std::vector<ChrClassesRec*> classes;
 
     for (int32_t i = 0; i < g_charBaseInfoDB.m_numRecords; i++) {
-        CharBaseInfoRec* rec = i >= 0 && i < g_charBaseInfoDB.m_numRecords ? &g_charBaseInfoDB.m_records[i] : nullptr;
+        CharBaseInfoRec* rec = &g_charBaseInfoDB.m_records[i];
 
-        if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID) {
-            CCharacterCreation::m_classes.m_data[index++] = g_chrClassesDB.GetRecord(static_cast<uint8_t>(rec->m_classID));
+        if (static_cast<uint8_t>(rec->m_raceID) != raceID) {
+            continue;
+        }
+
+        ChrClassesRec* classRec = g_chrClassesDB.GetRecord(static_cast<uint8_t>(rec->m_classID));
+
+        if (classRec && std::find(classes.begin(), classes.end(), classRec) == classes.end()) {
+            classes.push_back(classRec);
         }
     }
+
+    CCharacterCreation::m_classes.Set(static_cast<uint32_t>(classes.size()), classes.data());
 }
 
 // VERIFY: 32675449 auto
@@ -758,6 +808,11 @@ void CCharacterCreation::ResetCharCustomizeInfo() {
     CCharacterCreation::GetRandomRaceAndSex(&data);
     CCharacterCreation::CalcClasses(data.m_preferences.m_raceID);
     CCharacterCreation::InitCharacterComponents(&data, true);
+
+    if (!CCharacterCreation::m_character) {
+        return;
+    }
+
     CCharacterCreation::SetSelectedClass(CCharacterCreation::GetRandomClassID());
     data.m_preferences.m_classId = CCharacterCreation::m_selectedClassID;
 
@@ -782,14 +837,7 @@ void CCharacterCreation::SetSelectedRace(uint32_t raceIndex, bool force) {
         return;
     }
 
-    CharacterPreferences* preferences = CCharacterCreation::m_charPreferences[CCharacterCreation::m_races.m_data[CCharacterCreation::m_raceIndex]][CCharacterCreation::m_character->m_data.m_preferences.m_sexID];
-
-    if (!preferences) {
-        preferences = static_cast<CharacterPreferences*>(SMemAlloc(sizeof(CharacterPreferences), __FILE__, __LINE__, 0));
-        CCharacterCreation::m_charPreferences[CCharacterCreation::m_races.m_data[CCharacterCreation::m_raceIndex]][CCharacterCreation::m_character->m_data.m_preferences.m_sexID] = preferences;
-    }
-
-    CCharacterCreation::m_character->GetPreferences(preferences);
+    StoreCurrentPreferences();
     CCharacterCreation::m_raceIndex = raceIndex;
 
     ComponentData data;
@@ -811,7 +859,7 @@ void CCharacterCreation::SetSelectedRace(uint32_t raceIndex, bool force) {
         CCharacterCreation::InitCharacterComponents(&data, false);
         CCharacterCreation::SetSelectedSex(display->m_characterInfo.m_sexID);
     } else {
-        CharacterPreferences* saved = CCharacterCreation::m_charPreferences[CCharacterCreation::m_races.m_data[CCharacterCreation::m_raceIndex]][CCharacterCreation::m_character->m_data.m_preferences.m_sexID];
+        CharacterPreferences* saved = SavedPreferences(CCharacterCreation::m_character->m_data.m_preferences.m_sexID);
 
         if (saved) {
             data.SetPreferences(saved);
@@ -866,9 +914,12 @@ void CCharacterCreation::SetToExistingCharacter(uint32_t index) {
     data.m_preferences.m_hairColorId = display->m_characterInfo.m_hairColorID;
     data.m_preferences.m_facialHairId = display->m_characterInfo.m_facialHairStyleID;
     data.m_preferences.m_faceId = display->m_characterInfo.m_faceID;
-    CCharacterCreation::InitCharacterComponents(&data, false);
     CCharacterCreation::CalcClasses(data.m_preferences.m_raceID);
     CCharacterCreation::InitCharacterComponents(&data, false);
+
+    if (!CCharacterCreation::m_character) {
+        return;
+    }
 
     CCharacterCreation::m_selectedClassID = display->m_characterInfo.m_classID;
 

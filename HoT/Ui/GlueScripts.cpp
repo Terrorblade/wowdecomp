@@ -2,7 +2,9 @@
 #include "HoT/Core/Log.h"
 #include "HoT/Core/Modules.h"
 #include "HoT/Lua/Script.h"
+#include "Engine/Source/Model2/M2Model.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#include "WoW/Source/Glue/CSimpleModelFFX.h"
 #include "WoW/Source/Glue/CharacterCreation.h"
 #include "WoW/Source/Glue/CharacterSelection.h"
 
@@ -51,7 +53,7 @@ static int32_t Script_RebuildCharacterCreateModel(lua_State* L) {
     return 0;
 }
 
-// ShowCharacter skips records that already have a component, so the cached ones are dropped and leaked since the scene may still hold one.
+// ShowCharacter skips records that already have a component, so the cached ones are detached and freed first.
 static int32_t Script_RebuildCharacterSelectModel(lua_State* L) {
     int32_t index = CCharacterSelection::s_selectionIndex;
     int32_t count = static_cast<int32_t>(CCharacterSelection::s_characterList.Count());
@@ -61,17 +63,30 @@ static int32_t Script_RebuildCharacterSelectModel(lua_State* L) {
         return 0;
     }
 
+    if (CCharacterSelection::m_modelFrame && CCharacterSelection::m_modelFrame->m_model) {
+        CCharacterSelection::m_modelFrame->m_model->DetachAllChildrenById(0);
+        CCharacterSelection::m_modelFrame->m_model->DetachAllChildrenById(1);
+    }
+
     int32_t cleared = 0;
 
     for (int32_t i = 0; i < count; i++) {
-        if (CCharacterSelection::s_characterList[i].m_component) {
-            CCharacterSelection::s_characterList[i].m_component = nullptr;
+        CharacterSelectionDisplay& display = CCharacterSelection::s_characterList[i];
+
+        if (display.m_petModel) {
+            display.m_petModel->Release();
+            display.m_petModel = nullptr;
+        }
+
+        if (display.m_component) {
+            CCharacterComponent::FreeComponent(display.m_component);
+            display.m_component = nullptr;
             cleared++;
         }
     }
 
     CCharacterSelection::ShowCharacter();
-    LOG_INFO << "glue: dropped " << cleared << " cached character component(s), rebuilt index " << index;
+    LOG_INFO << "glue: freed " << cleared << " cached character component(s), rebuilt index " << index;
     return 0;
 }
 

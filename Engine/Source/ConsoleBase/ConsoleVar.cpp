@@ -779,7 +779,7 @@ CVar* CVar::Lookup(const char* name) {
 
 // Scripts must not point the next login at another server. Glue sets these directly, not through these checks.
 int32_t CVar::IsLoginTarget(const char* name, size_t length) {
-    static const char* const s_names[] = { "realmList", "realmListbn", "portal" };
+    static const char* const s_names[] = { "realmList" };
 
     for (const char* target : s_names) {
         if (SStrLen(target) == length && !SStrCmpI(name, target, length)) {

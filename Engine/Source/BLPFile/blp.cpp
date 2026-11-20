@@ -912,7 +912,14 @@ int32_t CBLPFile::Open(const char* fileName, int32_t flags) {
         return 0;
     }
 
-    s_blpFileLoadBuffer.SetCount(SFileGetFileSize(file, nullptr));
+    uint32_t fileSize = SFileGetFileSize(file, nullptr);
+
+    // One 2048 px file left the shared buffer at tens of MB for the whole session.
+    if (s_blpFileLoadBuffer.m_alloc > 8 * 1024 * 1024 && fileSize < s_blpFileLoadBuffer.m_alloc / 4) {
+        s_blpFileLoadBuffer.Clear();
+    }
+
+    s_blpFileLoadBuffer.SetCount(fileSize);
 
     uint32_t bytesRead;
     SFileReadFile(file, s_blpFileLoadBuffer.Ptr(), s_blpFileLoadBuffer.Count(), &bytesRead, nullptr, 0);
@@ -944,8 +951,9 @@ int32_t CBLPFile::LockChain2(const char* fileName, PIXEL_FORMAT format, MipBits*
         }
 
         if (!setImages) {
-            for (uint32_t i = 0; this->m_header.m_mipSizes[i]; i++) {
-                images[i].m_mip[0] = reinterpret_cast<C4Pixel*>(static_cast<uint8_t*>(this->m_inMemoryImage) + this->m_header.m_mipOffsets[i]);
+            // The original mapped from mip 0 whatever mipLevel was asked for, so a texture over the device max size got the wrong level.
+            for (uint32_t i = 0; mipLevel + i < BLP_MIP_SLOTS && this->m_header.m_mipSizes[mipLevel + i]; i++) {
+                images[i].m_mip[0] = reinterpret_cast<C4Pixel*>(static_cast<uint8_t*>(this->m_inMemoryImage) + this->m_header.m_mipOffsets[mipLevel + i]);
             }
 
             this->m_inMemoryImage = nullptr;

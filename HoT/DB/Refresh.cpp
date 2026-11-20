@@ -9,6 +9,7 @@
 #include "WoW/Source/Ui/LFGInfo.h"
 #include "WoW/Source/Ui/SpellBookFrame.h"
 #include "WoW/Source/WorldClient/CDetailDoodadData.h"
+#include "WoW/Source/WorldClient/DayNight.h"
 #include "WoW/Source/WorldClient/DetailDoodad.h"
 #include "WoW/Source/WorldClient/Map.h"
 
@@ -20,6 +21,10 @@ static void RefreshLights(const char* stem) {
     CMap::bDungeon = 0;
     InitLights(true);
     CMap::bDungeon = dungeon;
+
+    if (DayNight::g_areaLights.m_count) {
+        DayNight::LightLoad(DayNight::g_areaLights, DayNight::s_mapId);
+    }
 }
 
 // Existing entries keep their loaded model because detail doodad instances hold its texture.

@@ -291,7 +291,11 @@ const LightParamsRec* DayNight::GetLightParams(const LightRec* light, int32_t pa
 // OFFSET: 0x007EBF90
 float DayNight::CalcIndividualColorFromDBRec(int32_t time, const LightParamsRec* params, int32_t band) {
     LightFloatBandRec rec;
-    g_lightFloatBandDB.GetRecord(band + 6 * params->m_id - 5, &rec);
+
+    if (!params || !g_lightFloatBandDB.GetRecord(band + 6 * params->m_id - 5, &rec)) {
+        rec.m_num = 0;
+    }
+
     return DayNight::InterpFloatBand(&rec, time, band);
 }
 
@@ -457,9 +461,39 @@ float DayNight::CalcFogRate(float fogStart, float fogEnd) {
     return 1.5f;
 }
 
+static void SetDefaultBands(DayNight::CurrentLight* bands) {
+    memset(bands, 0xFF, sizeof(*bands));
+    bands->m_fogEnd = 1.0e10f;
+    *reinterpret_cast<uint32_t*>(&bands->m_ambient) = 0xFF404040;
+    bands->m_fogStartMul = DEFAULT_FOG_SCALER;
+    bands->m_cloudTypeId = 0;
+    bands->m_fogRate = 4.0f;
+
+    for (DayNight::CurrentLight::SkyboxBlend& skybox : bands->m_skyboxes) {
+        skybox.m_id = 0;
+        skybox.m_weight = 0.0f;
+    }
+
+    bands->m_highlightSky = 0.0f;
+    bands->m_floatBand2 = 0.0f;
+    bands->m_cloudDensity = 0.0f;
+    bands->m_floatBand4 = 0.0f;
+    bands->m_floatBand5 = 0.0f;
+    bands->m_glow = 0.5f;
+    bands->m_oceanShallowAlpha = 0.75f;
+    bands->m_oceanDeepAlpha = 1.0f;
+    bands->m_waterDeepAlpha = 1.0f;
+    bands->m_waterShallowAlpha = 0.5f;
+}
+
 // VERIFY: 71473e14 auto
 // OFFSET: 0x007ECD80
 void DayNight::CalcColors(int32_t time, CurrentLight* light, const LightParamsRec* params) {
+    if (!params) {
+        SetDefaultBands(light);
+        return;
+    }
+
     DayNight::LoadLightingBands(time, light, params);
 
     if (light->m_fogEnd < 10.0f) {
@@ -1443,9 +1477,15 @@ void DayNight::DNClouds::UpdateTextureAnimation() {
 
     uint32_t rowsPerUpdate = this->m_rowsPerUpdate;
 
-    if (this->m_fullUpdate) {
+    // A full rebuild is spread over four frames, at the highest LOD one pass is a million texels.
+    if (this->m_fullUpdate == 1) {
         this->m_row = 0;
-        this->m_rowsPerUpdate = this->m_size;
+        this->m_fullUpdate = 2;
+    }
+
+    if (this->m_fullUpdate) {
+        uint32_t chunk = this->m_size / 4 > rowsPerUpdate ? this->m_size / 4 : rowsPerUpdate;
+        this->m_rowsPerUpdate = chunk < this->m_size - this->m_row ? chunk : this->m_size - this->m_row;
     }
 
     this->m_animTime += info.m_deltaSec;
@@ -1652,7 +1692,10 @@ void DayNight::DNClouds::UpdateTextureAnimation() {
 
     if (this->m_fullUpdate) {
         this->m_rowsPerUpdate = rowsPerUpdate;
-        this->m_fullUpdate = 0;
+
+        if (!this->m_row) {
+            this->m_fullUpdate = 0;
+        }
     }
 }
 
@@ -2099,10 +2142,10 @@ void DayNight::DoAreaLights(CurrentLight* light, int32_t underwater) {
         override->m_lastTime = now;
 
         if (override->m_state == 1) {
-            float fade = static_cast<float>(elapsed) / static_cast<float>(override->m_duration) + override->m_fade;
+            float fade = override->m_duration ? static_cast<float>(elapsed) / static_cast<float>(override->m_duration) + override->m_fade : 1.0f;
             override->m_fade = fade > 1.0f ? 1.0f : fade;
         } else if (override->m_state == 2) {
-            float fade = override->m_fade - static_cast<float>(elapsed) / static_cast<float>(override->m_duration);
+            float fade = override->m_duration ? override->m_fade - static_cast<float>(elapsed) / static_cast<float>(override->m_duration) : 0.0f;
             override->m_fade = fade < 0.0f ? 0.0f : fade;
         }
 
@@ -2176,7 +2219,7 @@ void DayNight::UpdateFog() {
         bool apply = true;
 
         if (liquidStatus) {
-            int32_t flags = liquid->m_flags;
+            int32_t flags = liquid ? liquid->m_flags : 0;
             underwater = 1;
 
             if ((flags & 0x20) && !(fog.m_flags & 0x100)) {
@@ -2554,8 +2597,11 @@ void DayNight::LoadMap(int32_t mapId) {
     info.m_interiorMapObjDef = nullptr;
     info.m_interiorGroups.m_count = 0;
 
+    int32_t cloudLod = s_cvSkyCloudLOD ? s_cvSkyCloudLOD->m_intValue : 0;
+    cloudLod = cloudLod < 0 ? 0 : (cloudLod > 3 ? 3 : cloudLod);
+
     DayNight::g_sky.GenSphere(1.0f);
-    DayNight::g_clouds.SetLOD(0, 0);
+    DayNight::g_clouds.SetLOD(cloudLod, 0);
     DayNight::g_clouds.GenSphere(1.0f);
 
     float density = 0.6f;
@@ -2583,8 +2629,11 @@ void DayNight::LoadMap(int32_t mapId) {
     info.m_showSky = 1;
     info.m_flashBlend = 0;
     DayNight::s_lightFlags = 0;
-    s_cvSkyCloudLOD = CVar::Register("SkyCloudLOD", nullptr, 0, "0", CWorldParam::CloudLODCallback, 1, false, nullptr, false);
-    ConsoleCommandRegister("SkySunGlare", SkySunGlare, CATEGORY_GRAPHICS, "0, 1");
+    if (!s_cvSkyCloudLOD) {
+        s_cvSkyCloudLOD = CVar::Register("SkyCloudLOD", nullptr, 0, "0", CWorldParam::CloudLODCallback, 1, false, nullptr, false);
+        ConsoleCommandRegister("SkySunGlare", SkySunGlare, CATEGORY_GRAPHICS, "0, 1");
+    }
+
     DayNight::g_forceFullUpdate = 1;
 }
 
@@ -2636,13 +2685,12 @@ void DayNight::SetColors() {
     info.m_skyboxWeight = 0.0f;
     info.m_skybox = nullptr;
 
-    if (DayNight::g_areaLights.m_count) {
+    if (DayNight::g_areaLights.m_count && DayNight::g_areaLights.m_data[0]) {
         if (liquidStatus && liquidLight) {
-            if (liquid) {
-                const LightParamsRec* params = g_lightParamsDB.GetRecord(liquid->m_lightID);
-                float progression = info.m_dayProgression * 2880.0f;
-                DayNight::CalcColors(CMath::fint_(progression - 0.5f), &info.m_bands, params);
-            }
+            const LightParamsRec* params = g_lightParamsDB.GetRecord(liquid->m_lightID);
+            float progression = info.m_dayProgression * 2880.0f;
+            info.m_bands = DayNight::CurrentLight();
+            DayNight::CalcColors(CMath::fint_(progression - 0.5f), &info.m_bands, params);
         } else {
             CurrentLight light;
             float progression = info.m_dayProgression * 2880.0f;
@@ -2691,25 +2739,7 @@ void DayNight::SetColors() {
             }
         }
     } else {
-        memset(&info.m_bands, 0xFF, sizeof(info.m_bands));
-        info.m_bands.m_fogEnd = 1.0e10f;
-        *reinterpret_cast<uint32_t*>(&info.m_bands.m_ambient) = 0xFF404040;
-        info.m_bands.m_fogStartMul = DEFAULT_FOG_SCALER;
-        info.m_bands.m_cloudTypeId = 0;
-        info.m_bands.m_skyboxes[0].m_id = 0;
-        info.m_bands.m_fogRate = 4.0f;
-        info.m_bands.m_skyboxes[1].m_id = 0;
-        info.m_bands.m_skyboxes[2].m_id = 0;
-        info.m_bands.m_highlightSky = 0.0f;
-        info.m_bands.m_floatBand2 = 0.0f;
-        info.m_bands.m_cloudDensity = 0.0f;
-        info.m_bands.m_floatBand4 = 0.0f;
-        info.m_bands.m_floatBand5 = 0.0f;
-        info.m_bands.m_glow = 0.5f;
-        info.m_bands.m_oceanShallowAlpha = 0.75f;
-        info.m_bands.m_oceanDeepAlpha = 1.0f;
-        info.m_bands.m_waterDeepAlpha = 1.0f;
-        info.m_bands.m_waterShallowAlpha = 0.5f;
+        SetDefaultBands(&info.m_bands);
     }
 
     DayNight::SetLightColors();
@@ -3276,24 +3306,30 @@ void DayNight::AddLightOverride(int32_t lightId, int32_t overrideId, uint32_t du
 // VERIFY: 1e2f3fef auto
 // OFFSET: 0x007F11A0
 void DayNight::RemoveLightOverride(int32_t lightId, uint32_t duration) {
+    bool removed = false;
+
     for (uint32_t i = 0; i < s_areaLightOverrides.m_count; i++) {
-        if (s_areaLightOverrides.m_data[i].m_id != static_cast<uint32_t>(lightId)) {
+        AreaLightOverride* entry = &s_areaLightOverrides.m_data[i];
+
+        if (entry->m_id != static_cast<uint32_t>(lightId) || entry->m_state == 2) {
             continue;
         }
 
-        AreaLightOverride* entry = &s_areaLightOverrides.m_data[i];
         entry->m_state = 2;
         entry->m_lastTime = OsGetAsyncTimeMs();
         entry->m_duration = duration;
+        removed = true;
+    }
+
+    if (removed) {
         DayNight::ResetFogAccumulators(true);
-        return;
     }
 }
 
 // VERIFY: 1d606d65 auto
 // OFFSET: 0x007F31C0
 void DayNight::SetBlendSky(uint32_t index, const char* sky, int32_t flags, float blend) {
-    if (index > 3) {
+    if (index >= 3) {
         return;
     }
 

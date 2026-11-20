@@ -4,6 +4,7 @@
 #include "HoT/Profiler/Profiler.h"
 #include <cstring>
 #include <limits>
+#include <unordered_map>
 #include "Engine/Source/SoundEngine/SoundEngine.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -164,6 +165,38 @@ static float s_invalid = std::numeric_limits<float>::quiet_NaN();
 
 // STATIC: 0x00B1D698
 static TSList<SEWaveDataNode, TSGetLink<SEWaveDataNode> > s_waveDataList;
+
+// Cached wave data whose nonblocking load failed, released as soon as nothing references it.
+static int32_t s_deadWaveDataCount;
+
+// Main thread only, the newest node per key hash so a lookup does not walk the whole cache.
+static std::unordered_map<uint32_t, SEWaveDataNode*> s_waveDataByHash;
+
+// Recently missing files, zone ambience retries a missing kit every frame and each retry walked every archive.
+struct SEMissingFile {
+    uint32_t m_hash;
+    uint32_t m_time;
+};
+
+static SEMissingFile s_missingFiles[32];
+static uint32_t s_missingFileNext;
+static const uint32_t MISSING_FILE_RETRY_MS = 10000;
+
+static bool SEIsRecentlyMissing(uint32_t hash, uint32_t now) {
+    for (const SEMissingFile& entry : s_missingFiles) {
+        if (entry.m_hash == hash && entry.m_time && now - entry.m_time < MISSING_FILE_RETRY_MS) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void SEMarkMissing(uint32_t hash, uint32_t now) {
+    SEMissingFile& entry = s_missingFiles[s_missingFileNext++ % (sizeof(s_missingFiles) / sizeof(s_missingFiles[0]))];
+    entry.m_hash = hash;
+    entry.m_time = now ? now : 1;
+}
 
 // STATIC: 0x00B1D6A4
 static TSList<SESoundInternal, TSGetLink<SESoundInternal> > s_soundList;
@@ -406,6 +439,16 @@ static FMOD_RESULT F_CALLBACK SENonBlockCallback(FMOD_SOUND* fmodSound, FMOD_RES
         }
 
         s_soundListCritSect.Leave();
+
+        s_createCritSect.Enter();
+
+        if (sound->m_cached && sound->m_waveData && sound->m_waveData->m_loaded == 0) {
+            sound->m_waveData->m_loaded = -1;
+            s_deadWaveDataCount++;
+        }
+
+        s_createCritSect.Leave();
+
         return result;
     }
 
@@ -1205,6 +1248,10 @@ void SE2::SetUserMonitorDSPCallback(void (*callback)(float*, uint32_t)) {
 // VERIFY: 73c92b66 auto
 // OFFSET: 0x00878940
 FMOD_RESULT SE2::AttachMonitorDSP(SESound* sound) {
+    if (!sound || !sound->m_internal || !sound->m_internal->m_channel) {
+        return FMOD_ERR_INVALID_HANDLE;
+    }
+
     return sound->m_internal->m_channel->addDSP(s_monitorDSP);
 }
 
@@ -1408,6 +1455,8 @@ SEWaveDataNode::~SEWaveDataNode() {
 // VERIFY: f5aa5a13 manual
 // OFFSET: 0x0087AD70
 SESoundInternal::SESoundInternal() {
+    this->m_appliedChannel = nullptr;
+    this->m_appliedVolume = -1.0f;
     this->m_position.x = s_invalid;
     this->m_position.y = s_invalid;
     this->m_position.z = s_invalid;
@@ -1543,8 +1592,21 @@ float SESoundInternal::GetScaledVolume() {
 // VERIFY: fe1b36c1 auto
 // OFFSET: 0x008796F0
 void SESoundInternal::UpdateVolume() {
-    if (this->m_channel) {
-        this->m_channel->setVolume(this->GetScaledVolume());
+    if (!this->m_channel) {
+        return;
+    }
+
+    float volume = this->GetScaledVolume();
+
+    if (this->m_appliedChannel == this->m_channel && this->m_appliedVolume == volume) {
+        return;
+    }
+
+    if (this->m_channel->setVolume(volume) == FMOD_OK) {
+        this->m_appliedChannel = this->m_channel;
+        this->m_appliedVolume = volume;
+    } else {
+        this->m_appliedChannel = nullptr;
     }
 }
 
@@ -2481,32 +2543,10 @@ static void ProcessFadeList() {
         return;
     }
 
-    uint32_t groupCount = s_channelGroups.Count();
-    uint8_t* dirty = static_cast<uint8_t*>(alloca(groupCount));
-    memset(dirty, 0, groupCount);
-
+    // Every live sound refreshes its volume below and UpdateVolume skips unchanged values, so group dirt needs no propagation.
     for (uint32_t i = 0; i < s_channelGroups.Count(); i++) {
-        if (s_channelGroups[i].m_dirty) {
-            s_channelGroups[i].m_dirty = 0;
-            dirty[i] = 1;
-        }
+        s_channelGroups[i].m_dirty = 0;
     }
-
-    bool changed;
-
-    do {
-        changed = false;
-
-        for (uint32_t i = 0; i < s_channelGroups.Count(); i++) {
-            // The root group's parent is -1, which the original reads past the array for.
-            uint32_t parent = static_cast<uint32_t>(s_channelGroups[i].m_parent);
-
-            if (!dirty[i] && parent < groupCount && dirty[parent]) {
-                dirty[i] = 1;
-                changed = true;
-            }
-        }
-    } while (changed);
 
     s_soundListCritSect.Enter();
 
@@ -2514,8 +2554,6 @@ static void ProcessFadeList() {
 
     while (sound) {
         SESoundInternal* next = s_soundList.Next(sound);
-
-        sound->UpdateVolume();
 
         if (sound->m_fadingOut) {
             if (sound->m_fadeOutTime <= 0.0f || (sound->m_fadeVolume -= seconds / sound->m_fadeOutTime) < 0.0f) {
@@ -2539,6 +2577,9 @@ static void ProcessFadeList() {
                 if (sound->m_handle) {
                     sound->m_handle->Stop(1, -1.0f);
                 }
+
+                sound = next;
+                continue;
             }
         } else if (sound->m_fadingIn) {
             sound->m_fadeVolume += seconds / sound->m_fadeInTime;
@@ -2546,14 +2587,12 @@ static void ProcessFadeList() {
             if (sound->m_fadeVolume > 1.0f) {
                 sound->m_fadeVolume = 1.0f;
             }
+        }
 
-            sound->UpdateVolume();
+        sound->UpdateVolume();
 
-            if (sound->m_fadeVolume == 1.0f) {
-                sound->m_fadingIn = 0;
-            }
-        } else if (dirty[sound->m_channelGroup]) {
-            sound->UpdateVolume();
+        if (sound->m_fadingIn && sound->m_fadeVolume == 1.0f) {
+            sound->m_fadingIn = 0;
         }
 
         sound = next;
@@ -2643,7 +2682,7 @@ static void ProcessWaveDataDeleteList(int32_t force) {
         }
     }
 
-    if (s_cacheBytes <= maxCacheSize && !force) {
+    if (s_cacheBytes <= maxCacheSize && !force && !s_deadWaveDataCount) {
         return;
     }
 
@@ -2653,8 +2692,25 @@ static void ProcessWaveDataDeleteList(int32_t force) {
         SEWaveDataNode* next = s_waveDataList.Next(node);
 
         if (!node->m_refCount) {
-            if (s_cacheBytes <= maxCacheSize && !force) {
-                return;
+            if (s_cacheBytes <= maxCacheSize && !force && node->m_loaded >= 0) {
+                if (!s_deadWaveDataCount) {
+                    return;
+                }
+
+                node = next;
+                continue;
+            }
+
+            if (node->m_loaded < 0) {
+                s_createCritSect.Enter();
+                s_deadWaveDataCount--;
+                s_createCritSect.Leave();
+            }
+
+            auto indexed = s_waveDataByHash.find(node->m_hash);
+
+            if (indexed != s_waveDataByHash.end() && indexed->second == node) {
+                s_waveDataByHash.erase(indexed);
             }
 
             node->m_sound->release();
@@ -2761,14 +2817,14 @@ void SE2::StopAllSounds(int32_t restart) {
 
         s_soundListCritSect.Leave();
 
-        OsSleep(100);
-        tries++;
-
         if (!remaining) {
             break;
         }
 
-        if (tries >= 20) {
+        OsSleep(10);
+        tries++;
+
+        if (tries >= 200) {
             TSGrowableArray<FMOD::Sound*> pendingRelease;
 
             s_soundListCritSect.Enter();
@@ -2905,12 +2961,17 @@ int32_t SE2::CreateWaveData(FMOD::System* system, const char* filename, FMOD_MOD
     int32_t loaded;
 
     if (cacheable) {
-        for (SEWaveDataNode* node = s_waveDataList.Head(); node; node = s_waveDataList.Next(node)) {
-            if (hash == node->m_hash) {
+        auto indexed = s_waveDataByHash.find(hash);
+
+        if (indexed != s_waveDataByHash.end()) {
+            SEWaveDataNode* node = indexed->second;
+
+            if (node->m_loaded >= 0) {
                 internal->m_sound = node->m_sound;
                 internal->m_cached = 1;
                 internal->m_waveData = node;
                 node->m_refCount++;
+                s_waveDataList.LinkToTail(node);
 
                 loaded = 0;
 
@@ -2926,10 +2987,21 @@ int32_t SE2::CreateWaveData(FMOD::System* system, const char* filename, FMOD_MOD
         }
     }
 
-    if (!SFile::OpenEx(nullptr, filename, 1, &internal->m_file)) {
-        SE2::Log_Write(__LINE__, __FILE__, FMOD_ERR_FILE_NOTFOUND, filename);
-        s_soundListCritSect.Enter();
-        goto fail;
+    {
+        uint32_t fileHash = SStrHash(filename, 0, 0);
+        uint32_t now = OsGetAsyncTimeMs();
+
+        if (SEIsRecentlyMissing(fileHash, now)) {
+            s_soundListCritSect.Enter();
+            goto fail;
+        }
+
+        if (!SFile::OpenEx(nullptr, filename, 1, &internal->m_file)) {
+            SEMarkMissing(fileHash, now);
+            SE2::Log_Write(__LINE__, __FILE__, FMOD_ERR_FILE_NOTFOUND, filename);
+            s_soundListCritSect.Enter();
+            goto fail;
+        }
     }
 
     {
@@ -2978,6 +3050,7 @@ int32_t SE2::CreateWaveData(FMOD::System* system, const char* filename, FMOD_MOD
             waveData = new (SMemAlloc(sizeof(SEWaveDataNode), __FILE__, __LINE__, 0)) SEWaveDataNode();
             waveData->m_sound = internal->m_sound;
             waveData->m_hash = hash;
+            s_waveDataByHash[hash] = waveData;
             SStrCopy(waveData->m_name, filename, sizeof(waveData->m_name));
 
             internal->m_cached = 1;
@@ -3051,23 +3124,33 @@ void SE2::PlaySoundFromMemory(FMOD::System* system, const char* data, uint32_t l
         s_deleteList.LinkToTail(internal);
         s_soundListCritSect.Leave();
 
-        s_createCritSect.Leave();
-
         return;
     }
 
     result = system->playSound(FMOD_CHANNEL_FREE, internal->m_sound, true, &internal->m_channel);
     SE_ERRCHECK(result);
 
-    result = internal->m_channel->setUserData(reinterpret_cast<void*>(static_cast<uintptr_t>(internal->m_id)));
-    SE_ERRCHECK(result);
+    // FMOD Ex resolves a null channel to channel 0, which belongs to some other sound.
+    if (result == FMOD_OK && internal->m_channel) {
+        result = internal->m_channel->setUserData(reinterpret_cast<void*>(static_cast<uintptr_t>(internal->m_id)));
+        SE_ERRCHECK(result);
 
-    result = internal->m_channel->setCallback(FMOD_CHANNEL_CALLBACKTYPE_END, SoundEndedCallback, 0);
+        result = internal->m_channel->setCallback(FMOD_CHANNEL_CALLBACKTYPE_END, SoundEndedCallback, 0);
+    } else {
+        internal->m_channel = nullptr;
+        result = FMOD_ERR_INVALID_HANDLE;
+    }
 
     if (result != FMOD_OK) {
         SE_ERRCHECK(result);
 
+        if (internal->m_channel) {
+            internal->m_channel->stop();
+            internal->m_channel = nullptr;
+        }
+
         internal->m_sound->release();
+        internal->m_sound = nullptr;
 
         s_soundListCritSect.Enter();
         internal->m_deleteDelay = 0;
@@ -3118,7 +3201,11 @@ void SE2::CreateChatSound(FMOD::System* system, SEStreamCallbacks* callbacks, FM
     }
 
     internal->m_frequency = 1.0f;
-    internal->m_channel->setFrequency(1.0f);
+
+    if (internal->m_channel) {
+        internal->m_channel->setFrequency(1.0f);
+    }
+
     internal->m_deleteDelay = 0;
 }
 

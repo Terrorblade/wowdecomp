@@ -131,11 +131,12 @@ static int32_t Script_UpdateCustomizationScene(lua_State* L) {
 static int32_t Script_GetRandomName(lua_State* L) {
     char name[16];
     uint32_t length;
+    int32_t attempts = 0;
 
     do {
         CCharacterCreation::m_nameGen.GenerateName(name, 14);
         length = SStrLen(name);
-    } while (length && (ClientServices::CharacterValidateName(name) != CHAR_NAME_SUCCESS || length < 4 || length > 10));
+    } while (length && ++attempts < 200 && (ClientServices::CharacterValidateName(name) != CHAR_NAME_SUCCESS || length < 4 || length > 10));
 
     lua_pushstring(L, name);
     return 1;
@@ -216,10 +217,14 @@ static int32_t Script_GetAvailableClasses(lua_State* L) {
 
     int32_t count = g_chrClassesDB.m_numRecords;
 
+    if (count <= 0 || !lua_checkstack(L, 3 * count)) {
+        return 0;
+    }
+
     for (int32_t i = 0; i < count; i++) {
         ChrClassesRec* classRec = i >= 0 && i < g_chrClassesDB.m_numRecords ? &g_chrClassesDB.m_records[i] : nullptr;
-        const char* name = CGUnit_C::GetDisplayClassNameFromRecord(classRec, CCharacterCreation::m_character->m_data.m_preferences.m_sexID, nullptr);
-        bool available = ClientServices::Connection()->m_accountExpansion >= classRec->m_requiredExpansion;
+        const char* name = classRec ? CGUnit_C::GetDisplayClassNameFromRecord(classRec, CCharacterCreation::m_character->m_data.m_preferences.m_sexID, nullptr) : nullptr;
+        bool available = classRec && ClientServices::Connection()->m_accountExpansion >= classRec->m_requiredExpansion;
 
         if (name) {
             lua_pushstring(L, name);
@@ -448,6 +453,10 @@ static int32_t Script_GetAvailableRaces(lua_State* L) {
 
     uint32_t count = CCharacterCreation::m_races.Count();
 
+    if (!count || !lua_checkstack(L, static_cast<int32_t>(3 * count))) {
+        return 0;
+    }
+
     for (uint32_t i = 0; i < count; i++) {
         lua_pushstring(L, CGUnit_C::GetDisplayRaceNameFromRecord(g_chrRacesDB.GetRecord(CCharacterCreation::m_races.m_data[i]), CCharacterCreation::m_character->m_data.m_preferences.m_sexID, nullptr));
 
@@ -471,10 +480,14 @@ static int32_t Script_GetClassesForRace(lua_State* L) {
 
     uint32_t count = CCharacterCreation::m_classes.Count();
 
+    if (!count || !lua_checkstack(L, static_cast<int32_t>(3 * count))) {
+        return 0;
+    }
+
     for (uint32_t i = 0; i < count; i++) {
         ChrClassesRec* classRec = i < CCharacterCreation::m_classes.Count() ? CCharacterCreation::m_classes.m_data[i] : nullptr;
-        const char* name = CGUnit_C::GetDisplayClassNameFromRecord(classRec, CCharacterCreation::m_character->m_data.m_preferences.m_sexID, nullptr);
-        bool available = ClientServices::Connection()->m_accountExpansion >= classRec->m_requiredExpansion;
+        const char* name = classRec ? CGUnit_C::GetDisplayClassNameFromRecord(classRec, CCharacterCreation::m_character->m_data.m_preferences.m_sexID, nullptr) : nullptr;
+        bool available = classRec && ClientServices::Connection()->m_accountExpansion >= classRec->m_requiredExpansion;
 
         if (name) {
             lua_pushstring(L, name);

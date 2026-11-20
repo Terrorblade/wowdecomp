@@ -18,8 +18,6 @@ void ScrnDestroy();
 void ScrnInitialize(int32_t param);
 void ScrnSetStockFont(SCRNSTOCK stockID, const char* fontTexturePath);
 
-void ScrnSetScreenshotFormat(const char* format);
-void ScrnScreenshot(void (*callback)(int32_t success), uint8_t* data, uint32_t size);
-void ScrnSetScreenshotQuality(uint32_t quality);
+void ScrnScreenshot(void (*callback)(int32_t success));
 
 #endif

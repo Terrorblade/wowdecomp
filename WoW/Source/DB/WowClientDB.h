@@ -9,11 +9,6 @@
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Storm/H/storm.h"
 
-extern int32_t g_clientDbPerformCompress;
-
-uint8_t* DecompressRow(const uint8_t* src, uint32_t size, uint8_t* dst);
-uint32_t CompressRow(const uint8_t* src, uint32_t size, uint8_t* dst);
-
 class SpellRec;
 
 // FIX: spell rows pick up overrides the server applies through spell modifiers, such as the power type.
@@ -90,6 +85,8 @@ class WowClientDB_RLE : public WowClientDB_Common<T> {
     /* 0018 */ T* m_data;
     /* 001C */ T** m_records;
     /* 0020 */ T** m_recordsById;
+    // Bumped by HoT::DB::Reload, which frees the old row storage.
+    uint32_t m_generation = 0;
 
     ~WowClientDB_RLE() override;
     void LoadRecords(SFileImpl* f, const char* file, int32_t line) override;
@@ -334,35 +331,17 @@ WowClientDB_RLE<T>::~WowClientDB_RLE() {
 // OFFSET: [0x0065C9A0<ItemDisplayInfoRec>, 0x006608B0<SpellRec>, 0x007EC520]
 template <class T>
 void WowClientDB_RLE<T>::LoadRecords(SFileImpl* f, const char* file, int32_t line) {
-    T rec;
-    uint32_t compressedSize = 0;
-
-    if (!g_clientDbPerformCompress) {
-        this->m_data = static_cast<T*>(SMemAlloc(sizeof(T) * this->m_numRecords, file, line, 0));
-    }
+    this->m_data = static_cast<T*>(SMemAlloc(sizeof(T) * this->m_numRecords, file, line, 0));
 
     for (int32_t i = 0; i < this->m_numRecords; i++) {
-        if (g_clientDbPerformCompress) {
-            rec.Read(f, this->m_strings);
-            compressedSize += CompressRow(reinterpret_cast<const uint8_t*>(&rec), sizeof(T), nullptr);
+        this->m_data[i].Read(f, this->m_strings);
 
-            if (rec.m_id > this->m_maxID) {
-                this->m_maxID = rec.m_id;
-            }
+        if (this->m_data[i].m_id > this->m_maxID) {
+            this->m_maxID = this->m_data[i].m_id;
+        }
 
-            if (rec.m_id < this->m_minID) {
-                this->m_minID = rec.m_id;
-            }
-        } else {
-            this->m_data[i].Read(f, this->m_strings);
-
-            if (this->m_data[i].m_id > this->m_maxID) {
-                this->m_maxID = this->m_data[i].m_id;
-            }
-
-            if (this->m_data[i].m_id < this->m_minID) {
-                this->m_minID = this->m_data[i].m_id;
-            }
+        if (this->m_data[i].m_id < this->m_minID) {
+            this->m_minID = this->m_data[i].m_id;
         }
     }
 
@@ -371,23 +350,9 @@ void WowClientDB_RLE<T>::LoadRecords(SFileImpl* f, const char* file, int32_t lin
     this->m_recordsById = &index[this->m_numRecords];
     memset(this->m_recordsById, 0, sizeof(T*) * (this->m_maxID - this->m_minID) + sizeof(T*));
 
-    if (g_clientDbPerformCompress) {
-        this->m_data = static_cast<T*>(SMemAlloc(compressedSize, file, line, 0));
-        SFile::SetFilePointer(f, 20, nullptr, 0);
-
-        uint8_t* dst = reinterpret_cast<uint8_t*>(this->m_data);
-
-        for (int32_t i = 0; i < this->m_numRecords; i++) {
-            rec.Read(f, this->m_strings);
-            this->m_records[i] = reinterpret_cast<T*>(dst);
-            this->m_recordsById[rec.m_id - this->m_minID] = reinterpret_cast<T*>(dst);
-            dst += CompressRow(reinterpret_cast<const uint8_t*>(&rec), sizeof(T), dst);
-        }
-    } else {
-        for (int32_t i = 0; i < this->m_numRecords; i++) {
-            this->m_records[i] = &this->m_data[i];
-            this->m_recordsById[this->m_data[i].m_id - this->m_minID] = &this->m_data[i];
-        }
+    for (int32_t i = 0; i < this->m_numRecords; i++) {
+        this->m_records[i] = &this->m_data[i];
+        this->m_recordsById[this->m_data[i].m_id - this->m_minID] = &this->m_data[i];
     }
 }
 
@@ -445,11 +410,7 @@ int32_t WowClientDB_RLE<T>::GetRecordByIndex(int32_t index, T* rec) const {
         return 0;
     }
 
-    if (g_clientDbPerformCompress) {
-        DecompressRow(reinterpret_cast<const uint8_t*>(this->m_records[index]), sizeof(T), reinterpret_cast<uint8_t*>(rec));
-    } else {
-        memcpy(rec, this->m_records[index], sizeof(T));
-    }
+    memcpy(rec, this->m_records[index], sizeof(T));
 
     if constexpr (std::is_same_v<T, SpellRec>) {
         Spell_C_ApplyRowOverrides(rec);
@@ -472,11 +433,7 @@ int32_t WowClientDB_RLE<T>::GetRecord(int32_t id, T* rec) const {
         return 0;
     }
 
-    if (g_clientDbPerformCompress) {
-        DecompressRow(reinterpret_cast<const uint8_t*>(*slot), sizeof(T), reinterpret_cast<uint8_t*>(rec));
-    } else {
-        memcpy(rec, *slot, sizeof(T));
-    }
+    memcpy(rec, *slot, sizeof(T));
 
     if constexpr (std::is_same_v<T, SpellRec>) {
         Spell_C_ApplyRowOverrides(rec);
@@ -501,11 +458,7 @@ int32_t WowClientDB_RLE<T>::GetRecordPrefix(int32_t id, T* rec, uint32_t bytes) 
         bytes = sizeof(T);
     }
 
-    if (g_clientDbPerformCompress) {
-        DecompressRow(reinterpret_cast<const uint8_t*>(row), bytes, reinterpret_cast<uint8_t*>(rec));
-    } else {
-        memcpy(rec, row, bytes);
-    }
+    memcpy(rec, row, bytes);
 
     return 1;
 }

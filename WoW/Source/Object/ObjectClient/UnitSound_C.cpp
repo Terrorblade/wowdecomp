@@ -52,7 +52,7 @@ static void UnitSoundLoadDeathThuds() {
         i--;
         DeathThudLookupsRec* rec = i >= 0 && i < g_deathThudLookupsDB.m_numRecords ? &g_deathThudLookupsDB.m_records[i] : nullptr;
 
-        if (static_cast<uint32_t>(rec->m_sizeClass) < 5 && rec->m_terrainTypeSoundID <= maxSoundId) {
+        if (static_cast<uint32_t>(rec->m_sizeClass) < 5 && rec->m_terrainTypeSoundID >= 0 && rec->m_terrainTypeSoundID <= maxSoundId) {
             s_deathThudSounds[rec->m_sizeClass].m_data[rec->m_terrainTypeSoundID].m_soundEntryId = rec->m_soundEntryID;
             s_deathThudSounds[rec->m_sizeClass].m_data[rec->m_terrainTypeSoundID].m_soundEntryIdWater = rec->m_soundEntryIdwater;
         }

@@ -362,6 +362,9 @@ void SetEnabled(bool enabled) {
     if (enabled) {
         InvalidateContent();
         NpcDisplay::Report();
+    } else {
+        ClearBlpCache();
+        Sheet::ClearCache();
     }
 
     RefreshUnits();

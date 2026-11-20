@@ -73,10 +73,11 @@ int32_t QSortCategory(const void* a, const void* b) {
                 }
 
                 if (realm1->m_numCharacters == realm2->m_numCharacters) {
-                    SStrSortUTF8I(realm1->m_realmName, realm2->m_realmName, STORM_MAX_STR);
+                    result = SStrSortUTF8I(realm1->m_realmName, realm2->m_realmName, STORM_MAX_STR);
+                } else {
+                    result = realm2->m_numCharacters < realm1->m_numCharacters ? -1 : 1;
                 }
 
-                result = realm2->m_numCharacters < realm1->m_numCharacters ? -1 : 1;
                 break;
             }
 

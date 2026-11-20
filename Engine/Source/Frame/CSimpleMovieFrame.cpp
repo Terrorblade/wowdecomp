@@ -43,6 +43,9 @@ CSimpleMovieFrame* CSimpleMovieFrame::s_currentMovieFrame;
 // STATIC: 0x00DCE3E0
 int32_t CSimpleMovieFrame::s_decoderCount;
 
+// Decoder slots in use, a running count handed a live slot to a second movie frame.
+static uint32_t s_decoderSlots;
+
 // STATIC: 0x00DCE3E4
 CDataAllocator CSimpleMovieFrame::s_allocator(sizeof(CSimpleMovieFrame), 5);
 
@@ -295,6 +298,46 @@ void CSimpleMovieFrame::GetScriptTime(lua_State* L, double* time, uint32_t* coun
     CSimpleFrame::GetScriptTime(L, time, count, recurse);
 }
 
+// The movi chunks are read in file order, so one large read replaces a seek and a read per chunk.
+struct AviWindowReader {
+    SFileImpl* m_file;
+    uint32_t m_fileSize;
+    std::vector<uint8_t> m_window;
+    uint32_t m_base = 0;
+    uint32_t m_size = 0;
+
+    bool Read(uint32_t offset, void* dst, uint32_t size) {
+        if (offset >= this->m_base && offset - this->m_base + static_cast<uint64_t>(size) <= this->m_size) {
+            memcpy(dst, this->m_window.data() + (offset - this->m_base), size);
+            return true;
+        }
+
+        if (size > this->m_window.size()) {
+            SFile::SetFilePointer(this->m_file, offset, nullptr, 0);
+            return SFileReadFile(this->m_file, dst, size, nullptr, nullptr, 0) != 0;
+        }
+
+        uint32_t want = offset < this->m_fileSize ? this->m_fileSize - offset : 0;
+
+        if (want > this->m_window.size()) {
+            want = static_cast<uint32_t>(this->m_window.size());
+        }
+
+        uint32_t got = 0;
+        SFile::SetFilePointer(this->m_file, offset, nullptr, 0);
+        SFileReadFile(this->m_file, this->m_window.data(), want, &got, nullptr, 0);
+        this->m_base = offset;
+        this->m_size = got;
+
+        if (size > got) {
+            return false;
+        }
+
+        memcpy(dst, this->m_window.data(), size);
+        return true;
+    }
+};
+
 // VERIFY: be393b5d manual
 // OFFSET: 0x0095DC80
 int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
@@ -433,8 +476,17 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
 
             uint8_t* video = this->m_videoData;
             uint8_t* audio = this->m_audioData;
+            int32_t videoFrame = 0;
+
+            AviWindowReader reader;
+            reader.m_file = file;
+            reader.m_fileSize = SFileGetFileSize(file, nullptr);
+            reader.m_window.resize(4 * 1024 * 1024);
+            this->m_keyframes.SetCount(0);
 
             for (uint32_t i = 0; i + 16 <= indexSize; i += 16) {
+                uint32_t chunkOffset = *reinterpret_cast<uint32_t*>(&index[i + 8]) + moviOffset + 4;
+
                 if (index[i + 2] == 'd') {
                     uint32_t size = *reinterpret_cast<uint32_t*>(&index[i + 12]);
                     size_t videoLeft = this->m_videoDataSize - (video - this->m_videoData);
@@ -443,11 +495,18 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
                         break;
                     }
 
+                    // AVIIF_KEYFRAME lets a stalled movie skip ahead instead of decoding every missed frame.
+                    if (*reinterpret_cast<uint32_t*>(&index[i + 4]) & 0x10) {
+                        MOVIEKEYFRAME* keyframe = this->m_keyframes.New();
+                        keyframe->m_frame = videoFrame;
+                        keyframe->m_offset = static_cast<uint32_t>(video - this->m_videoData);
+                    }
+
                     *reinterpret_cast<uint32_t*>(video) = size;
                     video += 4;
-                    SFile::SetFilePointer(file, *reinterpret_cast<uint32_t*>(&index[i + 8]) + moviOffset + 4, nullptr, 0);
-                    SFileReadFile(file, video, size, nullptr, nullptr, 0);
+                    reader.Read(chunkOffset, video, size);
                     video += size;
+                    videoFrame++;
                 }
 
                 if (index[i + 2] == 'w') {
@@ -457,8 +516,7 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
                         break;
                     }
 
-                    SFile::SetFilePointer(file, *reinterpret_cast<uint32_t*>(&index[i + 8]) + moviOffset + 4, nullptr, 0);
-                    SFileReadFile(file, audio, size, nullptr, nullptr, 0);
+                    reader.Read(chunkOffset, audio, size);
                     audio += size;
                 }
             }
@@ -481,6 +539,7 @@ void CSimpleMovieFrame::CloseVideo() {
     if (this->m_decoder) {
         UnInitializeDivxDecoder(this->m_decoder);
         CSimpleMovieFrame::s_decoderCount--;
+        s_decoderSlots &= ~(1u << this->m_decoder);
         this->m_decoder = 0;
     }
 
@@ -493,6 +552,8 @@ void CSimpleMovieFrame::CloseVideo() {
         SMemFree(this->m_videoData, __FILE__, __LINE__, 0);
         this->m_videoData = nullptr;
     }
+
+    this->m_keyframes.SetCount(0);
 
     for (uint32_t i = 0; i < 6; i++) {
         if (this->m_textures[i]) {
@@ -516,6 +577,7 @@ void CSimpleMovieFrame::AudioDeviceChanged_ShutDown() {
 // OFFSET: 0x0095E170
 void CSimpleMovieFrame::CloseAudio() {
     CSimpleMovieFrame::s_currentMovieFrame = nullptr;
+    this->m_sound.SetFinishedCallback2(nullptr, nullptr);
     this->m_sound.Stop(1, -1.0f);
 
     if (this->m_audioData) {
@@ -569,9 +631,18 @@ int32_t CSimpleMovieFrame::OpenVideo(const char* fileName) {
 
     this->m_startTime = OsGetAsyncTimeMs();
     this->m_elapsedMs = 0;
-    this->m_decoder = ++CSimpleMovieFrame::s_decoderCount;
+    this->m_decoder = 0;
 
-    if (!InitializeDivxDecoder(this->m_decoder, this->m_width, this->m_height) && !SetOutputFormat(this->m_decoder, 1, this->m_width, this->m_height)) {
+    for (int32_t slot = 1; slot < 16; slot++) {
+        if (!(s_decoderSlots & (1u << slot))) {
+            this->m_decoder = slot;
+            s_decoderSlots |= 1u << slot;
+            CSimpleMovieFrame::s_decoderCount++;
+            break;
+        }
+    }
+
+    if (this->m_decoder && !InitializeDivxDecoder(this->m_decoder, this->m_width, this->m_height) && !SetOutputFormat(this->m_decoder, 1, this->m_width, this->m_height)) {
         int32_t layoutFound = 1;
 
         if (this->m_width == 1024) {
@@ -591,6 +662,11 @@ int32_t CSimpleMovieFrame::OpenVideo(const char* fileName) {
                 this->m_layout = 0;
             }
         } else {
+            layoutFound = 0;
+        }
+
+        // The decoder writes m_height rows below the layout offset, a taller movie would run past the buffer.
+        if (layoutFound && (this->m_height <= 0 || s_frameOffset[this->m_layout] / (4 * s_frameWidth[this->m_layout]) + static_cast<uint32_t>(this->m_height) > s_frameHeight[this->m_layout])) {
             layoutFound = 0;
         }
 
@@ -783,7 +859,19 @@ int32_t CSimpleMovieFrame::StartMovie(const char* fileName, int32_t volume) {
         this->m_isPlaying = 0;
     }
 
+    this->m_finished = 0;
+
     if (!this->ParseAVIFile(fileName) || !this->OpenVideo(fileName)) {
+        if (this->m_videoData) {
+            SMemFree(this->m_videoData, __FILE__, __LINE__, 0);
+            this->m_videoData = nullptr;
+        }
+
+        if (this->m_audioData) {
+            SMemFree(this->m_audioData, __FILE__, __LINE__, 0);
+            this->m_audioData = nullptr;
+        }
+
         return 0;
     }
 
@@ -864,6 +952,28 @@ bool CSimpleMovieFrame::UpdateTiming() {
 
     if (targetFrame != this->m_currentFrame + 1) {
         this->m_droppedFrames++;
+    }
+
+    if (this->m_targetFrame - this->m_currentFrame > 8) {
+        int32_t lo = 0;
+        int32_t hi = static_cast<int32_t>(this->m_keyframes.Count()) - 1;
+        int32_t best = -1;
+
+        while (lo <= hi) {
+            int32_t mid = (lo + hi) / 2;
+
+            if (this->m_keyframes[mid].m_frame <= this->m_targetFrame) {
+                best = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+
+        if (best >= 0 && this->m_keyframes[best].m_frame > this->m_currentFrame + 1 && this->m_keyframes[best].m_offset < this->m_videoDataSize) {
+            this->m_videoPos = this->m_videoData + this->m_keyframes[best].m_offset;
+            this->m_currentFrame = this->m_keyframes[best].m_frame - 1;
+        }
     }
 
     while (this->m_currentFrame < this->m_targetFrame - 1) {

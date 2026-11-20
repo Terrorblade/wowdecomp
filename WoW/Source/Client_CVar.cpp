@@ -74,12 +74,6 @@ static CVar* s_cvErrors;
 // STATIC: 0x00B2F03C
 static CVar* s_cvMouseSpeed;
 
-// STATIC: 0x00B2F04C
-static CVar* s_cvScreenshotQuality;
-
-// STATIC: 0x00B2F85C
-static CVar* s_cvScreenshotFormat;
-
 // STATIC: 0x00B2F960
 CVar* g_readContestVar;
 
@@ -390,20 +384,6 @@ static bool DesktopGammaCallback(CVar* var, const char* oldValue, const char* va
     return true;
 }
 
-// VERIFY: d329ddc4 auto
-// OFFSET: 0x00401B20
-static bool ScreenshotFormatCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
-    ScrnSetScreenshotFormat(value);
-    return true;
-}
-
-// VERIFY: bcaf1dde auto
-// OFFSET: 0x00401B40
-static bool ScreenshotQualityCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
-    ScrnSetScreenshotQuality(SStrToInt(value));
-    return true;
-}
-
 // VERIFY: 85990911 auto
 // OFFSET: 0x00402100
 static uint32_t GetM2FasterModifierMask(int32_t faster, int32_t debug) {
@@ -666,8 +646,8 @@ void ClientRegisterConsoleCommands() {
     g_readTerminationWithoutNoticeVar = CVar::Register("readTerminationWithoutNotice", "Status of the Termination without Notice notice", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
     g_readScanningVar = CVar::Register("readScanning", "Status of the Scanning notice", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
     g_readContestVar = CVar::Register("readContest", "Status of the Contest notice", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
-    s_cvScreenshotFormat = CVar::Register("screenshotFormat", "Set the format of screenshots", 1, "jpeg", ScreenshotFormatCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvScreenshotQuality = CVar::Register("screenshotQuality", "Set the quality of screenshots (1 - 10)", 1, "3", ScreenshotQualityCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    CVar::Register("screenshotFormat", "Set the format of screenshots", 1, "png", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
+    CVar::Register("screenshotQuality", "Set the quality of screenshots (1 - 10)", 1, "3", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
 
     CVar* showToolsUI = CVar::Register("showToolsUI", "Display the launcher when starting the game", 0, "-1", nullptr, CATEGORY_GAME, false, nullptr, false);
 

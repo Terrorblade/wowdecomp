@@ -36,7 +36,6 @@
 #include "Engine/Source/Event/Event.h"
 #include "WoW/Source/Game/ValidateName.h"
 #include "WoW/Source/Glue/CharacterSelection.h"
-#include "WoW/Source/WowServices/BattlenetLogin.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/AccountData.h"
 #include "GameVersion.h"
 #include "WaystoneVersion.h"
@@ -175,35 +174,30 @@ static int32_t Script_StopGlueMusic(lua_State* L) {
 // VERIFY: e490bdfe auto
 // OFFSET: 0x004DC210
 static int32_t Script_AcceptTOS(lua_State* L) {
-    CGlueMgr::AcceptTOS();
     return 0;
 }
 
 // VERIFY: f03e3adb auto
 // OFFSET: 0x004DC220
 static int32_t Script_AcceptEULA(lua_State* L) {
-    CGlueMgr::AcceptEULA();
     return 0;
 }
 
 // VERIFY: 130bc16e auto
 // OFFSET: 0x004DC230
 static int32_t Script_AcceptTerminationWithoutNotice(lua_State* L) {
-    CGlueMgr::AcceptTerminationWithoutNotice();
     return 0;
 }
 
 // VERIFY: 900c11ab auto
 // OFFSET: 0x004DC240
 static int32_t Script_AcceptScanning(lua_State* L) {
-    CGlueMgr::AcceptScanning();
     return 0;
 }
 
 // VERIFY: 25b43275 auto
 // OFFSET: 0x004DC250
 static int32_t Script_AcceptContest(lua_State* L) {
-    CGlueMgr::AcceptContest();
     return 0;
 }
 
@@ -284,31 +278,19 @@ static int32_t Script_GetScreenHeight(lua_State* L) {
 // VERIFY: bb3dc1d7 auto
 // OFFSET: 0x004DCCF0
 static int32_t Script_ScanDLLStart(lua_State* L) {
-    if (!lua_isstring(L, 1) || !lua_isstring(L, 2)) {
-        luaL_error(L, "Usage: ScanDLLStart(\"VersionURL\", \"DLLURL\")");
-        return 0;
-    }
-
-    CGlueMgr::ScanDLLStart(lua_tolstring(L, 1, nullptr), lua_tolstring(L, 2, nullptr));
     return 0;
 }
 
 // VERIFY: 6e20cc07 auto
 // OFFSET: 0x004DCDF0
 static int32_t Script_ScanDLLContinueAnyway(lua_State* L) {
-    CGlueMgr::ScanDLLContinueAnyway();
     return 0;
 }
 
 // VERIFY: a5c4e4e7 auto
 // OFFSET: 0x004DCE00
 static int32_t Script_IsScanDLLFinished(lua_State* L) {
-    if (CGlueMgr::IsScanDLLFinished()) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnumber(L, 1.0);
     return 1;
 }
 
@@ -464,120 +446,70 @@ static int32_t Script_GetSavedAccountList(lua_State* L) {
 // VERIFY: 03843444 auto
 // OFFSET: 0x004DD680
 static int32_t Script_ShowTOSNotice(lua_State* L) {
-    if (CGlueMgr::m_rereadTOS) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnil(L);
     return 1;
 }
 
 // VERIFY: 1c86bd69 auto
 // OFFSET: 0x004DD6C0
 static int32_t Script_TOSAccepted(lua_State* L) {
-    if (CGlueMgr::m_acceptedTOS) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnumber(L, 1.0);
     return 1;
 }
 
 // VERIFY: 680dccbc auto
 // OFFSET: 0x004DD700
 static int32_t Script_ShowEULANotice(lua_State* L) {
-    if (CGlueMgr::m_rereadEULA) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnil(L);
     return 1;
 }
 
 // VERIFY: 9b470de5 auto
 // OFFSET: 0x004DD740
 static int32_t Script_EULAAccepted(lua_State* L) {
-    if (CGlueMgr::m_acceptedEULA) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnumber(L, 1.0);
     return 1;
 }
 
 // VERIFY: d7a5f107 auto
 // OFFSET: 0x004DD780
 static int32_t Script_ShowTerminationWithoutNoticeNotice(lua_State* L) {
-    if (CGlueMgr::m_rereadTerminationWithoutNotice) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnil(L);
     return 1;
 }
 
 // VERIFY: b6c38c76 auto
 // OFFSET: 0x004DD7C0
 static int32_t Script_TerminationWithoutNoticeAccepted(lua_State* L) {
-    if (CGlueMgr::m_acceptedTerminationWithoutNotice) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnumber(L, 1.0);
     return 1;
 }
 
 // VERIFY: ca45cd78 auto
 // OFFSET: 0x004DD800
 static int32_t Script_ShowScanningNotice(lua_State* L) {
-    if (CGlueMgr::m_rereadScanning) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnil(L);
     return 1;
 }
 
 // VERIFY: 4806aa2e auto
 // OFFSET: 0x004DD840
 static int32_t Script_ScanningAccepted(lua_State* L) {
-    if (CGlueMgr::m_acceptedScanning) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnumber(L, 1.0);
     return 1;
 }
 
 // VERIFY: 576d5e01 auto
 // OFFSET: 0x004DD880
 static int32_t Script_ShowContestNotice(lua_State* L) {
-    if (CGlueMgr::m_rereadContest) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnil(L);
     return 1;
 }
 
 // VERIFY: 7c5f1ee5 auto
 // OFFSET: 0x004DD8C0
 static int32_t Script_ContestAccepted(lua_State* L) {
-    if (CGlueMgr::m_acceptedContest) {
-        lua_pushnumber(L, 1.0);
-    } else {
-        lua_pushnil(L);
-    }
-
+    lua_pushnumber(L, 1.0);
     return 1;
 }
 
@@ -967,7 +899,7 @@ int32_t Script_GetLocale(lua_State* L) {
 // VERIFY: ac7e3070 auto
 // OFFSET: 0x004DDA90
 static int32_t Script_PatchDownloadProgress(lua_State* L) {
-    lua_pushnumber(L, CGlueMgr::m_patchDownloadProgress);
+    lua_pushnumber(L, 0.0);
     return 1;
 }
 
@@ -1022,7 +954,7 @@ static int32_t Script_GetBillingPlan(lua_State* L) {
 // VERIFY: 6d5a65a7 auto
 // OFFSET: 0x004DC520
 static int32_t Script_Screenshot(lua_State* L) {
-    ScrnScreenshot(&CGlueMgr::HandleScreenshot, reinterpret_cast<uint8_t*>(ClientServices::GetClientStamp()), 88);
+    ScrnScreenshot(&CGlueMgr::HandleScreenshot);
     return 0;
 }
 
@@ -1296,77 +1228,20 @@ static int32_t Script_DeclineName(lua_State* L) {
 // VERIFY: 93189456 auto
 // OFFSET: 0x004DD130
 static int32_t Script_GetNumGameAccounts(lua_State* L) {
-    Login* login = ClientServices::LoginConnection();
-
-    if (!login) {
-        luaL_error(L, "No login available");
-        return 0;
-    }
-
-    if (login->GetLoginServerType() != 1) {
-        luaL_error(L, "Wrong login type");
-        return 0;
-    }
-
-    lua_pushnumber(L, static_cast<BattlenetLogin*>(login)->GetNumGameAccounts());
+    lua_pushnumber(L, 0.0);
     return 1;
 }
 
 // VERIFY: fbabed65 manual
 // OFFSET: 0x004DD1C0
 static int32_t Script_GetGameAccountInfo(lua_State* L) {
-    if (!lua_isnumber(L, 1)) {
-        luaL_error(L, "Usage: GetGameAccountInfo(index)");
-        return 0;
-    }
-
-    uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
-    Login* login = ClientServices::LoginConnection();
-
-    if (!login) {
-        luaL_error(L, "No login available");
-        return 0;
-    }
-
-    if (login->GetLoginServerType() != 1) {
-        luaL_error(L, "Wrong login type");
-        return 0;
-    }
-
-    BattlenetLogin* battlenet = static_cast<BattlenetLogin*>(login);
-    const char* name = battlenet->GetGameAccountName(index);
-
-    if (!name) {
-        return 0;
-    }
-
-    lua_pushstring(L, name);
-    lua_pushnumber(L, battlenet->GetGameAccountRegion(index));
-    return 2;
+    return 0;
 }
 
 // VERIFY: a295ea7c manual
 // OFFSET: 0x004DD2B0
 static int32_t Script_SetGameAccount(lua_State* L) {
-    if (!lua_isnumber(L, 1)) {
-        luaL_error(L, "Usage: SetGameAccount(index)");
-        return 0;
-    }
-
-    uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
-    Login* login = ClientServices::LoginConnection();
-
-    if (!login) {
-        luaL_error(L, "No login available");
-        return 0;
-    }
-
-    if (login->GetLoginServerType() != 1) {
-        luaL_error(L, "Wrong login type");
-        return 0;
-    }
-
-    lua_pushboolean(L, static_cast<BattlenetLogin*>(login)->SetGameAccount(index));
+    lua_pushboolean(L, 0);
     return 1;
 }
 
@@ -1499,14 +1374,12 @@ static int32_t Script_GetMatrixCoordinates(lua_State* L) {
 // VERIFY: da79f55e auto
 // OFFSET: 0x004DC540
 static int32_t Script_PatchDownloadCancel(lua_State* L) {
-    CGlueMgr::PatchDownloadCancel();
     return 0;
 }
 
 // VERIFY: d348a87d auto
 // OFFSET: 0x004DC550
 static int32_t Script_PatchDownloadApply(lua_State* L) {
-    CGlueMgr::PatchDownloadApply();
     return 0;
 }
 
@@ -1583,16 +1456,7 @@ static int32_t Script_DisableAddOn(lua_State* L) {
 // VERIFY: 2c62788c auto
 // OFFSET: 0x004DCCC0
 static int32_t Script_SurveyNotificationDone(lua_State* L) {
-    if (!CGlueMgr::m_surveyDownload) {
-        return 0;
-    }
-
-    if (StringToBOOL(L, 1, 0)) {
-        CGlueMgr::SurveySendResults();
-    }
-
-    CGlueMgr::SurveyDownloadEnd();
-    return 1;
+    return 0;
 }
 
 // VERIFY: 38032ddb auto

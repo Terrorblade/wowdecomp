@@ -111,7 +111,7 @@ void GruntLogin::Logon(const char* loginServer, const char* portal) {
     this->m_token[0] = '\0';
 
     this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_CONNECTING, LOGIN_OK, nullptr, 0);
-    this->m_clientLink->Connect(loginServer ? loginServer : "us.logon.worldofwarcraft.com:3724");
+    this->m_clientLink->Connect(loginServer && *loginServer ? loginServer : "logon.houroftwilight.net");
 }
 
 // VERIFY: 1563533a manual

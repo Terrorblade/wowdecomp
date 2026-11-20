@@ -10,6 +10,7 @@
 #include <alloca.h>
 #endif
 #include <cstring>
+#include <vector>
 #include <cmath>
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
@@ -434,7 +435,8 @@ DepthCoordTable* CMap::GetDepthCoordTable(uint32_t liquidType) {
         return nullptr;
     }
 
-    return CMap::s_depthCoordTables[typeRec->m_int[0]];
+    uint32_t table = static_cast<uint32_t>(typeRec->m_int[0]);
+    return table < sizeof(CMap::s_depthCoordTables) / sizeof(CMap::s_depthCoordTables[0]) ? CMap::s_depthCoordTables[table] : nullptr;
 }
 
 // VERIFY: e651a57d manual
@@ -945,18 +947,40 @@ bool CMap::QueryLiquidTerrain(const C3Vector* pos, int32_t* liquidType, float* h
 
 // VERIFY: c7588881 manual
 // OFFSET: 0x007A09D0
+struct MapObjDefQueryBox {
+    CAaBox m_box;
+    CMapObjDef* m_def;
+};
+
+// Every moving entity runs this, walking the def hash list was a cache miss per loaded WMO, so the boxes live in one array.
+static std::vector<MapObjDefQueryBox> s_mapObjDefQueryBoxes;
+static bool s_mapObjDefQueryDirty = true;
+
+void CMap::InvalidateMapObjDefQueries() {
+    s_mapObjDefQueryDirty = true;
+}
+
 bool CMap::QueryLiquidStatusMapObjsExt(C3Vector* pos, int32_t* liquidType, float* height) {
-    for (CMapObjDef* mapObjDef = CMap::mapObjDefHash.m_fulllist.Head(); mapObjDef; mapObjDef = CMap::mapObjDefHash.m_fulllist.Next(mapObjDef)) {
-        if (mapObjDef->m_flags & 0x100) {
-            continue;
+    if (s_mapObjDefQueryDirty) {
+        s_mapObjDefQueryBoxes.clear();
+
+        for (CMapObjDef* mapObjDef = CMap::mapObjDefHash.m_fulllist.Head(); mapObjDef; mapObjDef = CMap::mapObjDefHash.m_fulllist.Next(mapObjDef)) {
+            if (!(mapObjDef->m_flags & 0x100)) {
+                s_mapObjDefQueryBoxes.push_back({ mapObjDef->m_bbox, mapObjDef });
+            }
         }
 
-        const CAaBox& box = mapObjDef->m_bbox;
+        s_mapObjDefQueryDirty = false;
+    }
+
+    for (const MapObjDefQueryBox& entry : s_mapObjDefQueryBoxes) {
+        const CAaBox& box = entry.m_box;
 
         if (box.b.x > pos->x || box.b.y > pos->y || box.b.z > pos->z || box.t.x < pos->x || box.t.y < pos->y || box.t.z < pos->z) {
             continue;
         }
 
+        CMapObjDef* mapObjDef = entry.m_def;
         C3Vector local = *pos * mapObjDef->m_invMat;
         CMapObj* mapObj = mapObjDef->m_owner;
 
@@ -1392,7 +1416,7 @@ bool CMap::VectorIntersectSubChunkList(C3Vector* start, C3Vector* end, float* di
             int32_t checkType = (flags & 0x10000) && !(flags & 0x20000);
 
             for (CChunkLiquid* liquid = chunk->m_liquidChunkLinkList.Head(); liquid; liquid = chunk->m_liquidChunkLinkList.Next(liquid)) {
-                if (checkType && !(g_liquidTypeDB.GetRecord(liquid->m_type)->m_flags & 4)) {
+                if (checkType && !(LiquidTypeFlags(liquid->m_type) & 4)) {
                     continue;
                 }
 
@@ -2758,6 +2782,7 @@ CMapObjDef* CMap::CreateMapObjDef(char* fileName, SMMapObjDef* mapObjectDef, C3V
 
     if (cached) {
         CMap::mapObjDefHash.Insert(mapObjDef, mapObjectDef->m_uniqueId, CMap::s_mapObjDefHashKey);
+        CMap::InvalidateMapObjDefQueries();
     }
 
     mapObjDef->m_position.x = -mapObjectDef->m_position.z;
@@ -2843,6 +2868,7 @@ CMapObjDef* CMap::CreateMapObjDef(const char* fileName, const C3Vector* position
     CMap::mapObjDefHash.Ptr(uniqueId, CMap::s_mapObjDefHashKey);
     CMapObjDef* mapObjDef = CMap::AllocMapObjDef();
     CMap::mapObjDefHash.Insert(mapObjDef, uniqueId, CMap::s_mapObjDefHashKey);
+    CMap::InvalidateMapObjDefQueries();
     CMapObj* mapObj = CMapObj::Create(const_cast<char*>(fileName));
     mapObjDef->m_owner = mapObj;
 
@@ -2944,6 +2970,7 @@ void CMap::LoadWdt() {
         if (!mapObjDef) {
             mapObjDef = CMap::AllocMapObjDef();
             CMap::mapObjDefHash.Insert(mapObjDef, def.m_uniqueId, CMap::s_mapObjDefHashKey);
+            CMap::InvalidateMapObjDefQueries();
 
             mapObjDef->m_position.x = -def.m_position.z;
             mapObjDef->m_position.y = -def.m_position.x;
@@ -3215,6 +3242,7 @@ CMapObjDef* CMap::AllocMapObjDef() {
 void CMap::FreeMapObjDef(CMapObjDef* mapObjDef) {
     mapObjDef->m_lameAssLink.Unlink();
     CMap::mapObjDefHash.Unlink(mapObjDef);
+    CMap::InvalidateMapObjDefQueries();
     uint32_t* heap = CMap::mapObjDefHeap;
     mapObjDef->~CMapObjDef();
     ObjectFree(*heap, mapObjDef->m_objectIndex);
@@ -4528,7 +4556,7 @@ bool CMap::GetChunkFacets(int32_t chunkX, int32_t chunkY, CiRect* subRect, CAaBo
             bool fishableOnly = (flags & 0x10000) && !(flags & 0x20000);
 
             for (CChunkLiquid* liquid = chunk->m_liquidChunkLinkList.Head(); liquid; liquid = chunk->m_liquidChunkLinkList.Next(liquid)) {
-                if (!fishableOnly || (g_liquidTypeDB.GetRecord(liquid->m_type)->m_flags & 0x4)) {
+                if (!fishableOnly || (LiquidTypeFlags(liquid->m_type) & 0x4)) {
                     CMap::GetChunkLiquidFacets(chunk, &localBox, &rect, liquid, facets);
                 }
             }
@@ -5336,7 +5364,7 @@ bool CMap::GetChunkFacets(int32_t chunkX, int32_t chunkY, CiRect* subRect, CFrus
         bool fishableOnly = (flags & 0x10000) && !(flags & 0x20000);
 
         for (CChunkLiquid* liquid = chunk->m_liquidChunkLinkList.Head(); liquid; liquid = chunk->m_liquidChunkLinkList.Next(liquid)) {
-            if (!fishableOnly || (g_liquidTypeDB.GetRecord(liquid->m_type)->m_flags & 0x4)) {
+            if (!fishableOnly || (LiquidTypeFlags(liquid->m_type) & 0x4)) {
                 CMap::GetChunkLiquidFacets(chunk, &localFrustum, &rect, liquid, facets);
             }
         }
@@ -6287,7 +6315,7 @@ bool CMap::GetTrisChunk(int32_t chunkX, int32_t chunkY, const CiRect& cellRect, 
         bool oceanOnly = (flags & 0x10000) && !(flags & 0x20000);
 
         for (CChunkLiquid* liquid = chunk->m_liquidChunkLinkList.Head(); liquid; liquid = chunk->m_liquidChunkLinkList.Next(liquid)) {
-            if (oceanOnly && !(g_liquidTypeDB.GetRecord(liquid->m_type)->m_flags & 0x4)) {
+            if (oceanOnly && !(LiquidTypeFlags(liquid->m_type) & 0x4)) {
                 continue;
             }
 

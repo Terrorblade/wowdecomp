@@ -35,6 +35,9 @@ class CGxTexCache {
     /* 0004 */ uint32_t m_time;
     /* 0008 */ uint32_t m_size;
     /* 000C */ TSLink<CGxTexCache> m_link;
+
+    CGxTexCache();
+    ~CGxTexCache();
 };
 
 struct HASHKEY_TEXTUREFILE {

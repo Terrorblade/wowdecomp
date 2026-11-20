@@ -108,7 +108,6 @@ int32_t Packet_SMSG_TRANSFER_PENDING(void* param, NETMESSAGE msgId, uint32_t tim
 bool ProcessAffinityMaskCallback(CVar* var, const char* oldValue, const char* value, void* arg);
 int32_t STORMAPI SendErrorLog(uint32_t errorcode, const char* description, const char* filename, int32_t linenumber, const char* errorstring);
 void SetPaths();
-void StartupReport(bool firstRun);
 bool TextureCacheSizeCallback(CVar* var, const char* oldValue, const char* value, void* arg);
 bool TimingMethodCallback(CVar* var, const char* oldValue, const char* value, void* arg);
 bool UIFasterCallback(CVar* var, const char* oldValue, const char* value, void* arg);

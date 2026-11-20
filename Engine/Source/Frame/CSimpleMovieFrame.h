@@ -13,6 +13,11 @@ class CGxTex;
 class CRenderBatch;
 struct lua_State;
 
+struct MOVIEKEYFRAME {
+    int32_t m_frame;
+    uint32_t m_offset;
+};
+
 struct MOVIECAPTION {
     /* 0000 */ uint32_t m_startTime;
     /* 0004 */ uint32_t m_endTime;
@@ -95,6 +100,7 @@ class CSimpleMovieFrame : public CSimpleFrame {
     /* 0458 */ uint32_t m_elapsedMs;
     /* 045C */ TSGrowableArray<MOVIECAPTION> m_captions;
     /* 046C */ int32_t m_currentCaption;
+    TSGrowableArray<MOVIEKEYFRAME> m_keyframes;
 
     virtual ~CSimpleMovieFrame();
     virtual int32_t GetScriptMetaTable();

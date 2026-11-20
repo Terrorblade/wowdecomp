@@ -1,5 +1,6 @@
 #include "Liquid.h"
 #include "Engine/Source/Services/SysMessage.h"
+#include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/DB/WowClientDB.h"
 #include "WoW/Source/DB/Rec/LiquidTypeRec.h"
 #include "WoW/Source/DB/Rec/LiquidMaterialRec.h"
@@ -59,11 +60,7 @@ bool Liquid::CSettingsBank::UpdateRecord(Liquid::CMaterialSettings* settings, ui
     }
 
     for (uint32_t i = 0; i < 6; i++) {
-        const char* src = typeRec->m_texture[i];
-        char* dst = settings->m_textureNames[i];
-
-        while ((*dst++ = *src++) != 0) {
-        }
+        SStrCopy(settings->m_textureNames[i], typeRec->m_texture[i] ? typeRec->m_texture[i] : "", sizeof(settings->m_textureNames[i]));
     }
 
     settings->m_colors[0] = *reinterpret_cast<CImVector*>(&typeRec->m_color[0]);
@@ -86,17 +83,24 @@ bool Liquid::CSettingsBank::UpdateRecord(Liquid::CMaterialSettings* settings, ui
 // VERIFY: f18ac9d9 auto
 // OFFSET: 0x008A28F0
 Liquid::CMaterialSettings* Liquid::CSettingsBank::GetSettings(uint32_t liquidType) {
-    Liquid::CMaterialSettings* settings;
+    Liquid::CMaterialSettings* settings = nullptr;
 
     while (true) {
         if (liquidType < Liquid::CSettingsBank::s_settings.Count() && Liquid::CSettingsBank::s_settings.m_data[liquidType]) {
+            if (settings) {
+                settings->~CMaterialSettings();
+                Liquid::s_settingsAllocator.PutData(settings, nullptr, 0);
+            }
+
             return Liquid::CSettingsBank::s_settings.m_data[liquidType];
         }
 
-        void* mem = Liquid::s_settingsAllocator.GetData(0, ".?AVCMaterialSettings@Liquid@@", SLOG_OBJECT);
-        settings = mem ? new (mem) Liquid::CMaterialSettings() : nullptr;
+        if (!settings) {
+            void* mem = Liquid::s_settingsAllocator.GetData(0, ".?AVCMaterialSettings@Liquid@@", SLOG_OBJECT);
+            settings = mem ? new (mem) Liquid::CMaterialSettings() : nullptr;
+        }
 
-        if (Liquid::CSettingsBank::UpdateRecord(settings, liquidType)) {
+        if (Liquid::CSettingsBank::UpdateRecord(settings, liquidType) || liquidType == 1) {
             break;
         }
 

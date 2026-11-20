@@ -10,7 +10,6 @@
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Manifests.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Streaming.h"
-#include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Tracker.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Util/SHA1.h"
 #include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
@@ -91,7 +90,6 @@
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/Ui/AddOns.h"
 #include "WoW/Source/Ui/BarberShop.h"
-#include "WoW/Source/Ui/BattlenetUI.h"
 #include "WoW/Source/Ui/ChatFrame.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/LootFrame.h"
@@ -248,12 +246,6 @@ static const EGxTexFilter s_textureFilterModes[] = { GxTex_LinearMipNearest, GxT
 
 // STATIC: 0x00AB6140
 static const uint32_t s_textureMaxAnisotropy[] = { 1, 1, 2, 4, 8, 16 };
-
-// STATIC: 0x00B2F050
-static uint32_t s_streamingDiag;
-
-// STATIC: 0x00B2F059
-static char s_streamingError[2051];
 
 // STATIC: 0x00B2F994
 HEVENTCONTEXT g_clientEventContext;
@@ -855,47 +847,6 @@ static void SetInstallPath() {
     }
 }
 
-// VERIFY: 835a84bd manual
-// OFFSET: 0x00403600
-static void LoadMFIL(const char* file) {
-    Blizzard::Time::GetElapsedSinceStart(true);
-
-    if (OsFileExists(file) && file) {
-        s_streamingDiag |= 1;
-        int32_t initialized = SFile::InitializeStreaming(file);
-        OsDeleteFile("WoW.stor");
-
-        if (initialized) {
-            s_streamingDiag |= 2;
-        } else {
-            SStrCopy(s_streamingError, SFile::GetErrorDetails(), 2048);
-        }
-    }
-
-    if (SFile::IsTrial()) {
-        InitOggDecompression();
-    }
-
-    SFile::SetStreamingStatus(s_streamingDiag & 1, (s_streamingDiag >> 1) & 1, (s_streamingDiag >> 2) & 1, (s_streamingDiag >> 3) & 1, GAME_BUILD);
-}
-
-// VERIFY: 4b6c1aaa auto
-// OFFSET: 0x004036B0
-void StartupReport(bool firstRun) {
-    uint32_t speedTest;
-
-    if (!SRegLoadValue("World of Warcraft Trial", "SpeedTest", 1, &speedTest)) {
-        speedTest = 0;
-    }
-
-    Blizzard::Streaming::FileManifest::SetSpeedTest(speedTest);
-    StartupReportSetSpeedTest(speedTest);
-    Tracker::SetLocale(CVar::Lookup("locale")->m_stringValue.m_str);
-    Tracker::SetBuildnum(GAME_BUILD);
-    StartupReportSendTelemetry(true, firstRun);
-    World::SetFrameCntCallback(StartupReportFrameCallback);
-}
-
 // VERIFY: 2b64aabf manual
 // OFFSET: 0x00403B70
 static int32_t LoadNewWorld(const void* data, void* param) {
@@ -1372,7 +1323,6 @@ void ClientInitializeGame(uint32_t mapId, C3Vector position) {
     s_botCheckStartTime = OsGetAsyncTimeMs();
     s_botCheckDelay = 1200;
     s_botCheckEnabled = 1;
-    BattlenetUI_EnterRealm();
     s_gameInitialized = 1;
 }
 
@@ -1465,14 +1415,6 @@ static void OpenArchives() {
 
                 for (char* token = SStrStr(path, "****"); token; token = SStrStr(path, "****")) {
                     memcpy(token, locale, 4);
-                }
-
-                const char* details = SFile::GetErrorDetails();
-                char errorText[256];
-                SErrGetErrorStr(SErrGetLastError(), errorText, sizeof(errorText));
-
-                if (s_streamingDiag & 1) {
-                    SErrDisplayAppFatal("Failed to read data from the network. Please check your Internet connection and try again.\n\nDebug Details:\n\n%s%sStorm Error Msg:%s", details, s_streamingError, errorText);
                 }
 
                 char message[256];
@@ -1648,8 +1590,6 @@ void ClientDestroyGame(int32_t charSelect, int32_t resumeGlue, int32_t worldLogi
         s_clientTaxiBenchIsOnTaxi = 0;
     }
 
-    BattlenetUI_LeaveRealm();
-
     if (resumeGlue) {
         CGlueMgr::Resume();
 
@@ -1709,16 +1649,14 @@ void ForEveryRunOnceWTF::Execute(int32_t (*callback)(const char*)) {
 bool InitializeGlobal() {
     SCmdRegisterArgList(s_wowArgList, sizeof(s_wowArgList) / sizeof(s_wowArgList[0]));
     CmdLineProcess();
-    LoadMFIL("WoW.mfil");
+    Blizzard::Time::GetElapsedSinceStart(true);
+
+    if (SFile::IsTrial()) {
+        InitOggDecompression();
+    }
 
     if (s_unk_B2FA10 != 2) {
         SetInstallPath();
-    }
-
-    bool firstRun = false;
-
-    if (SFile::IsTrial()) {
-        firstRun = !OsDirectoryExists("WTF/Account");
     }
 
     ClientServices::LoadCDKey();
@@ -1731,7 +1669,6 @@ bool InitializeGlobal() {
         runOnce.Execute(static_cast<int32_t (*)(const char*)>(CVar::Load));
     }
 
-    CVar::Register("dbCompress", "Database compression", 0, "-1", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
     CVar* locale = CVar::Register("locale", "Set the game locale", 0, "****", LocaleCallback, CATEGORY_DEFAULT, false, nullptr, false);
 
     if (!SStrCmp(locale->m_stringValue.m_str, "****", STORM_MAX_STR)) {
@@ -1739,10 +1676,6 @@ bool InitializeGlobal() {
     }
 
     CVar::Register("useEnglishAudio", "override the locale and use English audio", 0, "0", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
-
-    if (SFile::IsTrial()) {
-        StartupReport(firstRun);
-    }
 
     char localeName[5];
     SStrCopy(localeName, locale->m_stringValue.m_str, sizeof(localeName));
@@ -1877,10 +1810,6 @@ int32_t CommonMain() {
     }
 
     Blizzard::Time::GetElapsedSinceStart(false);
-
-    if (SFile::IsTrial()) {
-        StartupReportSendTelemetry(false, false);
-    }
 
     return 0;
 }

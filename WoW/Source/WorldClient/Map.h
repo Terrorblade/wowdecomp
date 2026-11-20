@@ -388,6 +388,7 @@ class CMap {
     static bool LocateViewerMapObjs(C3Vector& start, C3Vector& end, float dist, CMapObjDef** outDefs, uint32_t* outGroups);
     static void TestQueryAdd(const CFacet& facet, CImVector color, const C44Matrix* mat);
     static bool QueryLiquidStatusMapObjsExt(C3Vector* pos, int32_t* liquidType, float* height);
+    static void InvalidateMapObjDefQueries();
     static bool GetFacets(CAaBox* a1, CAaBox* a2, World::FacetData* a3, uint32_t a4, uint32_t* a5);
     static bool GetMapObjFacets(CAaBox* queryBox, CAaBox* box, World::FacetData* facets, uint32_t flags, uint32_t* status);
     static bool QueryFacets(CFrustum* frustum, World::FacetData* facets, uint32_t flags, uint32_t* count);

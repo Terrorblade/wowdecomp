@@ -58,13 +58,12 @@
 #include "WoW/Source/LoadingScreen.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
-#include "WoW/Source/Ui/CAccountMsgHeaders.h"
-#include "WoW/Source/Ui/CKBSystem.h"
-#include "WoW/Source/Ui/KnowledgeBase.h"
 #include "WoW/Source/Ui/Screen.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
 #include "WoW/Source/Ui/UILCD/LCD.h"
 #include "WoW/Source/Ui/VideoOptions.h"
+#include "WoW/Source/Ui/AccountMsg.h"
+#include "WoW/Source/Ui/CKBSystem.h"
 #include "WoW/Source/UIUtil/AddOns.h"
 #include "WoW/Source/UIUtil/InputControl.h"
 #include "WoW/Source/WowServices/Login.h"
@@ -73,7 +72,6 @@
 #include "WoW/Source/WowSvcs/WowSvcsClient/AccountData.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ChecksumExecutables.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
-#include "WoW/Source/WowSvcs/WowSvcsClient/FileDownload.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/Types.h"
 
 // STATIC: 0x009E2C28
@@ -195,36 +193,6 @@ int32_t CGlueMgr::m_displayingQueueDialog;
 // STATIC: 0x00B6AF4C
 CHARACTER_INFO* CGlueMgr::m_characterInfo;
 
-// STATIC: 0x00B6AF50
-int32_t CGlueMgr::m_rereadTOS;
-
-// STATIC: 0x00B6AF54
-int32_t CGlueMgr::m_acceptedTOS;
-
-// STATIC: 0x00B6AF58
-int32_t CGlueMgr::m_rereadEULA;
-
-// STATIC: 0x00B6AF5C
-int32_t CGlueMgr::m_acceptedEULA;
-
-// STATIC: 0x00B6AF60
-int32_t CGlueMgr::m_rereadTerminationWithoutNotice;
-
-// STATIC: 0x00B6AF64
-int32_t CGlueMgr::m_acceptedTerminationWithoutNotice;
-
-// STATIC: 0x00B6AF68
-int32_t CGlueMgr::m_rereadScanning;
-
-// STATIC: 0x00B6AF6C
-int32_t CGlueMgr::m_acceptedScanning;
-
-// STATIC: 0x00B6AF70
-int32_t CGlueMgr::m_rereadContest;
-
-// STATIC: 0x00B6AF74
-int32_t CGlueMgr::m_acceptedContest;
-
 // STATIC: 0x00B6AF78
 uint8_t CGlueMgr::m_authenticated;
 
@@ -249,9 +217,6 @@ int32_t CGlueMgr::m_processServerAlert;
 // STATIC: 0x00B6AF90
 uint32_t CGlueMgr::m_pendingTimerAlert;
 
-// STATIC: 0x00B6AF94
-int32_t CGlueMgr::m_accountMsgAvailable;
-
 // STATIC: 0x00B6AF98
 static int32_t s_disconnectReason;
 
@@ -266,9 +231,6 @@ static CVar* s_curGameTip;
 
 // STATIC: 0x00B6AFA8
 static CVar* s_showGameTips;
-
-// STATIC: 0x00B6AFAC
-CGlueMgr::Agreements CGlueMgr::m_latestAgreements;
 
 // STATIC: 0x00B6AFC0
 TSGrowableArray<const char*> CGlueMgr::m_changedOptionWarnings;
@@ -296,16 +258,6 @@ static void WriteConnectionLog(const char* text) {
 void CGlueMgr::QuitGameAndRunLauncher() {
     ClientPostClose(0);
     SCreateProcess("Launcher.exe", nullptr, nullptr, nullptr);
-}
-
-// VERIFY: f5c0bd29 auto
-// OFFSET: 0x004D8380
-void CGlueMgr::DownloadFeed(const uint8_t* data, uint32_t size) {
-    if (CGlueMgr::m_patchDownload) {
-        CGlueMgr::PatchDownloadFeed(data, size);
-    } else if (CGlueMgr::m_surveyDownload) {
-        CGlueMgr::SurveyDownloadFeed(data, size);
-    }
 }
 
 // VERIFY: fa4475b8 auto
@@ -339,7 +291,7 @@ static int32_t CheckTrialAccountConversion() {
 // VERIFY: e5e10296 auto
 // OFFSET: 0x004D8A30
 void CGlueMgr::LoginServerLogin(const char* username, char* password) {
-    if (!CGlueMgr::m_scandllOkayToLogIn || !CGlueMgr::m_acceptedTOS || !CGlueMgr::m_acceptedEULA || CGlueMgr::m_idleState != IDLE_NONE) {
+    if (CGlueMgr::m_idleState != IDLE_NONE) {
         return;
     }
 
@@ -463,7 +415,7 @@ static bool CreateIntroScene(uint8_t classID, uint8_t raceID, C3Vector& position
 // VERIFY: 9fef272c auto
 // OFFSET: 0x004DA090
 int32_t CGlueMgr::OnCharRenameResult(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t result;
+    uint8_t result = 1;
     WOWGUID guid = { 0 };
     char name[48] = "";
 
@@ -503,7 +455,7 @@ int32_t CGlueMgr::OnCharRenameResult(void* param, NETMESSAGE msgId, uint32_t tim
 // OFFSET: 0x004DA190
 int32_t CGlueMgr::OnCharDeclineResult(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID guid = { 0 };
-    uint32_t result;
+    uint32_t result = 1;
 
     FrameScript_SignalEvent(GLUE_EVENT_CLOSE_STATUS_DIALOG, nullptr);
     msg->Get(result);
@@ -532,17 +484,6 @@ int32_t CGlueMgr::OnCharDeclineResult(void* param, NETMESSAGE msgId, uint32_t ti
 void CGlueMgr::AcceptChangedOptionWarnings() {
     CGlueMgr::m_changedOptionWarnings.Clear();
     CGlueMgr::m_numChangedOptionWarnings = 0;
-}
-
-// VERIFY: dccf23d8 manual
-// OFFSET: 0x004DA360
-static void RequestLatestAgreements() {
-    CGlueMgr::m_latestAgreements.m_data.Clear();
-    CGlueMgr::m_latestAgreements.m_complete = 0;
-
-    if (!OsURLDownload(FrameScript_GetText("LATEST_AGREEMENTS_URL", -1, GENDER_NOT_APPLICABLE), CGlueMgr::AgreementsURLCallback, &CGlueMgr::m_latestAgreements)) {
-        CGlueMgr::m_latestAgreements.m_complete = 1;
-    }
 }
 
 // VERIFY: f4782413 auto
@@ -584,69 +525,6 @@ void CGlueMgr::InitializeFFX() {
     FFX::Init();
     CGlueMgr::m_glowEffect = new (SMemAlloc(sizeof(EffectGlow), __FILE__, __LINE__, 0)) EffectGlow();
     CGlueMgr::m_deathEffect = new (SMemAlloc(sizeof(EffectDeath), __FILE__, __LINE__, 0)) EffectDeath();
-}
-
-// VERIFY: 68028b82 auto
-// OFFSET: 0x004D8650
-void CGlueMgr::ProcessAgreements(CGlueMgr::Agreements* agreements) {
-    if (!agreements) {
-        return;
-    }
-
-    bool localized = CheckDataFilesExist();
-
-    char path[260];
-    SStrCopy(path, "data", STORM_MAX_STR);
-    SStrPack(path, "\\", STORM_MAX_STR);
-
-    if (localized) {
-        SStrPack(path, s_localeCode, STORM_MAX_STR);
-        SStrPack(path, "\\", STORM_MAX_STR);
-    }
-
-    SStrPack(path, "agreements.mpq", STORM_MAX_STR);
-
-    HOSFILE file = OsCreateFile(path, OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
-
-    if (file == OS_INVALID_FILE) {
-        return;
-    }
-
-    uint32_t written = 0;
-
-    if (!OsWriteFile(file, agreements->m_data.m_data, agreements->m_data.m_count, &written) || agreements->m_data.m_count != written) {
-        OsCloseFile(file);
-        return;
-    }
-
-    OsCloseFile(file);
-
-    SArchive* archive;
-
-    if (!SFile::OpenArchive(path, 0, 0x800, &archive)) {
-        OsDeleteFile(path);
-        return;
-    }
-
-    SFileImpl* agreement;
-
-    if (SFile::OpenEx(archive, "tos.html", 0, &agreement)) {
-        ProcessAgreement(agreement, "tos.html", g_readTOSVar, localized);
-        SFileCloseFile(agreement);
-    }
-
-    if (SFile::OpenEx(archive, "eula.html", 0, &agreement)) {
-        ProcessAgreement(agreement, "eula.html", g_readEULAVar, localized);
-        SFileCloseFile(agreement);
-    }
-
-    if (SFile::OpenEx(archive, "termination.html", 0, &agreement)) {
-        ProcessAgreement(agreement, "termination.html", g_readTerminationWithoutNoticeVar, localized);
-        SFileCloseFile(agreement);
-    }
-
-    SFile::CloseArchive(archive);
-    OsDeleteFile(path);
 }
 
 // VERIFY: fbc4fd55 auto
@@ -865,25 +743,6 @@ int32_t CGlueMgr::ShowChangedOptionWarnings() {
     return CGlueMgr::m_numChangedOptionWarnings != 0;
 }
 
-// VERIFY: 253dd4f3 auto
-// OFFSET: 0x004D84A0
-int32_t CGlueMgr::HandleBattlenetDisconnect() {
-    if (CGlueMgr::m_loginState != LOGIN_STATE_FAILED || CGlueMgr::m_loginResult != LOGIN_DISCONNECTED || CGlueMgr::m_showedDisconnect) {
-        return 0;
-    }
-
-    if (!ClientServices::LoginConnection() || ClientServices::LoginConnection()->GetLoginServerType() != 1) {
-        return 0;
-    }
-
-    CGlueMgr::m_disconnectPending = 1;
-    ClientServices::Connection()->Disconnect();
-    ClientServices::LoginConnection()->Logoff();
-    FrameScript_SignalEvent(GLUE_EVENT_DISCONNECTED_FROM_SERVER, "%d", 0);
-    CGlueMgr::m_showedDisconnect = 1;
-    return 1;
-}
-
 // VERIFY: 0a9c147f auto
 // OFFSET: 0x004D9F50
 void CGlueMgr::AddChangedOptionWarning(const char* warning) {
@@ -904,169 +763,10 @@ void CGlueMgr::AddChangedOptionWarning(const char* warning) {
     CGlueMgr::m_changedOptionWarnings[CGlueMgr::m_numChangedOptionWarnings++] = text;
 }
 
-// VERIFY: 8c4362f4 auto
-// OFFSET: 0x004DA040
-bool CGlueMgr::AgreementsURLCallback(void* param, const char* data, uint32_t size, bool done, HTTPError::ErrorCode error) {
-    CGlueMgr::Agreements* agreements = static_cast<CGlueMgr::Agreements*>(param);
-
-    if (!agreements) {
-        return true;
-    }
-
-    if (size) {
-        agreements->m_data.Add(size, data);
-    }
-
-    if (done) {
-        agreements->m_complete = 1;
-
-        if (agreements->m_data.Count()) {
-            CGlueMgr::ProcessAgreements(agreements);
-            agreements->m_data.Clear();
-        }
-    }
-
-    return true;
-}
-
-// VERIFY: 644e39b6 manual
-// OFFSET: 0x004D7940
-void ProcessAgreement(SFileImpl* file, const char* name, CVar* cvar, bool localized) {
-    char path[264];
-    SStrCopy(path, "data", STORM_MAX_STR);
-    SStrPack(path, "\\", STORM_MAX_STR);
-
-    if (localized) {
-        SStrPack(path, s_localeCode, STORM_MAX_STR);
-        SStrPack(path, "\\", STORM_MAX_STR);
-    }
-
-    SStrPack(path, name, STORM_MAX_STR);
-
-    void* existing = nullptr;
-    uint32_t existingSize = 0;
-
-    if (OsFileExists(path)) {
-        HOSFILE input = OsCreateFile(path, OS_GENERIC_READ, 3, OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
-
-        if (input != OS_INVALID_FILE) {
-            uint32_t size = static_cast<uint32_t>(OsGetFileSize(input));
-            existing = SMemAlloc(size, __FILE__, __LINE__, 0);
-
-            if (existing) {
-                OsReadFile(input, existing, size, &existingSize);
-            }
-
-            OsCloseFile(input);
-        }
-    }
-
-    uint32_t size = SFileGetFileSize(file, nullptr);
-    void* data = SMemAlloc(size, __FILE__, __LINE__, 0);
-
-    if (!data) {
-        if (existing) {
-            SMemFree(existing, __FILE__, __LINE__, 0);
-        }
-
-        return;
-    }
-
-    uint32_t read = 0;
-
-    if (!SFileReadFile(file, data, size, &read, nullptr, 0)) {
-        SMemFree(data, __FILE__, __LINE__, 0);
-
-        if (existing) {
-            SMemFree(existing, __FILE__, __LINE__, 0);
-        }
-
-        return;
-    }
-
-    if (existingSize == read && !memcmp(existing, data, existingSize)) {
-        SMemFree(data, __FILE__, __LINE__, 0);
-
-        if (existing) {
-            SMemFree(existing, __FILE__, __LINE__, 0);
-        }
-
-        return;
-    }
-
-    if (existing) {
-        SMemFree(existing, __FILE__, __LINE__, 0);
-    }
-
-    if (OsFileExists(path) && !OsDeleteFile(path)) {
-        SMemFree(data, __FILE__, __LINE__, 0);
-        return;
-    }
-
-    HOSFILE output = OsCreateFile(path, OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
-
-    if (output == OS_INVALID_FILE) {
-        SMemFree(data, __FILE__, __LINE__, 0);
-        return;
-    }
-
-    uint32_t written = 0;
-
-    if (!OsWriteFile(output, data, read, &written) || read != written) {
-        SMemFree(data, __FILE__, __LINE__, 0);
-        OsCloseFile(output);
-        return;
-    }
-
-    SMemFree(data, __FILE__, __LINE__, 0);
-    OsCloseFile(output);
-
-    if (cvar->m_intValue >= 1) {
-        cvar->Set("-1", true, false, false, true);
-    } else {
-        cvar->Set("-2", true, false, false, true);
-    }
-}
-
 // VERIFY: 42fb8ddc manual
 // OFFSET: 0x004DB9F0
 void CGlueMgr::Initialize() {
     CGlueMgr::m_initialized = 1;
-
-    int32_t readTOS = g_readTOSVar->m_intValue;
-    CGlueMgr::m_acceptedTOS = readTOS == 1;
-
-    if (readTOS < 0) {
-        CGlueMgr::m_rereadTOS = 1;
-    }
-
-    int32_t readEULA = g_readEULAVar->m_intValue;
-    CGlueMgr::m_acceptedEULA = readEULA == 1;
-
-    if (readEULA < 0) {
-        CGlueMgr::m_rereadEULA = 1;
-    }
-
-    int32_t readTerminationWithoutNotice = g_readTerminationWithoutNoticeVar->m_intValue;
-    CGlueMgr::m_acceptedTerminationWithoutNotice = readTerminationWithoutNotice == 1;
-
-    if (readTerminationWithoutNotice < 0) {
-        CGlueMgr::m_rereadTerminationWithoutNotice = 1;
-    }
-
-    int32_t readScanning = g_readScanningVar->m_intValue;
-    CGlueMgr::m_acceptedScanning = readScanning == 1;
-
-    if (readScanning < 0) {
-        CGlueMgr::m_rereadScanning = 1;
-    }
-
-    int32_t readContest = g_readContestVar->m_intValue;
-    CGlueMgr::m_acceptedContest = readContest == 1;
-
-    if (readContest < 0) {
-        CGlueMgr::m_rereadContest = 1;
-    }
 
     CRect rect = { 0.0f, 0.0f, 0.0f, 0.0f };
     g_theGxDevicePtr->CapsWindowSize(rect);
@@ -1081,14 +781,12 @@ void CGlueMgr::Initialize() {
     CRealmList::Initialize();
     EventRegisterEx(EVENT_ID_IDLE, CGlueMgr::Idle, nullptr, EVENT_PRIORITY_NORMAL);
     CGLCD::Initialize();
-    CKBPage::Initialize();
     CKBSystem::Initialize();
 
     CGlueMgr::m_changedOptionWarnings.Clear();
     CGlueMgr::m_numChangedOptionWarnings = 0;
     CGlueMgr::m_changedOptionWarnings.SetCount(16);
 
-    RequestLatestAgreements();
     AccountDataInitializeBasicSystem();
 }
 
@@ -1113,26 +811,16 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
         CGlueMgr::m_pendingTimerAlert = 0;
     }
 
-    CKBPage::UpdateLoadingQueue();
-
     if (CGlueMgr::m_idleState == IDLE_NONE) {
         if (CGlueMgr::m_reload) {
             if (!CGlueMgr::m_suspended) {
                 CGlueMgr::Suspend();
                 CGlueMgr::Resume();
-                RequestLatestAgreements();
                 CGlueMgr::SetScreen(CGlueMgr::m_currentScreen);
             }
 
             CGlueMgr::m_reload = 0;
         }
-
-        if (CGlueMgr::m_accountMsgAvailable) {
-            FrameScript_SignalEvent(GLUE_EVENT_ACCOUNT_MESSAGES_AVAILABLE, nullptr);
-            CGlueMgr::m_accountMsgAvailable = 0;
-        }
-
-        CGlueMgr::HandleBattlenetDisconnect();
 
         return 1;
     }
@@ -1178,15 +866,12 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
             }
 
             case LOGIN_STATE_DOWNLOADFILE: {
-                const char* fileName = ClientServices::LoginConnection()->m_fileName;
+                ClientServices::FileAccept(false, 0);
 
-                if (!SStrCmpI(fileName, "Patch", STORM_MAX_STR)) {
-                    CGlueMgr::PatchDownloadStart();
-                    return 1;
-                }
-
-                if (!SStrCmpI(fileName, "Survey", STORM_MAX_STR)) {
-                    CGlueMgr::SurveyDownloadStart();
+                if (!SStrCmpI(ClientServices::LoginConnection()->m_fileName, "Survey", STORM_MAX_STR)) {
+                    ClientServices::CreateLoginResponse()->UpdateLoginStatus(LOGIN_STATE_AUTHENTICATED, LOGIN_OK, nullptr, 0);
+                } else {
+                    ClientServices::CreateLoginResponse()->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_BADVERSION, nullptr, 0);
                 }
 
                 return 1;
@@ -1240,54 +925,7 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
 
     GLUE_IDLE_STATE idleState = CGlueMgr::m_idleState;
 
-    if (idleState == IDLE_12) {
-        if (CGlueMgr::m_patchDownload) {
-            CGlueMgr::PatchDownloadIdle();
-        } else {
-            if (!CGlueMgr::m_surveyDownload) {
-                return 1;
-            }
-
-            CGlueMgr::SurveyDownloadIdle();
-        }
-
-        idleState = CGlueMgr::m_idleState;
-    }
-
-    if (idleState == IDLE_13) {
-        if (CGlueMgr::m_surveyDownload && CGlueMgr::m_surveyDownload->GetStatus() == 2) {
-            if (CGlueMgr::m_executedSurvey) {
-                if (OsGetAsyncTimeMs() - CGlueMgr::m_surveyTimer > 1500) {
-                    CGlueMgr::SurveyDownloadEnd();
-                }
-            } else {
-                CGlueMgr::m_executedSurvey = 1;
-
-                if (CGlueMgr::SurveyExecute()) {
-                    FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s%s", "CANCEL", FrameScript_GetText("LOGIN_STATE_SURVEY", -1, GENDER_NOT_APPLICABLE));
-                    CGlueMgr::SurveySendResults();
-                    CGlueMgr::m_surveyTimer = OsGetAsyncTimeMs();
-                } else {
-                    CGlueMgr::SurveyDownloadEnd();
-                }
-            }
-        } else {
-            CGlueMgr::SurveyDownloadEnd();
-        }
-
-        idleState = CGlueMgr::m_idleState;
-    }
-
     if (idleState == IDLE_ACCOUNT_LOGIN) {
-        if (ClientServices::LoginConnection()->GetLoginServerType() == 1 && CGlueMgr::m_loginState == LOGIN_STATE_FAILED) {
-            CGlueMgr::DisplayLoginStatus();
-            ClientServices::Connection()->Cancel(2);
-            ClientServices::LoginConnection()->Logoff();
-            CGlueMgr::m_idleState = IDLE_NONE;
-            CGlueMgr::m_showedDisconnect = 0;
-            return 1;
-        }
-
         if (errorCode == AUTH_WAIT_QUEUE) {
             const char* realmName = ClientServices::GetSelectedRealmName();
             bool hasRealmName = realmName && *realmName;
@@ -1470,11 +1108,6 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
     if (idleState == IDLE_CHARACTER_LIST) {
         FrameScript_SignalEvent(GLUE_EVENT_UPDATE_STATUS_DIALOG, "%s", statusText);
 
-        if (CGlueMgr::HandleBattlenetDisconnect()) {
-            CGlueMgr::m_idleState = IDLE_NONE;
-            CGlueMgr::m_showedDisconnect = 0;
-        }
-
         if (!complete) {
             return 1;
         }
@@ -1485,12 +1118,6 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
             FrameScript_SignalEvent(GLUE_EVENT_CLOSE_STATUS_DIALOG, nullptr);
             CCharacterSelection::UpdateCharacterList();
             HoT::OnCharacterListUpdated();
-
-            if (CGlueMgr::m_accountMsgAvailable) {
-                FrameScript_SignalEvent(GLUE_EVENT_ACCOUNT_MESSAGES_AVAILABLE, nullptr);
-                CGlueMgr::m_accountMsgAvailable = 0;
-            }
-
             return 1;
         }
 
@@ -1510,11 +1137,6 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
     if (idleState == IDLE_REALM_LIST) {
         FrameScript_SignalEvent(GLUE_EVENT_UPDATE_STATUS_DIALOG, "%s", statusText);
 
-        if (CGlueMgr::HandleBattlenetDisconnect()) {
-            CGlueMgr::m_idleState = IDLE_NONE;
-            CGlueMgr::m_showedDisconnect = 0;
-        }
-
         if (!complete) {
             return 1;
         }
@@ -1531,21 +1153,11 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
         FrameScript_SignalEvent(GLUE_EVENT_CLOSE_STATUS_DIALOG, nullptr);
         CRealmList::UpdateList();
 
-        if (CGlueMgr::m_accountMsgAvailable) {
-            FrameScript_SignalEvent(GLUE_EVENT_ACCOUNT_MESSAGES_AVAILABLE, nullptr);
-            CGlueMgr::m_accountMsgAvailable = 0;
-        }
-
         return 1;
     }
 
     if (idleState == IDLE_CREATE_CHARACTER) {
         FrameScript_SignalEvent(GLUE_EVENT_UPDATE_STATUS_DIALOG, "%s", statusText);
-
-        if (CGlueMgr::HandleBattlenetDisconnect()) {
-            CGlueMgr::m_idleState = IDLE_NONE;
-            CGlueMgr::m_showedDisconnect = 0;
-        }
 
         if (!complete) {
             return 1;
@@ -1569,11 +1181,6 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
 
     if (idleState == IDLE_DELETE_CHARACTER) {
         FrameScript_SignalEvent(GLUE_EVENT_UPDATE_STATUS_DIALOG, "%s", statusText);
-
-        if (CGlueMgr::HandleBattlenetDisconnect()) {
-            CGlueMgr::m_idleState = IDLE_NONE;
-            CGlueMgr::m_showedDisconnect = 0;
-        }
 
         if (!complete) {
             return 1;
@@ -1606,7 +1213,7 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
             return 1;
         }
 
-        CHARACTER_INFO* characterInfo = CGlueMgr::m_characterInfo;
+        CHARACTER_INFO* characterInfo = ClientServices::GetCharacterInfo();
         uint32_t mapID = characterInfo->m_mapID;
         s_activeCharacterGuid = characterInfo->m_guid;
         C3Vector position = characterInfo->m_position;
@@ -1624,10 +1231,6 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
     if (idleState == IDLE_WORLD_LOGIN) {
         FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s%s", "OKAY", statusText);
         return 1;
-    }
-
-    if (idleState == IDLE_14 && (CGlueMgr::m_scandllStatus == 3 || CGlueMgr::m_scandllStatus == 2)) {
-        CGlueMgr::ScanDLLFinished();
     }
 
     return 1;
@@ -1708,16 +1311,11 @@ void CGlueMgr::Suspend() {
 // VERIFY: 39c0975e manual
 // OFFSET: 0x004DBBC0
 void CGlueMgr::Shutdown() {
-    while (CGlueMgr::m_pendingServerAlert || CGlueMgr::m_latestAgreements.m_data.Count()) {
-        if (CGlueMgr::m_latestAgreements.m_data.Count()) {
-            CGlueMgr::m_latestAgreements.m_data.Clear();
-        }
-
+    while (CGlueMgr::m_pendingServerAlert) {
         OsSleep(1);
     }
 
     AccountDataShutdownBasicSystem();
-    CKBPage::Shutdown();
     CKBSystem::Shutdown();
     CRealmList::Shutdown();
     CGlueMgr::Suspend();
@@ -1731,61 +1329,6 @@ void CGlueMgr::Shutdown() {
     }
 
     ClientServices::ClearMessageHandler(CMSG_GM_CHARACTER_RESTORE);
-}
-
-// VERIFY: 5beb532c auto
-// OFFSET: 0x004D7E40
-void CGlueMgr::AcceptTOS() {
-    int32_t value = g_readTOSVar->m_intValue;
-    CGlueMgr::m_acceptedTOS = 1;
-    CGlueMgr::m_rereadTOS = 0;
-    if (value == -2) {
-        g_readTOSVar->Set("-1", true, false, false, true);
-    } else {
-        g_readTOSVar->Set("1", true, false, false, true);
-    }
-}
-
-// VERIFY: 2a47844a auto
-// OFFSET: 0x004D7E80
-void CGlueMgr::AcceptEULA() {
-    int32_t value = g_readEULAVar->m_intValue;
-    CGlueMgr::m_acceptedEULA = 1;
-    CGlueMgr::m_rereadEULA = 0;
-    if (value == -2) {
-        g_readEULAVar->Set("-1", true, false, false, true);
-    } else {
-        g_readEULAVar->Set("1", true, false, false, true);
-    }
-}
-
-// VERIFY: 22ea06ff auto
-// OFFSET: 0x004D7EC0
-void CGlueMgr::AcceptTerminationWithoutNotice() {
-    int32_t value = g_readTerminationWithoutNoticeVar->m_intValue;
-    CGlueMgr::m_acceptedTerminationWithoutNotice = 1;
-    CGlueMgr::m_rereadTerminationWithoutNotice = 0;
-    if (value == -2) {
-        g_readTerminationWithoutNoticeVar->Set("-1", true, false, false, true);
-    } else {
-        g_readTerminationWithoutNoticeVar->Set("1", true, false, false, true);
-    }
-}
-
-// VERIFY: fe1e0509 auto
-// OFFSET: 0x004D7F00
-void CGlueMgr::AcceptScanning() {
-    CGlueMgr::m_acceptedScanning = 1;
-    CGlueMgr::m_rereadScanning = 0;
-    g_readScanningVar->Set("1", true, false, false, true);
-}
-
-// VERIFY: c831d965 auto
-// OFFSET: 0x004D7F30
-void CGlueMgr::AcceptContest() {
-    CGlueMgr::m_acceptedContest = 1;
-    CGlueMgr::m_rereadContest = 0;
-    g_readContestVar->Set("1", true, false, false, true);
 }
 
 // VERIFY: 71a7a4ee auto
@@ -1813,10 +1356,6 @@ void CGlueMgr::LogConnectionStatus(const char* format, ...) {
 // OFFSET: 0x004DA4B0
 void CGlueMgr::SetLoginStateAndResult(LOGIN_STATE state, LOGIN_RESULT result, const char* addressString, const char* stateString, const char* resultString, uint16_t flags) {
     CGlueMgr::LogConnectionStatus("GRUNT: state: %s result: %s %s", stateString, resultString, addressString ? addressString : "");
-
-    if (flags & 0x1) {
-        CGlueMgr::m_accountMsgAvailable = 1;
-    }
 
     CGlueMgr::m_loginState = state;
 
@@ -1985,11 +1524,11 @@ void CGlueMgr::EnterWorld() {
     }
 
     CharacterSelectionDisplay* display = CCharacterSelection::s_selectionIndex < 0 || CCharacterSelection::s_selectionIndex >= static_cast<int32_t>(CCharacterSelection::s_characterList.Count()) ? nullptr : &CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex];
-    CGlueMgr::m_characterInfo = &display->m_characterInfo;
-
     if (!display) {
         return;
     }
+
+    CGlueMgr::m_characterInfo = &display->m_characterInfo;
 
     CGlueMgr::s_displayedCharacterIndex = CCharacterSelection::s_selectionIndex;
 
@@ -2071,9 +1610,7 @@ void CGlueMgr::EnterWorld() {
     CVar::SaveAll();
     TextureGxCacheFlush();
 
-    if (!ClientServices::LoginConnection()->GetLoginServerType()) {
-        ClientServices::LoginConnection()->Logoff();
-    }
+    ClientServices::LoginConnection()->Logoff();
 
     CGlueMgr::m_idleState = IDLE_ENTER_WORLD;
     CGlueMgr::m_showedDisconnect = 0;
@@ -2186,10 +1723,6 @@ void CGlueMgr::QuitGame() {
 // VERIFY: 36e76190 manual
 // OFFSET: 0x004D98D0
 void CGlueMgr::StatusDialogClick() {
-    if (!SStrCmpI(CGlueMgr::m_currentScreen, "patchdownload", STORM_MAX_STR)) {
-        FrameScript_SignalEvent(GLUE_EVENT_SET_GLUE_SCREEN, "%s", "login");
-    }
-
     switch (CGlueMgr::m_idleState) {
         case IDLE_NONE:
             ClientServices::Connection()->Cleanup();
@@ -2227,16 +1760,6 @@ void CGlueMgr::StatusDialogClick() {
             CGlueMgr::m_idleState = IDLE_NONE;
             CGlueMgr::m_showedDisconnect = 0;
             CGlueMgr::GetCharacterList();
-            break;
-
-        case IDLE_12:
-        case IDLE_13:
-            if (CGlueMgr::m_surveyDownload) {
-                CGlueMgr::SurveyDownloadCancel();
-                CGlueMgr::m_showedDisconnect = 0;
-                CGlueMgr::m_idleState = IDLE_NONE;
-            }
-
             break;
 
         default:
@@ -2473,7 +1996,7 @@ int32_t CGlueMgr::OnCharCustomizeResult(void* param, NETMESSAGE msgId, uint32_t 
     uint8_t hairStyleID = 0;
     uint8_t hairColorID = 0;
     uint8_t facialHairStyleID = 0;
-    uint8_t result;
+    uint8_t result = 1;
 
     CGlueMgr::m_idleState = IDLE_NONE;
     CGlueMgr::m_showedDisconnect = 0;
@@ -2514,7 +2037,7 @@ int32_t CGlueMgr::OnCharFactionChangeResult(void* param, NETMESSAGE msgId, uint3
     uint8_t hairColorID = 0;
     uint8_t facialHairStyleID = 0;
     uint8_t raceID = 0;
-    uint8_t result;
+    uint8_t result = 1;
 
     CGlueMgr::m_idleState = IDLE_NONE;
     CGlueMgr::m_showedDisconnect = 0;

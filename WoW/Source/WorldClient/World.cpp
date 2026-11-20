@@ -942,6 +942,8 @@ int32_t World::ObjectIsWMO(CMapBaseObj* object) {
 // VERIFY: 740254e1 auto
 // OFFSET: 0x007801A0
 void World::ObjectEnableCollision(CMapBaseObj* object, int32_t enable) {
+    CMap::InvalidateMapObjDefQueries();
+
     if (enable) {
         object->m_flags = static_cast<MapObjFlag>(object->m_flags & ~MAPOBJ_FLAG_NO_HITTEST);
     } else {
@@ -1899,6 +1901,7 @@ void CSortTable::BuildPlanes(const C3Vector& dir, const C3Vector& origin) {
 // VERIFY: 96c18245 manual
 // OFFSET: 0x00790920
 void CWorldScene::UpdateViewerLiquid() {
+    CMap::InvalidateMapObjDefQueries();
     s_viewerLiquidDepth = 0.0f;
     int32_t liquidType = 0;
     float level;
@@ -1923,7 +1926,7 @@ void CWorldScene::UpdateViewerLiquid() {
     if (liquidType) {
         if (liquidType != static_cast<int32_t>(s_liquidTypeId) && (CWorld::enables & Enable_Particulates)) {
             const LiquidTypeRec* rec = g_liquidTypeDB.GetRecord(liquidType);
-            bool particles = (rec->m_flags & 8) != 0;
+            bool particles = rec && (rec->m_flags & 8) != 0;
             CWorld::particulate->m_enabled = particles;
 
             if (particles) {
@@ -1941,7 +1944,7 @@ void CWorldScene::UpdateViewerLiquid() {
         DayNight::ResetFogAccumulators(true);
     }
 
-    Liquid::InvalidateProceduralTextures();
+    Liquid::InvalidateProceduralTexturesOnChange();
 }
 
 // VERIFY: a0789a2d auto

@@ -506,7 +506,10 @@ void SI2::SoundFinished(SESound* sound, void* param) {
         return;
     }
 
-    SI2::s_channelGroupNumSounds[userData->m_group]--;
+    if (userData->m_counted) {
+        userData->m_counted = 0;
+        SI2::s_channelGroupNumSounds[userData->m_group]--;
+    }
 
     if (userData->m_advancedId && userData->m_def && userData->m_def->m_advanced && userData->m_def->m_advanced->m_usage == 2) {
         SI2::MarkAdvancedSoundStopped(userData->m_advancedId);
@@ -608,18 +611,23 @@ SI2SoundUserData::SI2SoundUserData() {
     this->m_soundKitId = 0;
     this->m_def = nullptr;
     this->m_group = 0;
-    this->unused_0014 = 0;
+    this->m_counted = 0;
     this->m_advancedId = 0;
 }
 
 // VERIFY: d9247093 manual
 // OFFSET: 0x004C6520
 SI2SoundUserData::~SI2SoundUserData() {
+    // A sound freed without its end callback (aborted load, forced stop) still held a group slot.
+    if (this->m_counted && this->m_group >= 0 && this->m_group < 18 && SI2::s_channelGroupNumSounds[this->m_group] > 0) {
+        SI2::s_channelGroupNumSounds[this->m_group]--;
+    }
+
     this->m_name = nullptr;
     this->m_soundKitId = 0;
     this->m_def = nullptr;
     this->m_group = 0;
-    this->unused_0014 = 0;
+    this->m_counted = 0;
     this->m_advancedId = 0;
 }
 
@@ -877,6 +885,7 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
     }
 
     SI2::s_channelGroupNumSounds[properties->m_group]++;
+    userData->m_counted = 1;
     sound->SetFinishedCallback(SI2::SoundFinished, nullptr);
 
     if (def->m_flags & 0x20) {
@@ -1367,8 +1376,11 @@ int32_t SI2::Init(int32_t restart) {
 
     SI2::CreateSoundGroups();
 
-    if (CmdLineGetBool(static_cast<CMDOPT>(27))) {
+    static bool s_chaosModeRegistered = false;
+
+    if (!s_chaosModeRegistered && CmdLineGetBool(static_cast<CMDOPT>(27))) {
         EventRegister(EVENT_ID_POLL, SI2::ChaosModeUpdate);
+        s_chaosModeRegistered = true;
     }
 
     SE2::SetDeviceChangeCallback(SI2::RegisterDeviceChangeHandler);

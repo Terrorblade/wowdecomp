@@ -18,8 +18,9 @@ Liquid::CRenderer::~CRenderer() {
 // VERIFY: c8176254 manual
 // OFFSET: 0x008A1980
 int32_t Liquid::CRenderer::CompareOpaque(const void* a, const void* b) {
-    const Liquid::CInstance* l = static_cast<const Liquid::CInstance*>(a);
-    const Liquid::CInstance* r = static_cast<const Liquid::CInstance*>(b);
+    // qsort hands over pointers to the array slots, not the instances.
+    const Liquid::CInstance* l = *static_cast<Liquid::CInstance* const*>(a);
+    const Liquid::CInstance* r = *static_cast<Liquid::CInstance* const*>(b);
 
     if (l->m_material < r->m_material) {
         return -1;
@@ -59,8 +60,9 @@ int32_t Liquid::CRenderer::CompareOpaque(const void* a, const void* b) {
 // VERIFY: abfe3e46 manual
 // OFFSET: 0x008A19E0
 int32_t Liquid::CRenderer::CompareTransparent(const void* a, const void* b) {
-    const Liquid::CInstance* l = static_cast<const Liquid::CInstance*>(a);
-    const Liquid::CInstance* r = static_cast<const Liquid::CInstance*>(b);
+    // qsort hands over pointers to the array slots, not the instances.
+    const Liquid::CInstance* l = *static_cast<Liquid::CInstance* const*>(a);
+    const Liquid::CInstance* r = *static_cast<Liquid::CInstance* const*>(b);
 
     if (l->m_material < r->m_material) {
         return -1;
@@ -122,6 +124,12 @@ void Liquid::CRenderer::Flush(const C3Vector& cameraPos, uint32_t pass) {
 
     for (uint32_t i = 0; i < count; i++) {
         Liquid::CInstance* instance = instances.m_data[i];
+
+        if (!instance->m_material) {
+            instance->m_queued = 0;
+            continue;
+        }
+
         instance->m_material->Render(instance->m_environment, instance->m_geomFactory, instance->m_waveManager, cameraPos, &instance->m_transform, &instance->m_bounds, instance->m_settings);
         instance->m_queued = 0;
     }

@@ -9,8 +9,3 @@ target_include_directories(Images
     PUBLIC
         ${CMAKE_SOURCE_DIR}
 )
-
-target_link_libraries(Images
-    PRIVATE
-        jpeg
-)

@@ -143,6 +143,8 @@ class SESoundInternal : public TSLinkedNode<SESoundInternal> {
     /* 00C4 */ char* m_dspChainName;
     /* 00C8 */ uint64_t m_objectGUID;
     /* 00D0 */ uint32_t m_id;
+    FMOD::Channel* m_appliedChannel;
+    float m_appliedVolume;
 
     virtual ~SESoundInternal() = 0;
     virtual int32_t IsReadyForRelease();

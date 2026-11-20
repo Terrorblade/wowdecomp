@@ -67,7 +67,7 @@ class SI2SoundUserData : public SESoundUserData {
     /* 0008 */ int32_t m_soundKitId;
     /* 000C */ VSOUNDKITDEF* m_def;
     /* 0010 */ int32_t m_group;
-    /* 0014 */ uint32_t unused_0014;
+    /* 0014 */ uint32_t m_counted;
     /* 0018 */ uint32_t m_advancedId;
 
     virtual ~SI2SoundUserData();

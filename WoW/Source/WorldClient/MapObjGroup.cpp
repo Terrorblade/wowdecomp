@@ -1247,7 +1247,7 @@ bool CMapObjGroup::QueryLiquid(const C3Vector& pos, int32_t* liquidType, float* 
     float dy = fy - tile.y;
     int32_t v0 = tile.y * this->m_liquidVerts.x + tile.x;
     int32_t v1 = this->m_liquidVerts.x + v0;
-    float offset = (g_liquidTypeDB.GetRecord(type)->m_flags & 0x4) ? 0.0099999998f : 0.0f;
+    float offset = (LiquidTypeFlags(type) & 0x4) ? 0.0099999998f : 0.0f;
 
     const SMOLiquidVert* verts = this->m_liquidVertexList;
     float h0 = verts[v0].m_waterVert.m_height;
@@ -1727,7 +1727,7 @@ bool CMapObjGroup::VectorIntersectLiquidTiles(const C3Segment& seg, float* t, ui
         return false;
     }
 
-    if ((flags & 0x10000) && !(flags & 0x20000) && !(g_liquidTypeDB.GetRecord(type)->m_flags & 0x4)) {
+    if ((flags & 0x10000) && !(flags & 0x20000) && !(LiquidTypeFlags(type) & 0x4)) {
         return false;
     }
 
@@ -1916,7 +1916,7 @@ bool CMapObjGroup::GetLiquidTris(const CAaBox& box, uint32_t flags, World::TriDa
         return false;
     }
 
-    if ((flags & 0x10000) && !(flags & 0x20000) && !(g_liquidTypeDB.GetRecord(type)->m_flags & 0x4)) {
+    if ((flags & 0x10000) && !(flags & 0x20000) && !(LiquidTypeFlags(type) & 0x4)) {
         return false;
     }
 
@@ -2054,7 +2054,7 @@ bool CMapObjGroup::GetLiquidTris(const CFrustum& frustum, uint32_t flags, World:
         return false;
     }
 
-    if ((flags & 0x10000) && !(flags & 0x20000) && !(g_liquidTypeDB.GetRecord(type)->m_flags & 0x4)) {
+    if ((flags & 0x10000) && !(flags & 0x20000) && !(LiquidTypeFlags(type) & 0x4)) {
         return false;
     }
 

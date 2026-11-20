@@ -47,11 +47,19 @@ Liquid::IMaterial* Liquid::CMaterialBank::GetMaterial(uint32_t liquidType) {
             break;
         }
 
+        if (liquidType == 1) {
+            return nullptr;
+        }
+
         SysMsgPrintf(SYSMSG_ERROR, 2, "Material Bank: Liquid type [%d] not found, defaulting to water!", liquidType);
         liquidType = 1;
     }
 
     uint32_t materialId = typeRec->m_materialID;
+
+    if (materialId < 1 || materialId > 3) {
+        materialId = 1;
+    }
 
     if (materialId < Liquid::CMaterialBank::s_materials.Count() && Liquid::CMaterialBank::s_materials.m_data[materialId]) {
         return Liquid::CMaterialBank::s_materials.m_data[materialId];

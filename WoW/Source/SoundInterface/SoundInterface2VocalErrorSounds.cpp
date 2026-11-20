@@ -25,7 +25,7 @@ void SI2::InitVocalErrorSounds(int32_t race, uint32_t sex) {
     for (int32_t i = 0; i < g_vocalUISoundsDB.m_numRecords; i++) {
         VocalUISoundsRec* rec = (i < 0 || i >= g_vocalUISoundsDB.m_numRecords) ? nullptr : &g_vocalUISoundsDB.m_records[i];
 
-        if (rec && rec->m_vocalUienum < NUM_VOCALUISOUNDS && rec->m_raceID == race) {
+        if (rec && static_cast<uint32_t>(rec->m_vocalUienum) < NUM_VOCALUISOUNDS && rec->m_raceID == race) {
             s_vocalErrorSounds[rec->m_vocalUienum] = rec->m_normalSoundID[sex];
         }
     }
@@ -36,7 +36,7 @@ void SI2::InitVocalErrorSounds(int32_t race, uint32_t sex) {
 void SI2::PlayVocalErrorSound(int32_t error) {
     static CVar* s_enableErrorSpeech = CVar::Lookup("Sound_EnableErrorSpeech");
 
-    if (!s_enableErrorSpeech || !s_enableErrorSpeech->m_intValue || error >= static_cast<int32_t>(sizeof(s_vocalErrorSounds) / sizeof(s_vocalErrorSounds[0]))) {
+    if (!s_enableErrorSpeech || !s_enableErrorSpeech->m_intValue || error < 0 || error >= static_cast<int32_t>(sizeof(s_vocalErrorSounds) / sizeof(s_vocalErrorSounds[0]))) {
         return;
     }
 

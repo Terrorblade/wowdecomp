@@ -428,6 +428,11 @@ void CLightning::BuildPointsUsingHierarchy() {
     const SpellChainEffectsRec* chainEffects = this->m_chainEffects;
     int32_t minorStep = chainEffects->m_jointsPerMinorJoint;
     int32_t majorStep = minorStep * chainEffects->m_minorJointsPerMajorJoint;
+
+    if (minorStep < 1 || majorStep < 1) {
+        this->BuildPoints();
+        return;
+    }
     float majorT = 1.0f / static_cast<float>(last);
     float majorScale = chainEffects->m_majorJointScale;
 

@@ -252,6 +252,74 @@ void Remember(const std::wstring& path, Kind kind, const std::string& digest) {
     }
 }
 
+// Keys are lowercased, so only the part below the game folder is rebuilt against the real folder and resolved for case.
+static bool KeyStillExists(const std::wstring& root, const std::wstring& key) {
+    std::wstring rel = key.substr(root.size());
+
+    for (wchar_t& c : rel) {
+        if (c > 0x7F) {
+            return true;
+        }
+
+        if (c == L'\\') {
+            c = L'/';
+        }
+    }
+
+    std::error_code ec;
+    const bool there = fs::exists(Platform::ResolveHostPath(Paths::GameDir() / fs::path(rel)), ec);
+    return there || static_cast<bool>(ec);
+}
+
+void Prune() {
+    std::wstring root = Text::LowerPath(Paths::GameDir().wstring());
+
+    while (!root.empty() && root.back() == L'\\') {
+        root.pop_back();
+    }
+
+    root += L'\\';
+    std::vector<std::pair<std::wstring, Entry>> snapshot;
+
+    {
+        std::lock_guard<std::mutex> lock(s_mutex);
+
+        if (!s_loaded) {
+            LoadLocked();
+        }
+
+        for (const auto& kv : s_entries) {
+            if (kv.first.size() > root.size() && kv.first.compare(0, root.size(), root) == 0) {
+                snapshot.push_back(kv);
+            }
+        }
+    }
+
+    std::vector<std::pair<std::wstring, Entry>> gone;
+
+    for (auto& kv : snapshot) {
+        if (!KeyStillExists(root, kv.first)) {
+            gone.push_back(std::move(kv));
+        }
+    }
+
+    if (gone.empty()) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(s_mutex);
+
+    for (const auto& kv : gone) {
+        const auto it = s_entries.find(kv.first);
+
+        // An entry stored again since the snapshot belongs to a file that came back.
+        if (it != s_entries.end() && it->second.m_size == kv.second.m_size && it->second.m_mtime == kv.second.m_mtime) {
+            s_entries.erase(it);
+            s_dirty = true;
+        }
+    }
+}
+
 void Save() {
     std::lock_guard<std::mutex> saving(s_saveMutex);
     std::vector<std::pair<std::wstring, Entry>> snapshot;

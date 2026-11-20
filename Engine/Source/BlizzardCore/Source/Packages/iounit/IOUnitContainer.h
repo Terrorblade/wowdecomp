@@ -14,6 +14,7 @@ class IOUnitContainer {
     /* 0005 */ uint8_t unused_0005[3];
 
     IOUnitContainer(uint32_t size, ...);
+    ~IOUnitContainer();
 };
 
 #endif

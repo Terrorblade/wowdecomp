@@ -1691,8 +1691,6 @@ void CMovement_C::SnapToSpline(const C3Vector& position, int32_t force) {
     } else {
         this->StopFallingAlwaysAnchor();
     }
-
-    this->ValidateWorldPosition(CPassenger::GetPosition(this->m_position));
 }
 
 // VERIFY: bec49cf6 auto
@@ -2055,9 +2053,67 @@ static int32_t IsTooSteepForUnit(const CGUnit_C* unit, uint32_t facet) {
     return !(s_moveFacets.facets.m_data[facet].plane.n.z > 0.17364818f);
 }
 
+static void ClipPolygonSplit(ClipPolygon& polygon, int32_t planeIndex, const float* dist) {
+    struct SourceVertex {
+        float x;
+        float y;
+        float z;
+    };
+
+    int32_t count = polygon.m_count;
+    SourceVertex source[15];
+    int32_t sourceFlags[15];
+
+    for (int32_t i = 0; i < count; i++) {
+        source[i].x = polygon.m_v[i].x;
+        source[i].y = polygon.m_v[i].y;
+        source[i].z = polygon.m_v[i].z;
+        sourceFlags[i] = polygon.m_flags[i];
+    }
+
+    polygon.m_count = 0;
+
+    for (int32_t i = 0, prev = count - 1; i < count; prev = i, i++) {
+        float cur = dist[i];
+        float prv = dist[prev];
+
+        if (prv >= 0.0f) {
+            if (cur < 0.0f) {
+                if (prv > 0.0013888889f) {
+                    float t = prv / (cur - prv);
+                    polygon.m_flags[polygon.m_count] = planeIndex;
+                    polygon.m_v[polygon.m_count] = C3Vector(source[prev].x - (source[i].x - source[prev].x) * t, source[prev].y - (source[i].y - source[prev].y) * t, source[prev].z - (source[i].z - source[prev].z) * t);
+                    polygon.m_count++;
+                }
+
+                continue;
+            }
+        } else {
+            if (cur < 0.0f) {
+                continue;
+            }
+
+            if (cur > 0.0013888889f) {
+                float t = prv / (cur - prv);
+                polygon.m_flags[polygon.m_count] = planeIndex;
+                polygon.m_v[polygon.m_count] = C3Vector(source[prev].x - (source[i].x - source[prev].x) * t, source[prev].y - (source[i].y - source[prev].y) * t, source[prev].z - (source[i].z - source[prev].z) * t);
+                polygon.m_count++;
+            }
+        }
+
+        polygon.m_flags[polygon.m_count] = sourceFlags[i];
+        polygon.m_v[polygon.m_count] = C3Vector(source[i].x, source[i].y, source[i].z);
+        polygon.m_count++;
+    }
+
+    if (static_cast<uint32_t>(polygon.m_count) < 3) {
+        polygon.m_count = 0;
+    }
+}
+
 // VERIFY: 83e9ad0d manual
 // OFFSET: 0x0075B710
-static void ClipPolygonToPlane(ClipPolygon& polygon, int32_t planeIndex, const C4Plane& plane) {
+static inline void ClipPolygonToPlane(ClipPolygon& polygon, int32_t planeIndex, const C4Plane& plane) {
     float minDist = 3.4028235e38f;
     float maxDist = -3.4028235e38f;
     int32_t count = polygon.m_count;
@@ -2086,45 +2142,8 @@ static void ClipPolygonToPlane(ClipPolygon& polygon, int32_t planeIndex, const C
         return;
     }
 
-    ClipPolygon source(polygon);
-    polygon.m_count = 0;
-
-    for (int32_t i = 0, prev = count - 1; i < count; prev = i, i++) {
-        float cur = dist[i];
-        float prv = dist[prev];
-
-        if (prv >= 0.0f) {
-            if (cur < 0.0f) {
-                if (prv > 0.0013888889f) {
-                    float t = prv / (cur - prv);
-                    polygon.m_flags[polygon.m_count] = planeIndex;
-                    polygon.m_v[polygon.m_count] = C3Vector(source.m_v[prev].x - (source.m_v[i].x - source.m_v[prev].x) * t, source.m_v[prev].y - (source.m_v[i].y - source.m_v[prev].y) * t, source.m_v[prev].z - (source.m_v[i].z - source.m_v[prev].z) * t);
-                    polygon.m_count++;
-                }
-
-                continue;
-            }
-        } else {
-            if (cur < 0.0f) {
-                continue;
-            }
-
-            if (cur > 0.0013888889f) {
-                float t = prv / (cur - prv);
-                polygon.m_flags[polygon.m_count] = planeIndex;
-                polygon.m_v[polygon.m_count] = C3Vector(source.m_v[prev].x - (source.m_v[i].x - source.m_v[prev].x) * t, source.m_v[prev].y - (source.m_v[i].y - source.m_v[prev].y) * t, source.m_v[prev].z - (source.m_v[i].z - source.m_v[prev].z) * t);
-                polygon.m_count++;
-            }
-        }
-
-        polygon.m_flags[polygon.m_count] = source.m_flags[i];
-        polygon.m_v[polygon.m_count] = source.m_v[i];
-        polygon.m_count++;
-    }
-
-    if (static_cast<uint32_t>(polygon.m_count) < 3) {
-        polygon.m_count = 0;
-    }
+    // The split is out of line so the common all-in or all-out case stays inline in the facet loops.
+    ClipPolygonSplit(polygon, planeIndex, dist);
 }
 
 // VERIFY: ad914dd6 manual
@@ -4340,7 +4359,6 @@ groundNormal:
     }
 
 done:
-    this->ValidateWorldPosition(CPassenger::GetPosition(this->m_position));
     return consumed;
 }
 
@@ -4744,7 +4762,6 @@ uint32_t CMovement_C::RequestMove(uint32_t time, uint32_t elapsed, const C3Vecto
 
     this->m_anchorElapsedMs += elapsed;
     this->m_position = target;
-    this->ValidateWorldPosition(CPassenger::GetPosition(this->m_position));
     return elapsed;
 }
 
@@ -5436,7 +5453,6 @@ int32_t CMovement_C::PlotUnitSplineMovement(uint32_t time, uint32_t elapsed, C3V
         }
     }
 
-    this->ValidateWorldPosition(this->GetPosition(this->m_position));
     return 0;
 }
 

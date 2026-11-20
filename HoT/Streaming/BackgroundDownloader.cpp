@@ -76,6 +76,16 @@ static std::atomic<bool> s_kickPending{ false };
 static std::atomic<bool> s_kickAgain{ false };
 static std::wstring s_installDir;
 
+// Set as the game closes, so a pass stops before the statics it uses are torn down.
+static std::atomic<bool> s_shutdown{ false };
+static std::mutex s_runMutex;
+static std::condition_variable s_runCv;
+static constexpr unsigned long long s_shutdownWaitMs = 3000;
+
+static bool ShuttingDown() {
+    return s_shutdown.load();
+}
+
 static constexpr uint32_t s_pollIntervalMs = 5 * 60 * 1000;
 static constexpr int32_t s_downloadWorkers = 4;
 
@@ -547,7 +557,20 @@ void SwapOnClose() {
     }
 }
 
+static void StopPass() {
+    s_shutdown = true;
+    std::unique_lock<std::mutex> lock(s_runMutex);
+
+    if (!s_runCv.wait_for(lock, std::chrono::milliseconds(s_shutdownWaitMs), [] { return !s_running.load(); })) {
+        StreamLog("stream: closing while a pass is still running");
+    }
+}
+
+static void AbandonPatchJob();
+
 void OnCloseGame() {
+    StopPass();
+    AbandonPatchJob();
     Channels::OnCloseGame();
 
     for (SArchive* archive : s_ownedMounts) {
@@ -596,6 +619,36 @@ static void PublishBatch() {
     std::lock_guard<std::mutex> lock(s_batchMutex);
     s_batchQueue.push_back(std::move(s_passBatch));
     s_passBatch = PassBatch();
+}
+
+// What earlier passes left for the main thread, lowered target paths and the blobs their jobs still read.
+struct QueuedWork {
+    std::set<std::wstring> m_paths;
+    std::set<std::string> m_blobs;
+};
+
+// Only the pass itself publishes batches, so the queue can only shrink while it runs.
+static QueuedWork SnapshotQueuedWork() {
+    QueuedWork q;
+    std::lock_guard<std::mutex> lock(s_batchMutex);
+
+    for (size_t b = 0; b < s_batchQueue.size(); b++) {
+        const PassBatch& batch = s_batchQueue[b];
+
+        for (size_t j = (b == 0) ? s_frontJobsDone : 0; j < batch.m_jobs.size(); j++) {
+            q.m_paths.insert(Text::LowerPath(batch.m_jobs[j].m_archivePath));
+
+            for (const ArchiveWrite& w : batch.m_jobs[j].m_writes) {
+                q.m_blobs.insert(w.m_sha256);
+            }
+        }
+
+        for (const DevReplace& rep : batch.m_devReplaces) {
+            q.m_paths.insert(Text::LowerPath(rep.m_target));
+        }
+    }
+
+    return q;
 }
 
 static std::mutex s_eventMutex;
@@ -693,6 +746,7 @@ static bool DownloadWhole(const std::string& baseUrl, const ManifestFile& mf, co
     opt.m_resumeFrom = resume;
     opt.m_sha256Out = &got;
     opt.m_throttle = &s_throttle;
+    opt.m_cancel = ShuttingDown;
     opt.m_onBytes = [&counter](long long written) {
         counter.Report(written);
     };
@@ -1227,9 +1281,7 @@ static ArchivePlan PlanArchive(const std::string& storeUrl, const ManifestFile& 
 
 // Leaves the verified raw bytes of one file at blobs/<sha>, downloading unless a valid copy is already there.
 static bool FetchBlob(const std::string& storeUrl, const ArchiveWrite& w, ByteCounter& counter) {
-    std::string existing;
-
-    if (FileSize(w.m_blobPath) == w.m_size && ReadBinaryFile(w.m_blobPath, existing) && Sha256Hex(existing.data(), existing.size()) == w.m_sha256) {
+    if (FileSize(w.m_blobPath) == w.m_size && Sha256File(w.m_blobPath) == w.m_sha256) {
         return true;
     }
 
@@ -1240,6 +1292,7 @@ static bool FetchBlob(const std::string& storeUrl, const ArchiveWrite& w, ByteCo
 
     DownloadOptions opt;
     opt.m_throttle = &s_throttle;
+    opt.m_cancel = ShuttingDown;
     opt.m_onBytes = [&counter](long long written) {
         counter.Report(written);
     };
@@ -1252,10 +1305,16 @@ static bool FetchBlob(const std::string& storeUrl, const ArchiveWrite& w, ByteCo
         return false;
     }
 
-    std::string container;
     std::string raw;
     std::string err;
-    bool ok = ReadBinaryFile(part, container) && BlobContainer::Unpack(container, raw, &err);
+    bool ok = false;
+
+    // Frees the packed copy before the raw bytes are hashed and written, so a worker never holds both for long.
+    {
+        std::string container;
+        ok = ReadBinaryFile(part, container) && BlobContainer::Unpack(container, raw, &err);
+    }
+
     fs::remove(part, ec);
 
     if (!ok) {
@@ -1464,10 +1523,28 @@ struct BatchProgress {
     bool m_anyApplied = false;
     int32_t m_busyTries = 0;
     unsigned long long m_retryAtMs = 0;
+    unsigned long long m_jobStartMs = 0;
+    int32_t m_jobFrames = 0;
 };
 
 // Main thread only.
 static BatchProgress s_batchProgress;
+static ArchivePatcher::Session s_patchSession;
+// Per frame write budget of an in-place job, one file always goes in even when it alone takes longer.
+static constexpr unsigned long long s_patchBudgetMs = 8;
+
+bool IsPatchingArchive() {
+    return s_patchSession.IsOpen();
+}
+
+// The archive half written stays valid, the next pass sees the old (hotmanifest) and diffs it again.
+static void AbandonPatchJob() {
+    if (s_patchSession.IsOpen()) {
+        StreamLog("stream: game closing with an in-place job open, leaving it for the next launch");
+        s_patchSession.Abandon();
+    }
+}
+
 static bool s_achievementRebuildPending = false;
 
 static void AddRefreshName(BatchProgress& bp, const std::string& name) {
@@ -1586,6 +1663,40 @@ static bool ApplyDevReplace(const DevReplace& rep, BatchProgress& bp) {
     return true;
 }
 
+// A dev and a release copy of one archive often share a blob, so it stays until no queued job wants it.
+static void ReleaseBlobs(const ArchivePatchJob& done) {
+    // A running pass may already have counted on these blobs, its successor's sweep removes them instead.
+    if (s_running.load()) {
+        return;
+    }
+
+    std::set<std::string> wanted;
+
+    {
+        std::lock_guard<std::mutex> lock(s_batchMutex);
+
+        for (size_t b = 0; b < s_batchQueue.size(); b++) {
+            const PassBatch& batch = s_batchQueue[b];
+
+            for (size_t j = (b == 0) ? s_frontJobsDone : 0; j < batch.m_jobs.size(); j++) {
+                if (&batch.m_jobs[j] == &done) {
+                    continue;
+                }
+
+                for (const ArchiveWrite& w : batch.m_jobs[j].m_writes) {
+                    wanted.insert(w.m_sha256);
+                }
+            }
+        }
+    }
+
+    for (const ArchiveWrite& w : done.m_writes) {
+        if (wanted.find(w.m_sha256) == wanted.end()) {
+            Platform::RemoveFile(w.m_blobPath);
+        }
+    }
+}
+
 // One item of the front batch per frame, then a single refresh once it is drained.
 static void ProcessBatch() {
     PassBatch* batch = nullptr;
@@ -1605,25 +1716,42 @@ static void ProcessBatch() {
     if (bp.m_nextJob < batch->m_jobs.size()) {
         constexpr int32_t kBusyRetries = 10;
         constexpr unsigned long long kBusyRetryMs = 3000;
+        const ArchivePatchJob& job = batch->m_jobs[bp.m_nextJob];
+        ArchivePatchResult r;
 
-        if (Platform::MonotonicMs() < bp.m_retryAtMs) {
-            return;
+        if (!s_patchSession.IsOpen()) {
+            if (Platform::MonotonicMs() < bp.m_retryAtMs) {
+                return;
+            }
+
+            bp.m_jobStartMs = Platform::MonotonicMs();
+            bp.m_jobFrames = 0;
+
+            if (!s_patchSession.Open(job)) {
+                r = s_patchSession.Close();
+
+                if (r.m_busy && ++bp.m_busyTries < kBusyRetries) {
+                    StreamLog("stream: in-place %s busy, %s, retry %d/%d in %llu s", job.m_relPath.c_str(), r.m_error.c_str(), bp.m_busyTries, kBusyRetries - 1, kBusyRetryMs / 1000);
+                    bp.m_retryAtMs = Platform::MonotonicMs() + kBusyRetryMs;
+                    return;
+                }
+            }
         }
 
-        const ArchivePatchJob& job = batch->m_jobs[bp.m_nextJob];
-        unsigned long long t0 = Platform::MonotonicMs();
-        ArchivePatchResult r = ArchivePatcher::Apply(job);
+        if (s_patchSession.IsOpen()) {
+            bp.m_jobFrames++;
 
-        if (r.m_busy && ++bp.m_busyTries < kBusyRetries) {
-            StreamLog("stream: in-place %s busy, %s, retry %d/%d in %llu s", job.m_relPath.c_str(), r.m_error.c_str(), bp.m_busyTries, kBusyRetries - 1, kBusyRetryMs / 1000);
-            bp.m_retryAtMs = Platform::MonotonicMs() + kBusyRetryMs;
-            return;
+            if (!s_patchSession.Step(s_patchBudgetMs)) {
+                return;
+            }
+
+            r = s_patchSession.Close();
         }
 
         bp.m_busyTries = 0;
         bp.m_retryAtMs = 0;
         ++bp.m_nextJob;
-        StreamLog("stream: in-place %s %s: %d/%d file(s) written in %llu ms%s%s", job.m_relPath.c_str(), r.m_ok ? "OK" : "FAILED", static_cast<int32_t>(r.m_writtenNames.size()), static_cast<int32_t>(job.m_writes.size()), static_cast<unsigned long long>(Platform::MonotonicMs() - t0), r.m_error.empty() ? "" : ", ", r.m_error.c_str());
+        StreamLog("stream: in-place %s %s: %d/%d file(s) written in %llu ms over %d frame(s)%s%s", job.m_relPath.c_str(), r.m_ok ? "OK" : "FAILED", static_cast<int32_t>(r.m_writtenNames.size()), static_cast<int32_t>(job.m_writes.size()), static_cast<unsigned long long>(Platform::MonotonicMs() - bp.m_jobStartMs), bp.m_jobFrames, r.m_error.empty() ? "" : ", ", r.m_error.c_str());
 
         for (const std::string& n : r.m_writtenNames) {
             AddRefreshName(bp, n);
@@ -1635,6 +1763,7 @@ static void ProcessBatch() {
 
         if (r.m_ok) {
             ExpectInPlace(job.m_archivePath, job.m_contentId);
+            ReleaseBlobs(job);
         } else {
             NoteInPlaceResult(job.m_archivePath, false);
         }
@@ -1908,13 +2037,9 @@ static bool FollowerDevCopyCurrent(const std::wstring& dev, const ManifestFile& 
         return FileSize(dev) == mf.m_size && LocalMatches(dev, ExpectedDigest(mf));
     }
 
-    std::string bytes;
-
-    if (!MpqFile::ReadFile(dev, ArchiveManifest::s_fileName, bytes)) {
-        return false;
-    }
-
-    return ArchiveManifest::ContentIdOf(bytes) == arc->m_contentId;
+    // Cached by size and write time, so a follower polling every pass does not reread each archive's tables.
+    std::string localId;
+    return LocalDigests::Get(dev, LocalDigests::Kind::ContentId, localId) && localId == arc->m_contentId;
 }
 
 // Another instance holds the patch lock and keeps the dev copies current, so this one only reads them.
@@ -1993,6 +2118,11 @@ static void PublishFollowerLayout() {
 static void Run() {
     // Login stays gated until it is known what needs patching.
     FirstPassScope firstPassScope;
+
+    if (ShuttingDown()) {
+        return;
+    }
+
     s_installDir = Paths::GameDir().wstring();
 
     if (!InstallFiles::AcquirePatchLock(s_installDir)) {
@@ -2059,10 +2189,16 @@ static void Run() {
     // Whatever this pass queues for the main thread goes out as one batch when the pass ends, however it ends.
     BatchScope batchScope;
 
+    // A queued dev replace moves its .part and a queued job reads its blobs, so neither may be planned again or swept.
+    const QueuedWork queued = SnapshotQueuedWork();
     std::vector<PlannedItem> plan;
-    std::set<std::string> wantedBlobs;
+    std::set<std::string> wantedBlobs = queued.m_blobs;
 
     auto planFile = [&](const Manifest& source, const ManifestFile& mf, const std::string& fileBaseUrl, const std::string& fileStoreUrl) {
+        if (ShuttingDown()) {
+            return;
+        }
+
         std::wstring local = TargetPath(mf);
 
 #ifdef AUTO_UPDATER_IGNORES_EXE
@@ -2073,6 +2209,11 @@ static void Run() {
 #endif
 
         if (!TakesFile(mf)) {
+            return;
+        }
+
+        if (queued.m_paths.count(Text::LowerPath(local)) != 0) {
+            StreamLog("stream: %s still has queued work, checking it next pass", mf.m_path.c_str());
             return;
         }
 
@@ -2193,6 +2334,18 @@ static void Run() {
             const std::wstring local = entry.m_devPath;
             keepDev.insert(ArchiveRegistry::KeyFor(local));
 
+            if (ShuttingDown()) {
+                layoutScope.m_incomplete = true;
+                continue;
+            }
+
+            // Not known to be current until the queued work lands and a later pass has looked at it.
+            if (queued.m_paths.count(Text::LowerPath(local)) != 0) {
+                StreamLog("stream: dev copy of %s still has queued work, checking it next pass", mf.m_path.c_str());
+                layoutScope.m_incomplete = true;
+                continue;
+            }
+
             if (FileSize(local) < 0) {
                 SeedDevCopy(entry.m_releasePath, local, mf.m_path);
             }
@@ -2256,7 +2409,14 @@ static void Run() {
         SweepDevCopies(keepDev);
     }
 
+    LocalDigests::Prune();
     LocalDigests::Save();
+
+    // Cut short by the game closing, the plan is partial, so nothing is swept or downloaded.
+    if (ShuttingDown()) {
+        return;
+    }
+
     SweepBlobCache(wantedBlobs);
 
     // Publishes what this pass will replace, plus earlier in-place jobs that have not landed, so the sanity check skips them.
@@ -2393,7 +2553,7 @@ static void Run() {
                     break;
                 }
 
-                bool ok = execute(tasks[t]);
+                bool ok = !ShuttingDown() && execute(tasks[t]);
 
                 {
                     std::lock_guard<std::mutex> lock(pool.m_mutex);
@@ -2544,7 +2704,7 @@ void StartPolling() {
 
 void Trigger() {
     // The downloader is turned off, there is nothing to check against.
-    if (!s_started.load()) {
+    if (!s_started.load() || ShuttingDown()) {
         return;
     }
 
@@ -2561,9 +2721,14 @@ void Trigger() {
         do {
             s_kickAgain = false;
             Run();
-        } while (s_kickAgain.load());
+        } while (s_kickAgain.load() && !ShuttingDown());
 
-        s_running = false;
+        {
+            std::lock_guard<std::mutex> lock(s_runMutex);
+            s_running = false;
+        }
+
+        s_runCv.notify_all();
 
         if (s_kickAgain.exchange(false)) {
             Trigger();

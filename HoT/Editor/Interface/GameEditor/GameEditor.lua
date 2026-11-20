@@ -30,8 +30,23 @@ local consoleFrame;
 local cameraWindow;
 local keysWindow;
 
+local MINI_MIN_WIDTH = 640;
+local MINI_MIN_HEIGHT = 360;
+
+local miniMode = false;
+local modeApplied = false;
+local fullOnlyReturn;
+local autoSwitching = false;
+local miniPicker;
+local miniItems = {};
+local miniGrip;
+local layout = { windows = {} };
+local layoutText;
+local layoutDirty = false;
+
 local SHELL_KEYS = {
 	{ "F12", "Open and close the game editor" },
+	{ "Shift+F12", "Open the mini editor, the game UI and controls keep working and only Ctrl hotkeys reach the editor" },
 	{ "Tab", "Hide or show the editor UI" },
 	{ "Ctrl+1 .. Ctrl+9", "Switch workspace" },
 	{ "Enter", "Focus the command line (. commands go to the server, / commands run like chat)" },
@@ -186,14 +201,175 @@ local function LayoutToasts(elapsed)
 	end
 end
 
+-- Layout -------------------------------------------------------------------------------------------
+
+local function Round(value)
+	return floor((value or 0) + 0.5);
+end
+
+local function LoadLayout()
+	layout = { windows = {} };
+	layoutText = GameEditor_LoadLayout and GameEditor_LoadLayout() or "";
+
+	for entry in string.gmatch(layoutText, "[^\r\n]+") do
+		local key, value = string.match(entry, "^(%w+)=(.*)$");
+
+		if ( key == "ws" or key == "tool" or key == "fullws" or key == "miniws" ) then
+			layout[key] = value;
+		elseif ( key == "mini" ) then
+			local x, y, w, h = string.match(value, "^(%-?%d+)/(%-?%d+)/(%d+)/(%d+)$");
+
+			if ( x ) then
+				layout.mini = { tonumber(x), tonumber(y), tonumber(w), tonumber(h) };
+			end
+		elseif ( key == "w" ) then
+			local name, x, y, w, h, shown = string.match(value, "^([%w_]+)/(%-?%d+)/(%-?%d+)/(%d+)/(%d+)/(%d)$");
+
+			if ( name ) then
+				layout.windows[name] = { tonumber(x), tonumber(y), tonumber(w), tonumber(h), shown == "1" };
+			end
+		end
+	end
+end
+
+local function FrameRect(frame)
+	local left, top = frame:GetLeft(), frame:GetTop();
+
+	if ( not left or not top ) then
+		return;
+	end
+
+	return Round(left), Round(top), Round(frame:GetWidth()), Round(frame:GetHeight());
+end
+
+local function PlaceAt(frame, left, top, width, height)
+	frame:ClearAllPoints();
+	frame:SetPoint("TOPLEFT", EditorParent, "BOTTOMLEFT", left, top);
+
+	if ( width and height ) then
+		frame:SetWidth(width);
+		frame:SetHeight(height);
+	end
+end
+
+local function WindowShown(window)
+	return window:IsShown() or window.hiddenByUI or window.hiddenByWorkspace;
+end
+
+-- Anchors a window to the screen where it is now, so a layout change around it does not move it.
+local function PinWindow(window)
+	local left, top, width, height = FrameRect(window);
+
+	if ( left ) then
+		PlaceAt(window, left, top, window.resizable and width or nil, window.resizable and height or nil);
+		window.pinned = true;
+	end
+end
+
+local function SaveLayout()
+	layoutDirty = false;
+
+	if ( not loaded ) then
+		return;
+	end
+
+	local parts = { "v1" };
+
+	if ( activeWorkspace ) then
+		table.insert(parts, "ws="..activeWorkspace.key);
+
+		if ( activeTool ) then
+			table.insert(parts, "tool="..activeTool);
+		end
+	end
+
+	if ( fullOnlyReturn ) then
+		table.insert(parts, "fullws="..fullOnlyReturn);
+	end
+
+	if ( layout.miniws ) then
+		table.insert(parts, "miniws="..layout.miniws);
+	end
+
+	if ( layout.mini ) then
+		table.insert(parts, format("mini=%d/%d/%d/%d", unpack(layout.mini)));
+	end
+
+	for window in pairs(windows) do
+		local name = not window.autoName and window:GetName();
+		local shown = WindowShown(window) and true or false;
+
+		if ( name and (window.pinned or window.everShown or shown) ) then
+			local left, top, width, height = FrameRect(window);
+
+			if ( left ) then
+				layout.windows[name] = { left, top, width, height, shown };
+			elseif ( layout.windows[name] ) then
+				layout.windows[name][5] = shown;
+			end
+		elseif ( name and layout.windows[name] ) then
+			layout.windows[name][5] = shown;
+		end
+	end
+
+	local entries = {};
+
+	for name, rect in pairs(layout.windows) do
+		table.insert(entries, { name = name, rect = rect });
+	end
+
+	table.sort(entries, function(a, b)
+		if ( a.rect[5] ~= b.rect[5] ) then
+			return a.rect[5];
+		end
+
+		return a.name < b.name;
+	end);
+
+	for _, entry in ipairs(entries) do
+		local rect = entry.rect;
+		table.insert(parts, format("w=%s/%d/%d/%d/%d/%d", entry.name, rect[1], rect[2], rect[3], rect[4], rect[5] and 1 or 0));
+	end
+
+	local text = table.concat(parts, "\n").."\n";
+
+	if ( text ~= layoutText and GameEditor_SaveLayout ) then
+		layoutText = text;
+		GameEditor_SaveLayout(text);
+	end
+end
+
+-- A window opened for the first time this session goes back where it was last time.
+local function RestoreWindow(window)
+	if ( window.restored ) then
+		return;
+	end
+
+	window.restored = true;
+	local saved = not window.autoName and layout.windows[window:GetName() or ""];
+
+	if ( saved ) then
+		PlaceAt(window, saved[1], saved[2], window.resizable and saved[3] or nil, window.resizable and saved[4] or nil);
+		window.pinned = true;
+	end
+end
+
 -- Windows ------------------------------------------------------------------------------------------
 
 local function RaiseWindow(window)
 	window:Raise();
 end
 
+local function EndWindowMove(window)
+	window:StopMovingOrSizing();
+	PinWindow(window);
+	layoutDirty = true;
+end
+
 function GameEditor_CreateWindow(name, title, width, height, resizable)
 	local window = CreateFrame("Frame", name or NoggitUI_NewName("GameEditorWindow"), EditorParent, "NoggitBoxTemplate");
+	window.autoName = not name;
+	window.resizable = resizable and true or false;
 	window:SetFrameStrata("DIALOG");
 	window:SetToplevel(true);
 	window:EnableMouse(true);
@@ -214,7 +390,7 @@ function GameEditor_CreateWindow(name, title, width, height, resizable)
 	bar:RegisterForDrag("LeftButton");
 	bar:SetScript("OnMouseDown", function() RaiseWindow(window); end);
 	bar:SetScript("OnDragStart", function() window:StartMoving(); end);
-	bar:SetScript("OnDragStop", function() window:StopMovingOrSizing(); end);
+	bar:SetScript("OnDragStop", function() EndWindowMove(window); end);
 	NoggitBox_Set(bar, NOGGIT_COLOR_DARK, nil);
 	window.bar = bar;
 
@@ -254,7 +430,7 @@ function GameEditor_CreateWindow(name, title, width, height, resizable)
 		gripMark:SetHeight(8);
 		gripMark:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", -2, 2);
 		grip:SetScript("OnMouseDown", function() window:StartSizing("BOTTOMRIGHT"); end);
-		grip:SetScript("OnMouseUp", function() window:StopMovingOrSizing(); end);
+		grip:SetScript("OnMouseUp", function() EndWindowMove(window); end);
 	end
 
 	window.SetTitle = function(self, text)
@@ -267,17 +443,53 @@ end
 
 function GameEditor_ShowWindow(window)
 	if ( window ) then
+		RestoreWindow(window);
+		window.hiddenByWorkspace = nil;
+		window.everShown = true;
 		window:Show();
 		window:Raise();
+		layoutDirty = true;
 	end
 end
 
 function GameEditor_HideWindow(window)
 	if ( window ) then
 		window:Hide();
+		window.hiddenByWorkspace = nil;
+		layoutDirty = true;
 
 		if ( window.onClose ) then
 			window.onClose(window);
+		end
+	end
+end
+
+-- Windows of one workspace hide while another is shown and come back with it.
+function GameEditor_SetWindowWorkspace(window, key)
+	if ( window ) then
+		window.workspace = key;
+	end
+end
+
+local function HideWorkspaceWindows(workspace)
+	for window in pairs(windows) do
+		if ( window.workspace == workspace.key and window:IsShown() ) then
+			window:Hide();
+			window.hiddenByWorkspace = true;
+		end
+	end
+end
+
+local function ShowWorkspaceWindows(workspace)
+	for window in pairs(windows) do
+		if ( window.workspace == workspace.key and window.hiddenByWorkspace ) then
+			window.hiddenByWorkspace = nil;
+
+			if ( uiHidden ) then
+				window.hiddenByUI = true;
+			else
+				window:Show();
+			end
 		end
 	end
 end
@@ -449,7 +661,7 @@ end
 local function CreateCommandBox()
 	commandBox = NoggitLineEdit_Create(EditorStatusBar, 300);
 	commandBox:SetHeight(18);
-	commandBox:SetPoint("RIGHT", EditorStatusBar, "RIGHT", -4, 0);
+	commandBox:SetPoint("RIGHT", EditorStatusBar, "RIGHT", -18, 0);
 	commandBox:SetAutoFocus(false);
 	commandBox:SetMaxLetters(255);
 	commandBox:SetHistoryLines(50);
@@ -579,7 +791,7 @@ local function CreateCameraWindow()
 		NoggitCheckBox_SetChecked(self.sync, sync);
 		NoggitSpinBox_SetValue(self.scale, userScale, true);
 		NoggitCheckBox_SetChecked(self.freeCam, GameEditor_IsFreeCamEnabled());
-		self.toggleText:SetText(format("Toggle key: %s (CVar editorToggleKey)", GameEditor_GetToggleKey() or "F12"));
+		self.toggleText:SetText(format("Toggle keys: %s full, %s mini (CVars editorToggleKey, editorMiniToggleKey)", GameEditor_GetToggleKey() or "F12", GameEditor_GetMiniToggleKey and GameEditor_GetMiniToggleKey() or "SHIFT-F12"));
 	end);
 end
 
@@ -916,13 +1128,22 @@ local function WorkspaceShortcut(workspace)
 	end
 end
 
+local modeMenuItems = {};
+
 local function WorkspaceMenuItem(workspace)
-	return {
+	local item = {
 		text = workspace.title or workspace.key,
 		shortcut = WorkspaceShortcut(workspace),
 		checked = function() return activeWorkspace == workspace; end,
 		onClick = function() GameEditor_SetWorkspace(workspace.key); end,
+		fullOnly = workspace.fullOnly,
 	};
+
+	if ( workspace.fullOnly and modeMenuItems ) then
+		table.insert(modeMenuItems, item);
+	end
+
+	return item;
 end
 
 local tabEntries = {};
@@ -1017,6 +1238,15 @@ function GameEditor_SetWorkspace(key, toolKey)
 		return;
 	end
 
+	if ( miniMode and workspace.fullOnly ) then
+		GameEditor_Notify(format("%s needs the full editor (%s)", workspace.title or workspace.key, GameEditor_GetToggleKey() or "F12"), "info");
+		return;
+	end
+
+	if ( not autoSwitching ) then
+		fullOnlyReturn = nil;
+	end
+
 	NoggitMenu_CloseAll();
 	NoggitTooltip_Hide();
 
@@ -1024,6 +1254,7 @@ function GameEditor_SetWorkspace(key, toolKey)
 		local previous = activeWorkspace;
 		SafeCall(previous.key, previous.onDeactivate);
 		HidePanels(previous);
+		HideWorkspaceWindows(previous);
 
 		if ( previous.toolbar ) then
 			previous.toolbar:Hide();
@@ -1083,6 +1314,7 @@ function GameEditor_SetWorkspace(key, toolKey)
 
 	RefreshWorkspaceTabs();
 	SafeCall(workspace.key, workspace.onActivate);
+	ShowWorkspaceWindows(workspace);
 
 	local tool = toolKey or workspace.lastTool or (workspace.tools[1] and workspace.tools[1].key);
 
@@ -1095,6 +1327,229 @@ function GameEditor_SetWorkspace(key, toolKey)
 	end
 
 	GameEditor_RefreshViewToolbar();
+
+	if ( miniPicker ) then
+		miniPicker:Refresh();
+	end
+
+	if ( miniMode ) then
+		layout.miniws = workspace.key;
+	end
+
+	layoutDirty = true;
+end
+
+-- Mini editor ---------------------------------------------------------------------------------------------
+
+function GameEditor_IsMiniMode()
+	return miniMode;
+end
+
+function GameEditor_CurrentToggleKey()
+	if ( miniMode ) then
+		return GameEditor_GetMiniToggleKey and GameEditor_GetMiniToggleKey() or "SHIFT-F12";
+	end
+
+	return GameEditor_GetToggleKey() or "F12";
+end
+
+local function MiniRect()
+	local screenWidth = EditorParent:GetWidth() or 1024;
+	local screenHeight = EditorParent:GetHeight() or 768;
+
+	if ( not layout.mini ) then
+		local width = max(MINI_MIN_WIDTH, min(1180, screenWidth - 80));
+		local height = max(MINI_MIN_HEIGHT, min(680, screenHeight - 180));
+		layout.mini = { Round((screenWidth - width) / 2), Round(screenHeight - 90), Round(width), Round(height) };
+	end
+
+	return layout.mini;
+end
+
+local function PlaceMiniRect()
+	local rect = MiniRect();
+	PlaceAt(EditorFrameRect, rect[1], rect[2], max(MINI_MIN_WIDTH, rect[3]), max(MINI_MIN_HEIGHT, rect[4]));
+end
+
+local function EndMiniMove()
+	EditorFrameRect:StopMovingOrSizing();
+
+	if ( not miniMode ) then
+		return;
+	end
+
+	local left, top, width, height = FrameRect(EditorFrameRect);
+
+	if ( left ) then
+		layout.mini = { left, top, width, height };
+	end
+
+	PlaceMiniRect();
+	layoutDirty = true;
+end
+
+local function StartMiniMove()
+	if ( miniMode ) then
+		EditorParent:Raise();
+		EditorFrameRect:StartMoving();
+	end
+end
+
+local function FirstMiniWorkspace()
+	if ( layout.miniws and workspaces[layout.miniws] and not workspaces[layout.miniws].fullOnly ) then
+		return workspaces[layout.miniws];
+	end
+
+	for _, workspace in ipairs(SortedWorkspaces()) do
+		if ( not workspace.fullOnly ) then
+			return workspace;
+		end
+	end
+end
+
+local function BuildMiniChrome()
+	EditorFrameRect:SetMinResize(MINI_MIN_WIDTH, MINI_MIN_HEIGHT);
+
+	for _, bar in ipairs({ EditorMenuBar, EditorStatusBar }) do
+		bar:RegisterForDrag("LeftButton");
+		bar:SetScript("OnDragStart", StartMiniMove);
+		bar:SetScript("OnDragStop", EndMiniMove);
+	end
+
+	miniGrip = CreateFrame("Button", "GameEditorMiniGrip", EditorStatusBar);
+	miniGrip:SetWidth(14);
+	miniGrip:SetHeight(14);
+	miniGrip:SetPoint("BOTTOMRIGHT", EditorStatusBar, "BOTTOMRIGHT", -1, 1);
+	local mark = NoggitUI_SolidTexture(miniGrip, "ARTWORK", NOGGIT_COLOR_HOVER);
+	mark:SetWidth(8);
+	mark:SetHeight(8);
+	mark:SetPoint("BOTTOMRIGHT", miniGrip, "BOTTOMRIGHT", -2, 2);
+	miniGrip:SetScript("OnMouseDown", function()
+		EditorParent:Raise();
+		EditorFrameRect:StartSizing("BOTTOMRIGHT");
+	end);
+	miniGrip:SetScript("OnMouseUp", EndMiniMove);
+	miniGrip:Hide();
+
+	miniPicker = CreateFrame("Button", "GameEditorMiniWorkspacePicker", EditorMenuBar, "NoggitBoxTemplate");
+	miniPicker:SetHeight(22);
+	miniPicker:SetPoint("RIGHT", EditorMenuBar, "RIGHT", -40, 0);
+	miniPicker.text = NoggitUI_FontString(miniPicker, "");
+	miniPicker.text:SetPoint("LEFT", miniPicker, "LEFT", 12, 0);
+	local caret = NoggitUI_CreateCaret(miniPicker, 10);
+	caret:SetOpen(true);
+	caret:SetPoint("RIGHT", miniPicker, "RIGHT", -10, 0);
+	NoggitBox_Set(miniPicker, NOGGIT_COLOR_ACCENT, nil);
+	miniPicker:SetScript("OnClick", function(self)
+		NoggitDropdownMenu_Show("GameEditorMiniWorkspaces", miniItems, self);
+	end);
+	miniPicker.Refresh = function(self)
+		local title = activeWorkspace and (activeWorkspace.title or activeWorkspace.key) or "Workspace";
+
+		if ( activeWorkspace and activeWorkspace.category ) then
+			title = activeWorkspace.category..": "..title;
+		end
+
+		self.text:SetText(title);
+		self:SetWidth(self.text:GetStringWidth() + 38);
+	end;
+	miniPicker:Hide();
+
+	for _, entry in ipairs(TabEntries()) do
+		if ( entry.workspaces ) then
+			local items = {};
+
+			for _, workspace in ipairs(entry.workspaces) do
+				if ( not workspace.fullOnly ) then
+					table.insert(items, WorkspaceMenuItem(workspace));
+				end
+			end
+
+			if ( #items > 0 ) then
+				table.insert(miniItems, { text = entry.title, submenu = items });
+			end
+		elseif ( not entry.workspace.fullOnly ) then
+			table.insert(miniItems, WorkspaceMenuItem(entry.workspace));
+		end
+	end
+end
+
+local function RefreshModeMenus()
+	for _, item in ipairs(modeMenuItems) do
+		if ( item.fullOnly or item.uiToggle ) then
+			item.disabled = miniMode;
+		end
+	end
+end
+
+-- Moves the shell between the whole screen and the mini box, every window stays where it is.
+local function ApplyMode(mini)
+	if ( modeApplied and mini == miniMode ) then
+		return false;
+	end
+
+	if ( modeApplied ) then
+		for window in pairs(windows) do
+			if ( window.everShown or WindowShown(window) ) then
+				PinWindow(window);
+			end
+		end
+	end
+
+	modeApplied = true;
+	miniMode = mini;
+	NoggitMenu_CloseAll();
+	NoggitTooltip_Hide();
+
+	if ( mini ) then
+		if ( uiHidden ) then
+			GameEditor_SetUIHidden(false);
+		end
+
+		PlaceMiniRect();
+		EditorWorkspaceTabs:Hide();
+		miniPicker:Show();
+		miniGrip:Show();
+	else
+		EditorFrameRect:ClearAllPoints();
+		EditorFrameRect:SetAllPoints(EditorParent);
+		EditorWorkspaceTabs:Show();
+		miniPicker:Hide();
+		miniGrip:Hide();
+	end
+
+	local border = mini and NOGGIT_COLOR_MID or nil;
+	NoggitBox_Set(EditorMenuBar, NOGGIT_COLOR_BASE, border);
+	NoggitBox_Set(EditorStatusBar, NOGGIT_COLOR_BASE, border);
+	RefreshModeMenus();
+	EditorParent:Raise();
+
+	local switched = false;
+	autoSwitching = true;
+
+	if ( mini and activeWorkspace and activeWorkspace.fullOnly ) then
+		local target = FirstMiniWorkspace();
+
+		if ( target ) then
+			local from = activeWorkspace.key;
+			GameEditor_SetWorkspace(target.key);
+			fullOnlyReturn = from;
+			switched = true;
+		end
+	elseif ( not mini and fullOnlyReturn ) then
+		local key = fullOnlyReturn;
+		fullOnlyReturn = nil;
+
+		if ( workspaces[key] and activeWorkspace ~= workspaces[key] ) then
+			GameEditor_SetWorkspace(key);
+			switched = true;
+		end
+	end
+
+	autoSwitching = false;
+	miniPicker:Refresh();
+	layoutDirty = true;
+	return switched;
 end
 
 -- Shell menus and keys -----------------------------------------------------------------------------------
@@ -1106,6 +1561,10 @@ local function BuildShellMenus()
 
 	local separator = { separator = true };
 	local workspaceItems = {};
+	local toggleUI = { text = "Toggle UI", shortcut = "Tab", uiToggle = true, onClick = function() GameEditor_SetUIHidden(not uiHidden); end };
+	local fullKey = GameEditor_GetToggleKey() or "F12";
+	local miniKey = GameEditor_GetMiniToggleKey and GameEditor_GetMiniToggleKey() or "SHIFT-F12";
+	table.insert(modeMenuItems, toggleUI);
 
 	for _, entry in ipairs(TabEntries()) do
 		if ( entry.workspaces ) then
@@ -1130,11 +1589,22 @@ local function BuildShellMenus()
 			{ text = "Console", onClick = function() GameEditor_ToggleWindow(consoleWindow); end },
 			{ text = "Keys", onClick = function() GameEditor_ToggleWindow(keysWindow); end },
 			separator,
-			{ text = "Toggle UI", shortcut = "Tab", onClick = function() GameEditor_SetUIHidden(not uiHidden); end },
+			{
+				text = "Full editor", shortcut = fullKey,
+				checked = function() return not miniMode; end,
+				onClick = function() GameEditor_SetActive(true, false); end,
+			},
+			{
+				text = "Mini editor, keeps the game UI", shortcut = miniKey,
+				checked = function() return miniMode; end,
+				onClick = function() GameEditor_SetActive(true, true); end,
+			},
+			separator,
+			toggleUI,
 			{ text = "Camera to character", onClick = function() FreeCam_Recenter(); end },
 			{ text = "Reload UI", onClick = function() ReloadUI(); end },
 			separator,
-			{ text = "Leave the editor", shortcut = GameEditor_GetToggleKey() or "F12", onClick = function() GameEditor_SetActive(false); end },
+			{ text = "Leave the editor", shortcut = fullKey.." / "..miniKey, onClick = function() GameEditor_SetActive(false); end },
 		},
 	});
 
@@ -1148,6 +1618,10 @@ local function BuildShellMenus()
 end
 
 function GameEditor_SetUIHidden(hidden)
+	if ( hidden and miniMode ) then
+		return;
+	end
+
 	uiHidden = hidden;
 	NoggitMenu_CloseAll();
 	NoggitTooltip_Hide();
@@ -1217,7 +1691,7 @@ function GameEditor_OnHotkey(key)
 			GameEditor_SetWorkspace(workspace.key);
 		end
 
-		return true;
+		return workspace ~= nil or not miniMode;
 	end
 
 	if ( activeWorkspace and activeWorkspace.onHotkey ) then
@@ -1228,7 +1702,7 @@ function GameEditor_OnHotkey(key)
 		end
 	end
 
-	if ( key == "ESCAPE" ) then
+	if ( key == "ESCAPE" and not miniMode ) then
 		for window in pairs(windows) do
 			if ( window:IsShown() ) then
 				GameEditor_HideWindow(window);
@@ -1346,16 +1820,27 @@ local RESULT_EVENTS = {
 
 function GameEditor_OnEvent(self, event, ...)
 	if ( event == "GAME_EDITOR_MODE_CHANGED" ) then
-		local active = ...;
+		local active, mini = ...;
+		active = active == 1 or active == true;
+		mini = mini == 1 or mini == true;
 
-		if ( active == 1 or active == true ) then
+		if ( active ) then
 			NoggitMenu_CloseAll();
+
+			-- Already open, this is a switch between the full and the mini editor.
+			if ( self:IsShown() and not skipNextActivate ) then
+				ApplyMode(mini);
+				SaveLayout();
+				return;
+			end
+
 			self:Show();
 			ApplyScale();
+			local switched = ApplyMode(mini);
 
 			if ( skipNextActivate ) then
 				skipNextActivate = false;
-			elseif ( activeWorkspace ) then
+			elseif ( activeWorkspace and not switched ) then
 				SafeCall(activeWorkspace.key, activeWorkspace.onActivate);
 
 				if ( activeTool ) then
@@ -1363,8 +1848,9 @@ function GameEditor_OnEvent(self, event, ...)
 				end
 			end
 		else
+			-- Closing keeps every window as it is, they come back with the editor.
 			if ( activeWorkspace ) then
-				SafeCall(activeWorkspace.key, activeWorkspace.onDeactivate);
+				SafeCall(activeWorkspace.key, activeWorkspace.onDeactivate, true);
 			end
 
 			NoggitMenu_CloseAll();
@@ -1375,8 +1861,14 @@ function GameEditor_OnEvent(self, event, ...)
 			end
 
 			self:Hide();
+			SaveLayout();
 		end
 
+		return;
+	end
+
+	if ( event == "PLAYER_LOGOUT" ) then
+		SaveLayout();
 		return;
 	end
 
@@ -1422,17 +1914,20 @@ function GameEditor_OnLoad(self)
 
 	self:RegisterEvent("GAME_EDITOR_MODE_CHANGED");
 	self:RegisterEvent("CHAT_MSG_SYSTEM");
+	self:RegisterEvent("PLAYER_LOGOUT");
 
 	for event in pairs(RESULT_EVENTS) do
 		self:RegisterEvent(event);
 	end
 
+	LoadLayout();
 	CreateConsole();
 	CreateCommandBox();
 	CreateCameraWindow();
 	CreateKeysWindow();
 	BuildShellMenus();
 	BuildWorkspaceTabs();
+	BuildMiniChrome();
 
 	loaded = true;
 
@@ -1440,23 +1935,42 @@ function GameEditor_OnLoad(self)
 		SafeCall(workspace.key, workspace.onLoad);
 	end
 
-	local first = SortedWorkspaces()[1];
+	local saved = layout.ws and workspaces[layout.ws];
+	local first = saved or SortedWorkspaces()[1];
 
 	if ( first ) then
-		GameEditor_SetWorkspace(first.key);
+		autoSwitching = true;
+		GameEditor_SetWorkspace(first.key, saved and layout.tool and FindTool(layout.tool) and layout.tool or nil);
+		autoSwitching = false;
+
+		if ( saved and layout.fullws and workspaces[layout.fullws] and not saved.fullOnly ) then
+			fullOnlyReturn = layout.fullws;
+		end
 	else
 		GameEditor_SetToolPanelShown(false);
 	end
 
+	for _, window in ipairs({ consoleWindow, cameraWindow, keysWindow }) do
+		local rect = layout.windows[window:GetName()];
+
+		if ( rect and rect[5] ) then
+			GameEditor_ShowWindow(window);
+		end
+	end
+
 	skipNextActivate = true;
 	self:Show();
-	GameEditor_Print(format("Game editor ready, %s leaves it. Game Editor > Keys lists the controls.", GameEditor_GetToggleKey() or "F12"));
+	GameEditor_Print(format("Game editor ready, %s leaves it. Game Editor > Keys lists the controls.", GameEditor_CurrentToggleKey()));
 end
 
 function GameEditor_OnUpdate(self, elapsed)
 	ApplyScale();
 	NoggitMenu_OnUpdate(elapsed);
 	LayoutToasts(elapsed);
+
+	if ( layoutDirty ) then
+		SaveLayout();
+	end
 
 	if ( activeWorkspace and activeWorkspace.onUpdate ) then
 		SafeCall(activeWorkspace.key, activeWorkspace.onUpdate, elapsed);

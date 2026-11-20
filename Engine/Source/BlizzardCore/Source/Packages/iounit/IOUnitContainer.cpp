@@ -21,6 +21,13 @@ IOUnitContainer::IOUnitContainer(uint32_t size, ...) {
     this->m_owner = true;
 }
 
+// The first unit allocated takes ownership of the block, so this only frees it when a chain failed before any unit was placed.
+IOUnitContainer::~IOUnitContainer() {
+    if (this->m_owner) {
+        SMemFree(this->m_next, __FILE__, __LINE__, 0);
+    }
+}
+
 // VERIFY: b37dd59c manual
 // OFFSET: 0x0042BA10
 void* IOUnitContainer::Alloc(IOUnitContainer* container, uint32_t size, bool* ownsMemory) {

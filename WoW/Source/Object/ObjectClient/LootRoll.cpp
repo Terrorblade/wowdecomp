@@ -124,12 +124,22 @@ void LootRoll(int32_t id, int32_t rollType, bool confirmed) {
     }
 }
 
+static void StartCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
+static void PassedCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
+static void WonCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
+static void WonNameCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
+
 // VERIFY: f5032c00 manual
 // OFFSET: 0x006FAF40
 void LootRollDestroy() {
     PendingLootRoll* roll;
 
     while ((roll = s_pendingLootRolls.Head())) {
+        // A cache reply that arrives after a loading screen would otherwise land on the freed roll.
+        g_itemDBCache.CancelCallback(roll->m_itemId, &StartCallback, roll);
+        g_itemDBCache.CancelCallback(roll->m_itemId, &PassedCallback, roll);
+        g_itemDBCache.CancelCallback(roll->m_itemId, &WonCallback, roll);
+        g_nameDBCache.CancelCallback(roll->m_rollerGuid.m_guid, &WonNameCallback, roll);
         s_pendingLootRolls.DeleteNode(roll);
     }
 }
@@ -174,13 +184,17 @@ void CloseAllLootRolls() {
 // OFFSET: 0x006FA690
 int32_t LootRollMasterList(CDataStore* msg) {
     memset(s_masterLootCandidates, 0, sizeof(s_masterLootCandidates));
-    uint8_t count;
+    uint8_t count = 0;
     msg->Get(count);
     bool raid = CGRaidInfo::m_numMembers != 0;
 
     for (uint8_t i = 0; i < count; i++) {
-        WOWGUID guid;
+        WOWGUID guid = WOWGUID();
         msg->Get(guid.m_guid);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
 
         if (!raid) {
             if (i < sizeof(s_masterLootCandidates) / sizeof(s_masterLootCandidates[0])) {
@@ -391,10 +405,14 @@ static void StartCallback(int32_t id, const WOWGUID& guid, void* param, bool suc
 // VERIFY: 07f063f9 manual
 // OFFSET: 0x006FB2C0
 int32_t LootRollStart(CDataStore* msg) {
-    WOWGUID lootGuid;
-    int32_t mapId;
+    WOWGUID lootGuid = WOWGUID();
+    int32_t mapId = 0;
     msg->Get(lootGuid.m_guid);
     msg->Get(reinterpret_cast<uint32_t&>(mapId));
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (mapId != CGGameUI::m_iCurrentMapID) {
         msg->m_read = msg->m_size;
@@ -467,16 +485,21 @@ static void PassedCallback(int32_t id, const WOWGUID& guid, void* param, bool su
 // VERIFY: 33641577 auto
 // OFFSET: 0x006FB600
 int32_t LootRollAllPassed(CDataStore* msg) {
-    WOWGUID lootGuid;
-    uint32_t slot;
-    uint32_t itemId;
-    uint32_t randomPropertyId;
-    uint32_t randomSuffix;
+    WOWGUID lootGuid = WOWGUID();
+    uint32_t slot = 0;
+    uint32_t itemId = 0;
+    uint32_t randomPropertyId = 0;
+    uint32_t randomSuffix = 0;
     msg->Get(lootGuid.m_guid);
     msg->Get(slot);
     msg->Get(itemId);
     msg->Get(randomPropertyId);
     msg->Get(randomSuffix);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     PendingLootRoll* roll = FindRollBySlot(lootGuid, slot);
 
     if (!roll) {
@@ -580,14 +603,14 @@ static void WonCallback(int32_t id, const WOWGUID& guid, void* param, bool succe
 // VERIFY: d2b7d1d9 auto
 // OFFSET: 0x006FBB10
 int32_t LootRollWon(CDataStore* msg) {
-    WOWGUID lootGuid;
-    uint32_t slot;
-    uint32_t itemId;
-    uint32_t randomSuffix;
-    uint32_t randomPropertyId;
-    WOWGUID winner;
-    uint8_t rollNumber;
-    uint8_t rollType;
+    WOWGUID lootGuid = WOWGUID();
+    uint32_t slot = 0;
+    uint32_t itemId = 0;
+    uint32_t randomSuffix = 0;
+    uint32_t randomPropertyId = 0;
+    WOWGUID winner = WOWGUID();
+    uint8_t rollNumber = 0;
+    uint8_t rollType = 0;
     msg->Get(lootGuid.m_guid);
     msg->Get(slot);
     msg->Get(itemId);
@@ -596,6 +619,11 @@ int32_t LootRollWon(CDataStore* msg) {
     msg->Get(winner.m_guid);
     msg->Get(rollNumber);
     msg->Get(rollType);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     PendingLootRoll* roll = FindRollBySlot(lootGuid, slot);
 
     if (!roll) {

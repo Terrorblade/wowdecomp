@@ -69,7 +69,7 @@ CDataStore& operator>>(CDataStore& msg, CMoveSpline& spline) {
     }
 
     uint32_t now = OsGetAsyncTimeMs();
-    uint32_t timePassed;
+    uint32_t timePassed = 0;
     msg.Get(timePassed);
     spline.m_timePassed = now - timePassed;
 

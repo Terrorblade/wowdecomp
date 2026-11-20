@@ -38,6 +38,9 @@ uint32_t System_SFile::s_lastError;
 // STATIC: 0x00B38A6C
 Blizzard::Util::Digest<16> System_SFile::s_emptyMd5;
 
+// HoT: bumped under the archive lock whenever lookups would see a different archive list, so a lookup that dropped the lock can tell.
+static uint32_t s_archiveListGeneration;
+
 // VERIFY: daebe118 auto
 // OFFSET: 0x00426A30
 uint32_t Blizzard::Mopaq::SFileGetLastError() {
@@ -427,7 +430,8 @@ bool System_SFile::ARCHIVEREC::RemoveInternalArchiveRef() {
         return true;
     }
 
-    Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+    Blizzard::Lock::Mutex& archiveLock = System_MPQGlobals::GetArchiveLock()->m_mutex;
+    Blizzard::Lock::ScopedMutex lock(archiveLock);
 
     if (this->m_internalRefs.m_value) {
         Blizzard::String::QuickFormat<1024> message("Potential race condition in client code for archive \"%s\"!\n", this->m_name);
@@ -437,8 +441,25 @@ bool System_SFile::ARCHIVEREC::RemoveInternalArchiveRef() {
 
     this->m_internalRefs.m_value = 1;
 
-    if (this->m_closeCallback && !this->m_closeCallback(this)) {
-        result = false;
+    if (this->m_closeCallback) {
+        bool (*callback)(ARCHIVEREC* archive) = this->m_closeCallback;
+
+        // Writing a patched archive back is disk writes and compression, so it runs under the archive mutex with the archive lock dropped.
+        Blizzard::Lock::MutexLeave(archiveLock);
+        Blizzard::Lock::MutexEnter(this->m_mutex.m_mutex);
+
+        if (!callback(this)) {
+            result = false;
+        }
+
+        Blizzard::Lock::MutexLeave(this->m_mutex.m_mutex);
+        Blizzard::Lock::MutexEnter(archiveLock);
+        this->m_closeCallback = nullptr;
+
+        // A handle lookup may have taken a ref while the lock was dropped, then the last of those refs frees the record.
+        if (this->m_internalRefs.Decrement()) {
+            return result;
+        }
     }
 
     if (this->m_buffers) {
@@ -447,6 +468,7 @@ bool System_SFile::ARCHIVEREC::RemoveInternalArchiveRef() {
     }
 
     System_MPQGlobals::GetArchiveList()->erase(this);
+    s_archiveListGeneration++;
     this->~ARCHIVEREC();
     Blizzard::Memory::Free(this);
 
@@ -462,16 +484,10 @@ bool System_SFile::OpenDirectPathAsArchive(const char* path, int32_t priority, u
     archive->m_flags = flags;
     archive->m_externalRefs.Increment();
     archive->m_internalRefs.Increment();
-
-    {
-        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
-        System_MPQGlobals::GetArchiveList()->insert(archive);
-    }
-
     archive->m_name[0] = '\0';
     archive->m_file = nullptr;
     archive->m_parent = nullptr;
-    archive->unk_0200 = 0;
+    archive->m_hidden = 0;
 
     char directory[260];
     Blizzard::String::MakeBackslashPath(path, directory, sizeof(directory));
@@ -481,6 +497,14 @@ bool System_SFile::OpenDirectPathAsArchive(const char* path, int32_t priority, u
     }
 
     archive->m_directPath = directory;
+
+    // Publish only once m_directPath is set, lookups on other threads read it under the archive lock.
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        System_MPQGlobals::GetArchiveList()->insert(archive);
+        s_archiveListGeneration++;
+    }
+
     *result = archive;
 
     return true;
@@ -632,6 +656,8 @@ bool Blizzard::Mopaq::SFileAuthenticateArchiveEx(System_SFile::ARCHIVEREC* handl
     uint32_t signatureSize = token->magicBufferSize;
 
     if (!archive.m_archive->m_file->Read(buffer, archive.m_archive->m_archiveEnd, signatureSize, nullptr)) {
+        // Finish is the only call that frees the token, the original leaked it here for every unsigned archive.
+        SSignatureVerifyStream_Finish(token, modulus, exponent);
         return false;
     }
 
@@ -660,12 +686,13 @@ bool Blizzard::Mopaq::SFileCloseArchive(System_SFile::ARCHIVEREC* handle) {
         return false;
     }
 
+    // Lookups stop reading a view through its parent once this drops, so it has to drop before the parent ref does.
+    archive->m_externalRefs.Decrement();
+
     if (archive->m_parent) {
         System_SFile::ARCHIVEREC* parent = System_SFile::GetArchivePtr(archive->m_parent, false);
         result = parent ? parent->RemoveInternalArchiveRef() : false;
     }
-
-    archive->m_externalRefs.Decrement();
 
     return archive->RemoveInternalArchiveRef() && result;
 }
@@ -795,13 +822,20 @@ bool System_SFile::s_OpenArchive(ARCHIVEREC* archive, uint32_t flags, ARCHIVEREC
         archive->m_compression.push_back(algorithm);
     }
 
+    // InitializeTables needs list membership but runs unlocked, so lookups skip the archive until its tables are built.
     {
         Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        archive->m_hidden = (flags & 0x800) ? 1 : 0;
         System_MPQGlobals::GetArchiveList()->insert(archive);
+        s_archiveListGeneration++;
     }
 
     if (flags & 0x800) {
         archive->InitializeTables();
+
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        archive->m_hidden = 0;
+        s_archiveListGeneration++;
     }
 
     *result = archive;
@@ -836,7 +870,7 @@ bool Blizzard::Mopaq::SFileOpenArchive(IOUnit* file, const char* name, int32_t p
     archive->m_internalRefs.Increment();
     archive->m_archiveOffset = 0;
     archive->m_archiveEnd = 0;
-    archive->unk_0200 = 0;
+    archive->m_hidden = 0;
 
     return System_SFile::s_OpenArchive(archive, flags, result);
 }
@@ -1106,6 +1140,8 @@ bool System_SFile::InitEmptyTables(ARCHIVEREC* archive, uint32_t hashCount) {
     std::vector<BLOCKENTRY>().swap(archive->m_blockTable);
     delete archive->m_blockEntryTable;
     delete archive->m_hashEntryTable;
+    archive->m_blockEntryTable = nullptr;
+    archive->m_hashEntryTable = nullptr;
     archive->m_header.m_blockTableSize = 0;
 
     HASHENTRY empty;
@@ -1159,7 +1195,19 @@ void System_SFile::ARCHIVEREC::ConvertToNewHashTableFormat() {
     } else {
         delete this->m_hashEntryTable;
         this->m_hashEntryTable = nullptr;
+
+        // Only the new hash table reads the check bits, so drop them instead of holding 7 bytes per block forever.
+        delete blocks->m_hashes;
+        blocks->m_hashes = nullptr;
+        blocks->m_hashBits = 0;
+        blocks->m_hashEntryBits = 0;
     }
+}
+
+// HoT: InitEmptyTables also sets m_tablesInitialized, which lookups read under the archive lock.
+static void PublishEmptyTables(System_SFile::ARCHIVEREC* archive) {
+    Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+    System_SFile::InitEmptyTables(archive, 1);
 }
 
 // VERIFY: 21a7ff6e manual
@@ -1170,6 +1218,12 @@ void System_SFile::ARCHIVEREC::InitializeTables() {
     }
 
     ArchivePtr archive(GetArchivePtr(this, true));
+
+    // Lookups load tables with the archive lock dropped, so the archive's own mutex keeps two loads of one archive apart.
+    if (archive.m_archive) {
+        Blizzard::Lock::MutexEnter(archive.m_archive->m_mutex.m_mutex);
+        archive.m_locked = true;
+    }
 
     if (this->m_hashTable.size() || this->m_blockEntryTable) {
         return;
@@ -1262,7 +1316,7 @@ void System_SFile::ARCHIVEREC::InitializeTables() {
         if (!success) {
             Blizzard::String::QuickFormat<1024> message("Unable to read archive block table: \"%s\"\n", this->m_name);
             fputs(message.m_buffer, stderr);
-            InitEmptyTables(this, 1);
+            PublishEmptyTables(this);
             return;
         }
 
@@ -1292,7 +1346,7 @@ void System_SFile::ARCHIVEREC::InitializeTables() {
         if (!this->m_file->Read(hiBlockTable.m_data, this->m_archiveOffset + this->m_header.m_hiBlockTablePos, this->m_header.m_blockTableSize * 2, nullptr)) {
             Blizzard::String::QuickFormat<1024> message("Unable to read extended block table: \"%s\"\n", this->m_name);
             Blizzard::Debug::StderrOutput(message.m_buffer);
-            InitEmptyTables(this, 1);
+            PublishEmptyTables(this);
             return;
         }
 
@@ -1313,8 +1367,13 @@ void System_SFile::ARCHIVEREC::InitializeTables() {
         }
     }
 
-    this->m_blockKeysBuilt = false;
-    this->m_tablesInitialized = true;
+    // Lookups test this flag under the archive lock before reading the tables, so it is set under that lock.
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        this->m_blockKeysBuilt = false;
+        this->m_tablesInitialized = true;
+    }
+
     return;
 
 hashError:
@@ -1323,7 +1382,7 @@ hashError:
         fputs(message.m_buffer, stderr);
     }
 
-    InitEmptyTables(this, 1);
+    PublishEmptyTables(this);
 }
 
 // VERIFY: 30fc5178 manual
@@ -1454,8 +1513,9 @@ void System_SFile::ARCHIVEREC::BuildBlockKeys() {
     ArchivePtr archive(GetArchivePtr(this, true));
 
     if (this->m_blockKeys.empty()) {
+        // m_blockTable is emptied once BuildBlockTable packs it, so read through GetBlockEntry.
         for (uint32_t i = 0; i < this->m_header.m_blockTableSize; i++) {
-            this->m_blockKeys.insert(std::make_pair(this->m_blockTable[i].m_md5, i));
+            this->m_blockKeys.insert(std::make_pair(this->GetBlockEntry(i).m_md5, i));
         }
 
         this->m_blockKeysBuilt = true;
@@ -1489,16 +1549,10 @@ bool System_SFile::CreateArchiveView(IOUnit* file, const char* name, int32_t pri
     archive->m_flags = 16;
     archive->m_externalRefs.Increment();
     archive->m_internalRefs.Increment();
-
-    {
-        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
-        System_MPQGlobals::GetArchiveList()->insert(archive);
-    }
-
     Blizzard::String::Copy(archive->m_name, name, sizeof(archive->m_name));
     archive->m_file = file;
     archive->m_header.m_formatVersion = 1;
-    archive->unk_0200 = 0;
+    archive->m_hidden = 0;
 
     if (options) {
         archive->m_sectorSize = options->m_sectorSize;
@@ -1545,6 +1599,14 @@ bool System_SFile::CreateArchiveView(IOUnit* file, const char* name, int32_t pri
     }
 
     InitEmptyTables(archive, 0x10000);
+
+    // Publish after InitEmptyTables, a lookup that saw the empty tables would run InitializeTables against it concurrently.
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        System_MPQGlobals::GetArchiveList()->insert(archive);
+        s_archiveListGeneration++;
+    }
+
     *result = archive;
 
     return true;
@@ -1579,13 +1641,25 @@ bool Blizzard::Mopaq::SFileCreateArchive(const char* path, int32_t priority, uin
     return false;
 }
 
+// HoT: a stat the lookup already ran with the archive lock dropped is used once instead of being repeated under the lock.
+static bool CheckLookupDisk(System_SFile::ARCHIVEREC* archive, const char* name, System_SFile::FileLookup* lookup) {
+    if (lookup->m_statArchive == archive) {
+        lookup->m_statArchive = nullptr;
+        return lookup->m_statExists;
+    }
+
+    lookup->m_statArchive = nullptr;
+    return System_SFile::CheckFileExistsOnDisk(name, 1, lookup->m_path);
+}
+
 // VERIFY: 962c3879 manual
 // OFFSET: 0x0045F7D0
 int32_t FindFileInOneArchive(System_SFile::ARCHIVEREC* archive, const char* name, const uint64_t& hash, const Blizzard::Util::Digest<16>& md5, uint32_t flags, System_SFile::FileLookup* lookup) {
-    if (!(flags & 0x10) && (archive->m_externalRefs.m_value <= 0 || archive->unk_0200 > 0)) {
+    if (!(flags & 0x10) && (archive->m_externalRefs.m_value <= 0 || archive->m_hidden > 0)) {
         return 0;
     }
 
+    System_SFile::ARCHIVEREC* listed = archive;
     bool deleted = false;
 
     if (md5 != System_SFile::s_emptyMd5) {
@@ -1608,7 +1682,7 @@ int32_t FindFileInOneArchive(System_SFile::ARCHIVEREC* archive, const char* name
 
         if (!archive->m_file) {
             if (!lookup->m_checkedDisk || prefix) {
-                if (System_SFile::CheckFileExistsOnDisk(name, 1, lookup->m_path)) {
+                if (CheckLookupDisk(listed, name, lookup)) {
                     lookup->m_archive = archive;
                     return 2;
                 }
@@ -1626,7 +1700,7 @@ int32_t FindFileInOneArchive(System_SFile::ARCHIVEREC* archive, const char* name
         }
 
         if (prefix && (flags & 1)) {
-            if (System_SFile::CheckFileExistsOnDisk(name, 1, lookup->m_path)) {
+            if (CheckLookupDisk(listed, name, lookup)) {
                 return 3;
             }
         }
@@ -1664,9 +1738,106 @@ int32_t FindFileInOneArchive(System_SFile::ARCHIVEREC* archive, const char* name
     return 1;
 }
 
+// HoT: refs that keep an archive, and the parent a view reads through, alive while a lookup works on it with the archive lock dropped.
+struct LookupHold {
+    System_SFile::ARCHIVEREC* m_archive = nullptr;
+    System_SFile::ARCHIVEREC* m_parent = nullptr;
+
+    ~LookupHold() {
+        if (this->m_archive) {
+            this->m_archive->RemoveInternalArchiveRef();
+        }
+
+        if (this->m_parent) {
+            this->m_parent->RemoveInternalArchiveRef();
+        }
+    }
+};
+
+// HoT: runs the disk stat and table load FindFileInOneArchive would do with the archive lock dropped, false means the archive list changed meanwhile.
+static bool DeferLookupWork(System_SFile::ARCHIVEREC* archive, const char* name, const Blizzard::Util::Digest<16>& md5, uint32_t flags, System_SFile::FileLookup* lookup, LookupHold* hold, bool deferStat) {
+    if (!(flags & 0x10) && (archive->m_externalRefs.m_value <= 0 || archive->m_hidden > 0)) {
+        return true;
+    }
+
+    bool stat = false;
+    System_SFile::ARCHIVEREC* tables = nullptr;
+
+    if (md5 != System_SFile::s_emptyMd5) {
+        tables = archive;
+    } else if (name && !archive->m_file) {
+        stat = !lookup->m_checkedDisk || !archive->m_directPath.empty();
+    } else if (name) {
+        stat = !archive->m_directPath.empty() && (flags & 1);
+        tables = archive->m_parent ? archive->m_parent : archive;
+    }
+
+    bool exists = lookup->m_statArchive == archive && lookup->m_statExists;
+    stat = stat && deferStat && lookup->m_statArchive != archive;
+
+    if (tables && (exists || tables->m_tablesInitialized)) {
+        tables = nullptr;
+    }
+
+    if (!stat && !tables) {
+        return true;
+    }
+
+    Blizzard::Lock::Mutex& lock = System_MPQGlobals::GetArchiveLock()->m_mutex;
+    uint32_t generation = s_archiveListGeneration;
+    System_SFile::ARCHIVEREC* previousArchive = hold->m_archive;
+    System_SFile::ARCHIVEREC* previousParent = hold->m_parent;
+
+    // A cached stat is only trusted for the archive the hold keeps alive, a freed record's address can come back as a new archive.
+    if (lookup->m_statArchive != archive) {
+        lookup->m_statArchive = nullptr;
+    }
+
+    archive->m_internalRefs.Increment();
+    hold->m_archive = archive;
+    hold->m_parent = archive->m_parent;
+
+    if (hold->m_parent) {
+        hold->m_parent->m_internalRefs.Increment();
+    }
+
+    Blizzard::Lock::MutexLeave(lock);
+
+    if (previousArchive) {
+        previousArchive->RemoveInternalArchiveRef();
+    }
+
+    if (previousParent) {
+        previousParent->RemoveInternalArchiveRef();
+    }
+
+    if (stat) {
+        char path[260];
+        const char* diskName = name;
+
+        if (!archive->m_directPath.empty()) {
+            uint32_t prefix = Blizzard::String::Copy(path, archive->m_directPath.c_str(), 260);
+            Blizzard::String::Copy(&path[prefix], name, 260 - prefix);
+            diskName = path;
+        }
+
+        exists = System_SFile::CheckFileExistsOnDisk(diskName, 1, lookup->m_path);
+        lookup->m_statArchive = archive;
+        lookup->m_statExists = exists;
+    }
+
+    if (tables && !exists) {
+        tables->InitializeTables();
+    }
+
+    Blizzard::Lock::MutexEnter(lock);
+
+    return s_archiveListGeneration == generation;
+}
+
 // VERIFY: b9bc5aa5 manual
 // OFFSET: 0x0045FA10
-int32_t GetFileBlockEntry(System_SFile::ARCHIVEREC* handle, const char* name, const Blizzard::Util::Digest<16>& md5, uint32_t flags, System_SFile::ARCHIVEREC** archiveOut, System_SFile::ARCHIVEREC** recordOut, uint32_t* blockIndex, uint32_t* hashIndex, char* path) {
+int32_t GetFileBlockEntry(System_SFile::ARCHIVEREC* handle, const char* name, const Blizzard::Util::Digest<16>& md5, uint32_t flags, System_SFile::ARCHIVEREC** archiveOut, System_SFile::ARCHIVEREC** recordOut, uint32_t* blockIndex, uint32_t* hashIndex, char* path, bool refArchiveOut) {
     if (archiveOut) {
         *archiveOut = nullptr;
     }
@@ -1696,6 +1867,8 @@ int32_t GetFileBlockEntry(System_SFile::ARCHIVEREC* handle, const char* name, co
     lookup.m_checkedDisk = false;
     lookup.m_archive = nullptr;
     lookup.m_path = path;
+    lookup.m_statArchive = nullptr;
+    lookup.m_statExists = false;
 
     if (flags & 3) {
         lookup.m_checkedDisk = true;
@@ -1707,28 +1880,59 @@ int32_t GetFileBlockEntry(System_SFile::ARCHIVEREC* handle, const char* name, co
 
     if (!(flags & 8)) {
         if (!result) {
-            Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
             uint64_t hash = System_SFile::HashEntryTable::CalculateHash(name);
+            bool checkedDisk = lookup.m_checkedDisk;
+            LookupHold hold;
+            Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
 
             if (archive.m_archive) {
+                DeferLookupWork(archive.m_archive, name, md5, flags, &lookup, &hold, true);
                 result = FindFileInOneArchive(archive.m_archive, name, hash, md5, flags, &lookup);
             } else {
                 System_MPQGlobals::ArchiveList* list = System_MPQGlobals::GetArchiveList();
 
-                for (System_MPQGlobals::ArchiveList::iterator it = list->begin(); it != list->end(); ++it) {
-                    result = FindFileInOneArchive(*it, name, hash, md5, flags, &lookup);
+                // A walk that dropped the lock while the list changed starts over, so the result always matches one list state.
+                for (uint32_t restarts = 0;; restarts++) {
+                    bool current = true;
 
-                    if (result) {
-                        handle = *it;
+                    for (System_MPQGlobals::ArchiveList::iterator it = list->begin(); it != list->end(); ++it) {
+                        if (!DeferLookupWork(*it, name, md5, flags, &lookup, &hold, restarts < 4)) {
+                            current = false;
+                            break;
+                        }
+
+                        result = FindFileInOneArchive(*it, name, hash, md5, flags, &lookup);
+
+                        if (result) {
+                            handle = *it;
+                            break;
+                        }
+                    }
+
+                    if (current) {
                         break;
                     }
+
+                    result = 0;
+                    lookup.m_checkedDisk = checkedDisk;
+                    lookup.m_archive = nullptr;
+                    lookup.m_hashIndex = -1;
+                    lookup.m_blockIndex = -1;
                 }
+            }
+
+            // Take the ref before the archive lock drops, the original took it after and raced SFileCloseArchive freeing the record.
+            if ((result == 1 || result == 2) && recordOut) {
+                lookup.m_archive->m_internalRefs.Increment();
+            }
+
+            if ((result == 1 || result == 2) && archiveOut && refArchiveOut) {
+                handle->m_internalRefs.Increment();
             }
         }
 
         if (result == 1 || result == 2) {
             if (recordOut) {
-                lookup.m_archive->m_internalRefs.Increment();
                 *recordOut = lookup.m_archive;
             }
 
@@ -1753,9 +1957,9 @@ int32_t GetFileBlockEntry(System_SFile::ARCHIVEREC* handle, const char* name, co
 
 // VERIFY: adbb7274 manual
 // OFFSET: 0x00460EA0
-int32_t Blizzard::Mopaq::SFileFileExists(System_SFile::ARCHIVEREC* handle, const char* name, uint32_t flags, System_SFile::ARCHIVEREC** archiveOut) {
+int32_t Blizzard::Mopaq::SFileFileExists(System_SFile::ARCHIVEREC* handle, const char* name, uint32_t flags, System_SFile::ARCHIVEREC** archiveOut, bool refArchiveOut) {
     Blizzard::Util::Digest<16> md5 = System_SFile::s_emptyMd5;
-    int32_t result = GetFileBlockEntry(handle, name, md5, flags, archiveOut, nullptr, nullptr, nullptr, nullptr);
+    int32_t result = GetFileBlockEntry(handle, name, md5, flags, archiveOut, nullptr, nullptr, nullptr, nullptr, refArchiveOut);
 
     if (result == 4) {
         return 0;
@@ -1772,10 +1976,21 @@ bool Blizzard::Mopaq::SFileGetFileDetails(System_SFile::ARCHIVEREC* handle, cons
     uint32_t blockIndex;
 
     if (GetFileBlockEntry(handle, name, md5, 0, nullptr, &record, &blockIndex, nullptr, nullptr) != 1 || !archiveOut) {
+        // A direct-path hit (result 2) still hands back a ref, the original leaked it.
+        if (record) {
+            record->RemoveInternalArchiveRef();
+        }
+
         return false;
     }
 
-    System_SFile::BLOCKENTRY entry = record->GetBlockEntry(blockIndex);
+    System_SFile::BLOCKENTRY entry;
+
+    // A patch job can grow the block table while this runs, so copy the entry under the archive lock.
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        entry = record->GetBlockEntry(blockIndex);
+    }
 
     if (offset) {
         *offset = entry.m_offset;
@@ -2035,18 +2250,11 @@ bool Blizzard::Mopaq::SFileOpenArchiveView(System_SFile::ARCHIVEREC* handle, con
     view->m_flags = archive.m_archive->m_flags;
     view->m_externalRefs.Increment();
     view->m_internalRefs.Increment();
-
-    {
-        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
-        archive.m_archive->m_internalRefs.Increment();
-        System_MPQGlobals::GetArchiveList()->insert(view);
-    }
-
     Blizzard::String::Copy(view->m_name, archive.m_archive->m_name, sizeof(view->m_name));
     archive.m_archive->m_file->m_refCount.Increment();
     view->m_file = archive.m_archive->m_file;
     view->m_parent = handle;
-    view->unk_0200 = 0;
+    view->m_hidden = 0;
 
     char directory[260];
     Blizzard::String::MakeBackslashPath(name, directory, sizeof(directory));
@@ -2056,6 +2264,15 @@ bool Blizzard::Mopaq::SFileOpenArchiveView(System_SFile::ARCHIVEREC* handle, con
     }
 
     view->m_directPath.assign(directory, strlen(directory));
+
+    // Publish only once m_file, m_parent and m_directPath are set, lookups on other threads read them.
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        archive.m_archive->m_internalRefs.Increment();
+        System_MPQGlobals::GetArchiveList()->insert(view);
+        s_archiveListGeneration++;
+    }
+
     *result = view;
 
     return true;
@@ -2064,24 +2281,43 @@ bool Blizzard::Mopaq::SFileOpenArchiveView(System_SFile::ARCHIVEREC* handle, con
 // VERIFY: 3b0579b7 manual
 // OFFSET: 0x0045C920
 void System_SFile::ClearAllFileFlags() {
-    Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
-    System_MPQGlobals::ArchiveList* list = System_MPQGlobals::GetArchiveList();
+    std::vector<ARCHIVEREC*> archives;
 
-    for (System_MPQGlobals::ArchiveList::iterator it = list->begin(); it != list->end(); ++it) {
-        ARCHIVEREC* archive = *it;
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        System_MPQGlobals::ArchiveList* list = System_MPQGlobals::GetArchiveList();
 
-        if (archive->m_parent) {
-            continue;
+        for (System_MPQGlobals::ArchiveList::iterator it = list->begin(); it != list->end(); ++it) {
+            ARCHIVEREC* archive = *it;
+
+            // A closed archive can still be writing itself back, and nothing opens from it again, so its flags no longer matter.
+            if (archive->m_parent || archive->m_hidden > 0 || archive->m_externalRefs.m_value <= 0) {
+                continue;
+            }
+
+            archive->m_internalRefs.Increment();
+            archives.push_back(archive);
         }
+    }
 
+    // Every table writer takes the archive mutex and then the archive lock, so this does the same instead of the original's reverse order.
+    for (ARCHIVEREC* archive : archives) {
         Blizzard::Lock::MutexEnter(archive->m_mutex.m_mutex);
         archive->InitializeTables();
 
-        for (uint32_t i = 0; i < archive->m_header.m_blockTableSize; i++) {
-            archive->SetMD5Check(i, false);
+        {
+            Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+
+            for (uint32_t i = 0; i < archive->m_header.m_blockTableSize; i++) {
+                archive->SetMD5Check(i, false);
+            }
         }
 
         Blizzard::Lock::MutexLeave(archive->m_mutex.m_mutex);
+    }
+
+    for (ARCHIVEREC* archive : archives) {
+        archive->RemoveInternalArchiveRef();
     }
 }
 
@@ -2151,10 +2387,16 @@ bool Blizzard::Mopaq::SetFileSignature(const char* name, const Blizzard::Util::D
 
     archive.m_locked = true;
 
-    bool result = System_SFile::s_signatures.SetSignature(name, md5);
+    // Opens read the signature table and the md5 check bit under the archive lock.
+    bool result;
 
-    if (result) {
-        archive.m_archive->SetMD5Check(blockIndex, true);
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        result = System_SFile::s_signatures.SetSignature(name, md5);
+
+        if (result) {
+            archive.m_archive->SetMD5Check(blockIndex, true);
+        }
     }
 
     if (record) {
@@ -2217,6 +2459,10 @@ char* System_SFile::BackslashPath(const char* path, char* buffer, uint32_t size)
 void System_SFile::FinishFileWrite(void* context, uint32_t size) {
     IOMpqArchiveUnit* file = static_cast<IOMpqArchiveUnit*>(context);
     file->m_blockEntry.m_compressedSize = size;
+
+    // Runs from SFileWriteFile with no lock held, and lookups read this entry under the archive lock.
+    Blizzard::Lock::ScopedMutex archiveLock(file->m_archive->m_mutex.m_mutex);
+    Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
     file->m_archive->SetBlockEntry(file->m_blockIndex, file->m_blockEntry);
     file->m_archive->m_dataEnd += size;
 }
@@ -2510,8 +2756,12 @@ bool System_SFile::RebuildHashTable(ARCHIVEREC* archive, uint32_t hashSize) {
         table[slot] = *it;
     }
 
-    archive->m_hashTable.swap(table);
-    archive->m_header.m_hashTableSize = hashSize;
+    // The new table is built off to the side, so lookups only wait for the swap.
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        archive->m_hashTable.swap(table);
+        archive->m_header.m_hashTableSize = hashSize;
+    }
 
     return true;
 }
@@ -2521,11 +2771,13 @@ bool System_SFile::RebuildHashTable(ARCHIVEREC* archive, uint32_t hashSize) {
 bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
     bool result = true;
 
-    archive->m_locale = 0;
-    archive->m_platform = 0;
-    archive->m_attributeFlags = 1;
-
+    // Lookups read the locale and both tables under the archive lock, the compaction is memory only so it stays short.
     {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        archive->m_locale = 0;
+        archive->m_platform = 0;
+        archive->m_attributeFlags = 1;
+
         std::map<uint32_t, uint32_t> remap;
         uint32_t count = archive->m_blockTable.size();
         uint32_t kept = 0;
@@ -2852,6 +3104,8 @@ bool System_SFile::PrepareArchiveForWriting(ARCHIVEREC* archive) {
             if (index != 0xFFFFFFFF) {
                 archive->m_listfile.erase(std::string("(listfile)"));
 
+                // Lookups read the hash and block entries under the archive lock, the caller already holds the archive mutex.
+                Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
                 HASHENTRY& entry = archive->m_hashTable[index];
                 BLOCKENTRY block = archive->GetBlockEntry(entry.m_blockIndex);
                 HASHENTRY& next = archive->m_hashTable[(index + 1) & (archive->m_hashTable.size() - 1)];
@@ -2868,6 +3122,7 @@ bool System_SFile::PrepareArchiveForWriting(ARCHIVEREC* archive) {
             if (index != 0xFFFFFFFF) {
                 archive->m_listfile.erase(std::string("(signature)"));
 
+                Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
                 HASHENTRY& entry = archive->m_hashTable[index];
                 BLOCKENTRY block = archive->GetBlockEntry(entry.m_blockIndex);
                 HASHENTRY& next = archive->m_hashTable[(index + 1) & (archive->m_hashTable.size() - 1)];
@@ -2884,6 +3139,7 @@ bool System_SFile::PrepareArchiveForWriting(ARCHIVEREC* archive) {
             if (index != 0xFFFFFFFF) {
                 archive->m_listfile.erase(std::string("(attributes)"));
 
+                Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
                 HASHENTRY& entry = archive->m_hashTable[index];
                 BLOCKENTRY block = archive->GetBlockEntry(entry.m_blockIndex);
                 HASHENTRY& next = archive->m_hashTable[(index + 1) & (archive->m_hashTable.size() - 1)];
@@ -2971,6 +3227,8 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
         if (index != 0xFFFFFFFF) {
             record->m_listfile.erase(std::string(buffer));
 
+            // Lookups read these entries under the archive lock, this function already holds the archive mutex.
+            Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
             System_SFile::HASHENTRY& entry = record->m_hashTable[index];
             System_SFile::BLOCKENTRY block = record->GetBlockEntry(entry.m_blockIndex);
             System_SFile::HASHENTRY& next = record->m_hashTable[(index + 1) & (record->m_hashTable.size() - 1)];
@@ -3053,14 +3311,21 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
     }
 
     uint32_t hashA = System_MPQEncrypt::Hash(buffer, 1);
-    slot->m_hashB = System_MPQEncrypt::Hash(buffer, 2);
-    slot->m_locale = locale;
-    slot->m_hashA = hashA;
-    slot->m_platform = platform;
-    slot->m_reserved = 0;
-    slot->m_blockIndex = blockIndex;
+    uint32_t hashB = System_MPQEncrypt::Hash(buffer, 2);
 
-    record->m_blockTable.push_back(entry);
+    // A lookup must never see the slot before its block exists, and the push can reallocate the block table under a reader.
+    {
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        slot->m_hashB = hashB;
+        slot->m_locale = locale;
+        slot->m_hashA = hashA;
+        slot->m_platform = platform;
+        slot->m_reserved = 0;
+        slot->m_blockIndex = blockIndex;
+
+        record->m_blockTable.push_back(entry);
+    }
+
     record->m_file->m_refCount.Increment();
 
     if (size && (flags & 0xFF00)) {

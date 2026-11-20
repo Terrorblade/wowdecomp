@@ -94,12 +94,21 @@ void GameObjectStats_C::Unpack(CDataStore* msg) {
         }
     }
 
-    msg->GetString(buffer, sizeof(buffer));
-    this->m_iconName = SStrDupA(buffer, __FILE__, __LINE__);
-    msg->GetString(buffer, sizeof(buffer));
-    this->m_castBarCaption = SStrDupA(buffer, __FILE__, __LINE__);
-    msg->GetString(buffer, sizeof(buffer));
-    this->m_closeText = SStrDupA(buffer, __FILE__, __LINE__);
+    char** texts[] = { &this->m_iconName, &this->m_castBarCaption, &this->m_closeText };
+
+    for (char** text : texts) {
+        msg->GetString(buffer, sizeof(buffer));
+
+        if (*text && !SStrCmp(*text, buffer, STORM_MAX_STR)) {
+            continue;
+        }
+
+        if (*text) {
+            SMemFree(*text, __FILE__, __LINE__, 0);
+        }
+
+        *text = SStrDupA(buffer, __FILE__, __LINE__);
+    }
 
     for (int32_t i = 0; i < 24; i++) {
         msg->Get(this->m_propValue[i]);

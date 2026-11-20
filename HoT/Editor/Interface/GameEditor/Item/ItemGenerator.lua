@@ -235,6 +235,7 @@ local SECTIONS = {
 		help = "Legendary effects. The spell set is shared by every legendary with the same set number.",
 		keyName = function(v) return tostring(v.Comment or v.nameOverride or ""); end,
 		defaults = { itemClass = -1, itemSubClass = -1, itemInventoryType = -1, itemStatGroup = -1, statGroupOverride = -1, primaryStatModifier = 1, secondaryStatModifier = 1 },
+		preview = I.CreateLegendaryPreview,
 		children = {
 			{
 				title = "Spell set", table = "item_generator_legendary_spell_entry", keyFrom = "legendarySpellTemplateId",
@@ -603,6 +604,39 @@ local function BuildParent(section)
 
 	section.childEditors = {};
 
+	-- The preview reads the open row and its first child set, unsaved edits included.
+	local preview;
+
+	if ( section.preview ) then
+		preview = section.preview(right, function()
+			local values = selected and section.editor and section.editor.current and section.editor.current.values;
+
+			if ( not values ) then
+				return nil;
+			end
+
+			local child = section.childEditors[1];
+			local rows = {};
+
+			if ( child and child.loaded ) then
+				for _, wrapper in ipairs(child.wrappers) do
+					table.insert(rows, wrapper.values);
+				end
+
+				if ( child.spec.sort ) then
+					table.sort(rows, child.spec.sort);
+				end
+			end
+
+			return values, rows, child and child.loaded and child.key or nil, (child and child.loading) or section.editor.loading;
+		end);
+		preview:SetPoint("TOPRIGHT", right, "TOPRIGHT", 0, 0);
+		preview:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 0);
+		holder:ClearAllPoints();
+		holder:SetPoint("TOPLEFT", right, "TOPLEFT", 0, -28);
+		holder:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", -8, 0);
+	end
+
 	local function UpdateTabs()
 		if ( not section.editor ) then
 			return;
@@ -612,6 +646,10 @@ local function BuildParent(section)
 
 		for index, child in ipairs(section.childEditors) do
 			strip:SetDirty(index + 1, child:HasChanges());
+		end
+
+		if ( preview ) then
+			preview:Refresh();
 		end
 
 		RefreshNav();
@@ -699,6 +737,10 @@ local function BuildParent(section)
 
 		strip:Select(strip.current or 1);
 		RefreshKeys();
+
+		if ( preview ) then
+			preview:Refresh();
+		end
 	end
 
 	local function ConfirmThen(action)

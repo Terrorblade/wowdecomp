@@ -1257,8 +1257,8 @@ bool Blizzard::Streaming::SourceManifest::ReadDirectFileFromBuffer(char* buffer,
         char* tag;
         int32_t length;
 
+        // The buffer belongs to the caller, which frees it or holds it in a std::string, so freeing it here was a double free.
         if (!SplitLine(line, &value, &tag, &length)) {
-            Blizzard::Memory::Free(buffer);
             Blizzard::File::AddToLastErrorStack(0, "SourceManifest::ReadDirectfile - GetItemTag failed", 20);
             return false;
         }

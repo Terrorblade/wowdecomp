@@ -338,6 +338,7 @@ int32_t ObjectAlloc(uint32_t heapId, uint32_t* memHandle, void** objectPtr, bool
     s_globalsLock.Enter();
 
     if (heapId >= s_globals.objects.Count()) {
+        s_globalsLock.Leave();
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
         return 0;
     }

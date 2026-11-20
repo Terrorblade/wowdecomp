@@ -409,11 +409,7 @@ size_t System_SFile2::FileHashCompare::operator()(const std::string& key) const 
     return Blizzard::Util::Hash32I(nullptr, 0);
 }
 
-// OFFSET: 0x00430580
-bool System_SFile2::FileHashCompare::operator()(const std::string& key1, const std::string& key2) const {
-    const char* str1 = key1.c_str();
-    const char* str2 = key2.c_str();
-
+static bool FileHashLess(const char* str1, const char* str2) {
     if (str1 == str2) {
         return false;
     }
@@ -427,6 +423,19 @@ bool System_SFile2::FileHashCompare::operator()(const std::string& key1, const s
     }
 
     return false;
+}
+
+// OFFSET: 0x00430580
+bool System_SFile2::FileHashCompare::operator()(const std::string& key1, const std::string& key2) const {
+    return FileHashLess(key1.c_str(), key2.c_str());
+}
+
+bool System_SFile2::FileHashCompare::operator()(const char* key1, const std::string& key2) const {
+    return FileHashLess(key1, key2.c_str());
+}
+
+bool System_SFile2::FileHashCompare::operator()(const std::string& key1, const char* key2) const {
+    return FileHashLess(key1.c_str(), key2);
 }
 
 // VERIFY: 3c5a19b0 manual
@@ -946,11 +955,16 @@ void System_SFile2::BuildFileSystemHash() {
 
 // VERIFY: f3281a6b manual
 // OFFSET: 0x00424780
-bool System_SFile2::FindFile(const char* name, char* path, uint32_t size, uint32_t flags, SFILE_TYPE* type, System_SFile::ARCHIVEREC** archive) {
+bool System_SFile2::FindFile(const char* name, char* path, uint32_t size, uint32_t flags, SFILE_TYPE* type, System_SFile::ARCHIVEREC** archive, Blizzard::Mopaq::FoundFile* location) {
     flags |= s_directAccess;
 
     if (archive) {
         *archive = nullptr;
+    }
+
+    if (location) {
+        location->m_result = 0;
+        location->m_record = nullptr;
     }
 
     if (s_useOldFindFile || (name[0] == '\\' && name[1] == '\\') || name[1] == ':') {
@@ -961,28 +975,25 @@ bool System_SFile2::FindFile(const char* name, char* path, uint32_t size, uint32
         bool found = false;
         Blizzard::Lock::MutexEnter(s_fileHashLock.m_mutex);
 
+        // Building while still holding the lock stops two threads that both saw it unbuilt from scanning twice.
         if (!s_fileHashBuilt) {
-            Blizzard::Lock::MutexLeave(s_fileHashLock.m_mutex);
-            Blizzard::Lock::MutexEnter(s_fileHashLock.m_mutex);
             BuildFileSystemHash();
-            Blizzard::Lock::MutexLeave(s_fileHashLock.m_mutex);
-            Blizzard::Lock::MutexEnter(s_fileHashLock.m_mutex);
         }
 
         FileHash::iterator it = s_fileHash.end();
 
         if (flags & 2) {
-            it = s_fileHash.find(std::string(Blizzard::String::FindFilename(name)));
+            it = s_fileHash.find(Blizzard::String::FindFilename(name));
         }
 
         if (it == s_fileHash.end()) {
-            it = s_fileHash.find(std::string(name));
+            it = s_fileHash.find(name);
 
             if (it == s_fileHash.end() && !Blizzard::String::Equal(s_hashedBasePath, SFile::m_basePath)) {
                 char fullPath[260];
                 Blizzard::String::Copy(fullPath, SFile::m_basePath, sizeof(fullPath));
                 Blizzard::String::Append(fullPath, name, sizeof(fullPath));
-                it = s_fileHash.find(std::string(fullPath));
+                it = s_fileHash.find(static_cast<const char*>(fullPath));
             }
         }
 
@@ -1004,8 +1015,19 @@ bool System_SFile2::FindFile(const char* name, char* path, uint32_t size, uint32
     }
 
     System_SFile::ARCHIVEREC* found;
+    int32_t exists;
 
-    if (Blizzard::Mopaq::SFileFileExists(nullptr, name, flags, &found)) {
+    // The caller gets its own ref on the archive, so a remount cannot free it before the caller opens from it.
+    if (location) {
+        // Same lookup as SFileFileExists, keeping the block it found so the open does not search again.
+        exists = GetFileBlockEntry(nullptr, name, System_SFile::s_emptyMd5, flags, &found, &location->m_record, &location->m_blockIndex, nullptr, location->m_path, archive != nullptr);
+        exists = exists == 4 ? 0 : exists;
+        location->m_result = exists;
+    } else {
+        exists = Blizzard::Mopaq::SFileFileExists(nullptr, name, flags, &found, archive != nullptr);
+    }
+
+    if (exists) {
         if (archive) {
             *archive = found;
         }
@@ -1066,8 +1088,22 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
     SFILE_TYPE type;
     char path[260];
 
+    // FindFile hands back a ref on the archive holding the file, held here until the open takes it over so a remount cannot free it first.
+    struct FoundRef {
+        Blizzard::Mopaq::FoundFile m_found;
+
+        ~FoundRef() {
+            if (this->m_found.m_record) {
+                this->m_found.m_record->RemoveInternalArchiveRef();
+            }
+        }
+    } location;
+
+    location.m_found.m_result = 0;
+    location.m_found.m_record = nullptr;
+
     if (!archive) {
-        if (!System_SFile2::FindFile(name, path, sizeof(path), flags, &type, &handle)) {
+        if (!System_SFile2::FindFile(name, path, sizeof(path), flags, &type, nullptr, &location.m_found)) {
             SErrSetLastError(2);
             return 0;
         }
@@ -1102,7 +1138,16 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
         }
 
         case SFILE_OLD_SFILE: {
-            if (!Blizzard::Mopaq::SFileOpenFileEx(handle, name, handle ? 0 : flags, &(*result)->m_file)) {
+            int32_t found;
+
+            // An archive or direct-path hit opens from FindFile's lookup, the disk override result 3 still looks up again as the original did.
+            if (location.m_found.m_result == 1 || location.m_found.m_result == 2) {
+                found = Blizzard::Mopaq::SFileOpenFoundFile(&location.m_found, name, 0, &(*result)->m_file);
+            } else {
+                found = Blizzard::Mopaq::SFileOpenFileEx(handle, name, handle ? 0 : flags, &(*result)->m_file);
+            }
+
+            if (!found) {
                 goto fail;
             }
 
@@ -1124,8 +1169,13 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
         }
 
         default: {
-            return 0;
+            goto fail;
         }
+    }
+
+    // Types that open nothing here used to return 0 while leaving *result allocated, and no caller frees that.
+    if (!opened) {
+        goto fail;
     }
 
     if (!(flags & 0x20000)) {
@@ -1136,7 +1186,9 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
     (*result)->m_data = static_cast<uint8_t*>(Blizzard::Memory::Allocate((*result)->m_size, 0, __FILE__, __LINE__));
 
     if (!SFileReadFile(*result, (*result)->m_data, (*result)->m_size, nullptr, nullptr, 0)) {
-        goto fail;
+        SFileCloseFile(*result);
+        *result = nullptr;
+        return 0;
     }
 
     (*result)->m_type = SFILE_MEMORY;
@@ -1326,16 +1378,17 @@ bool System_SFile2::ShutdownSoundCache() {
         return false;
     }
 
-    Blizzard::Mopaq::SFileCloseArchive(s_soundCacheArchive);
-
-    delete s_soundCacheBuffer;
-
+    // The cache thread uses the archive and the buffer, so it has to be stopped before either goes away.
     s_soundCacheStop = 1;
     Blizzard::Lock::EventSet(s_asyncOpenEvent);
 
     while (!s_soundCacheStopped) {
         Blizzard::Thread::Sleep(10);
     }
+
+    Blizzard::Mopaq::SFileCloseArchive(s_soundCacheArchive);
+
+    delete s_soundCacheBuffer;
 
     Blizzard::Lock::EventDestroy(s_asyncOpenEvent);
     Blizzard::Lock::MutexDestroy(s_asyncOpenLock);
@@ -1354,15 +1407,19 @@ uint32_t System_SFile2::SoundCacheThread(void* param) {
         int32_t count = s_asyncOpenQueue.size();
         Blizzard::Lock::MutexLeave(s_asyncOpenLock);
 
-        while (count > 0) {
+        while (count > 0 && !s_soundCacheStop) {
             Blizzard::Lock::MutexEnter(s_asyncOpenLock);
-
             std::string name = s_asyncOpenQueue.front();
-            VerifyAndCacheFile(name.c_str());
             s_asyncOpenQueue.pop_front();
-            count = s_asyncOpenQueue.size();
-
             Blizzard::Lock::MutexLeave(s_asyncOpenLock);
+
+            // The lock only guards the queue, holding it through the load and decode stalled QueueAsyncOpen on the main thread.
+            VerifyAndCacheFile(name.c_str());
+
+            Blizzard::Lock::MutexEnter(s_asyncOpenLock);
+            count = s_asyncOpenQueue.size();
+            Blizzard::Lock::MutexLeave(s_asyncOpenLock);
+
             Blizzard::Thread::Sleep(500);
         }
     }

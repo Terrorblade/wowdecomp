@@ -43,7 +43,12 @@ class Handler {
 void RegisterHandler(Handler* handler);
 
 bool IsActive();
-void SetActive(bool active);
+
+// The mini editor keeps the game UI, camera and controls, only Ctrl hotkeys reach the editor.
+bool IsMini();
+
+// Switching between the full and the mini editor while open keeps every editor window as it was.
+void SetActive(bool active, bool mini = false);
 
 const char* ActiveTool();
 bool ToolIs(const char* name);
@@ -73,6 +78,9 @@ void OnGameDestroy();
 
 // A loading screen started, the world is about to go away.
 void OnWorldUnloaded();
+
+// Every frame, reopens an editor a loading screen closed.
+void OnIdle();
 
 // The game Lua state was rebuilt, the UI frames are gone.
 void OnScriptsReloaded();

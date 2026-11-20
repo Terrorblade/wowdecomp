@@ -19,6 +19,8 @@
 #include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 
+static const uint32_t MAX_VEHICLE_CHAIN_HOPS = 32;
+
 // VERIFY: bc21d620 manual
 // OFFSET: 0x0074C650
 CGUnit_C* CGUnit_C::FindRootVehicle(CGUnit_C* stop) {
@@ -38,7 +40,12 @@ CGUnit_C* CGUnit_C::FindRootVehicle(CGUnit_C* stop) {
             return nullptr;
         }
 
-        while (unit != stop) {
+        // A cyclic transport chain from bad server data would otherwise spin forever.
+        for (uint32_t hops = 0; unit != stop; hops++) {
+            if (hops >= MAX_VEHICLE_CHAIN_HOPS) {
+                return nullptr;
+            }
+
             guid.m_guid = unit->GetTransportGUID();
             high = static_cast<uint32_t>(guid.m_guid >> 32);
 
@@ -83,7 +90,11 @@ CGUnit_C* CGUnit_C::FindRootVehicleOfPassengerChain(CGUnit_C* stop) {
         return nullptr;
     }
 
-    while (unit != stop) {
+    for (uint32_t hops = 0; unit != stop; hops++) {
+        if (hops >= MAX_VEHICLE_CHAIN_HOPS) {
+            return nullptr;
+        }
+
         guid = unit->m_vehiclePassenger ? unit->m_vehiclePassenger->m_transitionVehicleGuid : WOWGUID();
 
         if (!guid) {

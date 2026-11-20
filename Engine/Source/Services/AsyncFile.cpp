@@ -64,6 +64,10 @@ namespace AsyncFileRead {
     SEvent s_shutdownEvent(1, 0);
 }
 
+// Both events only shorten idle waits that still time out after 1ms, so a missed signal costs no more than the old sleep.
+static SEvent s_workEvent(0, 0);
+static SEvent s_postEvent(0, 0);
+
 // STATIC: 0x00B4A220
 static TSGrowableArray<void (*)()> s_asyncPollHandlers;
 
@@ -266,6 +270,7 @@ int32_t NetQueuePromoteLocalFiles(const void* data, void* param) {
         }
 
         g_queueLock.Leave();
+        s_workEvent.Set();
     }
 
     return 1;
@@ -289,6 +294,7 @@ void AsyncFileReadWait(CAsyncObject* object) {
 
     if (object->m_isProcessed) {
         g_queueLock.Leave();
+        s_waiting--;
         return;
     }
 
@@ -324,7 +330,7 @@ void AsyncFileReadWait(CAsyncObject* object) {
             break;
         }
 
-        OsSleep(1);
+        s_postEvent.Wait(1);
     } while (true);
 
     s_waiting--;
@@ -464,6 +470,7 @@ uint32_t STORMAPI AsyncFileReadThread(void* param) {
             object->m_isCurrent = 0;
             object->m_isRead = 1;
             g_queueLock.Leave();
+            s_postEvent.Set();
 
             if (s_threadSleep && ++count == s_threadSleep) {
                 OsSleep(1);
@@ -472,7 +479,7 @@ uint32_t STORMAPI AsyncFileReadThread(void* param) {
         }
 
         g_queueLock.Leave();
-        OsSleep(1);
+        s_workEvent.Wait(1);
     }
 
     return 0;
@@ -564,6 +571,7 @@ void AsyncFileReadObject(CAsyncObject* object, int32_t urgent) {
     }
 
     g_queueLock.Leave();
+    s_workEvent.Set();
 
     if (SFile::IsStreamingMode()) {
         SFile::SetFilePriority(object->m_file, 0, 0);
@@ -677,7 +685,7 @@ void AsyncFileReadWaitAll() {
             s_asyncProgressCallback(progress, s_asyncProgressCallbackParams);
         }
 
-        OsSleep(1);
+        s_postEvent.Wait(1);
     }
 
     s_asyncProgressCallback = nullptr;

@@ -112,6 +112,11 @@ const char* CGGameObject_C_TypeAnimated::s_animStateNames[NUM_GAMEOBJ_ANIMSTATES
 // OFFSET: 0x00712AE0
 static void GameObjectStatsCallback(int32_t id, const WOWGUID& guid, void* param, bool success) {
     CGGameObject_C* object = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(guid, TYPE_GAMEOBJECT, __FILE__, __LINE__));
+
+    if (!object || object->m_stats) {
+        return;
+    }
+
     WOWGUID requester = WOWGUID();
     GameObjectStats_C* stats = g_gameObjectDBCache.GetRecord(id, requester, nullptr, nullptr, false);
 
@@ -293,7 +298,7 @@ int32_t CGGameObject_C::OnStateChanged(WOWGUID guid, uint32_t fieldOffset, uint3
 // VERIFY: 39a16e63 manual
 // OFFSET: 0x0070BE30
 int32_t Packet_SMSG_GAMEOBJECT_PAGETEXT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = WOWGUID();
     msg->Get(guid.m_guid);
     CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPE_GAMEOBJECT, __FILE__, __LINE__);
 
@@ -1378,7 +1383,7 @@ float CGGameObject_C_Type_TransportBase::UpdateCurrentVelocity(uint32_t elapsed,
 // VERIFY: 1b4606a4 manual
 // OFFSET: 0x0070BEF0
 int32_t Packet_SMSG_GAMEOBJECT_DESPAWN_ANIM(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = WOWGUID();
     msg->Get(guid.m_guid);
 
     CGGameObject_C* object = (CGGameObject_C*)ClntObjMgrObjectPtr(guid, TYPE_GAMEOBJECT, __FILE__, __LINE__);
@@ -1676,10 +1681,14 @@ C3Vector CGGameObject_C::GetPosition() const {
 // VERIFY: ca51d521 manual
 // OFFSET: 0x0070BE90
 int32_t Packet_SMSG_GAMEOBJECT_CUSTOM_ANIM(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
-    uint32_t anim;
+    WOWGUID guid = WOWGUID();
+    uint32_t anim = 0;
     msg->Get(guid.m_guid);
     msg->Get(anim);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     CGGameObject_C* object = (CGGameObject_C*)ClntObjMgrObjectPtr(guid, TYPE_GAMEOBJECT, __FILE__, __LINE__);
 
@@ -3664,6 +3673,9 @@ bool CGGameObject_C::IsLocked(int32_t* spellId, int32_t* skillValue, int32_t* re
     }
 
     bool locked = false;
+    SpellRec targeting;
+    int32_t targetingSpell = 0;
+    bool targetingLoaded = false;
 
     for (uint32_t i = 0; i < 8; i++) {
         int32_t type = lock->m_type[i];
@@ -3715,9 +3727,11 @@ bool CGGameObject_C::IsLocked(int32_t* spellId, int32_t* skillValue, int32_t* re
                 }
 
                 if (Spell_C_IsTargeting()) {
-                    int32_t targetingSpell = Spell_C_GetTargetingSpell();
-                    SpellRec targeting;
-                    g_spellDB.GetRecord(targetingSpell, &targeting);
+                    if (!targetingLoaded) {
+                        targetingSpell = Spell_C_GetTargetingSpell();
+                        g_spellDB.GetRecord(targetingSpell, &targeting);
+                        targetingLoaded = true;
+                    }
 
                     for (uint32_t effect = 0; effect < 3; effect++) {
                         if (targeting.m_effect[effect] != SPELL_EFFECT_OPEN_LOCK || targeting.m_effectMiscValue[effect] != lock->m_index[i]) {

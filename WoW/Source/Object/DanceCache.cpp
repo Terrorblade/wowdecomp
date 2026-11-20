@@ -63,6 +63,8 @@ void DanceCache::Unpack(CDataStore* msg) {
     *msg >> static_cast<SmartGUID&>(this->m_guid);
     msg->GetString(this->m_name, sizeof(this->m_name));
     msg->Get(this->m_dataCount);
+    delete[] this->m_data;
+    this->m_data = nullptr;
 
     if (msg->m_read > msg->m_size || this->m_dataCount > (msg->m_size - msg->m_read) / sizeof(DANCEMOVE)) {
         this->m_dataCount = 0;

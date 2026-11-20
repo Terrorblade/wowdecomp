@@ -38,6 +38,9 @@ bool IsRestartPending();
 // True when the manifest says this absolute path is queued, downloading or staged for the swap.
 bool IsUpdatePending(const std::wstring& absPath);
 
+// An in-place job is part way through its writes and holds its archive open for writing.
+bool IsPatchingArchive();
+
 // Bumps whenever a pass changes what needs replacing or lands a new file.
 unsigned UpdateGeneration();
 

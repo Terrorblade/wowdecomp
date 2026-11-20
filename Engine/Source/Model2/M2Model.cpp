@@ -5084,7 +5084,7 @@ namespace {
         return sizeof(CollisionMesh) + mesh.m_positions.size() * sizeof(C3Vector) + (mesh.m_faceBounds.size() + mesh.m_blockBounds.size()) * sizeof(CollisionBounds);
     }
 
-    void ExtendCollisionBounds(CollisionBounds& bounds, const C3Vector& v) {
+    inline void ExtendCollisionBounds(CollisionBounds& bounds, const C3Vector& v) {
         bounds.b.x = std::min(bounds.b.x, v.x);
         bounds.b.y = std::min(bounds.b.y, v.y);
         bounds.b.z = std::min(bounds.b.z, v.z);
@@ -5093,7 +5093,7 @@ namespace {
         bounds.t.z = std::max(bounds.t.z, v.z);
     }
 
-    bool CollisionBoundsOutside(const CollisionBounds& bounds, const CAaBox& box) {
+    inline bool CollisionBoundsOutside(const CollisionBounds& bounds, const CAaBox& box) {
         return bounds.t.x < box.b.x || box.t.x < bounds.b.x || bounds.t.y < box.b.y || box.t.y < bounds.b.y || bounds.t.z < box.b.z || box.t.z < bounds.b.z;
     }
 
@@ -5217,11 +5217,14 @@ void CM2Model::GetCollisionFacets(const CAaBox& box, const C44Matrix& transform,
         rotation.c2 = rotation.c2 * scale;
     }
 
+    uint32_t first = facets.m_count;
     facets.Reserve(static_cast<uint32_t>(s_collisionKept.size()), 0);
+    CFacet* facet = &facets.m_data[first];
 
-    for (uint32_t i : s_collisionKept) {
+    // Every field is written below, so the facets skip the per element New and constructor calls.
+    for (uint32_t k = 0; k < s_collisionKept.size(); k++, facet++) {
+        uint32_t i = s_collisionKept[k];
         uint16_t* indices = &data->m_collisionIndices[i * 3];
-        CFacet* facet = facets.New();
         facet->v[0] = mesh.m_positions[indices[0]];
         facet->v[1] = mesh.m_positions[indices[1]];
         facet->v[2] = mesh.m_positions[indices[2]];
@@ -5232,6 +5235,8 @@ void CM2Model::GetCollisionFacets(const CAaBox& box, const C44Matrix& transform,
         facet->plane.n.z = normal.x * rotation.a2 + normal.y * rotation.b2 + normal.z * rotation.c2;
         facet->plane.d = -(facet->v[0].z * facet->plane.n.z + facet->v[0].y * facet->plane.n.y + facet->v[0].x * facet->plane.n.x);
     }
+
+    facets.m_count = first + static_cast<uint32_t>(s_collisionKept.size());
 }
 
 // VERIFY: d48ec2da manual

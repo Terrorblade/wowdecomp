@@ -6,9 +6,11 @@
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -19,6 +21,7 @@
 #include "HoT/Net/Opcodes.h"
 #include "HoT/Net/Packet.h"
 #include "HoT/Platform/Files.h"
+#include "HoT/Platform/Process.h"
 #include "HoT/Platform/Time.h"
 #include "HoT/Runtime/Cvars.h"
 #include "HoT/Streaming/ArchiveManifest.h"
@@ -394,7 +397,8 @@ bool DeferMount(const std::string& openName) {
         }
     }
 
-    if (masked) {
+    // A path downloaded twice while dev is mounted is opened once, it reads whatever is on disk by then.
+    if (masked && std::none_of(s_deferredMounts.begin(), s_deferredMounts.end(), [&key](const std::string& path) { return KeyOf(Text::WidenAcp(path)) == key; })) {
         s_deferredMounts.push_back(openName);
     }
 
@@ -464,6 +468,96 @@ static bool ReadEntries(const std::wstring& path, std::map<std::string, std::str
     return true;
 }
 
+struct CachedEntries {
+    long long m_size = -1;
+    long long m_mtime = -1;
+    bool m_ok = false;
+    std::map<std::string, std::string> m_entries;
+};
+
+static constexpr uint64_t s_entriesWaitMs = 5000;
+static uint64_t s_entriesWaitSince = 0;
+static uint64_t s_entriesLastCheck = 0;
+static std::mutex s_entriesMutex;
+static std::map<std::wstring, std::shared_ptr<const CachedEntries>> s_entriesCache;
+static std::set<std::wstring> s_entriesInFlight;
+
+static bool StatArchive(const std::wstring& path, long long& size, long long& mtime) {
+    std::error_code ec;
+    const auto bytes = fs::file_size(path, ec);
+
+    if (ec) {
+        return false;
+    }
+
+    const auto written = fs::last_write_time(path, ec);
+
+    if (ec) {
+        return false;
+    }
+
+    size = static_cast<long long>(bytes);
+    mtime = static_cast<long long>(written.time_since_epoch().count());
+    return true;
+}
+
+// Null when nothing current is cached, a file that cannot be stat'ed counts as known unreadable.
+static std::shared_ptr<const CachedEntries> LookupEntries(const std::wstring& path) {
+    static const std::shared_ptr<const CachedEntries> s_missing = std::make_shared<CachedEntries>();
+    long long size = 0;
+    long long mtime = 0;
+
+    if (!StatArchive(path, size, mtime)) {
+        return s_missing;
+    }
+
+    std::lock_guard<std::mutex> lock(s_entriesMutex);
+    auto it = s_entriesCache.find(KeyOf(path));
+
+    if (it == s_entriesCache.end() || it->second->m_size != size || it->second->m_mtime != mtime) {
+        return nullptr;
+    }
+
+    return it->second;
+}
+
+static void PrefetchEntries(const std::vector<std::wstring>& paths) {
+    std::vector<std::wstring> todo;
+
+    {
+        std::lock_guard<std::mutex> lock(s_entriesMutex);
+
+        for (const std::wstring& path : paths) {
+            if (s_entriesInFlight.insert(KeyOf(path)).second) {
+                todo.push_back(path);
+            }
+        }
+    }
+
+    if (todo.empty()) {
+        return;
+    }
+
+    std::thread([todo] {
+        Platform::SetBackgroundThreadPriority();
+
+        for (const std::wstring& path : todo) {
+            auto item = std::make_shared<CachedEntries>();
+            // Stat first, so a file that changes during the read is stamped stale and read again.
+            item->m_ok = StatArchive(path, item->m_size, item->m_mtime) && ReadEntries(path, item->m_entries);
+            const std::wstring key = KeyOf(path);
+            std::lock_guard<std::mutex> lock(s_entriesMutex);
+            s_entriesCache[key] = std::move(item);
+            s_entriesInFlight.erase(key);
+        }
+    }).detach();
+}
+
+static void DropEntries() {
+    std::lock_guard<std::mutex> lock(s_entriesMutex);
+    s_entriesCache.clear();
+}
+
 struct NameSet {
     std::set<std::string> m_seen;
     std::vector<std::string> m_names;
@@ -514,12 +608,12 @@ static void AddAll(SArchive* archive, NameSet& names) {
 static bool RetargetCollecting(const ArchiveMount& m, const std::string& want, NameSet& names) {
     const std::wstring from = Text::WidenAcp(m.m_openName);
     const std::wstring to = Text::WidenAcp(want);
-    std::map<std::string, std::string> before;
-    std::map<std::string, std::string> after;
     const bool fromStub = IsStub(m.m_key);
     const bool toStub = IsStub(KeyOf(to));
-    const bool haveBefore = fromStub || ReadEntries(from, before);
-    const bool haveAfter = toStub || ReadEntries(to, after);
+    const std::shared_ptr<const CachedEntries> before = fromStub ? nullptr : LookupEntries(from);
+    const std::shared_ptr<const CachedEntries> after = toStub ? nullptr : LookupEntries(to);
+    const bool haveBefore = fromStub || (before && before->m_ok);
+    const bool haveAfter = toStub || (after && after->m_ok);
 
     if (!haveBefore || !haveAfter) {
         AddAll(m.m_archive, names);
@@ -533,13 +627,52 @@ static bool RetargetCollecting(const ArchiveMount& m, const std::string& want, N
     }
 
     if (haveBefore && haveAfter) {
-        AddDifferences(before, after, names);
+        static const std::map<std::string, std::string> s_none;
+        AddDifferences(before ? before->m_entries : s_none, after ? after->m_entries : s_none, names);
     } else {
         AddAll(m.m_archive, names);
     }
 
     StreamLog("channels: %s now reads %s", m.m_originalName.c_str(), want.c_str());
     return true;
+}
+
+// True once every archive a switch retargets has its manifest read on a worker, or the wait ran out and misses refresh every name.
+static bool EntriesReady(const std::vector<std::pair<const ArchiveMount*, std::string>>& moves) {
+    std::vector<std::wstring> missing;
+
+    for (const auto& move : moves) {
+        const std::wstring from = Text::WidenAcp(move.first->m_openName);
+        const std::wstring to = Text::WidenAcp(move.second);
+
+        if (!IsStub(move.first->m_key) && !LookupEntries(from)) {
+            missing.push_back(from);
+        }
+
+        if (!IsStub(KeyOf(to)) && !LookupEntries(to)) {
+            missing.push_back(to);
+        }
+    }
+
+    const uint64_t now = Platform::MonotonicMs();
+
+    if (missing.empty()) {
+        s_entriesWaitSince = 0;
+        return true;
+    }
+
+    // A wait left over from a switch that was abandoned, say by entering the world, starts over.
+    if (s_entriesWaitSince == 0 || now - s_entriesLastCheck > s_entriesWaitMs) {
+        s_entriesWaitSince = now;
+    } else if (now - s_entriesWaitSince >= s_entriesWaitMs) {
+        StreamLog("channels: %d archive manifest(s) not read in time, refreshing every name they hold", static_cast<int32_t>(missing.size()));
+        s_entriesWaitSince = 0;
+        return true;
+    }
+
+    s_entriesLastCheck = now;
+    PrefetchEntries(missing);
+    return false;
 }
 
 static bool DevCopiesPresent(const std::vector<LayoutEntry>& layout) {
@@ -649,6 +782,7 @@ static void Apply(const std::string& target) {
     NameSet names;
     int32_t switched = 0;
     std::error_code ec;
+    std::vector<std::pair<const ArchiveMount*, std::string>> moves;
 
     for (const ArchiveMount& m : mounts) {
         if (s_devOnlyMounts.find(m.m_originalKey) != s_devOnlyMounts.end()) {
@@ -674,7 +808,15 @@ static void Apply(const std::string& target) {
             continue;
         }
 
-        if (RetargetCollecting(m, want, names)) {
+        moves.emplace_back(&m, std::move(want));
+    }
+
+    if (!EntriesReady(moves)) {
+        return;
+    }
+
+    for (const auto& move : moves) {
+        if (RetargetCollecting(*move.first, move.second, names)) {
             switched++;
         }
     }
@@ -734,6 +876,7 @@ static void Apply(const std::string& target) {
     s_appliedGeneration = generation;
     s_resyncPending = false;
     UpdateReport(layout);
+    DropEntries();
 
     if (switched > 0) {
         NoteMountsChanged();
@@ -747,20 +890,31 @@ static void Apply(const std::string& target) {
     }
 }
 
-static void PublishRequested() {
-    std::string requested = Requested();
+// Main thread only, the state mutex is taken only on a change since a pass may hold it while writing channels.json.
+static void PublishRequested(const std::string& requested) {
+    static std::string s_published;
+
+    if (requested == s_published) {
+        return;
+    }
+
+    s_published = requested;
     std::lock_guard<std::mutex> lock(s_stateMutex);
     s_requestedShared = requested;
 }
 
-static void TryApply() {
-    PublishRequested();
+static void PublishRequested() {
+    PublishRequested(Requested());
+}
 
-    if (ClntObjMgrGetActivePlayerObj()) {
+static void TryApply() {
+    const std::string target = Requested();
+    PublishRequested(target);
+
+    // Retarget refuses an archive open for writing and closing a dev-only mount would pull it from under the job.
+    if (ClntObjMgrGetActivePlayerObj() || IsPatchingArchive()) {
         return;
     }
-
-    const std::string target = Requested();
 
     if (target != s_mounted) {
         if (target == s_release || CanApplyDev()) {

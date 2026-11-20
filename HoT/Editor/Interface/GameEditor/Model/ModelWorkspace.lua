@@ -701,9 +701,11 @@ GameEditor_RegisterWorkspace({
 		ME.SyncDocs();
 		ME.Changed();
 	end,
-	onDeactivate = function()
-		ME.HideTrackWindow();
-		ME.HideColorPicker();
+	onDeactivate = function(closing)
+		if ( not closing ) then
+			ME.HideTrackWindow();
+			ME.HideColorPicker();
+		end
 	end,
 	onHotkey = function(key)
 		local handler = HOTKEYS[key];

@@ -175,7 +175,7 @@ class ARCHIVEREC {
     /* 01F4 */ uint32_t unused_01F4;
     /* 01F8 */ ArchiveBuffers* m_buffers;
     /* 01FC */ bool (*m_closeCallback)(ARCHIVEREC* archive);
-    /* 0200 */ uint32_t unk_0200;
+    /* 0200 */ uint32_t m_hidden;
     /* 0204 */ std::map<std::string, bool> m_listfile;
     /* 0210 */ bool m_listfileLoaded;
     /* 0211 */ uint8_t unused_0211[3];
@@ -212,6 +212,8 @@ struct FileLookup {
     /* 0008 */ uint32_t m_hashIndex;
     /* 000C */ uint32_t m_blockIndex;
     /* 0010 */ char* m_path;
+    /* 0014 */ ARCHIVEREC* m_statArchive;
+    /* 0018 */ bool m_statExists;
 };
 
 class ArchivePtr {
@@ -260,7 +262,7 @@ bool SetFileMd5(void* context, const uint8_t* md5);
 }
 
 int32_t FindFileInOneArchive(System_SFile::ARCHIVEREC* archive, const char* name, const uint64_t& hash, const Blizzard::Util::Digest<16>& md5, uint32_t flags, System_SFile::FileLookup* lookup);
-int32_t GetFileBlockEntry(System_SFile::ARCHIVEREC* handle, const char* name, const Blizzard::Util::Digest<16>& md5, uint32_t flags, System_SFile::ARCHIVEREC** archiveOut, System_SFile::ARCHIVEREC** recordOut, uint32_t* blockIndex, uint32_t* hashIndex, char* path);
+int32_t GetFileBlockEntry(System_SFile::ARCHIVEREC* handle, const char* name, const Blizzard::Util::Digest<16>& md5, uint32_t flags, System_SFile::ARCHIVEREC** archiveOut, System_SFile::ARCHIVEREC** recordOut, uint32_t* blockIndex, uint32_t* hashIndex, char* path, bool refArchiveOut = false);
 
 namespace Blizzard {
 namespace Mopaq {
@@ -276,7 +278,7 @@ struct ArchiveOptions {
 bool SFileCloseArchive(System_SFile::ARCHIVEREC* handle);
 bool SFileCreateArchive(const char* path, int32_t priority, uint32_t userDataSize, System_SFile::ARCHIVEREC** result, const ArchiveOptions* options);
 bool SFileEnableDirectAccess(uint32_t enable);
-int32_t SFileFileExists(System_SFile::ARCHIVEREC* handle, const char* name, uint32_t flags, System_SFile::ARCHIVEREC** archiveOut);
+int32_t SFileFileExists(System_SFile::ARCHIVEREC* handle, const char* name, uint32_t flags, System_SFile::ARCHIVEREC** archiveOut, bool refArchiveOut = false);
 bool SFileGetFileDetails(System_SFile::ARCHIVEREC* handle, const char* name, System_SFile::ARCHIVEREC** archiveOut, int64_t* offset, uint32_t* size);
 int32_t SFileFileIsLocal(const char* name, int32_t flags);
 bool SFileGetIsLocalAmount(const char* name, int64_t& local, int64_t& total);

@@ -36,4 +36,16 @@ class CAaBox {
 
 CAaBox operator|(const CAaBox& l, const CAaBox& r);
 
+// VERIFY: 417ec50b manual
+// OFFSET: 0x0075B5B0
+inline bool CAaBox::ContainsPoint(const C3Vector& point) const {
+    return this->b.x <= point.x && this->b.y <= point.y && this->b.z <= point.z && this->t.x >= point.x && this->t.y >= point.y && this->t.z >= point.z;
+}
+
+// VERIFY: 195b7d66 manual
+// OFFSET: 0x0078F370
+inline bool CAaBox::Intersects(const CAaBox& box) const {
+    return this->t.x >= box.b.x && this->t.y >= box.b.y && this->t.z >= box.b.z && this->b.x <= box.t.x && this->b.y <= box.t.y && this->b.z <= box.t.z;
+}
+
 #endif

@@ -28,6 +28,13 @@ void PageTextCache_C::Unpack(CDataStore* msg) {
     char buffer[4000];
 
     msg->GetString(buffer, sizeof(buffer));
-    this->m_text = SStrDupA(buffer, __FILE__, __LINE__);
+
+    if (!this->m_text || SStrCmp(this->m_text, buffer, STORM_MAX_STR)) {
+        if (this->m_text) {
+            SMemFree(this->m_text, __FILE__, __LINE__, 0);
+        }
+
+        this->m_text = SStrDupA(buffer, __FILE__, __LINE__);
+    }
     msg->Get(this->m_nextPage);
 }

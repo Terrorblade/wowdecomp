@@ -24,6 +24,7 @@
 #include "HoT/Lua/Script.h"
 #include "HoT/Platform/Time.h"
 #include "WoW/Source/Glue/CWOWClientStatus.h"
+#include "WoW/Source/LoadingScreen.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/UIBindings.h"
@@ -32,6 +33,8 @@
 namespace HoT::Editor::Mode {
 
 static const char* const kToc = "Interface\\GameEditor\\GameEditor.toc";
+static const char* const kLayoutFile = "WTF\\GameEditorLayout.txt";
+static const uint32_t kLayoutMaxSize = 64 * 1024;
 
 // Game bindings that keep working while the editor owns the keyboard.
 static const char* const s_passThroughCommands[] = {
@@ -65,6 +68,7 @@ static const char* const s_walkingCommands[] = {
 
 struct ModeState {
     bool m_active = false;
+    bool m_mini = false;
     bool m_uiLoaded = false;
     bool m_startedFreeCam = false;
     bool m_useFreeCam = true;
@@ -73,8 +77,12 @@ struct ModeState {
 
     std::string m_tool = "select";
     std::string m_toggleKey = "F12";
+    std::string m_miniToggleKey = "SHIFT-F12";
 
     std::vector<Handler*> m_handlers;
+
+    // Mini editor hotkeys whose press the editor took, their release must not reach the game.
+    std::vector<std::string> m_miniKeysDown;
 
     uint32_t m_buttonsDown = 0;
     uint32_t m_buttonsHeld = 0;
@@ -84,6 +92,10 @@ struct ModeState {
 
     bool m_haveLastTick = false;
     int64_t m_lastTick = 0;
+
+    // Closed by a loading screen, reopened by OnIdle once the world is back.
+    bool m_reopen = false;
+    bool m_reopenMini = false;
 };
 
 static ModeState s_state;
@@ -222,7 +234,79 @@ bool IsActive() {
     return s_state.m_active;
 }
 
-void SetActive(bool active) {
+bool IsMini() {
+    return s_state.m_active && s_state.m_mini;
+}
+
+static bool OwnsInput() {
+    return s_state.m_active && !s_state.m_mini;
+}
+
+// The full editor hides the game UI and flies the free camera, the mini editor leaves both alone.
+static void ApplyView() {
+    bool full = OwnsInput();
+    SetUIParentShown(!full);
+
+    if (full && s_state.m_useFreeCam && !FreeCam::IsActive()) {
+        FreeCam::SetActive(true, false);
+        s_state.m_startedFreeCam = true;
+    } else if (!full && s_state.m_startedFreeCam) {
+        FreeCam::SetActive(false, false);
+        s_state.m_startedFreeCam = false;
+    }
+}
+
+static void BeginEditorInput() {
+    s_state.m_haveLastTick = false;
+    s_state.m_gameButtons = s_state.m_buttonsHeld;
+}
+
+static void EndEditorInput() {
+    ReleaseButtons(0.0f, 0.0f);
+
+    // A held right button drives the editor's BUTTON1 look, its release would reach the game as BUTTON2.
+    if ((s_state.m_buttonsHeld & static_cast<uint32_t>(MOUSE_BUTTON_RIGHT)) && !(s_state.m_gameButtons & static_cast<uint32_t>(MOUSE_BUTTON_RIGHT)) && CGUIBindings::s_bindings) {
+        CGUIBindings::s_bindings->ExecKey(0, "BUTTON1", 0, 1, static_cast<BINDING_MODE>(4));
+    }
+
+    s_state.m_gameButtons = 0;
+}
+
+static void SignalModeChanged() {
+    Lua::SignalEvent("GAME_EDITOR_MODE_CHANGED", "%d%d", s_state.m_active ? 1 : 0, s_state.m_active && s_state.m_mini ? 1 : 0);
+}
+
+static void SetTool(const char* tool);
+
+void SetActive(bool active, bool mini) {
+    if (active && s_state.m_active) {
+        if (mini == s_state.m_mini) {
+            return;
+        }
+
+        if (s_state.m_mini) {
+            s_state.m_miniKeysDown.clear();
+        } else {
+            EndEditorInput();
+        }
+
+        s_state.m_mini = mini;
+
+        // The map tools need the full editor's mouse, Lua picks the workspace to show instead.
+        if (mini && ToolHasPrefix("map.")) {
+            SetTool("select");
+        }
+
+        if (!mini) {
+            BeginEditorInput();
+        }
+
+        ApplyView();
+        SignalModeChanged();
+
+        return;
+    }
+
     if (active == s_state.m_active) {
         return;
     }
@@ -242,16 +326,15 @@ void SetActive(bool active) {
         }
 
         s_state.m_active = true;
-        s_state.m_haveLastTick = false;
-        s_state.m_gameButtons = s_state.m_buttonsHeld;
+        s_state.m_mini = mini;
+        s_state.m_miniKeysDown.clear();
+        BeginEditorInput();
 
-        SetUIParentShown(false);
-
-        s_state.m_startedFreeCam = s_state.m_useFreeCam && !FreeCam::IsActive();
-
-        if (s_state.m_startedFreeCam) {
-            FreeCam::SetActive(true, false);
+        if (mini && ToolHasPrefix("map.")) {
+            s_state.m_tool = "select";
         }
+
+        ApplyView();
 
         for (Handler* handler : s_state.m_handlers) {
             handler->OnActivate();
@@ -261,34 +344,27 @@ void SetActive(bool active) {
             handler->OnToolChanged(s_state.m_tool.c_str());
         }
 
-        Lua::SignalEvent("GAME_EDITOR_MODE_CHANGED", "%d", 1);
+        SignalModeChanged();
 
         return;
     }
 
-    ReleaseButtons(0.0f, 0.0f);
-
-    // A held right button drives the editor's BUTTON1 look, its release would reach the game as BUTTON2.
-    if ((s_state.m_buttonsHeld & static_cast<uint32_t>(MOUSE_BUTTON_RIGHT)) && !(s_state.m_gameButtons & static_cast<uint32_t>(MOUSE_BUTTON_RIGHT)) && CGUIBindings::s_bindings) {
-        CGUIBindings::s_bindings->ExecKey(0, "BUTTON1", 0, 1, static_cast<BINDING_MODE>(4));
+    if (s_state.m_mini) {
+        ReleaseButtons(0.0f, 0.0f);
+    } else {
+        EndEditorInput();
     }
-
-    s_state.m_gameButtons = 0;
 
     for (Handler* handler : s_state.m_handlers) {
         handler->OnDeactivate();
     }
 
     s_state.m_active = false;
+    s_state.m_mini = false;
+    s_state.m_miniKeysDown.clear();
 
-    if (s_state.m_startedFreeCam) {
-        FreeCam::SetActive(false, false);
-        s_state.m_startedFreeCam = false;
-    }
-
-    SetUIParentShown(true);
-
-    Lua::SignalEvent("GAME_EDITOR_MODE_CHANGED", "%d", 0);
+    ApplyView();
+    SignalModeChanged();
 }
 
 const char* ActiveTool() {
@@ -401,17 +477,75 @@ static std::string WithoutModifierSides(const char* key) {
     return result + key;
 }
 
-bool OnWorldKey(const char* key, uint32_t metaKeys, bool down) {
-    if (SameKey(key, s_state.m_toggleKey.c_str()) && (s_state.m_active || Session::HasClearance(3))) {
-        if (down) {
-            SetActive(!s_state.m_active);
-        }
+static bool HasCtrl(const std::string& key) {
+    return key.find("CTRL-") != std::string::npos;
+}
 
+static bool TakeMiniKeyRelease(const std::string& key) {
+    for (auto it = s_state.m_miniKeysDown.begin(); it != s_state.m_miniKeysDown.end(); ++it) {
+        if (*it == key) {
+            s_state.m_miniKeysDown.erase(it);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// The mini editor only takes Ctrl hotkeys a workspace actually handles, every other key plays the game.
+static bool OnMiniKey(const std::string& key, bool down) {
+    if (!down) {
+        return TakeMiniKeyRelease(key);
+    }
+
+    if (!HasCtrl(key) || !CallLuaBool("GameEditor_OnHotkey", key.c_str())) {
+        return false;
+    }
+
+    if (s_state.m_miniKeysDown.size() < 16) {
+        s_state.m_miniKeysDown.push_back(key);
+    }
+
+    return true;
+}
+
+// The toggle keys open their editor, switch from the other one, or close their own.
+static bool OnToggleKey(const std::string& key, bool down) {
+    bool full = SameKey(key.c_str(), s_state.m_toggleKey.c_str());
+    bool mini = !full && SameKey(key.c_str(), s_state.m_miniToggleKey.c_str());
+
+    if ((!full && !mini) || (!s_state.m_active && !Session::HasClearance(3))) {
+        return false;
+    }
+
+    if (down) {
+        if (s_state.m_active && s_state.m_mini == mini) {
+            SetActive(false);
+        } else {
+            SetActive(true, mini);
+        }
+    }
+
+    return true;
+}
+
+bool OnWorldKey(const char* key, uint32_t metaKeys, bool down) {
+    if (!key) {
+        return false;
+    }
+
+    std::string plain = WithoutModifierSides(key);
+
+    if (OnToggleKey(plain, down)) {
         return true;
     }
 
     if (!s_state.m_active) {
         return false;
+    }
+
+    if (s_state.m_mini) {
+        return OnMiniKey(plain, down);
     }
 
     if (Handler* owner = ToolOwner()) {
@@ -420,7 +554,7 @@ bool OnWorldKey(const char* key, uint32_t metaKeys, bool down) {
         }
     }
 
-    if (down && CallLuaBool("GameEditor_OnHotkey", WithoutModifierSides(key).c_str())) {
+    if (down && CallLuaBool("GameEditor_OnHotkey", plain.c_str())) {
         return true;
     }
 
@@ -441,7 +575,7 @@ static bool ClickSelectsObjects() {
 }
 
 bool OnWorldMouse(MOUSEBUTTON button, uint32_t metaKeys, float ndcX, float ndcY, bool down) {
-    if (!s_state.m_active) {
+    if (!OwnsInput()) {
         return false;
     }
 
@@ -496,7 +630,7 @@ bool OnWorldMouse(MOUSEBUTTON button, uint32_t metaKeys, float ndcX, float ndcY,
 }
 
 bool OnWorldMouseWheel(int32_t delta, uint32_t metaKeys) {
-    if (!s_state.m_active) {
+    if (!OwnsInput()) {
         return false;
     }
 
@@ -598,19 +732,37 @@ static void OnToggleKeyChanged(const char* value) {
     s_state.m_toggleKey = value && *value ? value : "F12";
 }
 
+static void OnMiniToggleKeyChanged(const char* value) {
+    s_state.m_miniToggleKey = value && *value ? value : "SHIFT-F12";
+}
+
 static int32_t Script_IsActive(lua_State* L) {
     lua_pushboolean(L, s_state.m_active ? 1 : 0);
     return 1;
 }
 
+static int32_t Script_IsMini(lua_State* L) {
+    lua_pushboolean(L, IsMini() ? 1 : 0);
+    return 1;
+}
+
+// GameEditor_SetActive(active [, mini]), an open editor switches to the other kind in place.
 static int32_t Script_SetActive(lua_State* L) {
-    SetActive(lua_toboolean(L, 1) != 0);
+    SetActive(lua_toboolean(L, 1) != 0, lua_toboolean(L, 2) != 0);
     lua_pushboolean(L, s_state.m_active ? 1 : 0);
     return 1;
 }
 
+// GameEditor_Toggle([mini]) behaves like the matching toggle key.
 static int32_t Script_Toggle(lua_State* L) {
-    SetActive(!s_state.m_active);
+    bool mini = lua_toboolean(L, 1) != 0;
+
+    if (s_state.m_active && s_state.m_mini == mini) {
+        SetActive(false);
+    } else {
+        SetActive(true, mini);
+    }
+
     lua_pushboolean(L, s_state.m_active ? 1 : 0);
     return 1;
 }
@@ -637,6 +789,61 @@ static int32_t Script_GetToggleKey(lua_State* L) {
     return 1;
 }
 
+static int32_t Script_GetMiniToggleKey(lua_State* L) {
+    lua_pushstring(L, s_state.m_miniToggleKey.c_str());
+    return 1;
+}
+
+// The window layout lives in its own file, archived CVars are cut at 260 characters.
+static int32_t Script_LoadLayout(lua_State* L) {
+    HOSFILE file = OsCreateFile(kLayoutFile, OS_GENERIC_READ, 0, OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+
+    if (file == OS_INVALID_FILE) {
+        return 0;
+    }
+
+    uint64_t size = OsGetFileSize(file);
+    std::string text;
+
+    if (size > 0 && size <= kLayoutMaxSize) {
+        text.resize(static_cast<size_t>(size));
+        uint32_t bytesRead = 0;
+
+        if (!OsReadFile(file, text.data(), static_cast<uint32_t>(size), &bytesRead)) {
+            bytesRead = 0;
+        }
+
+        text.resize(bytesRead);
+    }
+
+    OsCloseFile(file);
+    lua_pushlstring(L, text.data(), text.size());
+    return 1;
+}
+
+static int32_t Script_SaveLayout(lua_State* L) {
+    size_t length = 0;
+    const char* text = lua_isstring(L, 1) ? lua_tolstring(L, 1, &length) : nullptr;
+
+    if (!text || length > kLayoutMaxSize) {
+        return 0;
+    }
+
+    OsCreateDirectory("WTF", 0);
+    HOSFILE file = OsCreateFile(kLayoutFile, OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+
+    if (file == OS_INVALID_FILE) {
+        return 0;
+    }
+
+    uint32_t written = 0;
+    bool ok = length == 0 || (OsWriteFile(file, text, static_cast<uint32_t>(length), &written) && written == length);
+    OsCloseFile(file);
+
+    lua_pushboolean(L, ok ? 1 : 0);
+    return 1;
+}
+
 static int32_t Script_IsMouseOverWorld(lua_State* L) {
     lua_pushboolean(L, IsMouseOverWorld() ? 1 : 0);
     return 1;
@@ -645,7 +852,7 @@ static int32_t Script_IsMouseOverWorld(lua_State* L) {
 static void OnFreeCamChanged(const char* value) {
     s_state.m_useFreeCam = HoT::CVars::Bool(value);
 
-    if (!s_state.m_active) {
+    if (!OwnsInput()) {
         return;
     }
 
@@ -660,16 +867,21 @@ static void OnFreeCamChanged(const char* value) {
 
 void RegisterScripts() {
     HoT::CVars::Register("editorToggleKey", "Key that opens and closes the game editor", "F12", OnToggleKeyChanged);
+    HoT::CVars::Register("editorMiniToggleKey", "Key that opens and closes the mini game editor, which keeps the game UI and controls", "SHIFT-F12", OnMiniToggleKeyChanged);
     HoT::CVars::Register("editorFreeCam", "Use the free camera while the game editor is open, 0 keeps the normal camera and movement", "1", OnFreeCamChanged);
     HoT::CVars::Register("editorUIScale", "Scale of the game editor UI, 1 is one pixel per unit", "1");
 
     Lua::RegisterFunction("GameEditor_IsActive", Script_IsActive);
+    Lua::RegisterFunction("GameEditor_IsMini", Script_IsMini);
     Lua::RegisterFunction("GameEditor_SetActive", Script_SetActive);
     Lua::RegisterFunction("GameEditor_Toggle", Script_Toggle);
     Lua::RegisterFunction("GameEditor_SetTool", Script_SetTool);
     Lua::RegisterFunction("GameEditor_GetTool", Script_GetTool);
     Lua::RegisterFunction("GameEditor_GetToggleKey", Script_GetToggleKey);
+    Lua::RegisterFunction("GameEditor_GetMiniToggleKey", Script_GetMiniToggleKey);
     Lua::RegisterFunction("GameEditor_IsMouseOverWorld", Script_IsMouseOverWorld);
+    Lua::RegisterFunction("GameEditor_LoadLayout", Script_LoadLayout);
+    Lua::RegisterFunction("GameEditor_SaveLayout", Script_SaveLayout);
 }
 
 void OnGameInitialize() {
@@ -681,6 +893,11 @@ void OnGameInitialize() {
 }
 
 void OnWorldUnloaded() {
+    if (s_state.m_active) {
+        s_state.m_reopen = true;
+        s_state.m_reopenMini = s_state.m_mini;
+    }
+
     SetActive(false);
 
     for (Handler* handler : s_state.m_handlers) {
@@ -688,9 +905,25 @@ void OnWorldUnloaded() {
     }
 }
 
+// A teleport closed the editor, it comes back the way it was once the new world is in.
+void OnIdle() {
+    if (!s_state.m_reopen || LoadingScreenDrawing() || !ClntObjMgrGetActivePlayerObj() || !CGWorldFrame::s_currentWorldFrame) {
+        return;
+    }
+
+    s_state.m_reopen = false;
+
+    if (s_state.m_uiLoaded && Session::HasClearance(3)) {
+        SetActive(true, s_state.m_reopenMini);
+    }
+}
+
 void OnScriptsReloaded() {
     bool wasActive = s_state.m_active;
     s_state.m_active = false;
+    s_state.m_mini = false;
+    s_state.m_reopen = false;
+    s_state.m_miniKeysDown.clear();
     s_state.m_uiLoaded = false;
     s_state.m_hidUIParent = false;
     s_state.m_buttonsDown = 0;
@@ -716,6 +949,7 @@ void OnScriptsReloaded() {
 
 void OnGameDestroy() {
     OnWorldUnloaded();
+    s_state.m_reopen = false;
 
     if (s_state.m_eventsRegistered) {
         EventUnregister(EVENT_ID_MOUSEDOWN, OnRawMouseDown);

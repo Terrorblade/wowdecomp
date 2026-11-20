@@ -314,6 +314,7 @@ GameEditor_RegisterWorkspace({
 	key = "map",
 	title = "Map",
 	order = 1,
+	fullOnly = true,
 	tools = BuildTools(),
 	menus = BuildMenus,
 	viewItems = BuildViewItems(),
@@ -323,7 +324,6 @@ GameEditor_RegisterWorkspace({
 	end,
 	onDeactivate = function()
 		timeSpeed = 0;
-		MapEditor_HideWindows();
 	end,
 	onUpdate = OnUpdate,
 	onHotkey = OnHotkey,

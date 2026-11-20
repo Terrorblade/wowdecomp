@@ -61,6 +61,9 @@ const char* IOMpqUnit::GetName() {
 // OFFSET: 0x00437640
 IOMpqArchiveUnit::IOMpqArchiveUnit(System_SFile::ARCHIVEREC* archive, const char* name, uint32_t blockIndex, bool ownsMemory, IOUnit* next) : IOMpqUnit(archive, name, ownsMemory, next) {
     this->m_blockIndex = blockIndex;
+
+    // An archive being patched grows its block table under the archive lock, and SetFileSignature fills the signatures under it too.
+    Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
     this->m_blockEntry = archive->GetBlockEntry(blockIndex);
 
     if (this->m_blockEntry.m_md5Check) {
@@ -136,7 +139,13 @@ bool IOMpqArchiveUnit::HasMd5Check() {
 // VERIFY: 636246fc auto
 // OFFSET: 0x00431F80
 void IOMpqArchiveUnit::DisableMd5Check() {
-    this->m_archive->SetMD5Check(this->m_blockIndex, false);
+    // Table writers take the archive mutex and then the archive lock, lookups read the tables under the archive lock.
+    {
+        Blizzard::Lock::ScopedMutex archiveLock(this->m_archive->m_mutex.m_mutex);
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        this->m_archive->SetMD5Check(this->m_blockIndex, false);
+    }
+
     this->m_blockEntry.m_md5Check = false;
 }
 
@@ -150,7 +159,13 @@ uint32_t IOMpqArchiveUnit::GetFlags() {
 // OFFSET: 0x00431FA0
 bool IOMpqArchiveUnit::MarkDeleted() {
     this->m_blockEntry.m_flags |= 0x2000000;
-    this->m_archive->SetBlockEntry(this->m_blockIndex, this->m_blockEntry);
+
+    {
+        Blizzard::Lock::ScopedMutex archiveLock(this->m_archive->m_mutex.m_mutex);
+        Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+        this->m_archive->SetBlockEntry(this->m_blockIndex, this->m_blockEntry);
+    }
+
     return true;
 }
 

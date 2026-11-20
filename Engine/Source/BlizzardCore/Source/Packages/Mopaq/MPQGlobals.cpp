@@ -131,6 +131,8 @@ void System_MPQGlobals::WorkerPool::Release(uint32_t count, Worker** workers) {
 // VERIFY: 99eaeda8 manual
 // OFFSET: 0x00453FC0
 System_SFile::ARCHIVEREC* System_MPQGlobals::FindArchiveByName(const char* name) {
+    // The original walked the set unlocked while other threads open and close archives.
+    Blizzard::Lock::ScopedMutex lock(GetArchiveLock()->m_mutex);
     ArchiveList* archives = GetArchiveList();
 
     for (ArchiveList::iterator it = archives->begin(); it != archives->end(); ++it) {

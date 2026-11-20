@@ -51,7 +51,9 @@ static inline void Round4(uint32_t a, uint32_t& b, uint32_t c, uint32_t d, uint3
 // VERIFY: 5a235895 manual
 // OFFSET: 0x006CA330
 void SHA1_Transform(uint32_t* state, uint8_t* buffer) {
-    uint32_t* block = reinterpret_cast<uint32_t*>(buffer);
+    // The rounds rewrite the block in place, so work on a local copy and leave the caller's data untouched as the original binary does.
+    uint32_t block[16];
+    memcpy(block, buffer, sizeof(block));
 
     uint32_t a = state[0];
     uint32_t b = state[1];

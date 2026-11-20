@@ -253,8 +253,13 @@ void Trade_C_Initialize() {
 // VERIFY: 54433403 manual
 // OFFSET: 0x007044A0
 int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t status;
+    uint32_t status = 0;
     msg->Get(status);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     int32_t reset = 0;
     uint32_t bagResult = 0;
     uint8_t target = 0;
@@ -279,7 +284,7 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
             break;
 
         case TRADE_STATUS_PROPOSED: {
-            uint64_t guid;
+            uint64_t guid = 0;
             msg->Get(guid);
 
             if (s_tradeRequested) {

@@ -934,8 +934,10 @@ int32_t CGItem_C::HasOnUseEnchant() const {
 // VERIFY: 56fb9e40 manual
 // OFFSET: 0x00707DC0
 int32_t CGItem_C::GetCurrentSpellCharges() {
-    if (this->GetSpellItemEnchantmentId()) {
-        SpellItemEnchantmentRec* rec = g_spellItemEnchantmentDB.GetRecord(this->GetSpellItemEnchantmentId());
+    uint32_t enchantId = this->GetSpellItemEnchantmentId();
+
+    if (enchantId) {
+        SpellItemEnchantmentRec* rec = g_spellItemEnchantmentDB.GetRecord(enchantId);
 
         if (rec) {
             for (uint32_t i = 0; i < 3; i++) {

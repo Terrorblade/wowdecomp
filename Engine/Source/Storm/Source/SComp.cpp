@@ -1065,10 +1065,111 @@ void Bzip2Compress(void* dest, uint32_t* destsize, const void* source, uint32_t 
     *hint = 0;
 }
 
+struct Bzip2BlockCache {
+    static const uint32_t SLOTS = 2;
+
+    void* m_blocks[SLOTS] = {};
+
+    ~Bzip2BlockCache() {
+        for (uint32_t i = 0; i < SLOTS; i++) {
+            free(this->m_blocks[i]);
+        }
+    }
+};
+
+// Every sector used to malloc and free about 3.6MB of decoder state, so each thread keeps its freed blocks for the next sector.
+static thread_local Bzip2BlockCache t_bzip2Blocks;
+
+static const size_t BZIP2_BLOCK_HEADER = 16;
+
+static size_t Bzip2BlockSize(void* block) {
+    return *static_cast<size_t*>(block);
+}
+
+static void* Bzip2Alloc(void* opaque, int32_t items, int32_t size) {
+    size_t bytes = static_cast<size_t>(items) * static_cast<size_t>(size);
+    Bzip2BlockCache& cache = t_bzip2Blocks;
+    uint32_t best = Bzip2BlockCache::SLOTS;
+
+    for (uint32_t i = 0; i < Bzip2BlockCache::SLOTS; i++) {
+        void* block = cache.m_blocks[i];
+
+        if (block && Bzip2BlockSize(block) >= bytes && (best == Bzip2BlockCache::SLOTS || Bzip2BlockSize(block) < Bzip2BlockSize(cache.m_blocks[best]))) {
+            best = i;
+        }
+    }
+
+    void* block;
+
+    if (best != Bzip2BlockCache::SLOTS) {
+        block = cache.m_blocks[best];
+        cache.m_blocks[best] = nullptr;
+    } else {
+        block = malloc(bytes + BZIP2_BLOCK_HEADER);
+
+        if (!block) {
+            return nullptr;
+        }
+
+        *static_cast<size_t*>(block) = bytes;
+    }
+
+    return static_cast<uint8_t*>(block) + BZIP2_BLOCK_HEADER;
+}
+
+static void Bzip2Free(void* opaque, void* address) {
+    if (!address) {
+        return;
+    }
+
+    void* block = static_cast<uint8_t*>(address) - BZIP2_BLOCK_HEADER;
+    Bzip2BlockCache& cache = t_bzip2Blocks;
+    uint32_t smallest = 0;
+
+    for (uint32_t i = 0; i < Bzip2BlockCache::SLOTS; i++) {
+        if (!cache.m_blocks[i]) {
+            cache.m_blocks[i] = block;
+            return;
+        }
+
+        if (Bzip2BlockSize(cache.m_blocks[i]) < Bzip2BlockSize(cache.m_blocks[smallest])) {
+            smallest = i;
+        }
+    }
+
+    if (Bzip2BlockSize(block) > Bzip2BlockSize(cache.m_blocks[smallest])) {
+        free(cache.m_blocks[smallest]);
+        cache.m_blocks[smallest] = block;
+        return;
+    }
+
+    free(block);
+}
+
 // VERIFY: 5ff122e8 auto
 // OFFSET: 0x00778630
 int32_t Bzip2Decompress(void* dest, uint32_t* destsize, const void* source, uint32_t sourcesize) {
-    return BZ2_bzBuffToBuffDecompress(static_cast<char*>(dest), destsize, static_cast<char*>(const_cast<void*>(source)), sourcesize, 0, 0) == BZ_OK;
+    bz_stream stream = {};
+    stream.bzalloc = Bzip2Alloc;
+    stream.bzfree = Bzip2Free;
+
+    if (BZ2_bzDecompressInit(&stream, 0, 0) != BZ_OK) {
+        return 0;
+    }
+
+    stream.next_in = static_cast<char*>(const_cast<void*>(source));
+    stream.avail_in = sourcesize;
+    stream.next_out = static_cast<char*>(dest);
+    stream.avail_out = *destsize;
+
+    int32_t result = BZ2_bzDecompress(&stream);
+
+    if (result == BZ_STREAM_END) {
+        *destsize -= stream.avail_out;
+    }
+
+    BZ2_bzDecompressEnd(&stream);
+    return result == BZ_STREAM_END;
 }
 
 // VERIFY: 1b0eface manual

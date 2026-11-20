@@ -16,21 +16,57 @@ namespace HoT::Streaming {
 // need not outlive the call.
 static std::once_flag s_curlInit;
 
-struct Conn {
+// One easy handle per thread, so its live connections and TLS sessions carry over to the next request.
+struct ThreadHandle {
     CURL* m_curl = nullptr;
-    char m_error[CURL_ERROR_SIZE] = {};
+    bool m_inUse = false;
 
-    ~Conn() {
+    ~ThreadHandle() {
         if (this->m_curl) {
             curl_easy_cleanup(this->m_curl);
         }
     }
 };
 
+static thread_local ThreadHandle t_handle;
+
+struct Conn {
+    CURL* m_curl = nullptr;
+    bool m_borrowed = false;
+    char m_error[CURL_ERROR_SIZE] = {};
+
+    ~Conn() {
+        if (!this->m_curl) {
+            return;
+        }
+
+        if (!this->m_borrowed) {
+            curl_easy_cleanup(this->m_curl);
+            return;
+        }
+
+        // Clears every option, since the error buffer and the callback data point into this stack frame.
+        curl_easy_reset(this->m_curl);
+        t_handle.m_inUse = false;
+    }
+};
+
 static bool OpenGet(Conn& c, const std::wstring& url, long long resumeFrom) {
     std::call_once(s_curlInit, []() { curl_global_init(CURL_GLOBAL_DEFAULT); });
 
-    c.m_curl = curl_easy_init();
+    if (!t_handle.m_inUse) {
+        if (!t_handle.m_curl) {
+            t_handle.m_curl = curl_easy_init();
+        }
+
+        if (t_handle.m_curl) {
+            c.m_curl = t_handle.m_curl;
+            c.m_borrowed = true;
+            t_handle.m_inUse = true;
+        }
+    } else {
+        c.m_curl = curl_easy_init();
+    }
 
     if (!c.m_curl) {
         return false;

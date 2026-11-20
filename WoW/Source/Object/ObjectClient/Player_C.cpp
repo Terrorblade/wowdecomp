@@ -854,6 +854,7 @@ void CGPlayer_C::Shutdown() {
     ClntObjMgrUnsetTypeMirrorHandler(ID_PLAYER, offsetof(CGPlayerData, m_playerBytes) + 3, OnUpdatePlayerHairColor, nullptr);
     ClntObjMgrUnsetTypeMirrorHandler(ID_PLAYER, offsetof(CGPlayerData, m_playerBytes) + 2, OnUpdatePlayerHairStyle, nullptr);
     ClntObjMgrUnsetTypeMirrorHandler(ID_PLAYER, offsetof(CGPlayerData, m_playerBytes2), OnUpdatePlayerFacialStyle, nullptr);
+    ClntObjMgrUnsetTypeMirrorHandler(ID_PLAYER, offsetof(CGPlayerData, m_playerBytes), OnUpdatePlayerSkinID, nullptr);
 }
 
 // VERIFY: 78b02f45 auto
@@ -1095,6 +1096,7 @@ CreatureModelDataRec* GetModelDataRec(uint32_t race, uint32_t gender) {
 
     if (!displayRec) {
         DebugLog("Error, unknown displayInfo %d specified for player race %d sex %d!", displayID, race, gender);
+        return nullptr;
     }
 
     CreatureModelDataRec* modelRec = g_creatureModelDataDB.GetRecord(displayRec->m_modelID);
@@ -2125,9 +2127,10 @@ bool CGPlayer_C::IsDeadOrGhost() const {
 // OFFSET: 0x006DC1C0
 int32_t CGPlayer_C::GetSkillIndex(int32_t skillId) const {
     int32_t index = 0;
+    bool isActivePlayer = this->m_obj->m_guid == ClntObjMgrGetActivePlayer();
 
     for (uint32_t i = 0; i < 128; i++) {
-        uint16_t id = this->m_obj->m_guid == ClntObjMgrGetActivePlayer() ? this->m_player->m_playerSkillInfo[i].m_skillId : 0;
+        uint16_t id = isActivePlayer ? this->m_player->m_playerSkillInfo[i].m_skillId : 0;
 
         if (id == skillId) {
             break;
@@ -2262,15 +2265,30 @@ uint32_t CGPlayer_C::GetEquippedAmmoDisplayId() const {
 // VERIFY: f842d174 manual
 // OFFSET: 0x006DE980
 int32_t CGPlayer_C::IsCommentatorUberOrInArena() const {
-    MapRec* map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
     uint32_t flags = this->m_player->m_playerFlags;
 
-    return ((flags >> 19) & 1) && (((flags >> 22) & 1) || (map && map->m_instanceType == 4));
+    if (!((flags >> 19) & 1)) {
+        return 0;
+    }
+
+    if ((flags >> 22) & 1) {
+        return 1;
+    }
+
+    MapRec* map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
+    return map && map->m_instanceType == 4;
 }
 
 // VERIFY: 881f2596 manual
 // OFFSET: 0x006E61B0
 void CGPlayer_C::QueueItemEnchantTime(WOWGUID item, int32_t slot, int32_t duration) {
+    for (PlayerPendingItemExpiration* pending = this->m_pendingItemExpirations.Head(); pending; pending = pending->Next()) {
+        if (pending->m_itemGuid == item && pending->m_slot == slot) {
+            pending->m_duration = duration;
+            return;
+        }
+    }
+
     PlayerPendingItemExpiration* expiration = this->m_pendingItemExpirations.NewNode(2, 0, 0);
     expiration->m_itemGuid = item;
     expiration->m_slot = slot;
@@ -2418,7 +2436,7 @@ ITEMSWAP::ITEMSWAP() {
     this->m_srcSlot = 0xFFFFFFFF;
     this->m_dstSlot = 0xFFFFFFFF;
     this->m_itemId = 0;
-    this->m_item = nullptr;
+    this->m_itemGuid = WOWGUID();
 }
 
 // VERIFY: baa57619 auto
@@ -2689,13 +2707,13 @@ void SetAttackSwingError(int32_t error) {
 // VERIFY: 9d0eb63c manual
 // OFFSET: 0x006D11C0
 int32_t __stdcall CGPlayer_C::OnQuestGiverStatus(CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = WOWGUID();
     msg->Get(guid.m_guid);
 
     uint8_t status = 0;
     msg->Get(status);
 
-    if (status >= sizeof(CGObject_C::s_questStatusIcons) / sizeof(CGObject_C::s_questStatusIcons[0])) {
+    if (msg->m_read > msg->m_size || status >= sizeof(CGObject_C::s_questStatusIcons) / sizeof(CGObject_C::s_questStatusIcons[0])) {
         return 1;
     }
 
@@ -3275,12 +3293,17 @@ void CGPlayer_C::SetCombatMode() {
 // OFFSET: 0x006CBC50
 int32_t Packet_SMSG_QUEST_CONFIRM_ACCEPT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     if (msgId == SMSG_QUEST_CONFIRM_ACCEPT) {
-        uint32_t questId;
+        uint32_t questId = 0;
         char title[1024];
-        WOWGUID guid;
+        WOWGUID guid = WOWGUID();
         msg->Get(questId);
         msg->GetString(title, sizeof(title));
         msg->Get(guid.m_guid);
+
+        if (msg->m_read > msg->m_size) {
+            return 1;
+        }
+
         CGQuestInfo::ConfirmAcceptQuest(questId, title, &guid);
     }
 
@@ -3356,10 +3379,15 @@ int32_t Packet_SMSG_BATTLEGROUND_INFO_THROTTLED(void* param, NETMESSAGE msgId, u
 // VERIFY: 4881b969 manual
 // OFFSET: 0x006CD270
 int32_t Packet_SMSG_PLAY_TIME_WARNING(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    int32_t flags;
-    int32_t seconds;
+    int32_t flags = 0;
+    int32_t seconds = 0;
     msg->Get(reinterpret_cast<uint32_t&>(flags));
     msg->Get(reinterpret_cast<uint32_t&>(seconds));
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     char remaining[30];
     SStrPrintf(remaining, sizeof(remaining), "%2d:%02d", seconds / 60 / 60, seconds / 60 % 60);
 
@@ -3625,10 +3653,15 @@ int32_t Packet_SMSG_RESURRECT_FAILED(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: c9571cc5 manual
 // OFFSET: 0x006CFE70
 int32_t Packet_SMSG_EMOTE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t emote;
-    WOWGUID guid;
+    uint32_t emote = 0;
+    WOWGUID guid = WOWGUID();
     msg->Get(emote);
     msg->Get(guid.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit && unit->m_unit->m_unitFieldBytes1[0] != UNIT_SLEEPING && !(unit->m_movement->m_flags & 0x200000)) {
@@ -3849,8 +3882,13 @@ int32_t Packet_Group_12(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
 // VERIFY: 1a66db48 manual
 // OFFSET: 0x006D8030
 int32_t Packet_Group_17(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t questId;
+    uint32_t questId = 0;
     msg->Get(questId);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     int32_t expired = CGQuestLog::IsQuestExpiredByID(questId);
 
     if (!expired) {
@@ -3882,10 +3920,10 @@ int32_t Packet_Group_17(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
     }
 
     if (msgId == SMSG_QUEST_UPDATE_ADD_PVP_CREDIT) {
-        uint32_t count;
+        uint32_t count = 0;
         msg->Get(count);
 
-        if (expired) {
+        if (expired || msg->m_read > msg->m_size) {
             return 1;
         }
 
@@ -3928,16 +3966,16 @@ int32_t Packet_Group_17(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
         }
 
         case SMSG_QUEST_UPDATE_ADD_KILL: {
-            int32_t entry;
-            uint32_t count;
-            uint32_t required;
-            WOWGUID guid;
+            int32_t entry = 0;
+            uint32_t count = 0;
+            uint32_t required = 0;
+            WOWGUID guid = WOWGUID();
             msg->Get(reinterpret_cast<uint32_t&>(entry));
             msg->Get(count);
             msg->Get(required);
             msg->Get(guid.m_guid);
 
-            if (expired) {
+            if (expired || msg->m_read > msg->m_size) {
                 return 1;
             }
 
@@ -3991,8 +4029,13 @@ int32_t Packet_SMSG_QUEST_FORCE_REMOVE(void* param, NETMESSAGE msgId, uint32_t t
         return 0;
     }
 
-    uint32_t questId;
+    uint32_t questId = 0;
     msg->Get(questId);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     QuestCache* quest = g_questDBCache.GetRecord(questId, WOWGUID{ 0 }, nullptr, nullptr, false);
 
     if (quest) {
@@ -4086,12 +4129,17 @@ int32_t PH_LOOT_OPCODES(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
 // VERIFY: b3f1870a manual
 // OFFSET: 0x006D8680
 int32_t Packet_SMSG_SUMMON_REQUEST(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID summoner;
-    uint32_t area;
-    uint32_t timeout;
+    WOWGUID summoner = WOWGUID();
+    uint32_t area = 0;
+    uint32_t timeout = 0;
     msg->Get(summoner.m_guid);
     msg->Get(area);
     msg->Get(timeout);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
@@ -4115,8 +4163,13 @@ int32_t Packet_SMSG_SUMMON_REQUEST(void* param, NETMESSAGE msgId, uint32_t time,
 // VERIFY: 5a3c9684 manual
 // OFFSET: 0x006D8750
 int32_t Packet_SMSG_ACTION_BUTTONS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t state;
+    uint8_t state = 0;
     msg->Get(state);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     uint32_t mode = state;
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
@@ -4350,16 +4403,16 @@ int32_t Packet_Group_18(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
-    WOWGUID itemGuid;
+    WOWGUID itemGuid = WOWGUID();
     msg->Get(itemGuid.m_guid);
     CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(itemGuid, TYPE_ITEM, __FILE__, __LINE__));
 
     switch (msgId) {
         case SMSG_ITEM_TIME_UPDATE: {
-            uint32_t seconds;
+            uint32_t seconds = 0;
             msg->Get(seconds);
 
-            if (item) {
+            if (item && msg->m_read <= msg->m_size) {
                 item->UpdateExpirationTime(seconds);
             }
 
@@ -4838,7 +4891,7 @@ int32_t CGPlayer_C::GetLanguageSkill(uint32_t language, uint32_t& skill) {
     }
 
     for (int32_t i = 0; i < 128; i++) {
-        uint16_t skillId = this->m_obj->m_guid == ClntObjMgrGetActivePlayer() ? this->m_player->m_playerSkillInfo[i].m_skillId : 0;
+        uint16_t skillId = this->m_player->m_playerSkillInfo[i].m_skillId;
 
         if (skillId == ability->m_skillLine) {
             if (!g_skillLineDB.GetRecord(ability->m_skillLine)) {
@@ -4890,7 +4943,18 @@ void CGPlayer_C::AddKnownSpell(int32_t spellId, int32_t a2, int32_t a3, int32_t 
     SkillLineRec* skillLine = ability ? g_skillLineDB.GetRecord(ability->m_skillLine) : nullptr;
 
     if (skillLine && skillLine->m_id == 778) {
-        this->m_companionSpells.Add(1, &spellId);
+        bool known = false;
+
+        for (uint32_t i = 0; i < this->m_companionSpells.m_count; i++) {
+            if (this->m_companionSpells.m_data[i] == spellId) {
+                known = true;
+                break;
+            }
+        }
+
+        if (!known) {
+            this->m_companionSpells.Add(1, &spellId);
+        }
     }
 
     if (spell.m_attributes & 0x20) {
@@ -4903,7 +4967,18 @@ void CGPlayer_C::AddKnownSpell(int32_t spellId, int32_t a2, int32_t a3, int32_t 
                 line->m_hashval = skillLine->m_id;
             }
 
-            *line->m_spells.New() = spellId;
+            bool known = false;
+
+            for (uint32_t i = 0; i < line->m_spells.m_count; i++) {
+                if (line->m_spells.m_data[i] == spellId) {
+                    known = true;
+                    break;
+                }
+            }
+
+            if (!known) {
+                *line->m_spells.New() = spellId;
+            }
         }
 
         CGTradeSkillInfo::RefreshList(1);
@@ -5045,14 +5120,19 @@ uint32_t CGPlayer_C::GetNextLevelXP() const {
 // VERIFY: 0defdfc2 manual
 // OFFSET: 0x006CBEC0
 int32_t Packet_SMSG_PARTY_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t operation;
+    uint32_t operation = 0;
     char name[48];
-    uint32_t result;
-    int32_t value;
+    uint32_t result = 0;
+    int32_t value = 0;
     msg->Get(operation);
     msg->GetString(name, sizeof(name));
     msg->Get(result);
     msg->Get(reinterpret_cast<uint32_t&>(value));
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     char duration[256];
 
     if (!result) {
@@ -5234,12 +5314,16 @@ int32_t Packet_SMSG_PARTY_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32_t
 // VERIFY: 1f3eed29 auto
 // OFFSET: 0x006CC300
 int32_t Packet_SMSG_REAL_GROUP_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t flags;
-    uint32_t count;
-    WOWGUID leader;
+    uint8_t flags = 0;
+    uint32_t count = 0;
+    WOWGUID leader = WOWGUID();
     msg->Get(flags);
     msg->Get(count);
     msg->Get(leader.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (flags & 0x2) {
         if (count) {
@@ -5302,12 +5386,16 @@ int32_t Packet_MSG_TABARDVENDOR_ACTIVATE(void* param, NETMESSAGE msgId, uint32_t
 // VERIFY: c2ac9c5f manual
 // OFFSET: 0x006CC590
 int32_t Packet_SMSG_GUILD_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t command;
+    uint32_t command = 0;
     char name[96];
-    uint32_t result;
+    uint32_t result = 0;
     msg->Get(command);
     msg->GetString(name, sizeof(name));
     msg->Get(result);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (!result) {
         switch (command) {
@@ -5593,11 +5681,15 @@ int32_t Packet_SMSG_ARENA_TEAM_INVITE(void* param, NETMESSAGE msgId, uint32_t ti
 // VERIFY: 3830e7e6 manual
 // OFFSET: 0x006CCE90
 int32_t Packet_SMSG_ARENA_ERROR(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t error;
+    uint32_t error = 0;
     msg->Get(error);
 
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     if (error == 0) {
-        uint8_t type;
+        uint8_t type = 0;
         msg->Get(type);
         CGGameUI::DisplayError(ERR_ARENA_NO_TEAM_II, type, type);
     } else if (error == 1) {
@@ -5635,8 +5727,13 @@ int32_t Packet_SMSG_GROUP_SET_LEADER(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: f608a6e3 auto
 // OFFSET: 0x006CF140
 int32_t CGPlayer_C::OnPetitionDecline(CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = WOWGUID();
     msg->Get(guid.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     WOWGUID none = WOWGUID();
     NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, none, nullptr, nullptr, false);
 
@@ -5650,8 +5747,12 @@ int32_t CGPlayer_C::OnPetitionDecline(CDataStore* msg) {
 // VERIFY: 454dfb59 manual
 // OFFSET: 0x006CF1A0
 int32_t __stdcall CGPlayer_C::OnTurnInPetitionResults(CDataStore* msg) {
-    uint32_t result;
+    uint32_t result = 0;
     msg->Get(result);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     switch (static_cast<PETITION_TURNIN_RESULT>(result)) {
         case PETITION_TURNIN_SUCCESS: {
@@ -5686,14 +5787,18 @@ int32_t __stdcall CGPlayer_C::OnTurnInPetitionResults(CDataStore* msg) {
 // VERIFY: fc2ddd1d auto
 // OFFSET: 0x006CCB20
 int32_t Packet_SMSG_ARENA_TEAM_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t command;
+    uint32_t command = 0;
     char team[96];
     char player[48];
-    uint32_t error;
+    uint32_t error = 0;
     msg->Get(command);
     msg->GetString(team, sizeof(team));
     msg->GetString(player, sizeof(player));
     msg->Get(error);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (error == 0) {
         switch (command) {
@@ -7472,7 +7577,7 @@ void CGPlayer_C::UnsetActiveMirrorHandlers() {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_KNOWN_TITLES_UPDATE)));
     }
 
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x790, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_KNOWN_CURRENCY_TYPES_UPDATE)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x790, SignalKnownCurrencyTypesUpdate, nullptr);
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x1D3, OnUpdateShapeshiftForm, nullptr);
 
     for (uint32_t i = 0x7A6; i < 0xDA6; i += 12) {
@@ -7503,7 +7608,7 @@ void CGPlayer_C::UnsetActiveMirrorHandlers() {
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10EC, SignalCombatRatingUpdate, nullptr);
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xDEC, SignalCombatRatingUpdate, nullptr);
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xDB0, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x88, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x88, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
 
     for (uint32_t i = 0x1214; i < 0x1224; i += 4) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, OnUpdatePlayerRuneRegen, nullptr);
@@ -7574,8 +7679,8 @@ static void CrossedInebriationThresholdItemCallback(int32_t id, const WOWGUID& g
 // OFFSET: 0x006D01B0
 int32_t Packet_SMSG_CROSSED_INEBRIATION_THRESHOLD(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID guid;
-    uint32_t threshold;
-    uint32_t itemId;
+    uint32_t threshold = 0;
+    uint32_t itemId = 0;
     msg->Get(guid.m_guid);
     msg->Get(threshold);
     msg->Get(itemId);
@@ -7978,15 +8083,20 @@ static void QuestCompleteCallback(int32_t id, const WOWGUID& guid, void* param, 
 // VERIFY: bd6214c4 manual
 // OFFSET: 0x006D1110
 int32_t __stdcall CGPlayer_C::OnQuestGiverQuestComplete(CDataStore* msg) {
-    QuestCompleteRewards* rewards = new (__FILE__, __LINE__) QuestCompleteRewards;
+    QuestCompleteRewards* rewards = new (__FILE__, __LINE__) QuestCompleteRewards();
 
-    uint32_t questId;
+    uint32_t questId = 0;
     msg->Get(questId);
     msg->Get(reinterpret_cast<uint32_t&>(rewards->m_xp));
     msg->Get(reinterpret_cast<uint32_t&>(rewards->m_money));
     msg->Get(reinterpret_cast<uint32_t&>(rewards->m_honor));
     msg->Get(reinterpret_cast<uint32_t&>(rewards->m_talents));
     msg->Get(reinterpret_cast<uint32_t&>(rewards->m_arenaPoints));
+
+    if (!questId) {
+        delete rewards;
+        return 1;
+    }
 
     WOWGUID none = { 0 };
 
@@ -8188,28 +8298,20 @@ void CGPlayer_C::DelKnownSpell(int32_t spellId, int32_t silent) {
 // VERIFY: 332a79d2 manual
 // OFFSET: 0x006E22C0
 void CGPlayer_C::RemoveEquipBypassSkill(int32_t spellId) {
-    bool found = false;
+    uint32_t count = this->m_equipBypassSkills.m_count;
 
-    for (uint32_t i = 0; i < this->m_equipBypassSkills.m_count; i++) {
-        if (this->m_equipBypassSkills.m_data[i] == spellId) {
-            found = true;
-        } else if (!found) {
+    // The original shifted the wrong element, so removing a middle entry duplicated its neighbor.
+    for (uint32_t i = 0; i < count; i++) {
+        if (this->m_equipBypassSkills.m_data[i] != spellId) {
             continue;
         }
 
-        uint32_t count = this->m_equipBypassSkills.m_count;
-
-        if (i) {
-            if (i < count - 1) {
-                this->m_equipBypassSkills.m_data[i - 1] = this->m_equipBypassSkills.m_data[i];
-            }
-
-            if (i == this->m_equipBypassSkills.m_count - 1) {
-                this->m_equipBypassSkills.SetCount(i);
-            }
-        } else if (count == 1) {
-            this->m_equipBypassSkills.m_count = 0;
+        for (uint32_t j = i + 1; j < count; j++) {
+            this->m_equipBypassSkills.m_data[j - 1] = this->m_equipBypassSkills.m_data[j];
         }
+
+        this->m_equipBypassSkills.SetCount(count - 1);
+        return;
     }
 }
 
@@ -8732,8 +8834,8 @@ int32_t CGPlayer_C::OnLootResponse(uint32_t time, CDataStore* msg) {
     }
 
     if (lootAcquire) {
-        uint32_t coins;
-        uint8_t count;
+        uint32_t coins = 0;
+        uint8_t count = 0;
         msg->Get(coins);
         msg->Get(count);
 
@@ -9372,16 +9474,16 @@ int32_t Packet_Group_9(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
 
         case SMSG_ITEM_PUSH_RESULT: {
             WOWGUID guid;
-            uint32_t received;
-            uint32_t created;
-            uint32_t showInChat;
-            uint8_t bag;
-            uint32_t slot;
-            uint32_t itemId;
-            uint32_t suffixFactor;
-            uint32_t randomPropertyId;
-            uint32_t count;
-            uint32_t totalCount;
+            uint32_t received = 0;
+            uint32_t created = 0;
+            uint32_t showInChat = 0;
+            uint8_t bag = 0;
+            uint32_t slot = 0;
+            uint32_t itemId = 0;
+            uint32_t suffixFactor = 0;
+            uint32_t randomPropertyId = 0;
+            uint32_t count = 0;
+            uint32_t totalCount = 0;
             msg->Get(guid.m_guid);
             msg->Get(received);
             msg->Get(created);
@@ -9619,6 +9721,10 @@ int32_t Packet_Group_9(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
                 NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, guid, RandomRollNameQueryCallback, roll, false);
 
                 if (!name) {
+                    if (!guid) {
+                        operator delete(roll);
+                    }
+
                     return 1;
                 }
 
@@ -10059,7 +10165,7 @@ static void AutoEquipItemCallback(int32_t id, const WOWGUID& guid, void* param, 
         }
 
         if (stats && player) {
-            player->AutoEquipItemToSlot(swap.m_item, swap.m_srcSlot, 0);
+            player->AutoEquipItemToSlot(static_cast<CGItem_C*>(ClntObjMgrObjectPtr(swap.m_itemGuid, TYPE_ITEM, __FILE__, __LINE__)), swap.m_srcSlot, 0);
         }
 
         ITEMSWAP& entry = s_itemSwaps.m_data[i];
@@ -10068,7 +10174,7 @@ static void AutoEquipItemCallback(int32_t id, const WOWGUID& guid, void* param, 
         entry.m_srcSlot = 0xFFFFFFFF;
         entry.m_dstSlot = 0xFFFFFFFF;
         entry.m_itemId = 0;
-        entry.m_item = nullptr;
+        entry.m_itemGuid = WOWGUID();
     }
 }
 
@@ -10153,7 +10259,7 @@ static void SwapItemsStatsCallback(int32_t id, const WOWGUID& guid, void* param,
         entry.m_srcSlot = 0xFFFFFFFF;
         entry.m_dstSlot = 0xFFFFFFFF;
         entry.m_itemId = 0;
-        entry.m_item = nullptr;
+        entry.m_itemGuid = WOWGUID();
     }
 }
 
@@ -10964,7 +11070,7 @@ const char* CGPlayer_C::GetPlayerGuildNameText() {
     }
 
     WOWGUID guid = this->m_obj->m_guid;
-    GuildStats_C* stats = g_guildInfoCache.GetRecord(this->m_player->m_playerGuildid, guid, PlayerNameGuildCallback, this, false);
+    GuildStats_C* stats = g_guildInfoCache.GetRecord(this->m_player->m_playerGuildid, guid, PlayerNameGuildCallback, this, true);
 
     if (!stats) {
         return nullptr;
@@ -11053,6 +11159,16 @@ static bool AreaTriggerContains(const AreaTriggerRec* rec, const C3Vector& posit
     }
 
     if (rec->m_radius == 0.0f) {
+        float cx = rec->m_pos[0] - position.x;
+        float cy = rec->m_pos[1] - position.y;
+        float cz = rec->m_pos[2] - position.z;
+        float halfDiagonalSq = (rec->m_boxLength * rec->m_boxLength + rec->m_boxWidth * rec->m_boxWidth + rec->m_boxHeight * rec->m_boxHeight) * 0.25f;
+
+        // A point inside the rotated box is never farther from its center than half the diagonal.
+        if (cx * cx + cy * cy + cz * cz > halfDiagonalSq * 1.01f + 1.0f) {
+            return false;
+        }
+
         CAaBox box;
         box.t.x = rec->m_boxLength * 0.5f;
         box.b.x = -box.t.x;
@@ -11366,7 +11482,7 @@ void CGPlayer_C::AutoEquipItemToSlot(CGItem_C* item, uint32_t slot, int32_t igno
 
         if (!stats) {
             uint32_t index = FindEmptySwapIndex();
-            s_itemSwaps.m_data[index].m_item = item;
+            s_itemSwaps.m_data[index].m_itemGuid = guid;
             s_itemSwaps.m_data[index].m_srcSlot = slot;
             s_itemSwaps.m_data[index].m_srcContainer = item->m_item->m_itemFieldContained;
             s_itemSwaps.m_data[index].m_itemId = item->m_obj->m_entryID;
@@ -11377,7 +11493,7 @@ void CGPlayer_C::AutoEquipItemToSlot(CGItem_C* item, uint32_t slot, int32_t igno
 
         if (stats->m_bonding == 2 && this->CanUseItem(stats, error)) {
             uint32_t index = FindEmptySwapIndex();
-            s_itemSwaps.m_data[index].m_item = item;
+            s_itemSwaps.m_data[index].m_itemGuid = guid;
             s_itemSwaps.m_data[index].m_srcSlot = slot;
             s_itemSwaps.m_data[index].m_srcContainer = item->m_item->m_itemFieldContained;
             s_itemSwaps.m_data[index].m_itemId = item->m_obj->m_entryID;
@@ -11404,8 +11520,8 @@ void CGPlayer_C::ClearPendingEquip(uint32_t index, int32_t equip) {
     ITEMSWAP* swap = &s_itemSwaps.m_data[index];
 
     if (equip) {
-        if (swap->m_item) {
-            this->AutoEquipItemToSlot(swap->m_item, swap->m_srcSlot, 1);
+        if (swap->m_itemGuid) {
+            this->AutoEquipItemToSlot(static_cast<CGItem_C*>(ClntObjMgrObjectPtr(swap->m_itemGuid, TYPE_ITEM, __FILE__, __LINE__)), swap->m_srcSlot, 1);
         } else if (swap->m_dstContainer) {
             this->SwapItems(WOWGUID(), swap->m_srcContainer, swap->m_srcSlot, swap->m_dstContainer, swap->m_dstSlot, 1);
         } else {
@@ -11433,7 +11549,7 @@ void CGPlayer_C::ClearPendingEquip(uint32_t index, int32_t equip) {
     swap->m_srcContainer = WOWGUID();
     swap->m_dstContainer = WOWGUID();
     swap->m_itemId = 0;
-    swap->m_item = nullptr;
+    swap->m_itemGuid = WOWGUID();
     swap->m_srcSlot = 0xFFFFFFFF;
     swap->m_dstSlot = 0xFFFFFFFF;
 }
@@ -13207,7 +13323,7 @@ int32_t Packet_HandlePartyMemberStats(void* param, NETMESSAGE msgId, uint32_t ti
     }
 
     if (mask & 0x200) {
-        uint64_t auraMask;
+        uint64_t auraMask = 0;
         msg->Get(auraMask);
 
         for (uint32_t i = 0; i < 64; i++) {
@@ -13256,7 +13372,7 @@ int32_t Packet_HandlePartyMemberStats(void* param, NETMESSAGE msgId, uint32_t ti
     }
 
     if (mask & 0x40000) {
-        uint64_t auraMask;
+        uint64_t auraMask = 0;
         msg->Get(auraMask);
 
         for (uint32_t i = 0; i < 64; i++) {
@@ -13911,6 +14027,18 @@ const CGUnitVirtualItem* CGPlayer_C::GetVirtualItem(VIRTUAL_MONSTER_SLOT slot, b
     if ((ignoreDisarm || (item && item->m_itemId > 0)) && item && abs(item->m_itemId)) {
         CGUnitVirtualItem* virtualItem = &const_cast<CGPlayer_C*>(this)->m_virtualItems[slot];
         virtualItem->m_classID = item->GetClassID();
+        WOWGUID none = WOWGUID();
+        ItemStats_C* stats = g_itemDBCache.GetRecord(abs(item->m_itemId), none, nullptr, nullptr, false);
+
+        if (stats) {
+            virtualItem->m_subclassID = static_cast<uint8_t>(stats->m_subClass);
+            virtualItem->m_material = static_cast<uint8_t>(stats->m_material);
+            virtualItem->m_inventoryType = static_cast<uint8_t>(stats->m_inventoryType);
+            virtualItem->m_sheatheType = static_cast<uint8_t>(stats->m_sheatheType);
+            virtualItem->m_soundOverrideSubclassID = static_cast<uint8_t>(stats->m_soundOverrideSubclass);
+            return virtualItem;
+        }
+
         virtualItem->m_subclassID = item->GetSubtypeID();
         virtualItem->m_material = item->GetMaterial();
         virtualItem->m_inventoryType = item->GetInventoryType();
@@ -14356,14 +14484,14 @@ int32_t CGPlayer_C::OnItemRefundResult(CDataStore* msg) {
         return 1;
     }
 
-    int32_t money;
+    int32_t money = 0;
     msg->Get(reinterpret_cast<uint32_t&>(money));
-    int32_t honor;
+    int32_t honor = 0;
     msg->Get(reinterpret_cast<uint32_t&>(honor));
-    int32_t arena;
+    int32_t arena = 0;
     msg->Get(reinterpret_cast<uint32_t&>(arena));
-    int32_t items[5];
-    int32_t counts[5];
+    int32_t items[5] = {};
+    int32_t counts[5] = {};
 
     for (uint32_t i = 0; i < 5; i++) {
         msg->Get(reinterpret_cast<uint32_t&>(items[i]));

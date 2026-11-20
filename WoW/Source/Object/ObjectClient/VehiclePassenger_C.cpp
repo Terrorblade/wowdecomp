@@ -127,10 +127,14 @@ void CVehiclePassenger_C::StartDeferringVehicleTransitionAnimSpline(CDataStore* 
     CDataStore* spline = new (SMemAlloc(sizeof(CDataStore), __FILE__, __LINE__, 0)) CDataStore();
     this->m_deferredTransitionSpline = spline;
 
-    uint32_t bytes = msg->m_size - msg->m_read;
-    void* data;
+    uint32_t bytes = msg->m_read < msg->m_size ? msg->m_size - msg->m_read : 0;
+    void* data = nullptr;
     msg->GetDataInSitu(data, bytes);
-    spline->PutData(data, bytes);
+
+    if (bytes && data) {
+        spline->PutData(data, bytes);
+    }
+
     this->m_deferredTransitionSpline->Finalize();
 }
 

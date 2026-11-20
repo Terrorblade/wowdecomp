@@ -49,7 +49,7 @@ struct ITEMSWAP {
     /* 0010 */ uint32_t m_srcSlot;
     /* 0014 */ uint32_t m_dstSlot;
     /* 0018 */ int32_t m_itemId;
-    /* 001C */ CGItem_C* m_item;
+    /* 001C */ WOWGUID m_itemGuid;
 
     ITEMSWAP();
 };

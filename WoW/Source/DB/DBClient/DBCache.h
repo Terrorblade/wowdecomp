@@ -78,7 +78,7 @@ class DBCache : public Blizzard::Using::GlobalUse {
     void AddItems(CDataStore* msg, bool single);
     void CancelCallback(TKey key, void (*callback)(int32_t id, const WOWGUID& guid, void* param, bool success), void* param);
     void Clear();
-    void ClearPending();
+    void ClearPending(bool notify = true);
     void CancelCallbacksForParam(void (*callback)(int32_t id, const WOWGUID& guid, void* param, bool success), void* param);
     void DenyItem(TKey key);
     T* GetRecord(TKey key, const WOWGUID& guid, void (*callback)(int32_t id, const WOWGUID& guid, void* param, bool success), void* param, bool unique);
@@ -438,17 +438,38 @@ void DBCache<T, TKey, THashKey>::Clear() {
 // VERIFY: 0b524eff manual
 // OFFSET: [0x0066A010<CreatureStats_C, int, HASHKEY_INT>, 0x0066A310<DanceCache, int, HASHKEY_INT>, 0x0066A610<ItemNameCache_C, int, HASHKEY_INT>, 0x0066A900<ItemStats_C, int, HASHKEY_INT>, 0x0066AC00<NPCText, int, HASHKEY_INT>, 0x0066AF00<NameCache, unsigned __int64, CHashKeyGUID>, 0x0066B210<GuildStats_C, int, HASHKEY_INT>, 0x0066B510<QuestCache, int, HASHKEY_INT>, 0x0066B810<PageTextCache_C, int, HASHKEY_INT>, 0x0066BB00<PetNameCache, int, HASHKEY_INT>, 0x0066BDF0<CGPetition, int, HASHKEY_INT>, 0x0066C0F0<ItemTextCache_C, unsigned __int64, CHashKeyGUID>, 0x0066C400<WardenCachedModule, CWardenKey, CWardenKey>, 0x0066C710<ArenaTeamCache, int, HASHKEY_INT>]
 template <class T, class TKey, class THashKey>
-void DBCache<T, TKey, THashKey>::ClearPending() {
+void DBCache<T, TKey, THashKey>::ClearPending(bool notify) {
     DBCACHEHASH* hash = this->m_entries.m_fulllist.Head();
 
     while (hash) {
-        if (hash->m_loaded) {
+        if (hash->m_loaded || hash->m_dispatching) {
             hash = this->m_entries.Next(hash);
-        } else {
-            DBCACHEHASH* next = this->m_entries.Next(hash);
-            this->m_entries.Delete(hash);
-            hash = next;
+            continue;
         }
+
+        // Callbacks own their params and free them on failure, dropping them leaked every logout.
+        if (notify) {
+            hash->m_dispatching = true;
+            uint32_t count = 0;
+
+            for (DBCACHECALLBACK* node = hash->m_callbacks.Head(); node; node = hash->m_callbacks.Next(node)) {
+                count++;
+            }
+
+            for (DBCACHECALLBACK* node; count && (node = hash->m_callbacks.Head()) != nullptr; count--) {
+                void (*callback)(int32_t id, const WOWGUID& guid, void* param, bool success) = node->m_callback;
+                WOWGUID guid = node->m_guid;
+                void* param = node->m_param;
+                hash->m_callbacks.DeleteNode(node);
+                callback(static_cast<int32_t>(DBCacheHashKey(hash->m_id)), guid, param, false);
+            }
+
+            hash->m_dispatching = false;
+        }
+
+        DBCACHEHASH* next = this->m_entries.Next(hash);
+        this->m_entries.Delete(hash);
+        hash = next;
     }
 }
 
@@ -517,7 +538,7 @@ void DBCache<T, TKey, THashKey>::Save() {
 template <class T, class TKey, class THashKey>
 void DBCache<T, TKey, THashKey>::Destroy() {
     this->Save();
-    this->ClearPending();
+    this->ClearPending(false);
     this->m_entries.Clear();
     this->m_reverse.Clear();
     this->m_loaded = false;

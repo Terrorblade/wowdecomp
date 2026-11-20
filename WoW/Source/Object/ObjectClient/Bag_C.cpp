@@ -857,8 +857,9 @@ CGItem_C* CGBag_C::FindItem(int32_t (*callback)(const CGItem_C* item, void* para
 // OFFSET: 0x00754590
 int32_t GetItemLimitCategoryCallback(const CGItem_C* item, void* param) {
     int32_t* data = static_cast<int32_t*>(param);
+    const ItemStats_C* stats = item ? item->GetStats() : nullptr;
 
-    if (item && item->GetStats() && static_cast<int32_t>(item->GetStats()->m_itemLimitCategory) == data[0]) {
+    if (stats && static_cast<int32_t>(stats->m_itemLimitCategory) == data[0]) {
         data[1] += item->m_item->m_itemFieldStackCount;
     }
 

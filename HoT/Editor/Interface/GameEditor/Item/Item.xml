@@ -5,6 +5,7 @@
 	<Script file="ItemRows.lua"/>
 	<Script file="ItemEditor.lua"/>
 	<Script file="ItemBrowser.lua"/>
+	<Script file="ItemLegendaryPreview.lua"/>
 	<Script file="ItemGenerator.lua"/>
 	<Script file="ItemWorkspace.lua"/>
 </Ui>

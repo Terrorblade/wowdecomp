@@ -1,6 +1,7 @@
 #include "Player.h"
 #include "WoW/Source/Object/Unit.h"
 #include "HoT/Features/Features.h"
+#include <algorithm>
 
 // STATIC: 0x00AC4BC8
 const uint32_t CGPlayer::s_mirrorFields[173] = {
@@ -87,17 +88,22 @@ uint32_t CGPlayer::DescriptorToMirrorOffset(uint32_t offset, uint32_t size, int3
 // VERIFY: f6210798 auto
 // OFFSET: 0x004F5550
 uint32_t CGPlayer::GetSavedIndexFromDataIndex(uint32_t index, uint32_t count, int32_t local) {
-    for (uint32_t i = 0; i < sizeof(CGPlayer::s_mirrorFields) / sizeof(CGPlayer::s_mirrorFields[0]); i++) {
-        if (CGPlayer::s_mirrorFields[i] == index) {
-            return i;
-        }
+    // Both tables are strictly increasing, so a binary search matches the original linear scan.
+    const uint32_t numMirrorFields = sizeof(CGPlayer::s_mirrorFields) / sizeof(CGPlayer::s_mirrorFields[0]);
+    const uint32_t* mirrorEnd = CGPlayer::s_mirrorFields + numMirrorFields;
+    const uint32_t* mirror = std::lower_bound(CGPlayer::s_mirrorFields, mirrorEnd, index);
+
+    if (mirror != mirrorEnd && *mirror == index) {
+        return static_cast<uint32_t>(mirror - CGPlayer::s_mirrorFields);
     }
 
     if (local) {
-        for (uint32_t i = 0; i < sizeof(CGPlayer::s_localMirrorFields) / sizeof(CGPlayer::s_localMirrorFields[0]); i++) {
-            if (CGPlayer::s_localMirrorFields[i] == index) {
-                return i + sizeof(CGPlayer::s_mirrorFields) / sizeof(CGPlayer::s_mirrorFields[0]);
-            }
+        const uint32_t numLocalMirrorFields = sizeof(CGPlayer::s_localMirrorFields) / sizeof(CGPlayer::s_localMirrorFields[0]);
+        const uint32_t* localEnd = CGPlayer::s_localMirrorFields + numLocalMirrorFields;
+        const uint32_t* localMirror = std::lower_bound(CGPlayer::s_localMirrorFields, localEnd, index);
+
+        if (localMirror != localEnd && *localMirror == index) {
+            return static_cast<uint32_t>(localMirror - CGPlayer::s_localMirrorFields) + numMirrorFields;
         }
     }
 

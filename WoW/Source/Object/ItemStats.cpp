@@ -2,6 +2,7 @@
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Common/ComponentCore/Types.h"
+#include "WoW/Source/Object/ObjectClient/UnitCombatLog_C.h"
 #include <cstring>
 
 // INLINED
@@ -42,6 +43,11 @@ void ItemStats_C::Unpack(CDataStore* msg) {
 
         if (this->m_name[i] && name[0] && !SStrCmp(this->m_name[i], name, STORM_MAX_STR)) {
             continue;
+        }
+
+        if (this->m_name[i]) {
+            UnitCombatLogInvalidateName(this->m_name[i]);
+            SMemFree(this->m_name[i], __FILE__, __LINE__, 0);
         }
 
         this->m_name[i] = name[0] ? SStrDupA(name, __FILE__, __LINE__) : nullptr;
@@ -136,6 +142,10 @@ void ItemStats_C::Unpack(CDataStore* msg) {
     msg->GetString(description, sizeof(description));
 
     if (!(this->m_description && description[0] && !SStrCmp(this->m_description, description, STORM_MAX_STR))) {
+        if (this->m_description) {
+            SMemFree(this->m_description, __FILE__, __LINE__, 0);
+        }
+
         this->m_description = description[0] ? SStrDupA(description, __FILE__, __LINE__) : nullptr;
     }
 

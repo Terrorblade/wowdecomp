@@ -15,7 +15,14 @@ ItemNameCache_C::~ItemNameCache_C() {
 void ItemNameCache_C::Unpack(CDataStore* msg) {
     char name[400];
     msg->GetString(name, sizeof(name));
-    this->m_name = SStrDupA(name, __FILE__, __LINE__);
+
+    if (!this->m_name || SStrCmp(this->m_name, name, STORM_MAX_STR)) {
+        if (this->m_name) {
+            SMemFree(this->m_name, __FILE__, __LINE__, 0);
+        }
+
+        this->m_name = SStrDupA(name, __FILE__, __LINE__);
+    }
     msg->Get(this->m_inventoryType);
 }
 

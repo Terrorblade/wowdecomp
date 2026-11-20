@@ -108,6 +108,7 @@ class EditorModule : public Module {
         Dbc::OnIdle();
         SpellPreview::OnIdle();
         WorldPreview::OnIdle();
+        Mode::OnIdle();
     }
 
     void OnScriptsLoaded(Lua::State state) override {

@@ -1361,8 +1361,10 @@ GameEditor_RegisterWorkspace({
 		RefreshList(true);
 		RefreshPages();
 	end,
-	onDeactivate = function()
-		LE.HideColorPicker();
+	onDeactivate = function(closing)
+		if ( not closing ) then
+			LE.HideColorPicker();
+		end
 
 		if ( LightEditor_SetDisplay ) then
 			LightEditor_SetDisplay(false);

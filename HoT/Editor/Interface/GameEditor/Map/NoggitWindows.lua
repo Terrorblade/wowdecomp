@@ -4,8 +4,6 @@ local PALETTE_THUMB = 64;
 local PALETTE_SPACING = 4;
 local PALETTE_MARGIN = 8;
 
-local windows = {};
-
 -- Sizes a game editor window so its content area is exactly width x height.
 local function CreateMapWindow(name, title, width, height)
 	local window = GameEditor_CreateWindow(name, title, width, height);
@@ -22,7 +20,7 @@ local function CreateMapWindow(name, title, width, height)
 	window.chromeHeight = chromeHeight;
 	window:SetWidth(width + chromeWidth);
 	window:SetHeight(height + chromeHeight);
-	table.insert(windows, window);
+	GameEditor_SetWindowWorkspace(window, "map");
 	return window, content;
 end
 
@@ -370,10 +368,4 @@ end
 
 function MapEditor_ShowRotationEditor()
 	GameEditor_ShowWindow(MapEditor_CreateRotationEditor());
-end
-
-function MapEditor_HideWindows()
-	for _, window in ipairs(windows) do
-		GameEditor_HideWindow(window);
-	end
 end

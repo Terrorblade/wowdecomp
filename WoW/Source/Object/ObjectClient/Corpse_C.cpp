@@ -8,6 +8,7 @@
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/ChrRacesRec.h"
 #include "WoW/Source/DB/Rec/CreatureDisplayInfoRec.h"
@@ -70,8 +71,13 @@ void CGCorpse_C::ApplyGuildColor(int32_t request) {
     if (GuildGetGuildTabard(this->m_corpse->m_corpseFieldOwner, this->m_corpse->m_corpseFieldGuild, nullptr, nullptr, emblemStyle, emblemColor, borderStyle, borderColor, background)) {
         this->m_component->ApplyGuildColor(emblemStyle, emblemColor, borderStyle, borderColor, background);
     } else if (request) {
-        WOWGUID* corpseGuid = new (SMemAlloc(sizeof(WOWGUID), __FILE__, __LINE__, 0)) WOWGUID(this->m_obj->m_guid);
-        GuildGetGuildTabard(this->m_corpse->m_corpseFieldOwner, this->m_corpse->m_corpseFieldGuild, &GuildTabardCallback, corpseGuid, emblemStyle, emblemColor, borderStyle, borderColor, background);
+        int32_t guildId = static_cast<int32_t>(this->m_corpse->m_corpseFieldGuild);
+
+        // The callback only registers for a guild record that is not loaded yet, otherwise the guid would leak.
+        if (!DBCacheIsNullKey(guildId) && !g_guildInfoCache.GetRecord(guildId, this->m_corpse->m_corpseFieldOwner, nullptr, nullptr, false)) {
+            WOWGUID* corpseGuid = new (SMemAlloc(sizeof(WOWGUID), __FILE__, __LINE__, 0)) WOWGUID(this->m_obj->m_guid);
+            GuildGetGuildTabard(this->m_corpse->m_corpseFieldOwner, this->m_corpse->m_corpseFieldGuild, &GuildTabardCallback, corpseGuid, emblemStyle, emblemColor, borderStyle, borderColor, background);
+        }
     }
 }
 

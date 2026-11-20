@@ -890,10 +890,49 @@ static void CallMirrorFunctions(TSExplicitList<CMirrorHandler, offsetof(CMirrorH
 
 // VERIFY: 5369b3f6 manual
 // OFFSET: 0x004D52B0
-static void CopyMirrorFields(TSList<CMirrorHandler, TSGetLink<CMirrorHandler> >* list, CGObject_C* object) {
+static bool IsMirrorHandlerDirty(const CMirrorHandler* handler, const uint32_t* masks) {
+    uint32_t first = handler->m_fieldByteOffset >> 2;
+    uint32_t end = first + ((handler->m_fieldByteSize + (handler->m_fieldByteOffset & 3) + 3) >> 2);
+
+    for (uint32_t i = first; i < end && i < 42 * 32; i++) {
+        if (masks[i >> 5] & (1u << (i & 31))) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static uint32_t GetDirtyBlockLimit(const uint32_t* masks, uint8_t blockCount, uint32_t numBlocks) {
+    for (uint32_t word = blockCount; word > 0; word--) {
+        uint32_t mask = masks[word - 1];
+
+        if (mask) {
+            uint32_t limit = 32 * (word - 1);
+
+            for (; mask; mask >>= 1) {
+                limit++;
+            }
+
+            return limit < numBlocks ? limit : numBlocks;
+        }
+    }
+
+    return 0;
+}
+
+static void CopyMirrorFields(TSList<CMirrorHandler, TSGetLink<CMirrorHandler> >* list, CGObject_C* object, const uint32_t* dirtyMasks) {
+    if (!list || !list->Head()) {
+        return;
+    }
+
     int32_t local = object->m_obj->m_guid == ClntObjMgrGetActivePlayer();
 
     for (CMirrorHandler* handler = list->Head(); handler; handler = handler->m_link.Next()) {
+        if (dirtyMasks && !IsMirrorHandlerDirty(handler, dirtyMasks)) {
+            continue;
+        }
+
         uint32_t mirrorOffset = ObjDescriptorToMirrorOffset(object->m_typeId, local, handler->m_fieldByteOffset, handler->m_fieldByteSize);
         memcpy(static_cast<uint8_t*>(object->m_objMirror) + mirrorOffset, reinterpret_cast<uint8_t*>(object->m_obj) + handler->m_fieldByteOffset, handler->m_fieldByteSize);
     }
@@ -928,7 +967,20 @@ static int32_t FillInPartialObjectData(CGObject_C* object, WOWGUID guid, CDataSt
     OBJECT_TYPE_ID typeId = ID_OBJECT;
     uint32_t typeBase = 0;
     uint32_t numBlocks = GetNumDwordBlocks(object->m_obj->m_type, guid);
-    TSExplicitList<CMirrorHandler, offsetof(CMirrorHandler, m_link2)> pending;
+
+    // Without zero fill only dirty blocks are written and only handlers over them can fire, so the rest is skipped.
+    const uint32_t* dirtyMasks = zeroFillAbsent ? nullptr : masks;
+
+    if (!zeroFillAbsent) {
+        uint32_t limit = GetDirtyBlockLimit(masks, blockCount, numBlocks);
+        uint32_t minimum = static_cast<uint32_t>(OBJECT_FIELD_TYPE) + 1;
+
+        if (limit < minimum) {
+            limit = minimum < numBlocks ? minimum : numBlocks;
+        }
+
+        numBlocks = limit;
+    }
 
     for (uint32_t i = 0; i < numBlocks; i++) {
         if (i >= s_objDwordCount[typeId]) {
@@ -937,19 +989,8 @@ static int32_t FillInPartialObjectData(CGObject_C* object, WOWGUID guid, CDataSt
         }
 
         if (!skipMirrorUpdate) {
-            ExpirePendingHandlers(&pending);
-
-            TSList<CMirrorHandler, TSGetLink<CMirrorHandler> >* list = &s_typeMirrorHandlers[typeId][i - typeBase];
-
-            if (LinkPendingNodes(&pending, list)) {
-                CopyMirrorFields(list, object);
-            }
-
-            list = GetObjectMirrorList(typeId, object, i - typeBase);
-
-            if (LinkPendingNodes(&pending, list)) {
-                CopyMirrorFields(list, object);
-            }
+            CopyMirrorFields(&s_typeMirrorHandlers[typeId][i - typeBase], object, dirtyMasks);
+            CopyMirrorFields(GetObjectMirrorList(typeId, object, i - typeBase), object, dirtyMasks);
         }
 
         uint32_t value = 0;
@@ -1007,6 +1048,11 @@ static int32_t CallMirrorHandlers(CDataStore* msg, bool postInit, WOWGUID guid) 
     uint32_t numBlocks = GetNumDwordBlocks(object->m_obj->m_type, guid);
     TSExplicitList<CMirrorHandler, offsetof(CMirrorHandler, m_link2)> pending;
 
+    // Handlers only fire on dirty blocks here, so nothing past the last one can do anything.
+    if (!postInit) {
+        numBlocks = GetDirtyBlockLimit(masks, blockCount, numBlocks);
+    }
+
     for (uint32_t i = 0; i < numBlocks; i++) {
         if (i >= s_objDwordCount[typeId]) {
             typeBase = s_objDwordCount[typeId];
@@ -1025,6 +1071,22 @@ static int32_t CallMirrorHandlers(CDataStore* msg, bool postInit, WOWGUID guid) 
         }
 
         CallMirrorFunctions(&pending, guid, object, typeId);
+    }
+
+    // A later update for the same object in this packet would otherwise fire these handlers a second time.
+    if (!postInit) {
+        typeId = ID_OBJECT;
+        typeBase = 0;
+
+        for (uint32_t i = 0; i < numBlocks; i++) {
+            if (i >= s_objDwordCount[typeId]) {
+                typeBase = s_objDwordCount[typeId];
+                typeId = IncTypeId(object, typeId);
+            }
+
+            CopyMirrorFields(&s_typeMirrorHandlers[typeId][i - typeBase], object, masks);
+            CopyMirrorFields(GetObjectMirrorList(typeId, object, i - typeBase), object, masks);
+        }
     }
 
     return 1;
@@ -1690,38 +1752,22 @@ int32_t Packet_SMSG_COMPRESSED_UPDATE_OBJECT(void* param, NETMESSAGE msgId, uint
         return 0;
     }
 
-    uint8_t* buffer;
-    bool stackBuffer;
+    WDataStore data;
+    data.FetchWrite(0, size ? size : 1, __FILE__, __LINE__);
 
-    if (size >= 0x2000) {
-        buffer = static_cast<uint8_t*>(SMemAlloc(size, __FILE__, __LINE__, 0));
-        stackBuffer = false;
-
-        if (!buffer) {
-            return 0;
-        }
-    } else {
-        buffer = static_cast<uint8_t*>(alloca(size));
-        stackBuffer = true;
+    if (!data.m_data) {
+        return 0;
     }
 
     uint32_t uncompressedSize = size;
-    int32_t result;
 
-    if (zlib_uncompress(buffer, &uncompressedSize, static_cast<const uint8_t*>(compressed), compressedSize)) {
-        result = 0;
-    } else {
-        WDataStore data;
-        data.PutData(buffer, uncompressedSize);
-        data.m_read = 0;
-        result = Packet_SMSG_UPDATE_OBJECT(nullptr, SMSG_UPDATE_OBJECT, time, &data);
+    if (zlib_uncompress(data.m_data, &uncompressedSize, static_cast<const uint8_t*>(compressed), compressedSize)) {
+        return 0;
     }
 
-    if (!stackBuffer) {
-        SMemFree(buffer, __FILE__, __LINE__, 0);
-    }
-
-    return result;
+    data.m_size = uncompressedSize;
+    data.m_read = 0;
+    return Packet_SMSG_UPDATE_OBJECT(nullptr, SMSG_UPDATE_OBJECT, time, &data);
 }
 
 // VERIFY: 2f490dee manual

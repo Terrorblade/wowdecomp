@@ -35,6 +35,14 @@ class ARCHIVEREC;
 
 }
 
+namespace Blizzard {
+namespace Mopaq {
+
+struct FoundFile;
+
+}
+}
+
 struct SOVERLAPPED {
     /* 0000 */ uint32_t Offset;
     /* 0004 */ SEvent* hEvent;
@@ -142,8 +150,12 @@ struct FileHashEntry {
 };
 
 struct FileHashCompare {
+    typedef void is_transparent;
+
     size_t operator()(const std::string& key) const;
     bool operator()(const std::string& key1, const std::string& key2) const;
+    bool operator()(const char* key1, const std::string& key2) const;
+    bool operator()(const std::string& key1, const char* key2) const;
 };
 
 typedef std::map<std::string, FileHashEntry, FileHashCompare> FileHash;
@@ -183,7 +195,7 @@ bool ShutdownSoundCache();
 uint32_t SoundCacheThread(void* param);
 bool VerifyAndCacheFile(const char* name);
 bool WriteSoundCacheFile(const char* name, const void* data, uint32_t size);
-bool FindFile(const char* name, char* path, uint32_t size, uint32_t flags, SFILE_TYPE* type, System_SFile::ARCHIVEREC** archive);
+bool FindFile(const char* name, char* path, uint32_t size, uint32_t flags, SFILE_TYPE* type, System_SFile::ARCHIVEREC** archive, Blizzard::Mopaq::FoundFile* location = nullptr);
 bool OldFindFile(const char* name, char* path, uint32_t size, uint32_t flags, SFILE_TYPE* type);
 bool QueueAsyncOpen(const char* name);
 bool ScanDirForFileSystemHash(const char* directory);

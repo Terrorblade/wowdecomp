@@ -85,7 +85,7 @@ bool Blizzard::Streaming::ScanDirectoryForManifest(const Blizzard::File::Process
         if (type) {
             *extension = 0;
 
-            if (System_SFile2::s_fileHash.find(std::string(relative)) == System_SFile2::s_fileHash.end()) {
+            if (System_SFile2::s_fileHash.find(static_cast<const char*>(relative)) == System_SFile2::s_fileHash.end()) {
                 System_SFile2::FileHashEntry entry;
                 entry.m_path = fullPath;
                 entry.m_type = type;
@@ -98,7 +98,7 @@ bool Blizzard::Streaming::ScanDirectoryForManifest(const Blizzard::File::Process
         }
     }
 
-    if (System_SFile2::s_fileHash.find(std::string(relative)) == System_SFile2::s_fileHash.end()) {
+    if (System_SFile2::s_fileHash.find(static_cast<const char*>(relative)) == System_SFile2::s_fileHash.end()) {
         System_SFile2::FileHashEntry entry;
         entry.m_path = fullPath;
         entry.m_type = SFILE_PLAIN;

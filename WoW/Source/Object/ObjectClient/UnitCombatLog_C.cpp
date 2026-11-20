@@ -410,10 +410,10 @@ void UnitCombatLogInvalidateName(const char* name) {
     InvalidatedName* node = nullptr;
 
     for (CombatLogEntry* entry = s_entries.Head(); entry; entry = s_entries.Next(entry)) {
-        const char** fields[] = { &entry->m_sourceName, &entry->m_destName, &entry->m_sourceRealm, &entry->m_destRealm };
+        const char** fields[] = { &entry->m_sourceName, &entry->m_destName, &entry->m_sourceRealm, &entry->m_destRealm, &entry->m_info.m_names[1] };
 
         for (const char** field : fields) {
-            if (*field != name) {
+            if (*field != name || (field == &entry->m_info.m_names[1] && !(entry->m_infoFlags & 0x200))) {
                 continue;
             }
 
@@ -2806,7 +2806,9 @@ void UnitCombatLogUnitDead(CGUnit_C* unit) {
         event = 49;
     } else {
         SpellRec spell;
+        spell.m_effect[0] = 0;
 
+        // The inverted test matches the binary, the zeroed effect keeps the miss path off uninitialized stack.
         if (!g_spellDB.GetRecord(unit->m_unit->m_unitCreatedBySpell, &spell) && spell.m_effect[0] == SPELL_EFFECT_SUMMON) {
             SummonPropertiesRec* summon = g_summonPropertiesDB.GetRecord(spell.m_effectMiscValueB[0]);
 

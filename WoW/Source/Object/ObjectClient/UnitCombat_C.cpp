@@ -347,7 +347,7 @@ void ATTACKROUNDINFO::Unpack(CDataStore& msg) {
         }
     }
 
-    uint8_t victimState;
+    uint8_t victimState = 0;
     msg.Get(victimState);
     this->m_victimState = static_cast<VICTIMSTATES>(victimState);
     msg.Get(this->unk_0058);
@@ -778,7 +778,7 @@ int32_t Packet_Group_29(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
             SmartGUID victim;
             *msg >> attacker;
             *msg >> victim;
-            uint32_t faceTarget;
+            uint32_t faceTarget = 0;
             msg->Get(faceTarget);
             CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(attacker, TYPE_UNIT, __FILE__, __LINE__));
 
@@ -875,7 +875,7 @@ int32_t Packet_Group_29(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
             return 1;
         }
         case SMSG_CLEAR_TARGET: {
-            uint64_t guid;
+            uint64_t guid = 0;
             msg->Get(guid);
             CGGameUI::ClearTarget(WOWGUID{ guid }, 1);
             return 0;

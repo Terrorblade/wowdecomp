@@ -320,13 +320,13 @@ TSLink<T>::~TSLink() {
 
 // INLINED
 template <class T>
-int32_t TSLink<T>::IsLinked() {
+inline int32_t TSLink<T>::IsLinked() {
     return this->m_next != nullptr;
 }
 
 // INLINED
 template <class T>
-T* TSLink<T>::Next() {
+inline T* TSLink<T>::Next() {
     return (reinterpret_cast<uintptr_t>(this->m_next) & 1) ? nullptr : this->m_next;
 }
 
@@ -349,13 +349,13 @@ TSLink<T>* TSLink<T>::NextLink(ptrdiff_t linkoffset) {
 
 // INLINED
 template <class T>
-T* TSLink<T>::Prev() {
+inline T* TSLink<T>::Prev() {
     return this->m_prevLink->m_prevLink->Next();
 }
 
 // INLINED
 template <class T>
-T* TSLink<T>::RawNext() {
+inline T* TSLink<T>::RawNext() {
     return this->m_next;
 }
 
@@ -373,13 +373,13 @@ void TSLink<T>::Unlink() {
 
 // INLINED
 template <class T>
-TSLink<T>* TSGetLink<T>::Link(T* nodeptr, ptrdiff_t linkoffset) {
+inline TSLink<T>* TSGetLink<T>::Link(T* nodeptr, ptrdiff_t linkoffset) {
     return &static_cast<TSLinkedNode<T>*>(nodeptr)->m_link;
 }
 
 // INLINED
 template <class T>
-TSLink<T>* TSGetExplicitLink<T>::Link(T* nodeptr, ptrdiff_t linkoffset) {
+inline TSLink<T>* TSGetExplicitLink<T>::Link(T* nodeptr, ptrdiff_t linkoffset) {
     return reinterpret_cast<TSLink<T>*>(reinterpret_cast<uint8_t*>(nodeptr) + linkoffset);
 }
 
@@ -444,7 +444,7 @@ T* TSList<T, TGetLink>::DeleteNode(T* ptr) {
 // VERIFY: 1639e241 manual
 // OFFSET: 0x006D7BA0
 template <class T, class TGetLink>
-T* TSList<T, TGetLink>::Head() {
+inline T* TSList<T, TGetLink>::Head() {
     return this->m_terminator.Next();
 }
 
@@ -471,7 +471,7 @@ int32_t TSList<T, TGetLink>::IsLinked(T* ptr) {
 
 // INLINED
 template <class T, class TGetLink>
-TSLink<T>* TSList<T, TGetLink>::Link(T* ptr) {
+inline TSLink<T>* TSList<T, TGetLink>::Link(T* ptr) {
     return ptr ? TGetLink::Link(ptr, this->m_linkoffset) : &this->m_terminator;
 }
 
@@ -526,13 +526,13 @@ T* TSList<T, TGetLink>::NewNode(uint32_t location, size_t extrabytes, uint32_t f
 
 // INLINED
 template <class T, class TGetLink>
-T* TSList<T, TGetLink>::Next(T* ptr) {
+inline T* TSList<T, TGetLink>::Next(T* ptr) {
     return this->Link(ptr)->Next();
 }
 
 // INLINED
 template <class T, class TGetLink>
-T* TSList<T, TGetLink>::Prev(T* ptr) {
+inline T* TSList<T, TGetLink>::Prev(T* ptr) {
     return this->Link(ptr)->Prev();
 }
 
@@ -644,13 +644,13 @@ void TSSwap(T& a, T& b) {
 
 // INLINED
 template <class T>
-T& TSBaseArray<T>::operator[](uint32_t index) {
+inline T& TSBaseArray<T>::operator[](uint32_t index) {
     return this->m_data[index];
 }
 
 // INLINED
 template <class T>
-uint32_t TSBaseArray<T>::Count() {
+inline uint32_t TSBaseArray<T>::Count() {
     return this->m_count;
 }
 

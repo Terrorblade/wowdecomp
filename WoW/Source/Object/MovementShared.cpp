@@ -2113,7 +2113,8 @@ void CMovementShared::ConvertCurrentSplineToLoopingSpline(uint32_t timePassed) {
         return;
     }
 
-    C3Vector* points = static_cast<C3Vector*>(alloca(sizeof(C3Vector) * count));
+    bool onHeap = count > 1024;
+    C3Vector* points = static_cast<C3Vector*>(onHeap ? SMemAlloc(sizeof(C3Vector) * count, __FILE__, __LINE__, 0) : alloca(sizeof(C3Vector) * count));
 
     if (!points) {
         return;
@@ -2123,6 +2124,11 @@ void CMovementShared::ConvertCurrentSplineToLoopingSpline(uint32_t timePassed) {
 
     if (!this->m_spline) {
         this->m_spline = spline;
+
+        if (onHeap) {
+            SMemFree(points, __FILE__, __LINE__, 0);
+        }
+
         return;
     }
 
@@ -2130,6 +2136,10 @@ void CMovementShared::ConvertCurrentSplineToLoopingSpline(uint32_t timePassed) {
     points[1] = points[count - 3];
     this->OnSpline(timePassed, &points[1], count - 1, spline->m_duration, spline->m_flags, spline->m_id);
     MovementDelSpline(spline);
+
+    if (onHeap) {
+        SMemFree(points, __FILE__, __LINE__, 0);
+    }
 }
 
 // VERIFY: 022de096 manual

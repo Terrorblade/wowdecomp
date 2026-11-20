@@ -16,6 +16,9 @@ bool Get(const std::wstring& path, Kind kind, std::string& out);
 void Remember(const std::wstring& path, Kind kind, const std::string& digest);
 void Save();
 
+// Drops entries for files under the game folder that are gone, from the patching pass only so followers never save.
+void Prune();
+
 }
 
 #endif

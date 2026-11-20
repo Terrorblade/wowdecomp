@@ -344,6 +344,10 @@ static void ReportFile(FILE* file, const char* name, const char* stockMd5 = null
         fprintf(file, "    used: %s  md5 %s%s\n", winner ? winner->m_name : "(archive)", usedMd5.c_str(), state);
     }
 
+    if (winner) {
+        winner->RemoveInternalArchiveRef();
+    }
+
     for (System_SFile::ARCHIVEREC* archive : GetArchives()) {
         if (archive->m_parent || !archive->m_name[0]) {
             continue;

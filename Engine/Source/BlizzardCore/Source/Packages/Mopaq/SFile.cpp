@@ -96,15 +96,26 @@ IOUnit* System_SFile::CreateRangeUnit(IOUnitContainer* container, int64_t start,
 // VERIFY: 3c889fb5 manual
 // OFFSET: 0x004609B0
 int32_t Blizzard::Mopaq::SFileOpenFileEx(System_SFile::ARCHIVEREC* handle, const char* name, const Blizzard::Util::Digest<16>& md5, uint32_t flags, IOMpqUnit** result) {
+    *result = nullptr;
+    FoundFile location;
+    location.m_record = nullptr;
+    location.m_result = GetFileBlockEntry(handle, name, md5, flags, nullptr, &location.m_record, &location.m_blockIndex, nullptr, location.m_path);
+
+    // The per-open profiling log went to class 3, which System_Log::Init hard-disables, so it only cost the global log mutex.
+
+    return SFileOpenFoundFile(&location, name, flags, result);
+}
+
+// HoT: the second half of SFileOpenFileEx, so a caller that already ran the lookup opens from its result.
+int32_t Blizzard::Mopaq::SFileOpenFoundFile(FoundFile* location, const char* name, uint32_t flags, IOMpqUnit** result) {
     IOMpqUnit* file = nullptr;
     *result = nullptr;
-    System_SFile::ARCHIVEREC* archive = nullptr;
+    System_SFile::ARCHIVEREC* archive = location->m_record;
+    location->m_record = nullptr;
     uint32_t error = 104;
-    uint32_t blockIndex;
-    char path[260];
-    int32_t found = GetFileBlockEntry(handle, name, md5, flags, nullptr, &archive, &blockIndex, nullptr, path);
-
-    Blizzard::Log::Printf(3, "Logs/Profiling_File_SFileOpenFileEx.log", "%s\n", name);
+    uint32_t blockIndex = location->m_blockIndex;
+    const char* path = location->m_path;
+    int32_t found = location->m_result;
 
     switch (found) {
         case 0:
@@ -114,7 +125,13 @@ int32_t Blizzard::Mopaq::SFileOpenFileEx(System_SFile::ARCHIVEREC* handle, const
         }
 
         case 1: {
-            System_SFile::BLOCKENTRY entry = archive->GetBlockEntry(blockIndex);
+            System_SFile::BLOCKENTRY entry;
+
+            // A patch job can grow the block table while this runs, so copy the entry under the archive lock.
+            {
+                Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
+                entry = archive->GetBlockEntry(blockIndex);
+            }
 
             if (!(entry.m_flags & 0x80000000)) {
                 error = 1006;
@@ -192,8 +209,17 @@ int32_t Blizzard::Mopaq::SFileOpenFileEx(System_SFile::ARCHIVEREC* handle, const
         }
     }
 
-    if (!file || (archive && !archive->RemoveInternalArchiveRef())) {
+    if (!file) {
         goto fail;
+    }
+
+    if (archive) {
+        System_SFile::ARCHIVEREC* lookupRef = archive;
+        archive = nullptr;
+
+        if (!lookupRef->RemoveInternalArchiveRef()) {
+            goto fail;
+        }
     }
 
     if (found) {
@@ -239,6 +265,11 @@ fail:
     if (file) {
         file->Release();
         file = nullptr;
+    }
+
+    // GetFileBlockEntry handed us a ref on the archive, the original leaked it on every failed open.
+    if (archive) {
+        archive->RemoveInternalArchiveRef();
     }
 
     *result = file;
@@ -367,8 +398,8 @@ int32_t Blizzard::Mopaq::SFileFileIsLocal(IOMpqUnit* file, int32_t flags) {
     int32_t size = file->GetCompressedSize(&compressed) ? static_cast<int32_t>(compressed) : -1;
     System_SFile::ARCHIVEREC* archive = file->GetArchive();
 
+    // The original released the caller's file here, which left SFileImpl::m_file dangling for loose disk files.
     if (!archive) {
-        file->Release();
         return 1;
     }
 
@@ -461,12 +492,12 @@ System_SFile::ListfileParser::~ListfileParser() {
 bool System_SFile::ARCHIVEREC::FillNewHashTable(int32_t hashBits) {
     ListfileParser parser;
     parser.m_special = 0;
+    parser.m_pos = 0;
+    parser.m_token = nullptr;
+    parser.m_isSpecial = false;
 
-    if (Blizzard::Mopaq::SFileLoadFile(this, "(listfile)", reinterpret_cast<void**>(&parser.m_data), &parser.m_size, 0, 0)) {
-        parser.m_pos = 0;
-        parser.m_token = nullptr;
-        parser.m_isSpecial = false;
-    }
+    // 0x10 lets the lookup see this archive while s_OpenArchive still has it hidden for initialization.
+    Blizzard::Mopaq::SFileLoadFile(this, "(listfile)", reinterpret_cast<void**>(&parser.m_data), &parser.m_size, 0, 0x10);
 
     while (!parser.Next()) {
         const char* name = parser.m_token;

@@ -126,6 +126,13 @@ void NetClient::WCMessageReady(WowConnection* connection, uint32_t timeStamp, CD
     }
 }
 
+// INLINED
+NETEVENTQUEUENODE::~NETEVENTQUEUENODE() {
+    if (this->m_data) {
+        SMemFree(this->m_data, __FILE__, __LINE__, 0);
+    }
+}
+
 // VERIFY: 74c166be manual
 // OFFSET: 0x00633440
 NETEVENTQUEUE::NETEVENTQUEUE(NetClient* client) {
@@ -140,7 +147,11 @@ void NETEVENTQUEUE::Poll() {
     bool destroyed = false;
     this->m_client->m_refCount.Increment();
 
-    for (NETEVENTQUEUENODE* node = this->m_eventQueue.Head(); node; node = this->m_eventQueue.Next(node)) {
+    NETEVENTQUEUENODE* node;
+
+    // Each node is detached before dispatch so a handler that clears the queue can't free it underneath us.
+    while ((node = this->m_eventQueue.Head()) != nullptr) {
+        this->m_eventQueue.UnlinkNode(node);
         NetClient* client = this->m_client;
 
         if (!client->m_deleteMe) {
@@ -174,6 +185,9 @@ void NETEVENTQUEUE::Poll() {
                     break;
             }
         }
+
+        node->~NETEVENTQUEUENODE();
+        SMemFree(node, __FILE__, __LINE__, 0);
 
         client = this->m_client;
 
@@ -745,6 +759,7 @@ void NetClient::Destroy() {
 // OFFSET: [0x006331B0, 0x00633300]
 NetClient::~NetClient() {
     this->Destroy();
+    this->m_heldMessages.Clear();
 
     for (NETCLIENTNODE* node = s_clientList.Head(); node; node = s_clientList.Next(node)) {
         if (node->m_client == this) {

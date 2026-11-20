@@ -531,7 +531,7 @@ int32_t UnitCharmedUpdateHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fi
         return 1;
     }
 
-    if (unit->m_unit->m_unitFieldCharmedby == ClntObjMgrGetActivePlayer()) {
+    if (unit && unit->m_unit->m_unitFieldCharmedby == ClntObjMgrGetActivePlayer()) {
         unit->CheckApplyPeriodicClientTriggers();
     }
 
@@ -1018,7 +1018,10 @@ void CGUnit_C::UpdateWorldObject(int32_t a2) {
     if (this->m_vehicle && this->m_vehicle->m_vehicleRec) {
         for (CPassenger* passenger = this->m_vehicle->m_passengers.Head(); passenger; passenger = this->m_vehicle->m_passengers.Next(passenger)) {
             CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
-            unit->UpdateWorldObject(0);
+
+            if (unit) {
+                unit->UpdateWorldObject(0);
+            }
         }
     }
 }
@@ -2534,11 +2537,12 @@ int32_t CGUnit_C::GetSpellVisualKitAnim(uint32_t* anim, uint32_t* kitFlags) {
 
     bool casting = true;
     SpellRec spellRec;
+    uint32_t visualBytes = offsetof(SpellRec, m_spellVisualID) + sizeof(spellRec.m_spellVisualID);
 
-    if (!g_spellDB.GetRecord(this->m_castSpellId, &spellRec)) {
+    if (!g_spellDB.GetRecordPrefix(this->m_castSpellId, &spellRec, visualBytes)) {
         casting = false;
 
-        if (!g_spellDB.GetRecord(this->m_unit->m_unitChannelSpell, &spellRec)) {
+        if (!g_spellDB.GetRecordPrefix(this->m_unit->m_unitChannelSpell, &spellRec, visualBytes)) {
             return 0;
         }
     }
@@ -3321,7 +3325,10 @@ uint64_t CGUnit_C::GetComboPointTarget() const {
 void CGUnit_C::PropagateSmoothFacing(float facing) {
     for (CPassenger* passenger = this->m_vehicle->m_passengers.Head(); passenger; passenger = this->m_vehicle->m_passengers.Next(passenger)) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
-        unit->UpdateSmoothFacing(&facing);
+
+        if (unit) {
+            unit->UpdateSmoothFacing(&facing);
+        }
     }
 }
 
@@ -4019,10 +4026,15 @@ uint32_t CGUnit_C::ResolveAnimForModel(uint32_t animId, CM2Model* model) {
 
     uint32_t result = static_cast<uint16_t>(animId);
     int32_t visited[ANIM_COUNT];
-    memset(visited, 0, sizeof(visited));
+    bool visitedCleared = false;
     uint32_t current = animId;
 
     while (!AnimationData::FindIdByBehaviorAndTier(current, tier, &result) || !model->IsSequenceLoaded(result)) {
+        if (!visitedCleared) {
+            memset(visited, 0, sizeof(visited));
+            visitedCleared = true;
+        }
+
         AnimationDataRec* rec = g_animationDataDB.GetRecord(current);
 
         if (current >= ANIM_COUNT || visited[current] || !rec || static_cast<int32_t>(current) == rec->m_fallback) {
@@ -4030,8 +4042,15 @@ uint32_t CGUnit_C::ResolveAnimForModel(uint32_t animId, CM2Model* model) {
                 return result;
             }
 
-            tier = s_animTierFallback[tier];
-            memset(visited, 0, sizeof(visited));
+            // The original spun forever here once the fallback tier stopped changing.
+            int32_t nextTier = (tier >= 0 && tier < static_cast<int32_t>(sizeof(s_animTierFallback) / sizeof(s_animTierFallback[0]))) ? s_animTierFallback[tier] : 0;
+
+            if (nextTier == tier) {
+                return animId;
+            }
+
+            tier = nextTier;
+            visitedCleared = false;
             current = animId;
             continue;
         }
@@ -4343,7 +4362,7 @@ void CGUnit_C::UpdateHandItemAnimEffects(bool force) {
     if (this->m_castSpellId) {
         SpellRec spellRec;
 
-        if (g_spellDB.GetRecord(this->m_castSpellId, &spellRec) && !(spellRec.m_attributes & 0x40000)) {
+        if (g_spellDB.GetRecordPrefix(this->m_castSpellId, &spellRec, offsetof(SpellRec, m_attributes) + sizeof(spellRec.m_attributes)) && !(spellRec.m_attributes & 0x40000)) {
             this->SetSheatheState(WEAPONMODE_SHEATHEDMODE, 1, 0);
         }
 
@@ -4742,14 +4761,6 @@ void CGUnit_C::PlayBaseAnimation(uint32_t animId, int32_t flags) {
 // VERIFY: 3458f5db manual
 // OFFSET: 0x00729C70
 int32_t CGUnit_C::ShouldRenderObjectName(uint32_t flags) const {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
-    const WOWGUID* controllerGuid = this->m_unit->m_unitFieldCharmedby.m_guid ? &this->m_unit->m_unitFieldCharmedby : &this->m_unit->m_unitFieldCreatedby;
-    CGUnit_C* controller = nullptr;
-
-    if (controllerGuid->m_guid) {
-        controller = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*controllerGuid, TYPE_UNIT, __FILE__, __LINE__));
-    }
-
     if (!this->CanBeTargetted() || (CGGameUI::m_visible && (this->m_namePlateFrame || this->m_chatBubble))) {
         return 0;
     }
@@ -4760,6 +4771,14 @@ int32_t CGUnit_C::ShouldRenderObjectName(uint32_t flags) const {
 
     if (this->m_obj->m_guid == CGGameUI::m_lockedTarget) {
         return 1;
+    }
+
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
+    const WOWGUID* controllerGuid = this->m_unit->m_unitFieldCharmedby.m_guid ? &this->m_unit->m_unitFieldCharmedby : &this->m_unit->m_unitFieldCreatedby;
+    CGUnit_C* controller = nullptr;
+
+    if (controllerGuid->m_guid) {
+        controller = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*controllerGuid, TYPE_UNIT, __FILE__, __LINE__));
     }
 
     if (this->m_obj->m_type & TYPE_PLAYER) {
@@ -5187,7 +5206,9 @@ void CGUnit_C::UnregisterMirrorHandlers() {
     ClntObjMgrUnsetTypeMirrorHandler(ID_UNIT, offsetof(CGUnitData, m_unitFieldChannelObject), ChannelSpellOrObjectChangeHandler, nullptr);
     ClntObjMgrUnsetTypeMirrorHandler(ID_UNIT, offsetof(CGUnitData, m_unitFieldPetnumber), PetNumberChangeHandler, nullptr);
     ClntObjMgrUnsetTypeMirrorHandler(ID_OBJECT, offsetof(CGObjectData, m_scale), UnitScaleUpdateHandler, nullptr);
-    ClntObjMgrUnsetTypeMirrorHandler(ID_OBJECT, offsetof(CGUnitData, m_unitFieldBytes2), SheatheStateHandler, nullptr);
+    // The original unset this with ID_OBJECT and never unset TargetChangeHandler, so both leaked a node per world session.
+    ClntObjMgrUnsetTypeMirrorHandler(ID_UNIT, offsetof(CGUnitData, m_unitFieldBytes2), SheatheStateHandler, nullptr);
+    ClntObjMgrUnsetTypeMirrorHandler(ID_UNIT, offsetof(CGUnitData, m_unitFieldTarget), TargetChangeHandler, nullptr);
     ClntObjMgrUnsetTypeMirrorHandler(ID_UNIT, offsetof(CGUnitData, m_unitFieldHoverheight), HoverHeightChangeHandler, nullptr);
 }
 
@@ -7396,7 +7417,10 @@ C44Matrix CGUnit_C::GetMatrix() const {
 
     if (this->GetTransportGUID()) {
         CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ this->GetTransportGUID() }, TYPE_OBJECT, __FILE__, __LINE__);
-        matrix *= transport->GetMatrix();
+
+        if (transport) {
+            matrix *= transport->GetMatrix();
+        }
     }
 
     return matrix;
@@ -7495,13 +7519,17 @@ int32_t TargetChangeHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fieldSi
 // VERIFY: 88a563c1 auto
 // OFFSET: 0x00716C00
 int32_t Packet_SMSG_PET_DISMISS_SOUND(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t modelId;
+    uint32_t modelId = 0;
     msg->Get(modelId);
 
-    C3Vector position;
+    C3Vector position(0.0f, 0.0f, 0.0f);
     msg->Get(position.x);
     msg->Get(position.y);
     msg->Get(position.z);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     CreatureModelDataRec* modelData = g_creatureModelDataDB.GetRecord(modelId);
 
@@ -8065,8 +8093,13 @@ bool CGUnit_C::AnimSuppressesMovement() const {
 // VERIFY: 75c2d34b manual
 // OFFSET: 0x0071CB30
 int32_t Packet_SMSG_MOUNTSPECIAL_ANIM(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = WOWGUID();
     msg->Get(guid.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit && !unit->IsDeepInLiquid() && guid != ClntObjMgrGetActivePlayer()) {
@@ -8400,14 +8433,20 @@ float CGUnit_C::GetSmoothFacing() const {
     float facing = 0.0f;
     const CGUnit_C* unit = this;
 
-    while (unit) {
+    while (true) {
         facing += unit->m_smoothTarget.m_value;
 
         if (!unit->HasVehicleTransport()) {
             break;
         }
 
-        unit = static_cast<const CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ unit->GetTransportGUID() }, TYPE_UNIT, __FILE__, __LINE__));
+        const CGUnit_C* transport = static_cast<const CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ unit->GetTransportGUID() }, TYPE_UNIT, __FILE__, __LINE__));
+
+        if (!transport) {
+            break;
+        }
+
+        unit = transport;
     }
 
     return unit->m_movement->GetFacing(facing);
@@ -8619,7 +8658,8 @@ bool CGUnit_C::CanTurnWhileCasting() const {
     if (this->m_castSpellId) {
         SpellRec spell;
 
-        if (g_spellDB.GetRecord(this->m_castSpellId, &spell) && (spell.m_attributesExE & 0x80000)) {
+        // Runs every frame for casting units, so decode only the attribute words.
+        if (g_spellDB.GetRecordPrefix(this->m_castSpellId, &spell, offsetof(SpellRec, m_attributesExE) + sizeof(spell.m_attributesExE)) && (spell.m_attributesExE & 0x80000)) {
             return false;
         }
     }
@@ -13004,7 +13044,7 @@ int32_t CGUnit_C::HandleMonsterMovePacket(void* param, NETMESSAGE msgId, uint32_
     }
 
     SmartGUID transport;
-    uint8_t seat;
+    uint8_t seat = 0xFF;
 
     if (msgId == SMSG_MONSTER_MOVE_TRANSPORT) {
         *msg >> transport;
@@ -13046,9 +13086,9 @@ void CGUnit_C::OnMonsterMove(CDataStore* msg, NETMESSAGE msgId, uint64_t transpo
     msg->Get(start.x);
     msg->Get(start.y);
     msg->Get(start.z);
-    uint32_t splineId;
+    uint32_t splineId = 0;
     msg->Get(splineId);
-    uint8_t faceType;
+    uint8_t faceType = 0;
     msg->Get(faceType);
     C3Vector facePoint = { 0.0f, 0.0f, 0.0f };
     WOWGUID faceTarget = WOWGUID{ 0 };
@@ -13081,9 +13121,9 @@ void CGUnit_C::OnMonsterMove(CDataStore* msg, NETMESSAGE msgId, uint64_t transpo
     uint32_t parabolicStart = 0;
     uint32_t animStart = 0;
     uint8_t animType = 0;
-    uint32_t duration;
-    uint32_t splineFlags;
-    uint32_t waypoints;
+    uint32_t duration = 0;
+    uint32_t splineFlags = 0;
+    uint32_t waypoints = 0;
 
     if (faceType == 1) {
         duration = 0;
@@ -13691,8 +13731,13 @@ void CGUnit_C::OnAuraUpdate(CDataStore* msg, bool updateAll) {
     }
 
     while (msg->m_read < msg->m_size) {
-        uint8_t slot;
+        uint8_t slot = 0;
         msg->Get(slot);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         updated[slot] = 1;
         this->AddAuraSlot(slot);
         this->m_auras[slot].Unpack(this, time, msg);
@@ -14112,10 +14157,12 @@ int32_t CGUnit_C::ShowRangedWeapon(bool sheathed, bool* rightHand) {
     }
 
     if (this->m_rangedWeaponModel) {
+        this->m_rangedWeaponModel->SetLoadedCallback(nullptr, nullptr);
         this->m_rangedWeaponModel->m_fFlags |= 0x20;
         this->m_rangedWeaponModel->m_drawCallback = nullptr;
         this->m_rangedWeaponModel->m_drawArg = nullptr;
         this->m_rangedWeaponModel->Release();
+        this->m_rangedWeaponModel = nullptr;
     }
 
     if (!sheathed) {
@@ -20514,6 +20561,17 @@ int32_t CGUnit_C::ShouldShowNamePlate(CGWorldFrame* worldFrame, C3Vector* positi
         return 0;
     }
 
+    // The range test is pure, so it runs before the faction checks and the screen projection.
+    MapRec* map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
+
+    if (!map || map->m_instanceType != 4) {
+        C3Vector delta = this->GetPosition() - target->GetPosition();
+
+        if (delta.y * delta.y + delta.x * delta.x + delta.z * delta.z > MAX_NAMEPLATE_DIST_SQUARED) {
+            return 0;
+        }
+    }
+
     bool friendly;
 
     if (this->m_obj->m_type & TYPE_PLAYER) {
@@ -20578,18 +20636,8 @@ int32_t CGUnit_C::ShouldShowNamePlate(CGWorldFrame* worldFrame, C3Vector* positi
         return 0;
     }
 
-    if (!World::QueryObjectVisible(this->m_worldObject) || !GetNamePlateScreenPos(this, worldFrame, position)) {
+    if (!GetNamePlateScreenPos(this, worldFrame, position)) {
         return 0;
-    }
-
-    MapRec* map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
-
-    if (!map || map->m_instanceType != 4) {
-        C3Vector delta = this->GetPosition() - target->GetPosition();
-
-        if (delta.y * delta.y + delta.x * delta.x + delta.z * delta.z > MAX_NAMEPLATE_DIST_SQUARED) {
-            return 0;
-        }
     }
 
     return 1;

@@ -1,14 +1,15 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
 ..\FrameXML\UI.xsd">
-	<Frame name="EditorParent" setAllPoints="true" frameStrata="MEDIUM" hidden="true">
+	<Frame name="EditorParent" setAllPoints="true" frameStrata="MEDIUM" toplevel="true" hidden="true">
 		<Frames>
+			<Frame name="EditorFrameRect" setAllPoints="true" movable="true" resizable="true" clampedToScreen="true"/>
 			<Frame name="EditorMenuBar" inherits="NoggitBoxTemplate" enableMouse="true">
 				<Size>
 					<AbsDimension y="26"/>
 				</Size>
 				<Anchors>
-					<Anchor point="TOPLEFT"/>
-					<Anchor point="TOPRIGHT"/>
+					<Anchor point="TOPLEFT" relativeTo="EditorFrameRect"/>
+					<Anchor point="TOPRIGHT" relativeTo="EditorFrameRect"/>
 				</Anchors>
 				<Frames>
 					<Frame name="EditorWorkspaceTabs">
@@ -46,7 +47,7 @@
 						<Scripts>
 							<OnEnter>
 								NoggitBox_Set(self, NOGGIT_COLOR_MID, nil);
-								NoggitTooltip_Show(self, "Leave the game editor ("..(GameEditor_GetToggleKey() or "F12")..")");
+								NoggitTooltip_Show(self, "Leave the game editor ("..GameEditor_CurrentToggleKey()..")");
 							</OnEnter>
 							<OnLeave>
 								NoggitBox_Set(self, NOGGIT_COLOR_BASE, nil);
@@ -64,8 +65,8 @@
 					<AbsDimension y="22"/>
 				</Size>
 				<Anchors>
-					<Anchor point="BOTTOMLEFT"/>
-					<Anchor point="BOTTOMRIGHT"/>
+					<Anchor point="BOTTOMLEFT" relativeTo="EditorFrameRect"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="EditorFrameRect"/>
 				</Anchors>
 			</Frame>
 			<Frame name="EditorToolDock" inherits="NoggitBoxTemplate" enableMouse="true">

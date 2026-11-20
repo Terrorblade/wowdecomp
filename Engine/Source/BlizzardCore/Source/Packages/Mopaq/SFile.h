@@ -53,6 +53,14 @@ bool CreateDiskFile(const char* name, uint32_t flags, const char* path, System_S
 namespace Blizzard {
 namespace Mopaq {
 
+// A lookup result that SFileOpenFoundFile opens without searching the archives a second time.
+struct FoundFile {
+    int32_t m_result;
+    System_SFile::ARCHIVEREC* m_record;
+    uint32_t m_blockIndex;
+    char m_path[260];
+};
+
 bool SFileCloseFile(IOMpqUnit* file);
 bool SFileCreateFile(System_SFile::ARCHIVEREC* handle, const char* name, uint32_t size, uint32_t flags, IOMpqUnit** result);
 int32_t SFileFileIsLocal(IOMpqUnit* file, int32_t flags);
@@ -61,6 +69,7 @@ uint32_t SFileGetFileSize(IOMpqUnit* file, uint32_t* sizeHigh);
 bool SFileLoadFile(System_SFile::ARCHIVEREC* handle, const char* name, void** data, uint32_t* size, uint32_t extra, uint32_t flags);
 int32_t SFileOpenFileEx(System_SFile::ARCHIVEREC* handle, const char* name, const Blizzard::Util::Digest<16>& md5, uint32_t flags, IOMpqUnit** result);
 int32_t SFileOpenFileEx(System_SFile::ARCHIVEREC* handle, const char* name, uint32_t flags, IOMpqUnit** result);
+int32_t SFileOpenFoundFile(FoundFile* location, const char* name, uint32_t flags, IOMpqUnit** result);
 bool SFileReadFile(IOMpqUnit* file, void* buffer, uint32_t count, uint32_t* bytesRead);
 bool SFileUnloadFile(void* data);
 int32_t SFileSetFilePointer(IOMpqUnit* file, int32_t distance, int32_t* distanceHigh, uint32_t method);

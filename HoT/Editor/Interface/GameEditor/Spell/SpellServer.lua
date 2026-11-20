@@ -62,11 +62,17 @@ SE.On("WORLD_SCRIPT_NAMES", function(kind)
 		SE.scriptNamesRequested = false;
 		LoadScriptNames();
 		SE.Fire("SCRIPT_NAMES");
+
+		if ( SE.scriptNamesAnnounce ) then
+			SE.scriptNamesAnnounce = nil;
+			GameEditor_Notify(format("Loaded %d spell script names from the server.", SE.scriptNames and #SE.scriptNames or 0), "ok");
+		end
 	end
 end);
 
 local function PickScript(editor)
 	if ( not editor.loaded ) then
+		GameEditor_Notify(editor.key and "The spell_script_names rows are still loading, try again in a moment." or "Open a saved spell first.", "error");
 		return;
 	end
 
@@ -128,7 +134,17 @@ local WORLD_TABLES = {
 		end,
 		buttons = {
 			{ text = "Pick script", width = 90, tooltip = "Choose from the script names the server core registered", onClick = PickScript },
-			{ text = "Reload names", width = 96, tooltip = "Ask the server for its script names again", onClick = function() SE.RequestScriptNames(true); end },
+			{ text = "Reload names", width = 96, tooltip = "Ask the server for its script names again", onClick = function()
+				if ( not WorldTable_RequestScriptNames ) then
+					GameEditor_Notify("WorldTable_RequestScriptNames is not available in this client build.", "error");
+				elseif ( SE.scriptNamesRequested ) then
+					GameEditor_Notify("Still waiting for the server to send its spell script names.", "info");
+				else
+					SE.RequestScriptNames(true);
+					SE.scriptNamesAnnounce = true;
+					GameEditor_Notify("Asking the server for its spell script names.", "info");
+				end
+			end },
 		},
 	},
 	{
@@ -191,12 +207,19 @@ local WORLD_TABLES = {
 		buttons = {
 			{ text = "Use my position", width = 110, tooltip = "Fill the map, X, Y, Z and orientation of the selected row from your character.", onClick = function(editor)
 				if ( not CreatureEditor_GetPlayerPosition ) then
+					GameEditor_Notify("CreatureEditor_GetPlayerPosition is not available in this client build.", "error");
+					return;
+				end
+
+				if ( not editor.loaded ) then
+					GameEditor_Notify(editor.key and "The spell_target_position rows are still loading, try again in a moment." or "Open a saved spell first.", "error");
 					return;
 				end
 
 				local x, y, z, o = CreatureEditor_GetPlayerPosition();
 
 				if ( not x ) then
+					GameEditor_Notify("Could not read your character position.", "error");
 					return;
 				end
 
@@ -354,6 +377,7 @@ end
 
 -- Server tab: the world tables keyed by the spell, one at a time with a list of them on the left.
 local SERVER_LIST_WIDTH = 140;
+local SERVER_GAP = 12;
 local SERVER_ROW = 20;
 local serverTab;
 
@@ -413,8 +437,41 @@ local function BuildServerTab(parent)
 	title:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -6);
 
 	local body = CreateFrame("Frame", NoggitUI_NewName("GameEditorSpellServerBody"), frame);
-	body:SetPoint("TOPLEFT", list, "TOPRIGHT", 12, 0);
 	body:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0);
+
+	local function ListMax()
+		return max(0, (frame:GetWidth() or 0) - SERVER_GAP);
+	end
+
+	local function LayoutList()
+		local width = min(GameEditor_GetLayoutSize("spell_server_list", SERVER_LIST_WIDTH), ListMax());
+
+		if ( width < 24 ) then
+			list:SetWidth(1);
+			list:Hide();
+			body:SetPoint("TOPLEFT", frame, "TOPLEFT", 1 + SERVER_GAP / 2, 0);
+		else
+			list:SetWidth(width);
+			list:Show();
+			body:SetPoint("TOPLEFT", list, "TOPRIGHT", SERVER_GAP, 0);
+		end
+	end
+
+	local splitter = GameEditor_CreateSplitter(frame, {
+		sign = 1,
+		collapse = 48,
+		get = function() return list:IsShown() and list:GetWidth() or 0; end,
+		set = function(width)
+			GameEditor_SetLayoutSize("spell_server_list", width);
+			LayoutList();
+		end,
+		max = ListMax,
+	});
+	splitter:SetPoint("TOPLEFT", list, "TOPRIGHT", 0, 0);
+	splitter:SetPoint("BOTTOMLEFT", list, "BOTTOMRIGHT", 0, 0);
+	splitter:SetFrameLevel(frame:GetFrameLevel() + 6);
+	frame:HookScript("OnSizeChanged", LayoutList);
+	LayoutList();
 
 	for index, section in ipairs(SE.SERVER_SECTIONS) do
 		local button = CreateFrame("Button", NoggitUI_NewName("GameEditorSpellServerButton"), list, "NoggitBoxTemplate");
@@ -426,6 +483,7 @@ local function BuildServerTab(parent)
 		button.text:SetPoint("LEFT", button, "LEFT", 12, 0);
 		button.badge = SE.Label(button, "", "NoggitFont10", nil, "RIGHT");
 		button.badge:SetPoint("RIGHT", button, "RIGHT", -8, 0);
+		button.text:SetPoint("RIGHT", button.badge, "LEFT", -4, 0);
 		button.stripe = NoggitUI_SolidTexture(button, "ARTWORK", NOGGIT_COLOR_ACCENT);
 		button.stripe:SetWidth(3);
 		button.stripe:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0);

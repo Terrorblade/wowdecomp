@@ -66,7 +66,11 @@ function SE.SetEnabled(button, enabled)
 end
 
 local function GlyphRefresh(self)
-	if ( self.checked ) then
+	local tint, border = NoggitFeedback_Colors(self);
+
+	if ( tint ) then
+		NoggitBox_Set(self, tint, border);
+	elseif ( self.checked ) then
 		NoggitBox_Set(self, NOGGIT_COLOR_ACCENT, nil);
 	elseif ( self.hover ) then
 		NoggitBox_Set(self, NOGGIT_COLOR_HOVER, nil);
@@ -106,6 +110,7 @@ function SE.GlyphButton(parent, glyph, tooltip, onClick, size)
 	button:SetScript("OnClick", onClick);
 	button.tooltip = tooltip;
 	button.Refresh = GlyphRefresh;
+	NoggitFeedback_Attach(button, GlyphRefresh);
 	button.SetGlyph = function(self, codepoint)
 		local texture = NoggitUI_GlyphTexture(codepoint);
 
@@ -563,7 +568,12 @@ function DbcRowEditor:Load(id, force)
 end
 
 function DbcRowEditor:Save()
-	if ( not (self.exists or self.isNew) or not DbcEditor_Save ) then
+	if ( not (self.exists or self.isNew) ) then
+		return;
+	end
+
+	if ( not DbcEditor_Save ) then
+		GameEditor_Notify("DbcEditor_Save is not available in this client build.", "error");
 		return;
 	end
 
@@ -582,19 +592,30 @@ function DbcRowEditor:Save()
 end
 
 function DbcRowEditor:ApplyLocal(quiet)
-	if ( not (self.exists or self.isNew) or not DbcEditor_ApplyLocal ) then
+	if ( not (self.exists or self.isNew) ) then
+		return;
+	end
+
+	if ( not DbcEditor_ApplyLocal ) then
+		if ( not quiet ) then
+			GameEditor_Notify("DbcEditor_ApplyLocal is not available in this client build.", "error");
+		end
+
 		return;
 	end
 
 	local row = SE.FullRow(self.tableName, self.values);
 	row.m_id = self.id;
+	local ok, err = pcall(DbcEditor_ApplyLocal, self.tableName, self.id, row);
 
-	if ( pcall(DbcEditor_ApplyLocal, self.tableName, self.id, row) ) then
+	if ( ok ) then
 		self.appliedLocal = true;
 
 		if ( not quiet ) then
-			GameEditor_Notify(format("%s %d applied to this client only.", self.tableName, self.id), "info");
+			GameEditor_Notify(format("%s %d applied to this client only, nothing was saved to the database.", self.tableName, self.id), "info");
 		end
+	elseif ( not quiet ) then
+		GameEditor_Notify("Apply locally failed: "..tostring(err), "error");
 	end
 
 	self:UpdateHeader();
@@ -634,6 +655,7 @@ function DbcRowEditor:NewRow(copy)
 	local values;
 
 	if ( not id or id <= 0 ) then
+		GameEditor_Notify(self.options.rowId and "Open a spell first." or format("Could not find a free %s id.", self.tableName), "error");
 		return;
 	end
 
@@ -710,9 +732,32 @@ function SE.CreateDbcEditor(parent, tableName, options)
 	editor.newButton:SetPoint("LEFT", pick, "RIGHT", 8, 0);
 	editor.copyButton = SE.Button(frame, "Copy", 50, function() editor:NewRow(true); end, "Copy this row to the next free id");
 	editor.copyButton:SetPoint("LEFT", editor.newButton, "RIGHT", 4, 0);
-	editor.saveButton = SE.Button(frame, "Save", 54, function() editor:Save(); end, "Write this row to the dbc database, the server pushes it to every client", true);
+	editor.saveButton = SE.Button(frame, "Save", 54, function()
+		if ( editor.pending ) then
+			GameEditor_Notify(format("%s %d is already saving, waiting for the server.", tableName, editor.id), "info");
+		elseif ( not editor:IsDirty() ) then
+			GameEditor_Notify(format("Nothing to save, %s %d has no changes.", tableName, editor.id), "info");
+		else
+			editor:Save();
+		end
+	end, "Write this row to the dbc database, the server pushes it to every client", true);
 	editor.saveButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -24);
-	editor.revertButton = SE.Button(frame, "Revert", 58, function() editor:Revert(); end, "Throw away the changes of this row");
+	editor.revertButton = SE.Button(frame, "Revert", 58, function()
+		local id, wasNew = editor.id, editor.isNew;
+
+		if ( not editor:IsDirty() and not editor.appliedLocal ) then
+			GameEditor_Notify(format("Nothing to revert, %s %d has no changes.", tableName, id), "info");
+			return;
+		end
+
+		editor:Revert();
+
+		if ( wasNew ) then
+			GameEditor_Notify(format("%s %d reset to its starting values. It is still new and not saved.", tableName, id), "info");
+		else
+			GameEditor_Notify(format("%s %d reverted to the saved row. Nothing was sent to the server.", tableName, id), "info");
+		end
+	end, "Throw away the changes of this row");
 	editor.revertButton:SetPoint("RIGHT", editor.saveButton, "LEFT", -4, 0);
 	editor.applyButton = SE.Button(frame, "Apply", 54, function() editor:ApplyLocal(); end, "Patch this client only, to preview without saving");
 	editor.applyButton:SetPoint("RIGHT", editor.revertButton, "LEFT", -4, 0);
@@ -1231,11 +1276,43 @@ function SE.CreateWorldTableEditor(parent, tableName, options)
 	editor.statusText = SE.Label(frame, "");
 	editor.statusText:SetPoint("LEFT", tableLabel, "RIGHT", 10, 0);
 
-	editor.saveButton = SE.Button(frame, "Save", 54, function() editor:Save(); end, "Replace every row of this spell in "..tableName.." and reload it on the server", true);
+	editor.saveButton = SE.Button(frame, "Save", 54, function()
+		if ( editor.saving ) then
+			GameEditor_Notify(format("%s of %s is already saving, waiting for the server.", tableName, tostring(editor.key)), "info");
+		elseif ( not editor:IsDirty() ) then
+			GameEditor_Notify(format("Nothing to save, %s of %s has no changes.", tableName, tostring(editor.key)), "info");
+		else
+			editor:Save();
+		end
+	end, "Replace every row of this spell in "..tableName.." and reload it on the server", true);
 	editor.saveButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, y);
-	editor.revertButton = SE.Button(frame, "Revert", 58, function() editor:Discard(); end, "Back to the rows the server sent");
+	editor.revertButton = SE.Button(frame, "Revert", 58, function()
+		if ( not editor:IsDirty() ) then
+			GameEditor_Notify(format("Nothing to revert, %s of %s has no changes.", tableName, tostring(editor.key)), "info");
+			return;
+		end
+
+		editor:Discard();
+		GameEditor_Notify(format("%s of %s reverted to the rows the server sent. Nothing was sent to the server.", tableName, tostring(editor.key)), "info");
+	end, "Back to the rows the server sent");
 	editor.revertButton:SetPoint("RIGHT", editor.saveButton, "LEFT", -4, 0);
-	local reload = SE.GlyphButton(frame, 0xF021, "Ask the server again", function() editor:Query(); end, 23);
+	local reload = SE.GlyphButton(frame, 0xF021, "Ask the server again", function()
+		if ( not editor.key ) then
+			GameEditor_Notify((SE.cur and SE.cur.isNew) and "Save the new spell first, the server has no rows for it yet." or "Open a spell first, there is nothing to load.", "error");
+			return;
+		end
+
+		local dirty = editor:IsDirty();
+		editor:Query();
+
+		if ( editor.error ) then
+			GameEditor_Notify(editor.error, "error");
+		elseif ( dirty ) then
+			GameEditor_Notify(format("Reloading %s of %s from the server, your unsaved rows are replaced.", tableName, tostring(editor.key)), "info");
+		else
+			GameEditor_Notify(format("Reloading %s of %s from the server.", tableName, tostring(editor.key)), "info");
+		end
+	end, 23);
 	reload:SetPoint("RIGHT", editor.revertButton, "LEFT", -4, 0);
 	y = y - 28;
 

@@ -157,7 +157,12 @@ end
 local function AddNode(x, y, z)
 	local data = Data();
 
-	if ( not data or not x ) then
+	if ( not data ) then
+		GameEditor_Notify("Select a creature first", "error");
+		return;
+	end
+
+	if ( not x ) then
 		return;
 	end
 
@@ -215,6 +220,7 @@ local function ApplyNode()
 	local node = editor.node;
 
 	if ( not node ) then
+		GameEditor_Notify("Select a node first", "error");
 		return;
 	end
 
@@ -231,7 +237,11 @@ local function MoveNodeToCharacter()
 	local node = editor.node;
 	local x, y, z = CreatureEditor_GetPlayerPosition();
 
-	if ( node and x ) then
+	if ( not node ) then
+		GameEditor_Notify("Select a node first", "error");
+	elseif ( not x ) then
+		GameEditor_Notify("Your character position is not available", "error");
+	else
 		Send(OP_MOVE, { point = node.point, x = x, y = y, z = z });
 	end
 end
@@ -240,7 +250,13 @@ function Waypoints.LoadPath(pathId)
 	local data = Data();
 	pathId = tonumber(pathId);
 
-	if ( not data or not pathId ) then
+	if ( not data ) then
+		GameEditor_Notify("Select a creature first", "error");
+		return;
+	end
+
+	if ( not pathId ) then
+		GameEditor_Notify("Enter a path id first", "error");
 		return;
 	end
 
@@ -253,6 +269,7 @@ function Waypoints.LoadPath(pathId)
 	state.rerequested = false;
 	Waypoints.SelectPoint(0);
 	CreatureEditor_Request(tostring(data.guid), pathId);
+	GameEditor_Notify(state.viewPath and format("Loading path %d from the server", pathId) or "Loading the assigned path from the server", "info");
 end
 
 local function ScopeName(scope)
@@ -288,6 +305,7 @@ local function Unassign()
 	local data = Data();
 
 	if ( not data ) then
+		GameEditor_Notify("Select a creature first", "error");
 		return;
 	end
 
@@ -345,7 +363,7 @@ local function Refresh()
 		empty:Set({
 			title = format("Loading %s...", name or "creature"),
 			text = "Waiting for the creature snapshot from the server.",
-			primary = "Ask again", onPrimary = function() Creature.Request(); end,
+			primary = "Ask again", onPrimary = function() Creature.Reload(); end,
 			help = Waypoints.HELP,
 		});
 		return;
@@ -512,7 +530,11 @@ local function BuildPathArea(parent)
 	local create = Common.Button(top, "New path", 76, function()
 		local _, _, _, _, x, y, z = GameEditor_GetSelection();
 
-		if ( x and Data() ) then
+		if ( not Data() ) then
+			GameEditor_Notify("Select a creature first", "error");
+		elseif ( not x ) then
+			GameEditor_Notify("The creature position is not available", "error");
+		else
 			state.expectCreate = true;
 			state.pendingSelect = 1;
 			Send(OP_CREATE, { x = x, y = y, z = z, delay = frame.newDelay.value, moveType = frame.newMove.selected - 1 });
@@ -611,6 +633,8 @@ local function BuildEditor(parent)
 		if ( o ) then
 			NoggitSpinBox_SetValue(editor.facing, math.deg(o) % 360, true);
 			NoggitCheckBox_SetChecked(editor.face, true);
+		else
+			GameEditor_Notify("Your character position is not available", "error");
 		end
 	end, "Use the facing of your character");
 	myFacing:SetPoint("LEFT", editor.facing, "RIGHT", 4, 0);
@@ -619,7 +643,11 @@ local function BuildEditor(parent)
 	apply:SetPoint("TOPRIGHT", editor, "TOPRIGHT", -6, -6);
 	local toMe = Common.Button(editor, "To me", 60, MoveNodeToCharacter, "Move this node to the position of your character");
 	toMe:SetPoint("TOPRIGHT", apply, "BOTTOMRIGHT", 0, -4);
-	local delete = Common.Button(editor, "Delete", 60, function() Waypoints.DeleteSelected(); end, "Delete this node (Delete)");
+	local delete = Common.Button(editor, "Delete", 60, function()
+		if ( not Waypoints.DeleteSelected() ) then
+			GameEditor_Notify("Select a node first", "error");
+		end
+	end, "Delete this node (Delete)");
 	delete:SetPoint("TOPRIGHT", toMe, "BOTTOMRIGHT", 0, -4);
 
 	editor.nodeButtons = { apply, toMe, delete, myFacing, editor.face, editor.move };

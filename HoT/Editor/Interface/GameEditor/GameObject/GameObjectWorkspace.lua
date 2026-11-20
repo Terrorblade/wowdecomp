@@ -93,6 +93,7 @@ end
 
 function GameObject.CloseTemplate()
 	if ( not GameObject.templateEntry ) then
+		GameEditor_Notify("No template is open", "info");
 		return;
 	end
 
@@ -122,6 +123,30 @@ function GameObject.Request()
 		GobEditor_Request(guid);
 	else
 		GameEditor_Notify("Select a gameobject first", "info");
+	end
+end
+
+function GameObject.Reload()
+	if ( not GameObject.templateEntry and not GameObject.GetSelectedGuid() ) then
+		GameEditor_Notify("Select a gameobject first", "error");
+		return;
+	end
+
+	GameObject.Request();
+	GameEditor_Notify(GameObject.templateEntry and format("Reloading template %d from the server", GameObject.templateEntry) or "Reloading the gameobject from the server", "info");
+end
+
+function GameObject.CommitLive()
+	if ( not GobEditor_Commit() ) then
+		GameEditor_Notify("Nothing sent, select a gameobject in the world first", "error");
+	end
+end
+
+function GameObject.NotifyUpright(ok)
+	if ( ok ) then
+		GameEditor_Notify("Pitch and roll cleared on your client only, Save move saves it", "info");
+	else
+		GameEditor_Notify("Select a gameobject first", "error");
 	end
 end
 
@@ -231,12 +256,12 @@ local function BuildMenus()
 			separator,
 			{ text = "Save all changes", shortcut = "Ctrl+S", onClick = function() Inspector.SaveAll(); end },
 			{ text = "Revert all changes", onClick = function() Inspector.RevertAll(); end },
-			{ text = "Reload from server", shortcut = "F5", onClick = GameObject.Request },
+			{ text = "Reload from server", shortcut = "F5", onClick = GameObject.Reload },
 			{ text = "Respawn", shortcut = "Ctrl+R", onClick = Respawn },
 			separator,
-			{ text = "Drop to ground", shortcut = "G", onClick = function() GameEditor_SnapToGround(); end },
-			{ text = "Clear pitch and roll", shortcut = "Ctrl+U", onClick = ResetRotation },
-			{ text = "Save live position and rotation", onClick = function() GobEditor_Commit(); end },
+			{ text = "Drop to ground", shortcut = "G", onClick = function() Common.DropToGround("gameobject"); end },
+			{ text = "Clear pitch and roll", shortcut = "Ctrl+U", onClick = function() GameObject.NotifyUpright(ResetRotation()); end },
+			{ text = "Save live position and rotation", onClick = GameObject.CommitLive },
 			{ text = "Move spawn to my character", onClick = MoveSpawnToMe },
 			{ text = "Teleport me to the spawn", onClick = GameObject.TeleportToSpawn },
 		},
@@ -264,7 +289,7 @@ local KEYS = {
 
 local HOTKEYS = {
 	["CTRL-S"] = function() Inspector.SaveAll(); end,
-	["F5"] = GameObject.Request,
+	["F5"] = GameObject.Reload,
 	["CTRL-N"] = function() Common.ShowSpawnWindow("gameobject"); end,
 	["CTRL-F"] = FindTemplate,
 	["CTRL-D"] = function() Common.Duplicate("gameobject"); end,

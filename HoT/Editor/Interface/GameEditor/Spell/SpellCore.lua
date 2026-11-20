@@ -898,6 +898,7 @@ function SE.CycleDoc(step)
 	local count = #SE.docs;
 
 	if ( count < 2 ) then
+		GameEditor_Notify("There is no other spell tab to switch to.", "info");
 		return;
 	end
 
@@ -1083,6 +1084,7 @@ function SE.Open(id, force)
 	id = tonumber(id);
 
 	if ( not id or id <= 0 ) then
+		GameEditor_Notify("That is not a valid spell id.", "error");
 		return;
 	end
 
@@ -1153,17 +1155,26 @@ function SE.NewSpell(fromValues)
 		values = SE.DefaultSpell(id);
 	end
 
-	AddDoc({ id = id, values = values, original = SE.Copy(values), isNew = true, copiedFrom = fromValues and fromValues.ID });
+	local copiedFrom = fromValues and tonumber(fromValues.m_id or fromValues.ID);
+	AddDoc({ id = id, values = values, original = SE.Copy(values), isNew = true, copiedFrom = copiedFrom });
 	SE.AddRecent(id);
-	GameEditor_Notify(format("Spell %d created locally, Save writes it to the dbc database.", id), "info");
+
+	if ( copiedFrom ) then
+		GameEditor_Notify(format("Spell %d copied from %d in a new tab, not saved yet. Save writes it to the dbc database.", id, copiedFrom), "info");
+	else
+		GameEditor_Notify(format("Spell %d created in a new tab, not saved yet. Save writes it to the dbc database.", id), "info");
+	end
 end
 
 function SE.CopySpell()
-	if ( SE.cur ) then
-		local values = SE.Copy(SE.cur.values);
-		values.m_id = SE.cur.id;
-		SE.NewSpell(values);
+	if ( not SE.cur ) then
+		GameEditor_Notify("Open a spell first, then copy it.", "error");
+		return;
 	end
+
+	local values = SE.Copy(SE.cur.values);
+	values.m_id = SE.cur.id;
+	SE.NewSpell(values);
 end
 
 function SE.SaveDoc(doc)
@@ -1194,11 +1205,33 @@ function SE.SaveDoc(doc)
 end
 
 function SE.Save()
-	SE.SaveDoc(SE.cur);
+	local cur = SE.cur;
+
+	if ( not cur ) then
+		GameEditor_Notify("Open a spell first, there is nothing to save.", "error");
+		return;
+	end
+
+	if ( SE.pendingSave[cur.id] ) then
+		GameEditor_Notify(format("Spell %d is already saving, waiting for the server.", cur.id), "info");
+		return;
+	end
+
+	if ( not SE.IsDirty() ) then
+		GameEditor_Notify(format("Nothing to save, spell %d has no changes.", cur.id), "info");
+		return;
+	end
+
+	SE.SaveDoc(cur);
 end
 
 -- Saves every tab, the active tab's server rows and visual rows, and the server rows kept by the other tabs.
 function SE.SaveAll()
+	if ( not SE.AnyUnsaved() ) then
+		GameEditor_Notify("Nothing to save, no spell tab or row has unsaved changes.", "info");
+		return;
+	end
+
 	for _, doc in ipairs(SE.docs) do
 		if ( SE.DocIsDirty(doc) and not SE.pendingSave[doc.id] ) then
 			SE.SaveDoc(doc);
@@ -1296,9 +1329,12 @@ end
 function SE.CloseDoc(doc, force)
 	doc = doc or SE.cur;
 
-	if ( doc ) then
-		SE.CloseDocs({ doc }, force);
+	if ( not doc ) then
+		GameEditor_Notify("No spell tab is open.", "info");
+		return;
 	end
+
+	SE.CloseDocs({ doc }, force);
 end
 
 function SE.CloseOtherDocs(keep)
@@ -1308,6 +1344,11 @@ function SE.CloseOtherDocs(keep)
 		if ( doc ~= keep ) then
 			table.insert(list, doc);
 		end
+	end
+
+	if ( #list == 0 ) then
+		GameEditor_Notify("There are no other spell tabs to close.", "info");
+		return;
 	end
 
 	SE.CloseDocs(list);
@@ -1322,13 +1363,23 @@ function SE.CloseSavedDocs()
 		end
 	end
 
+	if ( #list == 0 ) then
+		GameEditor_Notify(#SE.docs == 0 and "No spell tab is open." or "No saved spell tabs to close, every open tab has unsaved changes.", "info");
+		return;
+	end
+
 	SE.CloseDocs(list);
+	GameEditor_Notify(format("Closed %d saved spell tab%s.", #list, #list == 1 and "" or "s"), "info");
 end
 
 function SE.ApplyLocal(quiet)
 	local cur = SE.cur;
 
 	if ( not cur ) then
+		if ( not quiet ) then
+			GameEditor_Notify("Open a spell first, there is nothing to apply.", "error");
+		end
+
 		return false;
 	end
 
@@ -1349,7 +1400,7 @@ function SE.ApplyLocal(quiet)
 	cur.appliedLocal = true;
 
 	if ( not quiet ) then
-		GameEditor_Notify(format("Spell %d applied to this client only. Save to keep it.", cur.id), "info");
+		GameEditor_Notify(format("Spell %d applied to this client only, nothing was saved to the database. Save to keep it.", cur.id), "info");
 	end
 
 	SE.QueueRefresh();
@@ -1360,19 +1411,23 @@ function SE.Revert()
 	local cur = SE.cur;
 
 	if ( not cur ) then
+		GameEditor_Notify("Open a spell first, there is nothing to revert.", "error");
 		return;
 	end
 
 	if ( cur.isNew ) then
 		ReplaceValues(cur, SE.Copy(cur.original), cur.original);
+		GameEditor_Notify(format("Spell %d reset to its starting values. It is still new and not saved.", cur.id), "info");
 		return;
 	end
 
+	local wasApplied = cur.appliedLocal;
 	SE.DiscardSpellLocal(cur);
 	local row = SE.GetRow(SE.TABLE, cur.id) or SE.Copy(cur.original);
 	cur.exists = true;
 	cur.remoteChanged = false;
 	ReplaceValues(cur, row, SE.Copy(row));
+	GameEditor_Notify(format("Spell %d reverted to the saved row%s. Nothing was sent to the server.", cur.id, wasApplied and ", the local apply is undone" or ""), "info");
 end
 
 local function AnyOtherNew(doc)

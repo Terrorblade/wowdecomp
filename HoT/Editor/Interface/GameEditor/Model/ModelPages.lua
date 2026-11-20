@@ -164,7 +164,10 @@ local function ShowImport(index)
 		importWindow = GameEditor_CreateWindow("GameEditorModelImportWindow", "Import image", 420, 400, true);
 		local c = importWindow.content;
 
-		local refresh = Common.Button(c, "Refresh", 70, ImportRefresh, "Read the Import folder again");
+		local refresh = Common.Button(c, "Refresh", 70, function()
+			ImportRefresh();
+			GameEditor_Notify(format("Read the Import folder again, %d images found", #(importWindow.list.items or {})), "info");
+		end, "Read the Import folder again");
 		refresh:SetPoint("TOPRIGHT", c, "TOPRIGHT", 0, 0);
 		importWindow.status = Common.Paragraph(c, "");
 		importWindow.status:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -4);
@@ -324,6 +327,11 @@ local function BuildTexturePage(container)
 	local pathLabel = Common.Label(c, "Path");
 	pathLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 0, y - 4);
 	page.check = Common.Button(c, "Check", 56, function()
+		if ( ME.CleanPath(page.path:GetText()) == "" ) then
+			ME.Notice("Type a texture path first", "info");
+			return;
+		end
+
 		page:CheckPath(page.path:GetText());
 	end, "Look the path up and read the size of the BLP");
 	page.check:SetPoint("TOPRIGHT", c, "TOPRIGHT", 0, y);

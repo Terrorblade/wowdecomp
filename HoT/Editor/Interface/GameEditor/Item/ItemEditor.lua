@@ -456,6 +456,7 @@ function Editor.SaveAll()
 	end
 
 	if ( not frame ) then
+		GameEditor_Notify(format("Nothing to save, item %d has no changes", I.entry), "info");
 		return;
 	end
 
@@ -469,13 +470,16 @@ function Editor.SaveAll()
 		saved = saved + 1;
 	end
 
-	if ( saved == 0 ) then
-		GameEditor_Notify("Nothing to save", "info");
+	if ( saved == 0 and Editor.HasChanges() ) then
+		GameEditor_Notify(format("Item %d has changes but nothing was sent, wait for it to finish loading", I.entry), "error");
+	elseif ( saved == 0 ) then
+		GameEditor_Notify(format("Nothing to save, item %d has no changes", I.entry), "info");
 	end
 end
 
 function Editor.RevertAll()
-	if ( not frame ) then
+	if ( not Editor.HasChanges() ) then
+		GameEditor_Notify(I.entry and format("Nothing to revert, item %d has no changes", I.entry) or "Nothing to revert, no item is open", "info");
 		return;
 	end
 

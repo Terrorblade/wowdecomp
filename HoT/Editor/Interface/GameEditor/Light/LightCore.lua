@@ -339,10 +339,12 @@ function LE.SaveAll()
 		return 0;
 	end
 
-	local sent = 0;
+	local sent, waiting, failed = 0, 0, 0;
 
 	for _, doc in ipairs(LE.DirtyDocs()) do
-		if ( not doc.saving ) then
+		if ( doc.saving ) then
+			waiting = waiting + 1;
+		else
 			local ok, result = pcall(DbcEditor_Save, doc.tableName, doc.id, doc.values);
 
 			if ( ok and result ) then
@@ -350,12 +352,15 @@ function LE.SaveAll()
 				sent = sent + 1;
 			else
 				GameEditor_Notify(format("Could not send %s %d", doc.tableName, doc.id), "error");
+				failed = failed + 1;
 			end
 		end
 	end
 
-	if ( sent == 0 ) then
-		GameEditor_Notify("Nothing to save", "info");
+	if ( sent == 0 and waiting > 0 ) then
+		GameEditor_Notify(format("%d row%s already saving, waiting for the server", waiting, waiting == 1 and " is" or "s are"), "info");
+	elseif ( sent == 0 and failed == 0 ) then
+		GameEditor_Notify("Nothing to save, no rows have changes", "info");
 	end
 
 	LE.Changed();

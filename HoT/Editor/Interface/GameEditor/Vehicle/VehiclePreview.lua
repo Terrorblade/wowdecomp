@@ -468,6 +468,11 @@ function VE.CreatePreview(holder)
 	model:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -2);
 
 	local here = Common.Button(top, "Here", 44, function()
+		if ( not VE.inWorld ) then
+			ME.Notice("Tick In world first, there is no world preview to move", "info");
+			return;
+		end
+
 		ME.Quiet("WorldPreview_MoveHere");
 	end, "Move the in world preview in front of you again");
 	here:SetHeight(20);

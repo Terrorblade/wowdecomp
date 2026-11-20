@@ -56,7 +56,7 @@ function EN.Open(id)
 	id = tonumber(id);
 
 	if ( not id or not store:Doc(EN.TABLE, id) ) then
-		GameEditor_Notify(format("Enchant %s does not exist", tostring(id)), "error");
+		GameEditor_Notify(id and format("Enchant %d does not exist", id) or "Type an enchant id first", "error");
 		return false;
 	end
 
@@ -123,6 +123,9 @@ local function NewCondition()
 
 	if ( enchant ) then
 		store:SetMany(enchant, { m_conditionID = condition.id });
+		GameEditor_Notify(format("Condition %d made for enchant %d, it is not on the server until you save", condition.id, enchant.id), "info");
+	else
+		GameEditor_Notify(format("Condition %d made, it is not on the server until you save", condition.id), "info");
 	end
 end
 
@@ -130,7 +133,7 @@ local function Save()
 	local rows = #store:Dirty();
 
 	if ( rows == 0 and not procRow:IsDirty() ) then
-		GameEditor_Notify("Nothing to save", "info");
+		GameEditor_Notify(EN.enchantId and format("Nothing to save, enchant %d has no changes", EN.enchantId) or "Nothing to save, no enchant changes", "info");
 		return;
 	end
 
@@ -138,12 +141,20 @@ local function Save()
 		store:SaveAll();
 	end
 
-	procRow:Save();
+	if ( procRow:IsDirty() and not procRow:Save() and procRow.saving ) then
+		GameEditor_Notify("The proc row is still saving, wait for the server", "info");
+	end
 end
 
 local function Revert()
+	if ( not procRow:IsDirty() and #store:Dirty() == 0 ) then
+		GameEditor_Notify("Nothing to revert, there are no unsaved enchant changes", "info");
+		return;
+	end
+
 	if ( procRow:IsDirty() ) then
 		procRow:Revert();
+		GameEditor_Notify("Proc row changes thrown away, nothing was sent to the server", "info");
 	end
 
 	if ( #store:Dirty() > 0 ) then
@@ -296,12 +307,18 @@ local function BuildConditionPage()
 	new:SetPoint("LEFT", page.idSpin, "RIGHT", 6, 0);
 	local clear = Common.Button(bar, "Clear", 50, function()
 		local enchant = EnchantDoc();
+
+		if ( not enchant ) then
+			GameEditor_Notify("Open an enchant first", "error");
+			return;
+		end
+
 		EN.conditionId = 0;
 
-		if ( enchant ) then
-			store:SetMany(enchant, { m_conditionID = 0 });
+		if ( not store:SetMany(enchant, { m_conditionID = 0 }) ) then
+			GameEditor_Notify(format("Enchant %d already has no condition", enchant.id), "info");
 		end
-	end, "The enchant needs no gem colors, the condition row itself stays");
+	end,"The enchant needs no gem colors, the condition row itself stays");
 	clear:SetPoint("LEFT", new, "RIGHT", 4, 0);
 
 	PageScroll(page, 28);
@@ -449,6 +466,8 @@ local function BuildUsedPage()
 	page.list.onDoubleClick = function(item)
 		if ( item.open ) then
 			item.open();
+		elseif ( item.kind ~= "" ) then
+			GameEditor_Notify(format("%s %s has no editor to open", item.kind, item.text), "info");
 		end
 	end;
 

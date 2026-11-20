@@ -19,7 +19,7 @@ local userScale = 1;
 
 local shellMenuStrip;
 local statusCells = {};
-local commandBox;
+local statusFeedback;
 local toasts = {};
 local windows = {};
 local fpsText = "";
@@ -68,7 +68,6 @@ local SHELL_KEYS = {
 	{ function() return ToggleKeyText(true); end, "Open the mini editor, a bar of every editor over the normal game, only Ctrl hotkeys reach the editor" },
 	{ "Tab", "Hide or show the editor UI" },
 	{ "Ctrl+1 .. Ctrl+9", "Switch workspace" },
-	{ "Enter", "Focus the command line (. commands go to the server, / commands run like chat)" },
 	{ "W A S D, Space, X", "Fly the camera, Shift is fast and Ctrl is slow" },
 	{ "Right mouse", "Look around" },
 	{ "Mouse wheel", "Camera speed, when no tool uses it" },
@@ -139,6 +138,8 @@ function GameEditor_Notify(text, kind)
 	if ( not loaded or not text or text == "" ) then
 		return;
 	end
+
+	NoggitFeedback_OnNotify(text, kind);
 
 	local toast;
 
@@ -393,6 +394,22 @@ local function SaveLayout()
 	end
 end
 
+-- A frame that cuts off whatever its content draws outside it, returns the clip frame and the content frame.
+-- Model frames draw in the wrong place inside one, so panes with 3D previews stay unclipped.
+function GameEditor_CreateClipFrame(parent)
+	local clip = CreateFrame("ScrollFrame", NoggitUI_NewName("GameEditorClip"), parent);
+	local content = CreateFrame("Frame", NoggitUI_NewName("GameEditorClipContent"), clip);
+	content:SetWidth(1);
+	content:SetHeight(1);
+	clip:SetScrollChild(content);
+	clip:SetScript("OnSizeChanged", function(self, width, height)
+		content:SetWidth(max(1, width or self:GetWidth() or 1));
+		content:SetHeight(max(1, height or self:GetHeight() or 1));
+	end);
+	clip.content = content;
+	return clip, content;
+end
+
 -- Pane sizes set with a splitter, kept in the layout file by name.
 function GameEditor_GetLayoutSize(name, default)
 	return layout.sizes[name] or default;
@@ -472,8 +489,10 @@ function GameEditor_CreateSplitter(parent, options)
 			-- A collapsed pane keeps a visible line to grab.
 			if ( options.collapse and options.get() < 1 ) then
 				rest:Show();
+				self:SetWidth(4);
 			else
 				rest:Hide();
+				self:SetWidth(6);
 			end
 
 			return;
@@ -524,17 +543,22 @@ local function EndWindowMove(window)
 	layoutDirty = true;
 end
 
-function GameEditor_CreateWindow(name, title, width, height, resizable)
+-- Every window resizes and clips its content (noClip is for model frames), fixed-size callers get 8px added for the grip row.
+function GameEditor_CreateWindow(name, title, width, height, resizable, noClip)
 	local window = CreateFrame("Frame", name or NoggitUI_NewName("GameEditorWindow"), EditorParent, "NoggitBoxTemplate");
 	window.autoName = not name;
-	window.resizable = resizable and true or false;
+	window.resizable = true;
+	window.chromeWidth = 12;
+	window.chromeHeight = 46;
+	width = width or 400;
+	height = (height or 300) + (resizable and 0 or 8);
 	window:SetFrameStrata("DIALOG");
 	window:SetToplevel(true);
 	window:EnableMouse(true);
 	window:SetMovable(true);
 	window:SetClampedToScreen(true);
-	window:SetWidth(width or 400);
-	window:SetHeight(height or 300);
+	window:SetWidth(width);
+	window:SetHeight(height);
 	window:SetPoint("CENTER", EditorParent, "CENTER", 0, 0);
 	window:Hide();
 	NoggitBox_Set(window, NOGGIT_COLOR_BASE, NOGGIT_COLOR_MID);
@@ -571,25 +595,40 @@ function GameEditor_CreateWindow(name, title, width, height, resizable)
 	close:SetScript("OnLeave", function(self) NoggitBox_Set(self, NOGGIT_COLOR_DARK, nil); end);
 	close:SetScript("OnClick", function() GameEditor_HideWindow(window); end);
 
-	local content = CreateFrame("Frame", NoggitUI_NewName("GameEditorWindowContent"), window);
-	content:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 6, -6);
-	content:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -6, resizable and 14 or 6);
+	local content;
+
+	if ( not noClip ) then
+		local clip;
+		clip, content = GameEditor_CreateClipFrame(window);
+		clip:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 6, -6);
+		clip:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -6, 14);
+		window.clip = clip;
+	else
+		content = CreateFrame("Frame", NoggitUI_NewName("GameEditorWindowContent"), window);
+		content:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 6, -6);
+		content:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -6, 14);
+	end
+
 	window.content = content;
 
-	if ( resizable ) then
-		window:SetResizable(true);
-		window:SetMinResize(220, 140);
-		local grip = CreateFrame("Button", NoggitUI_NewName("GameEditorWindowGrip"), window);
-		grip:SetWidth(14);
-		grip:SetHeight(14);
-		grip:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -1, 1);
-		local gripMark = NoggitUI_SolidTexture(grip, "ARTWORK", NOGGIT_COLOR_HOVER);
-		gripMark:SetWidth(8);
-		gripMark:SetHeight(8);
-		gripMark:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", -2, 2);
-		grip:SetScript("OnMouseDown", function() window:StartSizing("BOTTOMRIGHT"); end);
-		grip:SetScript("OnMouseUp", function() EndWindowMove(window); end);
-	end
+	window:SetResizable(true);
+	window:SetMinResize(min(width, 220), min(height, 100));
+	local grip = CreateFrame("Button", NoggitUI_NewName("GameEditorWindowGrip"), window);
+	grip:SetWidth(14);
+	grip:SetHeight(14);
+	grip:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -1, 1);
+	local gripMark = NoggitUI_SolidTexture(grip, "ARTWORK", NOGGIT_COLOR_HOVER);
+	gripMark:SetWidth(8);
+	gripMark:SetHeight(8);
+	gripMark:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", -2, 2);
+	grip:SetScript("OnMouseDown", function() window:StartSizing("BOTTOMRIGHT"); end);
+	grip:SetScript("OnMouseUp", function() EndWindowMove(window); end);
+	grip:SetFrameLevel(window:GetFrameLevel() + 10);
+
+	window.feedbackLine = NoggitUI_FontString(window, "");
+	window.feedbackLine:SetHeight(14);
+	window.feedbackLine:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", 8, 0);
+	window.feedbackLine:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -18, 0);
 
 	window.SetTitle = function(self, text)
 		self.titleText:SetText(text);
@@ -791,10 +830,6 @@ function GameEditor_RunCommand(text)
 		return;
 	end
 
-	if ( commandBox ) then
-		commandBox:AddHistoryLine(text);
-	end
-
 	GameEditor_Print("> "..text, 0.6, 0.8, 1);
 
 	if ( string.sub(text, 1, 1) == "/" ) then
@@ -816,39 +851,16 @@ function GameEditor_RunCommand(text)
 	SendChatMessage(text, "SAY");
 end
 
-local function CreateCommandBox()
-	commandBox = NoggitLineEdit_Create(EditorStatusBar, 300);
-	commandBox:SetHeight(18);
-	commandBox:SetPoint("RIGHT", EditorStatusBar, "RIGHT", -18, 0);
-	commandBox:SetAutoFocus(false);
-	commandBox:SetMaxLetters(255);
-	commandBox:SetHistoryLines(50);
-	commandBox:SetAltArrowKeyMode(false);
-
-	local hint = NoggitUI_FontString(commandBox, "Command (Enter)");
-	hint:SetPoint("LEFT", commandBox, "LEFT", 6, 0);
-	NoggitText_SetColor(hint, NOGGIT_COLOR_DISABLED);
-	commandBox.hint = hint;
-
-	commandBox:SetScript("OnEditFocusGained", function() hint:Hide(); end);
-	commandBox:SetScript("OnEditFocusLost", function(self)
-		if ( self:GetText() == "" ) then
-			hint:Show();
-		end
-	end);
-	commandBox:SetScript("OnEnterPressed", function(self)
-		local text = self:GetText();
-		self:SetText("");
-		self:ClearFocus();
-		GameEditor_RunCommand(text);
-	end);
-	commandBox:SetScript("OnEscapePressed", function(self)
-		self:SetText("");
-		self:ClearFocus();
-	end);
-end
-
 -- Camera and editor settings ---------------------------------------------------------------------------
+
+function GameEditor_RecenterCamera()
+	if ( not FreeCam_GetState() ) then
+		GameEditor_Notify("The free camera is off, the view already follows your character", "info");
+		return;
+	end
+
+	FreeCam_Recenter();
+end
 
 local function ApplyScale()
 	local height;
@@ -919,9 +931,7 @@ local function CreateCameraWindow()
 	end);
 	cameraWindow.sync:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -88);
 
-	local recenter = NoggitPushButton_Create(content, "Camera to character", 140, function()
-		FreeCam_Recenter();
-	end);
+	local recenter = NoggitPushButton_Create(content, "Camera to character", 140, GameEditor_RecenterCamera);
 	recenter:SetPoint("TOPLEFT", content, "TOPLEFT", 4, -120);
 
 	CameraRow(content, -156, "Editor UI scale");
@@ -1338,6 +1348,35 @@ local function RefreshToolButtons()
 	end
 end
 
+-- The frame a workspace builds its dock panels or main area into, clipped to the shell unless noClip.
+local function WorkspaceHost(workspace, kind, area)
+	if ( workspace.noClip ) then
+		return area;
+	end
+
+	local field = kind.."Clip";
+
+	if ( not workspace[field] ) then
+		local clip = GameEditor_CreateClipFrame(area);
+		clip:SetAllPoints(area);
+		workspace[field] = clip;
+	end
+
+	return workspace[field].content;
+end
+
+local function SetWorkspaceClipsShown(workspace, shown)
+	for _, field in ipairs({ "dockClip", "mainClip" }) do
+		local clip = workspace[field];
+
+		if ( clip and shown ) then
+			clip:Show();
+		elseif ( clip ) then
+			clip:Hide();
+		end
+	end
+end
+
 local function HidePanels(workspace)
 	for _, panel in pairs(workspace.panels) do
 		panel:Hide();
@@ -1373,12 +1412,13 @@ function GameEditor_SelectTool(key)
 	HidePanels(workspace);
 
 	if ( not tool.noPanel and tool.build and not workspace.panels[key] ) then
-		local panel = SafeCall(workspace.key, tool.build, EditorToolDockContent);
+		local host = WorkspaceHost(workspace, "dock", EditorToolDockContent);
+		local panel = SafeCall(workspace.key, tool.build, host);
 
 		if ( panel ) then
 			panel:ClearAllPoints();
-			panel:SetPoint("TOPLEFT", EditorToolDockContent, "TOPLEFT", 0, 0);
-			panel:SetPoint("BOTTOMRIGHT", EditorToolDockContent, "BOTTOMRIGHT", 0, 0);
+			panel:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0);
+			panel:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0);
 			workspace.panels[key] = panel;
 		end
 	end
@@ -1578,10 +1618,13 @@ function GameEditor_SetWorkspace(key, toolKey)
 		if ( previous.main ) then
 			previous.main:Hide();
 		end
+
+		SetWorkspaceClipsShown(previous, false);
 	end
 
 	activeWorkspace = workspace;
 	EditorToolDock:SetWidth(workspace.dockWidth or DOCK_WIDTH);
+	SetWorkspaceClipsShown(workspace, true);
 
 	BuildToolbar(workspace);
 	BuildViewbar(workspace);
@@ -1600,7 +1643,7 @@ function GameEditor_SetWorkspace(key, toolKey)
 	end
 
 	if ( workspace.buildMain and not workspace.main ) then
-		workspace.main = SafeCall(workspace.key, workspace.buildMain, EditorMainArea);
+		workspace.main = SafeCall(workspace.key, workspace.buildMain, WorkspaceHost(workspace, "main", EditorMainArea));
 	end
 
 	if ( workspace.main ) then
@@ -2119,7 +2162,7 @@ local function BuildShellMenus()
 			},
 			separator,
 			toggleUI,
-			{ text = "Camera to character", onClick = function() FreeCam_Recenter(); end },
+			{ text = "Camera to character", onClick = GameEditor_RecenterCamera },
 			{ text = "Reload UI", onClick = function() ReloadUI(); end },
 			separator,
 			{ text = "Leave the editor", shortcut = fullKey.." / "..miniKey, onClick = function() GameEditor_SetActive(false); end },
@@ -2168,11 +2211,6 @@ function GameEditor_OnHotkey(key)
 
 	if ( key == "TAB" ) then
 		GameEditor_SetUIHidden(not uiHidden);
-		return true;
-	end
-
-	if ( key == "ENTER" and commandBox and not ChromeHidden() ) then
-		commandBox:SetFocus();
 		return true;
 	end
 
@@ -2302,6 +2340,13 @@ local function UpdateStatus(elapsed)
 	for unused = index, #statusCells do
 		SetStatus(unused, "");
 	end
+
+	if ( statusFeedback and statusFeedback.after ~= index - 1 ) then
+		statusFeedback.after = index - 1;
+		statusFeedback:ClearAllPoints();
+		statusFeedback:SetPoint("LEFT", index > 1 and StatusCell(index - 1) or EditorStatusBar, index > 1 and "RIGHT" or "LEFT", 10, 0);
+		statusFeedback:SetPoint("RIGHT", EditorStatusBar, "RIGHT", -18, 0);
+	end
 end
 
 -- Server results become toasts so every workspace gets feedback for free.
@@ -2349,11 +2394,6 @@ function GameEditor_OnEvent(self, event, ...)
 
 			NoggitMenu_CloseAll();
 			NoggitTooltip_Hide();
-
-			if ( commandBox ) then
-				commandBox:ClearFocus();
-			end
-
 			self:Hide();
 			SaveLayout();
 		end
@@ -2375,6 +2415,7 @@ function GameEditor_OnEvent(self, event, ...)
 	end
 
 	if ( RESULT_EVENTS[event] ) then
+		NoggitFeedback_OnResult(event, ...);
 		local ok = ...;
 		local message;
 
@@ -2416,7 +2457,10 @@ function GameEditor_OnLoad(self)
 
 	LoadLayout();
 	CreateConsole();
-	CreateCommandBox();
+	statusFeedback = NoggitUI_FontString(EditorStatusBar, "");
+	statusFeedback:SetHeight(18);
+	statusFeedback:SetPoint("RIGHT", EditorStatusBar, "RIGHT", -18, 0);
+	NoggitFeedback_DefaultLine = statusFeedback;
 	CreateCameraWindow();
 	CreateKeysWindow();
 	BuildShellMenus();

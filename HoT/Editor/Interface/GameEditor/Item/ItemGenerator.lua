@@ -9,6 +9,7 @@ local NAV_WIDTH = 210;
 local KEY_LIST_WIDTH = 210;
 local PREVIEW_WIDTH = 340;
 local PANE_GAP = 8;
+local NAV_GAP = 10;
 local COLLAPSE_WIDTH = 24;
 local COLLAPSE_SNAP = 48;
 
@@ -237,7 +238,7 @@ local SECTIONS = {
 	{
 		title = "Legendaries", table = "item_generator_legendary_template", parent = true,
 		help = "Legendary effects. The spell set is shared by every legendary with the same set number.",
-		keyName = function(v) return tostring(v.Comment or v.nameOverride or ""); end,
+		keyName = function(v) return (v.nameOverride and v.nameOverride ~= "") and tostring(v.nameOverride) or tostring(v.Comment or ""); end,
 		defaults = { itemClass = -1, itemSubClass = -1, itemInventoryType = -1, itemStatGroup = -1, statGroupOverride = -1, primaryStatModifier = 1, secondaryStatModifier = 1 },
 		preview = I.CreateLegendaryPreview,
 		children = {
@@ -496,19 +497,26 @@ local function BuildParent(section)
 	local keys = {};
 	local selected;
 
-	local left = CreateFrame("Frame", nil, view);
-	left:SetPoint("TOPLEFT", help, "BOTTOMLEFT", 0, -4);
-	left:SetPoint("BOTTOMLEFT", view, "BOTTOMLEFT", 0, 0);
-	left:SetWidth(KEY_LIST_WIDTH);
+	-- The row list and the row editor clip their content, so narrow panes never draw over each other.
+	local leftClip, left = GameEditor_CreateClipFrame(view);
+	leftClip:SetPoint("TOPLEFT", help, "BOTTOMLEFT", 0, -4);
+	leftClip:SetPoint("BOTTOMLEFT", view, "BOTTOMLEFT", 0, 0);
+	leftClip:SetWidth(KEY_LIST_WIDTH);
 
 	local right = CreateFrame("Frame", nil, view);
-	right:SetPoint("TOPLEFT", left, "TOPRIGHT", 8, 0);
+	right:SetPoint("TOPLEFT", leftClip, "TOPRIGHT", PANE_GAP, 0);
 	right:SetPoint("BOTTOMRIGHT", view, "BOTTOMRIGHT", 0, 0);
 
 	local OnNew;
 	local newButton = Common.Button(left, "New", 50, function() OnNew(); end, "Start a new row with an ID you choose");
 	newButton:SetPoint("TOPLEFT", left, "TOPLEFT", 0, 0);
-	local refresh = Common.Button(left, "Refresh", 64, function() I.Query(section.table, I.LIST_KEY); end, "Load the list again from the server");
+	local refresh = Common.Button(left, "Refresh", 64, function()
+		if ( I.Query(section.table, I.LIST_KEY) ) then
+			GameEditor_Notify(format("Loading the %s list again from the server", section.title), "info");
+		else
+			GameEditor_Notify(format("Could not ask the server for the %s list", section.title), "error");
+		end
+	end, "Load the list again from the server");
 	refresh:SetPoint("LEFT", newButton, "RIGHT", 4, 0);
 
 	local filter = NoggitLineEdit_Create(left, KEY_LIST_WIDTH);
@@ -598,9 +606,9 @@ local function BuildParent(section)
 	end);
 	strip.tabs[1]:SetPoint("TOPLEFT", right, "TOPLEFT", 0, 0);
 
-	local holder = CreateFrame("Frame", nil, right);
-	holder:SetPoint("TOPLEFT", right, "TOPLEFT", 0, -28);
-	holder:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 0);
+	local holderClip, holder = GameEditor_CreateClipFrame(right);
+	holderClip:SetPoint("TOPLEFT", right, "TOPLEFT", 0, -28);
+	holderClip:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 0);
 
 	local emptyText = Common.Paragraph(right, "Pick a row on the left, or New to start one.");
 	emptyText:SetPoint("TOPLEFT", holder, "TOPLEFT", 4, -8);
@@ -636,14 +644,22 @@ local function BuildParent(section)
 		end);
 		preview:SetPoint("TOPRIGHT", right, "TOPRIGHT", 0, 0);
 		preview:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 0);
-		holder:ClearAllPoints();
-		holder:SetPoint("TOPLEFT", right, "TOPLEFT", 0, -28);
-		holder:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", -PANE_GAP, 0);
+		holderClip:ClearAllPoints();
+		holderClip:SetPoint("TOPLEFT", right, "TOPLEFT", 0, -28);
+		holderClip:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", -PANE_GAP, 0);
 	end
 
-	-- The gaps always stay, when the row editor runs out of room the preview shrinks and then collapses.
+	-- The gaps always stay, halved next to a collapsed pane, when the row editor runs out of room the preview shrinks and then collapses.
+	local function KeyGap()
+		return leftClip:IsShown() and PANE_GAP or PANE_GAP / 2;
+	end
+
+	local function PreviewGap()
+		return preview and preview:IsShown() and PANE_GAP or PANE_GAP / 2;
+	end
+
 	local function PreviewRoom()
-		return (view:GetWidth() or 0) - (left:IsShown() and left:GetWidth() or 0) - PANE_GAP - PANE_GAP;
+		return (view:GetWidth() or 0) - (leftClip:IsShown() and leftClip:GetWidth() or 0) - KeyGap() - PANE_GAP;
 	end
 
 	local function PreviewWidth()
@@ -651,11 +667,11 @@ local function BuildParent(section)
 	end
 
 	local function KeyWidth()
-		return left:IsShown() and left:GetWidth() or 0;
+		return leftClip:IsShown() and leftClip:GetWidth() or 0;
 	end
 
 	local function KeyListMax()
-		return max(0, (view:GetWidth() or 0) - PANE_GAP - PANE_GAP - PreviewWidth());
+		return max(0, (view:GetWidth() or 0) - PANE_GAP - PreviewGap() - PreviewWidth());
 	end
 
 	local function PreviewMax()
@@ -664,12 +680,15 @@ local function BuildParent(section)
 
 	local function Relayout()
 		local keys = min(GameEditor_GetLayoutSize("itemgen_keys", KEY_LIST_WIDTH), (view:GetWidth() or 0) - PANE_GAP);
-		left:SetWidth(max(1, keys));
+		leftClip:SetWidth(max(1, keys));
 
 		if ( keys < COLLAPSE_WIDTH ) then
-			left:Hide();
+			leftClip:SetWidth(1);
+			leftClip:Hide();
+			right:SetPoint("TOPLEFT", leftClip, "TOPRIGHT", PANE_GAP / 2, 0);
 		else
-			left:Show();
+			leftClip:Show();
+			right:SetPoint("TOPLEFT", leftClip, "TOPRIGHT", PANE_GAP, 0);
 		end
 
 		if ( preview ) then
@@ -677,10 +696,13 @@ local function BuildParent(section)
 			preview:SetWidth(max(1, width));
 
 			if ( width < COLLAPSE_WIDTH ) then
+				preview:SetWidth(1);
 				preview:Hide();
 			else
 				preview:Show();
 			end
+
+			holderClip:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", -PreviewGap(), 0);
 		end
 	end
 
@@ -694,8 +716,8 @@ local function BuildParent(section)
 		end,
 		max = KeyListMax,
 	});
-	keySplitter:SetPoint("TOPLEFT", left, "TOPRIGHT", 1, 0);
-	keySplitter:SetPoint("BOTTOMLEFT", left, "BOTTOMRIGHT", 1, 0);
+	keySplitter:SetPoint("TOPLEFT", leftClip, "TOPRIGHT", 0, 0);
+	keySplitter:SetPoint("BOTTOMLEFT", leftClip, "BOTTOMRIGHT", 0, 0);
 
 	if ( preview ) then
 		local previewSplitter = GameEditor_CreateSplitter(view, {
@@ -708,8 +730,8 @@ local function BuildParent(section)
 			end,
 			max = PreviewMax,
 		});
-		previewSplitter:SetPoint("TOPRIGHT", preview, "TOPLEFT", -1, 0);
-		previewSplitter:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", -1, 0);
+		previewSplitter:SetPoint("TOPRIGHT", preview, "TOPLEFT", 0, 0);
+		previewSplitter:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", 0, 0);
 	end
 
 	view:SetScript("OnSizeChanged", Relayout);
@@ -980,6 +1002,7 @@ function I.BuildGenerator(parent, leftOffset)
 	nav:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -32);
 	nav:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 8, 8);
 	nav:SetWidth(NAV_WIDTH);
+	nav:SetFrameLevel(frame:GetFrameLevel() + 2);
 	nav.onSelect = function(item)
 		if ( item.section.header ) then
 			RefreshNav();
@@ -990,8 +1013,42 @@ function I.BuildGenerator(parent, leftOffset)
 	end;
 
 	content = CreateFrame("Frame", "GameEditorItemGeneratorContent", frame);
-	content:SetPoint("TOPLEFT", nav, "TOPRIGHT", 10, 0);
 	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8, 8);
+
+	-- The section list resizes and collapses like the panes beside it, collapsed it keeps half its gap.
+	local function NavMax()
+		return max(0, (frame:GetWidth() or 0) - 16 - NAV_GAP);
+	end
+
+	local function LayoutNav()
+		local width = min(GameEditor_GetLayoutSize("itemgen_nav", NAV_WIDTH), NavMax());
+		nav:SetWidth(max(1, width));
+
+		if ( width < COLLAPSE_WIDTH ) then
+			nav:SetWidth(1);
+			nav:Hide();
+			content:SetPoint("TOPLEFT", frame, "TOPLEFT", 9 + NAV_GAP / 2, -32);
+		else
+			nav:Show();
+			content:SetPoint("TOPLEFT", frame, "TOPLEFT", 8 + width + NAV_GAP, -32);
+		end
+	end
+
+	local navSplitter = GameEditor_CreateSplitter(frame, {
+		sign = 1,
+		collapse = COLLAPSE_SNAP,
+		get = function() return nav:IsShown() and nav:GetWidth() or 0; end,
+		set = function(width)
+			GameEditor_SetLayoutSize("itemgen_nav", width);
+			LayoutNav();
+		end,
+		max = NavMax,
+	});
+	navSplitter:SetPoint("TOPLEFT", nav, "TOPRIGHT", 0, 0);
+	navSplitter:SetPoint("BOTTOMLEFT", nav, "BOTTOMRIGHT", 0, 0);
+	navSplitter:SetFrameLevel(frame:GetFrameLevel() + 6);
+	frame:HookScript("OnSizeChanged", LayoutNav);
+	LayoutNav();
 
 	NoggitListBox_SetItems(nav, items);
 	nav.selected = 2;
@@ -1026,8 +1083,10 @@ function I.Generator.SaveAll()
 		end
 	end
 
-	if ( saved == 0 ) then
-		GameEditor_Notify("Nothing to save", "info");
+	if ( saved == 0 and I.Generator.HasChanges() ) then
+		GameEditor_Notify("The generator tables have changes but nothing was sent, wait for them to finish loading", "error");
+	elseif ( saved == 0 ) then
+		GameEditor_Notify("Nothing to save, the generator tables have no changes", "info");
 	end
 
 	return saved;
@@ -1035,18 +1094,24 @@ end
 
 function I.Generator.Reload()
 	if ( not current or not current.view ) then
+		GameEditor_Notify("Pick a generator table first", "error");
 		return;
 	end
 
 	local section = current;
 
-	if ( not SectionDirty(section) ) then
+	local function Run()
 		section.view.Reload();
+		GameEditor_Notify(format("Loading %s again from the server", section.title), "info");
+	end
+
+	if ( not SectionDirty(section) ) then
+		Run();
 		return;
 	end
 
 	NoggitMessageBox_Show("Unsaved changes", format("%s has unsaved changes. Drop them and load again?", section.title), {
-		{ text = "Drop changes", onClick = function() section.view.Reload(); end },
+		{ text = "Drop changes", onClick = Run },
 		{ text = "Cancel" },
 	});
 end

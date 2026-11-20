@@ -555,6 +555,7 @@ local function CreateGiverList(parent, spec, onChange)
 
 	local add = Common.Button(block, "Add...", 54, function()
 		if ( not Q.id ) then
+			GameEditor_Notify("Open a quest first", "error");
 			return;
 		end
 
@@ -589,8 +590,10 @@ local function CreateGiverList(parent, spec, onChange)
 			table.remove(block.ids, index);
 			block.list.selected = nil;
 			Changed();
+		else
+			GameEditor_Notify("Select a row in the list first", "error");
 		end
-	end, "Remove the selected row, Save writes it");
+	end,"Remove the selected row, Save writes it");
 	remove:SetHeight(20);
 	remove:SetPoint("LEFT", previous, "RIGHT", 4, 0);
 
@@ -612,6 +615,8 @@ local function CreateGiverList(parent, spec, onChange)
 	block.list.onDoubleClick = function(item)
 		if ( block.kind == "creature" or block.kind == "gameobject" ) then
 			GameEditor_Notify(format("%s %d: %s", block.kind, item.value, item.text ~= "" and item.text or "name unknown"), "info");
+		else
+			GameEditor_Notify(format("Area trigger %d: %s", item.value, item.text ~= "" and item.text or "name unknown"), "info");
 		end
 	end;
 
@@ -965,12 +970,19 @@ function Editor.SaveAll()
 		saved = saved + 1;
 	end
 
-	if ( saved == 0 ) then
-		GameEditor_Notify("Nothing to save", "info");
+	if ( saved == 0 and Editor.HasChanges() ) then
+		GameEditor_Notify(format("Quest %d has changes but nothing was sent, wait for it to finish loading", Q.id), "error");
+	elseif ( saved == 0 ) then
+		GameEditor_Notify(format("Nothing to save, quest %d has no changes", Q.id), "info");
 	end
 end
 
 function Editor.RevertAll()
+	if ( not Editor.HasChanges() ) then
+		GameEditor_Notify(Q.id and format("Nothing to revert, quest %d has no changes", Q.id) or "Nothing to revert, no quest is open", "info");
+		return;
+	end
+
 	for _, page in pairs(pages) do
 		page:Revert();
 	end

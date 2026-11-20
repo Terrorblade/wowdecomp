@@ -104,7 +104,15 @@ function SE.PreviewCast(mode)
 	SE.preview.started = true;
 end
 
-function SE.PreviewStop()
+function SE.PreviewStop(quiet)
+	if ( quiet ~= true ) then
+		if ( SE.PreviewIsPlaying() or SE.preview.loop ) then
+			GameEditor_Notify("Preview stopped.", "info");
+		else
+			GameEditor_Notify("No preview is playing.", "info");
+		end
+	end
+
 	SE.preview.loop = false;
 
 	if ( panel ) then

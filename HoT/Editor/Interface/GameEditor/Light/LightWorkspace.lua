@@ -277,6 +277,7 @@ local function CopyParamsForSlot()
 	local doc = LightDoc();
 
 	if ( not doc ) then
+		GameEditor_Notify("Select a light first", "info");
 		return;
 	end
 
@@ -729,6 +730,7 @@ local function BuildSkyboxPage(container)
 		skyboxId = id;
 		skyboxItems = nil;
 		LE.Changed();
+		GameEditor_Notify(format("LightSkybox %d made, it is not on the server until you save", id), "info");
 	end, "Make a new skybox row from this one");
 	page.new:SetPoint("LEFT", page.pick, "RIGHT", 4, 0);
 
@@ -777,9 +779,13 @@ local function BuildSkyboxPage(container)
 	page.use = Common.Button(c, "Use for the params", 140, function()
 		local params = ParamsDoc();
 
-		if ( params ) then
-			LE.Set(params, "m_lightSkyboxID", SkyboxShown());
+		if ( not params ) then
+			GameEditor_Notify("The selected slot has no params set", "info");
+			return;
 		end
+
+		LE.Set(params, "m_lightSkyboxID", SkyboxShown());
+		GameEditor_Notify(format("Params %d now uses skybox %d, Save sends it", params.id, SkyboxShown()), "ok");
 	end, "Set this skybox on the params set of the selected slot");
 	page.use:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -160);
 
@@ -947,6 +953,7 @@ local function MoveHere()
 	local x, y, z = HerePosition();
 
 	if ( not x ) then
+		GameEditor_Notify("Enter the world first", "info");
 		return;
 	end
 
@@ -1003,6 +1010,7 @@ local function Reload()
 	skyboxItems = nil;
 	RefreshList(true);
 	RefreshPages();
+	GameEditor_Notify(format("Refreshed the list, %d light%s on this map sorted by distance", #items, #items == 1 and "" or "s"), "info");
 end
 
 local function SaveAll()
@@ -1019,7 +1027,7 @@ local function RevertAll()
 		Select(nil);
 	end
 
-	GameEditor_Notify(count > 0 and format("Reverted %d row%s, unsaved new lights are hidden until you log out", count, count == 1 and "" or "s") or "Nothing to revert", "info");
+	GameEditor_Notify(count > 0 and format("Reverted %d row%s, unsaved new lights are hidden until you log out", count, count == 1 and "" or "s") or "Nothing to revert", count > 0 and "ok" or "info");
 end
 
 -- Time -----------------------------------------------------------------------------------------------------------

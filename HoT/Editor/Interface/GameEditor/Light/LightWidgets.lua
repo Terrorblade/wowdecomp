@@ -426,6 +426,7 @@ function LE.CreateKeyEditor(parent, options)
 		end
 
 		if ( not self.doc ) then
+			GameEditor_Notify("Pick a light and a slot with a params set first", "info");
 			return;
 		end
 

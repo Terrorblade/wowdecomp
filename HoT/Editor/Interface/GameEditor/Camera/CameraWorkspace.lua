@@ -93,17 +93,31 @@ end
 local function OriginToCharacter()
 	local x, y, z, facing = CameraEditor_GetPlayerPosition();
 
-	if ( x ) then
-		CameraEditor_SetOrigin(x, y, z, facing, CE.settings.keepWorld);
+	if ( not x ) then
+		GameEditor_Notify("Your character position is not available", "error");
+		return;
 	end
+
+	CameraEditor_SetOrigin(x, y, z, facing, CE.settings.keepWorld);
 end
 
 local function OriginToView()
 	local x, y, z = CameraEditor_GetViewPosition();
 
-	if ( x ) then
-		CameraEditor_SetOrigin(x, y, z, CE.state.doc.facing or 0, CE.settings.keepWorld);
+	if ( not x ) then
+		GameEditor_Notify("The view position is not available", "error");
+		return;
 	end
+
+	CameraEditor_SetOrigin(x, y, z, CE.state.doc.facing or 0, CE.settings.keepWorld);
+end
+
+local function EvenSpeed()
+	CE.Run(CameraEditor_ConstantSpeed, "Retimed the position keys to one speed, Ctrl+Z puts them back");
+end
+
+local function ClearRoll()
+	CE.Run(function() CameraEditor_ClearTrack(CE.ROLL); end, "Cleared every roll key, Ctrl+Z puts them back", "There are no roll keys to clear");
 end
 
 local function PathText()
@@ -117,6 +131,12 @@ end
 
 local function SaveCurrent()
 	local path = CE.state.doc.path;
+
+	if ( path and path ~= "" and not CE.state.doc.dirty ) then
+		GameEditor_Notify(format("Nothing to save, %s has no unsaved changes", path), "info");
+		return;
+	end
+
 	CE.Save((path and path ~= "") and path or (PathText() or DEFAULT_PATH));
 end
 
@@ -150,10 +170,13 @@ local function ShowDbcWindow()
 		local open = Common.Button(content, "Open", 80, function()
 			local item = list.selected and list.items[list.selected];
 
-			if ( item ) then
-				GameEditor_HideWindow(dbcWindow);
-				CE.OpenDbc(item.id);
+			if ( not item ) then
+				GameEditor_Notify("Pick a row in the list first", "info");
+				return;
 			end
+
+			GameEditor_HideWindow(dbcWindow);
+			CE.OpenDbc(item.id);
 		end, "Open the row's model with its origin and facing (double click a row does the same)");
 		open:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", 0, 0);
 
@@ -251,12 +274,13 @@ local function BuildTiming(y)
 	Tip(scale, "Stretch every key time with the new length, off keeps the keys where they are");
 	y = y - 28;
 
-	local even = Common.Button(child, "Even out speed", 110, CameraEditor_ConstantSpeed, "Retime the position keys by distance so the camera moves at one speed, the target and roll keys follow");
+	local even = Common.Button(child, "Even out speed", 110, EvenSpeed, "Retime the position keys by distance so the camera moves at one speed, the target and roll keys follow");
 	even:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
 	widgets.shift = Spin(child, 130, y, -600, 600, 0.1, 2, nil, 74);
 	NoggitSpinBox_SetValue(widgets.shift, 0.5, true);
 	local shift = Common.Button(child, "Shift all keys", 100, function()
-		CameraEditor_ShiftTimes(widgets.shift.value * 1000);
+		local seconds = widgets.shift.value;
+		CE.Run(function() CameraEditor_ShiftTimes(seconds * 1000); end, format("Shifted every key by %.2f s, Ctrl+Z puts them back", seconds));
 	end, "Move every key of every track by that many seconds");
 	shift:SetPoint("LEFT", widgets.shift, "RIGHT", 4, 0);
 	y = y - 28;
@@ -294,9 +318,9 @@ local function BuildSmooth(y)
 
 	local smooth = Common.Button(child, "Smooth camera", 120, CE.Smooth, "Rebuild the target (and roll) keys on the position keys from a smoothed aim, Ctrl+Z undoes it");
 	smooth:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
-	local clearRoll = Common.Button(child, "Clear roll", 80, function() CameraEditor_ClearTrack(CE.ROLL); end, "Delete every roll key, the camera stays level");
+	local clearRoll = Common.Button(child, "Clear roll", 80, ClearRoll, "Delete every roll key, the camera stays level");
 	clearRoll:SetPoint("LEFT", smooth, "RIGHT", 4, 0);
-	local even = Common.Button(child, "Even out speed", 110, CameraEditor_ConstantSpeed, "Retime the position keys by distance so the camera moves at one speed");
+	local even = Common.Button(child, "Even out speed", 110, EvenSpeed, "Retime the position keys by distance so the camera moves at one speed");
 	even:SetPoint("LEFT", clearRoll, "RIGHT", 4, 0);
 	y = y - 26;
 
@@ -373,6 +397,11 @@ local function BuildTrack(y)
 		end
 	end
 
+	local function TrackModes(mode, text)
+		local which = CE.settings.allTracks and "every track" or format("the %s track", string.lower(CE.TRACK_NAMES[CE.state.track] or ""));
+		CE.Run(function() ForTracks(function(track) CameraEditor_SetTrackMode(track, mode); end); end, format("Every key on %s now has %s handles", which, text));
+	end
+
 	Label(child, y, "Curve");
 	widgets.interp = NoggitComboBox_Create(child, 200, CE.INTERP_ITEMS, 3, function(_, index)
 		ForTracks(function(track) CameraEditor_SetInterp(track, index - 1); end);
@@ -416,9 +445,9 @@ local function BuildTrack(y)
 	add:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y);
 	local delete = Common.Button(child, "Delete", 60, CE.DeleteSelected, "Delete the selected key (Delete)");
 	delete:SetPoint("LEFT", add, "RIGHT", 4, 0);
-	local auto = Common.Button(child, "All auto", 70, function() ForTracks(function(track) CameraEditor_SetTrackMode(track, 0); end); end, "Every key gets automatic smooth handles, on the shown track or all of them with All tracks on");
+	local auto = Common.Button(child, "All auto", 70, function() TrackModes(0, "auto"); end, "Every key gets automatic smooth handles, on the shown track or all of them with All tracks on");
 	auto:SetPoint("LEFT", delete, "RIGHT", 4, 0);
-	local free = Common.Button(child, "All free", 70, function() ForTracks(function(track) CameraEditor_SetTrackMode(track, 3); end); end, "Every key keeps its handles exactly as they are, on the shown track or all of them with All tracks on");
+	local free = Common.Button(child, "All free", 70, function() TrackModes(3, "free"); end, "Every key keeps its handles exactly as they are, on the shown track or all of them with All tracks on");
 	free:SetPoint("LEFT", auto, "RIGHT", 4, 0);
 	return y - 30;
 end
@@ -518,9 +547,17 @@ local function BuildKey(y)
 		local _, track, index = CE.SelectedKey();
 		local x, y2, z = CameraEditor_GetViewPosition();
 
-		if ( track == CE.POSITION and x ) then
-			CameraEditor_SetKeyValue(track, index, x, y2, z, true);
+		if ( track ~= CE.POSITION ) then
+			GameEditor_Notify("Select a position key first", "info");
+			return;
 		end
+
+		if ( not x ) then
+			GameEditor_Notify("The view position is not available", "error");
+			return;
+		end
+
+		CameraEditor_SetKeyValue(track, index, x, y2, z, true);
 	end, "Move this position key to where the view is now");
 	keyWidgets.toView:SetPoint("LEFT", keyWidgets.fly, "RIGHT", 4, 0);
 	local delete = Common.Button(box, "Delete", 60, CE.DeleteSelected, "Delete this key (Delete)");
@@ -723,21 +760,23 @@ local function BuildMenus()
 		},
 		{
 			title = "Edit",
-			{ text = "Undo", shortcut = "Ctrl+Z", onClick = CameraEditor_Undo },
-			{ text = "Redo", shortcut = "Ctrl+Y", onClick = CameraEditor_Redo },
+			{ text = "Undo", shortcut = "Ctrl+Z", onClick = CE.Undo },
+			{ text = "Redo", shortcut = "Ctrl+Y", onClick = CE.Redo },
 			separator,
 			{ text = "Add the view as the next key", shortcut = "Shift+K", onClick = CE.Append },
 			{ text = "Key the view at the playhead", shortcut = "K", onClick = CE.Capture },
 			{ text = "Add a key to the shown track", onClick = function() CE.AddKey(); end },
 			{ text = "Delete the selected key", shortcut = "Delete", onClick = CE.DeleteSelected },
 			separator,
-			{ text = "Even out the speed", onClick = CameraEditor_ConstantSpeed },
+			{ text = "Even out the speed", onClick = EvenSpeed },
 			{ text = "Smooth the camera", onClick = CE.Smooth },
-			{ text = "Clear the roll", onClick = function() CameraEditor_ClearTrack(CE.ROLL); end },
+			{ text = "Clear the roll", onClick = ClearRoll },
 			{ text = "Auto handles on every track", onClick = function()
-				for track = 1, 3 do
-					CameraEditor_SetTrackMode(track, 0);
-				end
+				CE.Run(function()
+					for track = 1, 3 do
+						CameraEditor_SetTrackMode(track, 0);
+					end
+				end, "Every key on every track now has auto handles");
 			end },
 		},
 		{
@@ -786,9 +825,9 @@ local HOTKEYS = {
 	["]"] = function() CE.StepKey(1); end,
 	["HOME"] = CE.Rewind,
 	["DELETE"] = CE.DeleteSelected,
-	["CTRL-Z"] = CameraEditor_Undo,
-	["CTRL-Y"] = CameraEditor_Redo,
-	["CTRL-SHIFT-Z"] = CameraEditor_Redo,
+	["CTRL-Z"] = CE.Undo,
+	["CTRL-Y"] = CE.Redo,
+	["CTRL-SHIFT-Z"] = CE.Redo,
 	["CTRL-S"] = SaveCurrent,
 	["CTRL-N"] = CE.New,
 };
@@ -811,6 +850,8 @@ GameEditor_RegisterWorkspace({
 	category = "Visuals",
 	order = 12,
 	fullOnly = true,
+	-- Holds model previews, which draw in the wrong place inside a clip frame.
+	noClip = true,
 	dockWidth = 470,
 	tools = {
 		{ key = "camera.edit", name = "Camera path", icon = 0xF8D8, build = Build },

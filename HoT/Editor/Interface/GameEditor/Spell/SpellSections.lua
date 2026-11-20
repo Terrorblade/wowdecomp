@@ -63,7 +63,11 @@ end
 local FIELD_MENU = {
 	{ text = "Revert this field", onClick = function()
 		if ( contextColumn and SE.cur ) then
-			SE.SetValue(contextColumn, SE.cur.original[contextColumn]);
+			if ( SE.SameValue(SE.cur.values[contextColumn], SE.cur.original[contextColumn]) ) then
+				GameEditor_Notify("This field already has its saved value.", "info");
+			else
+				SE.SetValue(contextColumn, SE.cur.original[contextColumn]);
+			end
 		end
 	end },
 	{ text = "Set to zero or empty", onClick = function()
@@ -75,7 +79,11 @@ local FIELD_MENU = {
 	{ text = "Open the referenced spell", onClick = function()
 		local value = contextColumn and tonumber(SE.GetValue(contextColumn));
 
-		if ( value and value > 0 and FieldOf(contextColumn).ref == "spell" ) then
+		if ( not contextColumn or FieldOf(contextColumn).ref ~= "spell" ) then
+			GameEditor_Notify("This field does not point to a spell.", "info");
+		elseif ( not value or value <= 0 ) then
+			GameEditor_Notify("This field is empty, there is no spell to open.", "info");
+		else
 			SE.Open(value);
 		end
 	end },
@@ -613,7 +621,7 @@ local function BuildEffects(parent)
 			end
 
 			SE.Changed("m_effect["..(index - 1).."]");
-			GameEditor_Notify(format("Effect %d copied from spell %d.", index, id), "info");
+			GameEditor_Notify(format("Effect %d copied from spell %d, not saved yet.", index, id), "info");
 		end);
 	end
 
@@ -649,6 +657,7 @@ local function BuildEffects(parent)
 			if ( SE.cur ) then
 				ClearEffect(SE.cur.values, index);
 				SE.Changed("m_effect["..(index - 1).."]");
+				GameEditor_Notify(format("Effect %d cleared, not saved yet.", index), "info");
 			end
 		end, "Clear this effect, putting every field back to the value an unused effect has");
 		reset:SetPoint("LEFT", copyFrom, "RIGHT", 4, 0);
@@ -1091,13 +1100,21 @@ local function BuildIcon(parent)
 
 	local resetSpell = SE.Button(frame, "Reset Spell Icon ID", 130, function()
 		if ( SE.cur ) then
-			SE.SetValue("m_spellIconID", SE.cur.original.m_spellIconID);
+			if ( SE.SameValue(SE.cur.values.m_spellIconID, SE.cur.original.m_spellIconID) ) then
+				GameEditor_Notify("The spell icon is already the saved one.", "info");
+			else
+				SE.SetValue("m_spellIconID", SE.cur.original.m_spellIconID);
+			end
 		end
 	end, "Back to the saved spell icon");
 	resetSpell:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0);
 	local resetActive = SE.Button(frame, "Reset Active Icon ID", 134, function()
 		if ( SE.cur ) then
-			SE.SetValue("m_activeIconID", SE.cur.original.m_activeIconID);
+			if ( SE.SameValue(SE.cur.values.m_activeIconID, SE.cur.original.m_activeIconID) ) then
+				GameEditor_Notify("The active icon is already the saved one.", "info");
+			else
+				SE.SetValue("m_activeIconID", SE.cur.original.m_activeIconID);
+			end
 		end
 	end, "Back to the saved active icon");
 	resetActive:SetPoint("LEFT", resetSpell, "RIGHT", 6, 0);

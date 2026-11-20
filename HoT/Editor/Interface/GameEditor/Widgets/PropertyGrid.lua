@@ -1091,7 +1091,16 @@ local function CreateRow(grid, column)
 	row.pick:SetPoint("LEFT", row.edit, "RIGHT", 3, 0);
 
 	row.open = NoggitPushButton_Create(row, "Go", 30, function()
-		GameEditor_OpenRef(row.field and row.field.ref, grid.values[column]);
+		local ref = row.field and row.field.ref;
+		local value = tonumber(grid.values[column]);
+
+		if ( not ref or not GameEditor_RefOpeners[ref] ) then
+			GameEditor_Notify("Nothing opens this kind of value", "error");
+		elseif ( not value or value == 0 ) then
+			GameEditor_Notify("Set a value first, 0 points at nothing", "info");
+		else
+			GameEditor_OpenRef(ref, value);
+		end
 	end);
 	row.open:SetHeight(20);
 	row.open:SetPoint("LEFT", row.pick, "RIGHT", 3, 0);

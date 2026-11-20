@@ -75,7 +75,7 @@ function L.CreateCreaturePage(parent, onDirty)
 		local function Creator(field)
 			return function()
 				CreatureEditor_SetFields(0, { [field] = entry });
-				GameEditor_Notify(format("creature_template.%s of %d set to %d, add rows once the template comes back", field, entry, entry), "info");
+				GameEditor_Notify(format("Saving creature_template.%s of %d as %d, add rows once the server reloads the template", field, entry, entry), "info");
 			end;
 		end
 
@@ -119,7 +119,7 @@ function L.CreateGameObjectPage(parent, onDirty)
 			format("gameobject_template.Data1 is 0, this object has no loot. Create loot id saves Data1 = %d.", entry),
 			function()
 				GobEditor_SetFields(0, { Data1 = entry });
-				GameEditor_Notify(format("gameobject_template.Data1 of %d set to %d, add rows once the template comes back", entry, entry), "info");
+				GameEditor_Notify(format("Saving gameobject_template.Data1 of %d as %d, add rows once the server reloads the template", entry, entry), "info");
 			end);
 
 		self.view:SetRoots({ root }, format("%s  |cff7f7f7fgameobject %d|r", (data.name and data.name ~= "") and data.name or "Gameobject", entry));

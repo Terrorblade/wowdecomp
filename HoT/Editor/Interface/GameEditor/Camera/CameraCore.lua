@@ -132,6 +132,31 @@ function CE.GetTime()
 	return tonumber(time) or 0, playing, preview, engine, loop, tonumber(rate) or 1;
 end
 
+local function Revision()
+	return CameraEditor_GetRevision and CameraEditor_GetRevision();
+end
+
+function CE.Run(action, doneText, sameText)
+	local before = Revision();
+	action();
+
+	if ( before ~= nil and Revision() == before ) then
+		if ( sameText ) then
+			GameEditor_Notify(sameText, "info");
+		end
+	elseif ( doneText ) then
+		GameEditor_Notify(doneText, "ok");
+	end
+end
+
+function CE.Undo()
+	CE.Run(CameraEditor_Undo, "Undid the last change", "Nothing to undo");
+end
+
+function CE.Redo()
+	CE.Run(CameraEditor_Redo, "Redid the change", "Nothing to redo");
+end
+
 -- Actions shared by the panel, the timeline, the menus and the hotkeys.
 
 -- Append keys one step after the last key, otherwise on the playhead, which then moves on a step.
@@ -196,9 +221,12 @@ end
 function CE.DeleteSelected()
 	local key, track, index = CE.SelectedKey();
 
-	if ( key ) then
-		CameraEditor_DeleteKey(track, index);
+	if ( not key ) then
+		GameEditor_Notify("Select a key first", "info");
+		return;
 	end
+
+	CameraEditor_DeleteKey(track, index);
 end
 
 -- Moves the playhead to the previous or next key of the shown track.
@@ -215,11 +243,14 @@ function CE.StepKey(direction)
 		end
 	end
 
-	if ( best ) then
-		CameraEditor_Play(false);
-		CameraEditor_SetTime(keys[best].time);
-		CameraEditor_Select(CE.state.track, best, CE.PART_VALUE);
+	if ( not best ) then
+		GameEditor_Notify(format("No %s key on the %s track", direction < 0 and "earlier" or "later", string.lower(CE.TRACK_NAMES[CE.state.track] or "shown")), "info");
+		return;
 	end
+
+	CameraEditor_Play(false);
+	CameraEditor_SetTime(keys[best].time);
+	CameraEditor_Select(CE.state.track, best, CE.PART_VALUE);
 end
 
 function CE.Save(path)
@@ -231,7 +262,7 @@ function CE.Save(path)
 	end
 
 	CE.Refresh();
-	GameEditor_Notify("Saved "..tostring(result), "ok");
+	GameEditor_Notify(format("Saved the camera to %s and its 00.skin, loose files in the game folder", tostring(result)), "ok");
 
 	local warnings = CE.state.doc.warnings;
 

@@ -889,22 +889,20 @@ int32_t CSimpleFrame::TestHitRect(const C2Vector& pt) {
         return this->m_hitRect.IsPointInside(pt);
     }
 
-    CSimpleFrame* scrollFrame = this->m_parent;
+    // HoT: clip to every scroll frame on the way up, stock only used the outermost so nested lists leaked clicks.
+    CRect clip = this->m_hitRect;
 
-    if (!scrollFrame) {
-        return 0;
-    }
-
-    while (scrollFrame->m_frameFlags & 0x2000) {
-        scrollFrame = scrollFrame->m_parent;
-
-        if (!scrollFrame) {
+    for (CSimpleFrame* frame = this; frame->m_frameFlags & 0x2000; frame = frame->m_parent) {
+        if (!frame->m_parent) {
             return 0;
+        }
+
+        if (frame->m_frameFlags & 0x4000) {
+            CRect rect = frame->m_parent->m_hitRect;
+            clip = rect &= clip;
         }
     }
 
-    CRect rect = scrollFrame->m_hitRect;
-    CRect clip = rect &= this->m_hitRect;
     return clip.minX <= pt.x && clip.maxX >= pt.x && clip.minY <= pt.y && clip.maxY >= pt.y;
 }
 

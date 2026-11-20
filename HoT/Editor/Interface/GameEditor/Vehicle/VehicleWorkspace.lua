@@ -222,15 +222,24 @@ local function NewSeat()
 	local seat = VE.CreateDoc("VehicleSeat", source and source.values or { m_attachmentID = 13, m_flags = 0x02000800, m_rideAnimLoop = ME.MOUNT_ANIM });
 	VE.SetMany(vehicle, { [VE.SeatColumn(VE.slot)] = seat.id });
 	SyncPreviewSeats();
+	GameEditor_Notify(format("VehicleSeat %d made for seat %d, it is not on the server until you save", seat.id, VE.slot + 1), "info");
 end
 
 local function ClearSeat()
 	local vehicle = VehicleDoc();
 
-	if ( vehicle and SeatId(VE.slot) > 0 ) then
-		VE.SetMany(vehicle, { [VE.SeatColumn(VE.slot)] = 0 });
-		SyncPreviewSeats();
+	if ( not vehicle ) then
+		ME.Notice("Open a vehicle first", "info");
+		return;
 	end
+
+	if ( SeatId(VE.slot) <= 0 ) then
+		ME.Notice(format("Seat %d is already empty", VE.slot + 1), "info");
+		return;
+	end
+
+	VE.SetMany(vehicle, { [VE.SeatColumn(VE.slot)] = 0 });
+	SyncPreviewSeats();
 end
 
 local function Save()
@@ -255,6 +264,7 @@ local function Revert()
 			end
 
 			SyncPreviewSeats();
+			GameEditor_Notify(format("Reverted %d row%s, the client shows the saved values again", count, count == 1 and "" or "s"), "ok");
 		end },
 		{ text = "Cancel" },
 	});
@@ -787,6 +797,8 @@ GameEditor_RegisterWorkspace({
 	title = "Vehicles",
 	category = "Visuals",
 	order = 12,
+	-- Holds model previews, which draw in the wrong place inside a clip frame.
+	noClip = true,
 	dockWidth = 520,
 	tools = {
 		{ key = "select", name = "Vehicles", icon = 0xF8C0, build = Build },

@@ -218,6 +218,7 @@ local function OpenInModelEditor(kind)
 	local doc = Doc(kind);
 
 	if ( not doc ) then
+		GameEditor_Notify(format("Open a %s first", string.lower(DE.KINDS[kind].title)), "info");
 		return;
 	end
 
@@ -241,6 +242,7 @@ local function DisplaysOfModel()
 	local doc = Doc("model");
 
 	if ( not doc ) then
+		GameEditor_Notify("Open a creature model data row first", "info");
 		return;
 	end
 
@@ -265,6 +267,7 @@ local function DisplaysOfExtra()
 	local doc = Doc("extra");
 
 	if ( not doc ) then
+		GameEditor_Notify("Open a character display first", "info");
 		return;
 	end
 
@@ -290,6 +293,7 @@ local function NewDisplayOfExtra()
 	local doc = Doc("extra");
 
 	if ( not doc ) then
+		GameEditor_Notify("Open a character display first", "info");
 		return;
 	end
 
@@ -311,7 +315,9 @@ end
 local function Save()
 	local rows = #store:Dirty();
 
-	if ( rows == 0 and not modelInfo:IsDirty() ) then
+	local serverDirty = modelInfo:IsDirty();
+
+	if ( rows == 0 and not serverDirty ) then
 		GameEditor_Notify("Nothing to save", "info");
 		return;
 	end
@@ -320,21 +326,38 @@ local function Save()
 		store:SaveAll();
 	end
 
-	modelInfo:Save();
+	if ( serverDirty ) then
+		if ( modelInfo.saving ) then
+			GameEditor_Notify("creature_model_info is still saving, wait for the server reply", "info");
+		else
+			modelInfo:Save();
+		end
+	end
 end
 
 local function Revert()
-	if ( modelInfo:IsDirty() ) then
-		modelInfo:Revert();
+	local rows = #store:Dirty();
+	local serverDirty = modelInfo:IsDirty();
+
+	if ( rows == 0 and not serverDirty ) then
+		GameEditor_Notify("Nothing to revert", "info");
+		return;
 	end
 
-	if ( #store:Dirty() > 0 ) then
+	if ( serverDirty ) then
+		modelInfo:Revert();
+		GameEditor_Notify("Reverted the unsaved creature_model_info changes, nothing was sent to the server", "ok");
+	end
+
+	if ( rows > 0 ) then
 		store:ConfirmRevert(function()
 			for kind in pairs(DE.KINDS) do
 				if ( DE.ids[kind] and not Doc(kind) ) then
 					DE.ids[kind] = nil;
 				end
 			end
+
+			GameEditor_Notify(format("Reverted %d display row%s, the client shows the saved values again", rows, rows == 1 and "" or "s"), "ok");
 		end);
 	end
 end
@@ -720,6 +743,8 @@ GameEditor_RegisterWorkspace({
 	title = "Displays",
 	category = "Visuals",
 	order = 10,
+	-- Holds model previews, which draw in the wrong place inside a clip frame.
+	noClip = true,
 	dockWidth = 520,
 	tools = {
 		{ key = "creature", name = "Creature displays", icon = 0xF8DB, build = function(parent) return BuildPanel(parent, "creature"); end },

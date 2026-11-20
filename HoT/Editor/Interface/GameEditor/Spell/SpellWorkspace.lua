@@ -234,9 +234,16 @@ local TAB_MENU = {
 	{ separator = true },
 	{ text = "Save spell", onClick = function()
 		if ( contextDoc and SE.DocIndex(contextDoc) ) then
-			SE.SaveDoc(contextDoc);
+			if ( not SE.DocHasUnsaved(contextDoc) ) then
+				GameEditor_Notify(format("Nothing to save, spell %d has no changes.", contextDoc.id), "info");
+				return;
+			end
 
-			if ( contextDoc ~= SE.cur and SE.SaveDocWorld ) then
+			if ( SE.DocIsDirty(contextDoc) and not SE.pendingSave[contextDoc.id] ) then
+				SE.SaveDoc(contextDoc);
+			end
+
+			if ( SE.SaveDocWorld ) then
 				SE.SaveDocWorld(contextDoc);
 			end
 		end
@@ -1024,7 +1031,7 @@ GameEditor_RegisterWorkspace({
 		HideHoverTooltip();
 
 		if ( SE.preview.loop ) then
-			SE.PreviewStop();
+			SE.PreviewStop(true);
 		end
 	end,
 	onUpdate = function(elapsed)

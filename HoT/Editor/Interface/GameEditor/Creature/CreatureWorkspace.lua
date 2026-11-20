@@ -99,6 +99,7 @@ end
 
 function Creature.CloseTemplate()
 	if ( not Creature.templateEntry ) then
+		GameEditor_Notify("No template is open", "info");
 		return;
 	end
 
@@ -136,6 +137,16 @@ function Creature.Request()
 	else
 		CreatureEditor_Request(guid);
 	end
+end
+
+function Creature.Reload()
+	if ( not Creature.templateEntry and not Creature.GetSelectedGuid() ) then
+		GameEditor_Notify("Select a creature first", "error");
+		return;
+	end
+
+	Creature.Request();
+	GameEditor_Notify(Creature.templateEntry and format("Reloading template %d from the server", Creature.templateEntry) or "Reloading the creature from the server", "info");
 end
 
 local function WithSpawn(action)
@@ -236,10 +247,10 @@ local function BuildMenus()
 			separator,
 			{ text = "Save all changes", shortcut = "Ctrl+S", onClick = function() Inspector.SaveAll(); end },
 			{ text = "Revert all changes", onClick = function() Inspector.RevertAll(); end },
-			{ text = "Reload from server", shortcut = "F5", onClick = Creature.Request },
+			{ text = "Reload from server", shortcut = "F5", onClick = Creature.Reload },
 			{ text = "Respawn", shortcut = "Ctrl+R", onClick = Respawn },
 			separator,
-			{ text = "Drop to ground", shortcut = "G", onClick = function() GameEditor_SnapToGround(); end },
+			{ text = "Drop to ground", shortcut = "G", onClick = function() Common.DropToGround("creature"); end },
 			{ text = "Move spawn to my character", onClick = MoveSpawnToMe },
 			{ text = "Teleport me to the spawn", onClick = TeleportToSpawn },
 			separator,
@@ -274,7 +285,7 @@ local KEYS = {
 
 local HOTKEYS = {
 	["CTRL-S"] = function() Inspector.SaveAll(); end,
-	["F5"] = Creature.Request,
+	["F5"] = Creature.Reload,
 	["CTRL-N"] = function() Common.ShowSpawnWindow("creature"); end,
 	["CTRL-F"] = FindTemplate,
 	["CTRL-D"] = function() Common.Duplicate("creature"); end,

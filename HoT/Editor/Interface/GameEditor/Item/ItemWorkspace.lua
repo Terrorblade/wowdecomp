@@ -49,7 +49,10 @@ local function Reload()
 	end
 
 	Editor.ConfirmDiscard(function()
-		Editor.RevertAll();
+		if ( Editor.HasChanges() ) then
+			Editor.RevertAll();
+		end
+
 		I.Reload();
 	end);
 end

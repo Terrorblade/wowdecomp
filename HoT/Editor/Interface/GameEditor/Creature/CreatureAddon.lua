@@ -76,11 +76,21 @@ function Creature.CreateAddonPage(parent, scope, onDirty)
 	bar:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0);
 	bar:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0);
 
-	page.save = Common.Button(bar, "Save", 64, function() page:Save(); end, "Save the whole addon row to "..tableName.." and apply it to the live creatures it covers");
+	page.save = Common.Button(bar, "Save", 64, function()
+		if ( not page:Save() ) then
+			GameEditor_Notify("Nothing to save, the row matches the database", "info");
+		end
+	end, "Save the whole addon row to "..tableName.." and apply it to the live creatures it covers");
 	page.save:SetPoint("RIGHT", bar, "RIGHT", 0, 0);
 	page.revert = Common.Button(bar, "Revert", 60, function() page:Revert(); end, "Back to the stored row");
 	page.revert:SetPoint("RIGHT", page.save, "LEFT", -4, 0);
-	page.preview = Common.Button(bar, "Preview", 64, function() page:Send(0); end, "Apply these values to this creature only, nothing is saved. A respawn brings the stored row back.");
+	page.preview = Common.Button(bar, "Preview", 64, function()
+		if ( page:Send(0) ) then
+			GameEditor_Notify("Preview sent, only this creature changes and nothing is saved", "info");
+		elseif ( page.available ) then
+			GameEditor_Notify("Nothing sent, the creature is not loaded", "error");
+		end
+	end, "Apply these values to this creature only, nothing is saved. A respawn brings the stored row back.");
 	page.preview:SetPoint("RIGHT", page.revert, "LEFT", -4, 0);
 	page.delete = Common.Button(bar, "Delete row", 76, function() page:Delete(); end, "Delete the "..tableName.." row");
 	page.delete:SetPoint("LEFT", bar, "LEFT", 0, 0);
@@ -200,6 +210,7 @@ function Creature.CreateAddonPage(parent, scope, onDirty)
 
 		for _, existing in ipairs(self.auras) do
 			if ( existing == spell ) then
+				GameEditor_Notify(format("Aura %d is already in the list", spell), "info");
 				return;
 			end
 		end
@@ -237,10 +248,11 @@ function Creature.CreateAddonPage(parent, scope, onDirty)
 
 	page.Send = function(self, mode)
 		if ( not self.available ) then
-			return;
+			GameEditor_Notify("This addon row can not be edited for this creature", "error");
+			return false;
 		end
 
-		CreatureEditor_SetAddon(self.scope, mode, self:Values());
+		return CreatureEditor_SetAddon(self.scope, mode, self:Values());
 	end;
 
 	page.Save = function(self)
@@ -274,6 +286,7 @@ function Creature.CreateAddonPage(parent, scope, onDirty)
 		local data = Creature.GetData();
 
 		if ( not data or not self.available or data.isTemplate ) then
+			GameEditor_Notify("Live values need a creature selected in the world", "error");
 			return;
 		end
 

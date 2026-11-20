@@ -57,15 +57,43 @@ function SE.SideBySide(parent, panes, gap, top, bottom)
 		end
 
 		local free = max(0, width - fixed - gap * (#panes - 1));
+
+		-- The gaps stay, weighted panes give way first, then fixed ones from the right, a pane under 24 collapses.
+		local over = max(0, fixed + gap * (#panes - 1) - width);
+		local widths = {};
+
+		for index = #panes, 1, -1 do
+			local pane = panes[index];
+
+			if ( pane.width ) then
+				local cut = min(over, pane.width);
+				widths[index] = pane.width - cut;
+				over = over - cut;
+			else
+				widths[index] = floor(free * (pane.weight or 1) / max(1, weight));
+			end
+		end
+
 		local x = 0;
 
-		for _, pane in ipairs(panes) do
-			local paneWidth = pane.width or floor(free * (pane.weight or 1) / max(1, weight));
+		for index, pane in ipairs(panes) do
+			local paneWidth = widths[index];
 			pane.frame:ClearAllPoints();
 			pane.frame:SetPoint("TOPLEFT", parent, "TOPLEFT", x, top or 0);
 			pane.frame:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", x, bottom or 0);
-			pane.frame:SetWidth(max(10, paneWidth));
-			x = x + paneWidth + gap;
+			pane.frame:SetWidth(max(1, paneWidth));
+
+			if ( width > 0 and paneWidth < 24 ) then
+				if ( pane.frame:IsShown() ) then
+					pane.collapsed = true;
+					pane.frame:Hide();
+				end
+			elseif ( pane.collapsed ) then
+				pane.collapsed = nil;
+				pane.frame:Show();
+			end
+
+			x = x + paneWidth + (pane.collapsed and floor(gap / 2) or gap);
 		end
 	end
 

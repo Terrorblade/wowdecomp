@@ -8,18 +8,8 @@ local PALETTE_MARGIN = 8;
 local function CreateMapWindow(name, title, width, height)
 	local window = GameEditor_CreateWindow(name, title, width, height);
 	local content = window.content;
-	local chromeWidth = 0;
-	local chromeHeight = 30;
-
-	if ( content:GetHeight() > 0 and window:GetHeight() > content:GetHeight() ) then
-		chromeWidth = window:GetWidth() - content:GetWidth();
-		chromeHeight = window:GetHeight() - content:GetHeight();
-	end
-
-	window.chromeWidth = chromeWidth;
-	window.chromeHeight = chromeHeight;
-	window:SetWidth(width + chromeWidth);
-	window:SetHeight(height + chromeHeight);
+	window:SetWidth(width + window.chromeWidth);
+	window:SetHeight(height + window.chromeHeight);
 	GameEditor_SetWindowWorkspace(window, "map");
 	return window, content;
 end

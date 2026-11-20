@@ -174,7 +174,11 @@ local function CreateSpellBlock(parent)
 	block.open = Common.Button(block, "Open", 46, function()
 		local opener = GameEditor_RefOpeners and GameEditor_RefOpeners["spell"];
 
-		if ( opener and block.spellId ) then
+		if ( not block.spellId ) then
+			GameEditor_Notify("This block has no spell to open", "error");
+		elseif ( not opener ) then
+			GameEditor_Notify("The spell editor is not loaded", "error");
+		else
 			opener(block.spellId);
 		end
 	end, "Open this spell in the spell editor");

@@ -399,6 +399,7 @@ local function PickAnimation()
 	local info = ME.current and ME.Info(ME.current);
 
 	if ( not info ) then
+		ME.Notice("Open a model first", "info");
 		return;
 	end
 
@@ -519,7 +520,7 @@ function ME.SetPreviewFloating(floating)
 
 	if ( floating ) then
 		if ( not window ) then
-			window = GameEditor_CreateWindow("GameEditorModelPreviewWindow", "Model preview", 460, 460, true);
+			window = GameEditor_CreateWindow("GameEditorModelPreviewWindow", "Model preview", 460, 460, true, true);
 			window.onClose = function()
 				ME.SetPreviewFloating(false);
 			end;
@@ -620,6 +621,11 @@ function ME.CreatePreview(holder)
 	model:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -2);
 
 	local here = Common.Button(top, "Here", 44, function()
+		if ( not ME.inWorld ) then
+			ME.Notice("Tick In world first, there is no world preview to move", "info");
+			return;
+		end
+
 		ME.Quiet("WorldPreview_MoveHere");
 	end, "Move the in world preview in front of you again");
 	here:SetHeight(20);

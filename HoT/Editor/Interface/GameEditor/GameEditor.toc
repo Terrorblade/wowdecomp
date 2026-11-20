@@ -4,6 +4,7 @@ GameEditorCompat.lua
 NoggitFonts.xml
 NoggitTemplates.xml
 NoggitWidgets.lua
+NoggitFeedback.lua
 NoggitDialogs.lua
 NoggitMenus.lua
 Data\Enums.lua

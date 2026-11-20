@@ -322,6 +322,8 @@ local function BuildBrowser(parent)
 
 		if ( item ) then
 			L.OpenRoots(item.roots, item.title);
+		elseif ( strtrim(self:GetText() or "") ~= "" ) then
+			GameEditor_Notify("No source matches, nothing to open", "info");
 		end
 	end);
 	searchBox:SetScript("OnEscapePressed", function(self)
@@ -442,15 +444,30 @@ end
 -- Workspace ------------------------------------------------------------------------------------------------------
 
 local function SaveAll()
-	if ( not view or not view:Save() ) then
-		GameEditor_Notify("Nothing to save", "info");
+	if ( not view or not view:HasChanges() ) then
+		GameEditor_Notify("Nothing to save, the open loot has no changes", "info");
+		return;
 	end
+
+	view:Save();
 end
 
 local function Reload()
 	if ( view ) then
 		view:Reload();
+	else
+		GameEditor_Notify("No loot is open, nothing to reload", "error");
 	end
+end
+
+local function RevertAll()
+	if ( not view or not view:HasChanges() ) then
+		GameEditor_Notify("Nothing to revert, the open loot has no changes", "info");
+		return;
+	end
+
+	view:Revert();
+	GameEditor_Notify("Loot changes thrown away, nothing was sent to the server", "info");
 end
 
 local function OpenById()
@@ -479,7 +496,7 @@ local function BuildMenus()
 			{ text = "Open a loot id", shortcut = "Ctrl+O", onClick = OpenById },
 			separator,
 			{ text = "Save all changes", shortcut = "Ctrl+S", onClick = SaveAll },
-			{ text = "Revert all changes", onClick = function() if ( view ) then view:Revert(); end end },
+			{ text = "Revert all changes", onClick = RevertAll },
 			{ text = "Reload from server", shortcut = "F5", onClick = Reload },
 		},
 		openMenu,

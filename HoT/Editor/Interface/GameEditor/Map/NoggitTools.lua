@@ -897,6 +897,8 @@ function MapEditor_AddVertexColorToPalette()
 	if ( #vertexPalette < #paletteButtons ) then
 		table.insert(vertexPalette, { r, g, b });
 		RefreshPalette();
+	else
+		GameEditor_Notify("The color palette is full", "info");
 	end
 end
 
@@ -1014,6 +1016,18 @@ local function FlightInfoText()
 	return format("Tile %d_%d\nFloor here: %.1f  ceiling: %.1f\nNearest vertex: floor %d, ceiling %d", tileX, tileY, lowerAt, upperAt, vertexLower, vertexUpper);
 end
 
+local function FillFlight(fill, done)
+	return function()
+		if ( not EditorIsMapLoaded() ) then
+			GameEditor_Notify("Load a map first", "error");
+			return;
+		end
+
+		fill();
+		GameEditor_Notify(done, "info");
+	end;
+end
+
 function NoggitTools_CreateFlightBounds(parent)
 	local panel = NewPanel(parent);
 
@@ -1063,10 +1077,10 @@ function NoggitTools_CreateFlightBounds(parent)
 	KeybindRow(panel, 0xF86D, "Set vertices in brush");
 	KeybindRow(panel, 0xF86C, "Pick nearest vertex height");
 
-	PlaceInPanel(panel, Button(panel, "Fill current tile", panel.innerWidth, EditorFillFlightTile, true), 23);
+	PlaceInPanel(panel, Button(panel, "Fill current tile", panel.innerWidth, FillFlight(EditorFillFlightTile, "Filled the current tile, save the tiles to write it to disk"), true), 23);
 	PlaceInPanel(panel, Button(panel, "Fill all loaded tiles", panel.innerWidth, function()
 		NoggitMessageBox_Show("Fill loaded tiles", "Set this plane to the height on every loaded tile?", {
-			{ text = "Fill", onClick = EditorFillFlightLoaded },
+			{ text = "Fill", onClick = FillFlight(EditorFillFlightLoaded, "Filled every loaded tile, save the tiles to write it to disk") },
 			{ text = "Cancel" },
 		});
 	end, true), 23);

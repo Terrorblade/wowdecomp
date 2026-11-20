@@ -1195,10 +1195,13 @@ local function CreateTrackWindow()
 		local track = TrackCopy();
 		local _, position = FindSequence(track, window.sequence);
 
-		if ( position ) then
-			table.remove(track.sequences, position);
-			StoreTrack(track);
+		if ( not position ) then
+			ME.Notice("This sequence has no keys to clear", "info");
+			return;
 		end
+
+		table.remove(track.sequences, position);
+		StoreTrack(track);
 	end, "Remove every key of this sequence");
 	window.clear:SetPoint("LEFT", window.copyAll, "RIGHT", 6, 0);
 

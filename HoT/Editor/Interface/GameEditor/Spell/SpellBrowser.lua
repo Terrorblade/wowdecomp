@@ -203,6 +203,8 @@ local CONTEXT_MENU = {
 
 		if ( doc ) then
 			SE.CloseDoc(doc);
+		elseif ( contextItem ) then
+			GameEditor_Notify(format("Spell %d is not open in a tab.", contextItem.id), "info");
 		end
 	end },
 	{ text = "Insert a new spell copied from this one", onClick = function()
@@ -211,12 +213,25 @@ local CONTEXT_MENU = {
 
 			if ( values ) then
 				SE.NewSpell(values);
+			else
+				GameEditor_Notify(format("Spell %d could not be read from this client.", contextItem.id), "error");
 			end
 		end
 	end },
 	{ text = "Preview on target", onClick = function()
-		if ( contextItem and SpellPreview_Cast ) then
-			SpellPreview_Cast(contextItem.id, SE.PreviewTargetGuid("auto"));
+		if ( not contextItem ) then
+			return;
+		end
+
+		if ( not SpellPreview_Cast ) then
+			GameEditor_Notify("SpellPreview_Cast is not available in this client build.", "error");
+			return;
+		end
+
+		local ok, err = pcall(SpellPreview_Cast, contextItem.id, SE.PreviewTargetGuid("auto"));
+
+		if ( not ok ) then
+			GameEditor_Notify("Preview failed: "..tostring(err), "error");
 		end
 	end },
 	{ separator = true },
@@ -315,6 +330,8 @@ local function BuildFilters(parent)
 
 		if ( id ) then
 			SE.Open(id);
+		elseif ( strtrim(self:GetText() or "") ~= "" ) then
+			GameEditor_Notify("Type a spell id, a number, to open it.", "error");
 		end
 	end);
 	goTo:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus(); end);

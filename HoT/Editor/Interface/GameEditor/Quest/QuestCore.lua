@@ -524,6 +524,7 @@ function Q.Reload()
 	end
 
 	Q.QueryAll();
+	GameEditor_Notify(format("Loading quest %d again from the server, unsaved edits stay", Q.id), "info");
 end
 
 function Q.Close()

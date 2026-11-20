@@ -506,6 +506,9 @@ local function BuildCategoryEditor(view, parent)
 
 		if ( set ) then
 			L.Reload(set);
+			GameEditor_Notify(format("Loading %s %d again from the server", set.table, set.key), "info");
+		else
+			GameEditor_Notify("Select a loot id first", "error");
 		end
 	end, "Load this loot id again from the server, unsaved changes are lost");
 	editor.reload:SetPoint("LEFT", editor.revert, "RIGHT", 4, 0);
@@ -867,10 +870,19 @@ function L.CreateView(parent, options)
 	end;
 
 	view.Reload = function(self)
+		local sets = self:Sets();
+
+		if ( #sets == 0 ) then
+			GameEditor_Notify("No loot id is open, nothing to reload", "error");
+			return;
+		end
+
 		local function Run()
 			for _, set in ipairs(self:Sets()) do
 				L.Reload(set);
 			end
+
+			GameEditor_Notify(format("Loading %d loot id%s again from the server", #sets, #sets == 1 and "" or "s"), "info");
 		end
 
 		if ( self:HasChanges() ) then

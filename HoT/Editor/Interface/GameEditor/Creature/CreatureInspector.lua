@@ -83,7 +83,7 @@ local function BuildSpawnPage(container)
 	actions:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -46);
 	actions:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -46);
 
-	local ground = Common.Button(actions, "To ground", 74, function() GameEditor_SnapToGround(); end, "Drop the creature onto the ground below it (G)");
+	local ground = Common.Button(actions, "To ground", 74, function() Common.DropToGround("creature"); end, "Drop the creature onto the ground below it (G)");
 	ground:SetPoint("LEFT", actions, "LEFT", 0, 0);
 	local toMe = Common.Button(actions, "Move to me", 84, function()
 		CreatureEditor_SetFields(1, { ["position.save"] = 1 });
@@ -163,7 +163,7 @@ local function BuildLivePage(container)
 	end, "Copy the live state into the Spawn Addon tab");
 	page.toSpawn:SetPoint("LEFT", toTemplate, "RIGHT", 4, 0);
 
-	local reload = Common.Button(bar, "Reload", 64, function() Creature.Request(); end, "Ask the server for a fresh snapshot (F5)");
+	local reload = Common.Button(bar, "Reload", 64, function() Creature.Reload(); end, "Ask the server for a fresh snapshot (F5)");
 	reload:SetPoint("RIGHT", bar, "RIGHT", 0, 0);
 
 	page.auras = NoggitListBox_Create(page, 20, function(row)
@@ -244,15 +244,15 @@ local function Build(parent)
 
 	header = Common.CreateHeader(body);
 	header:AddButton("Delete", 56, function() Common.ConfirmDelete("creature"); end, "Delete this spawn from the world and the database (Del)");
-	header:AddButton("Reload", 56, function() Creature.Request(); end, "Ask the server for a fresh snapshot (F5)");
-	header:AddButton("To ground", 70, function() GameEditor_SnapToGround(); end, "Drop the creature onto the ground below it (G)");
+	header:AddButton("Reload", 56, function() Creature.Reload(); end, "Ask the server for a fresh snapshot (F5)");
+	header:AddButton("To ground", 70, function() Common.DropToGround("creature"); end, "Drop the creature onto the ground below it (G)");
 	Common.AddMoveButtons(header, UpdateDirty);
 
 	header.close = Common.Button(header, "Close", 56, function() Creature.CloseTemplate(); end, "Stop editing the template and go back to the selection");
 	header.close:SetHeight(20);
 	header.close:SetPoint("TOPRIGHT", header, "TOPRIGHT", -6, -6);
 	header.close:Hide();
-	header.templateReload = Common.Button(header, "Reload", 56, function() Creature.Request(); end, "Ask the server for a fresh copy of the template (F5)");
+	header.templateReload = Common.Button(header, "Reload", 56, function() Creature.Reload(); end, "Ask the server for a fresh copy of the template (F5)");
 	header.templateReload:SetHeight(20);
 	header.templateReload:SetPoint("RIGHT", header.close, "LEFT", -4, 0);
 	header.templateReload:Hide();
@@ -309,7 +309,12 @@ function Inspector.HasChanges()
 end
 
 function Inspector.SaveAll()
-	local saved = Creature.templateEntry and 0 or Common.SaveAllMoves();
+	local moves = Creature.templateEntry and 0 or Common.SaveAllMoves();
+	local saved = moves;
+
+	if ( moves > 0 ) then
+		GameEditor_Notify(format("%d new position%s sent to the server to save", moves, moves == 1 and "" or "s"), "info");
+	end
 
 	for index = 1, #TAB_NAMES do
 		local page = pages[index];
@@ -325,6 +330,12 @@ function Inspector.SaveAll()
 end
 
 function Inspector.RevertAll()
+	if ( Inspector.HasChanges() ) then
+		GameEditor_Notify("Unsaved changes thrown away, nothing was sent to the server", "info");
+	else
+		GameEditor_Notify("Nothing to revert", "info");
+	end
+
 	for _, page in pairs(pages) do
 		if ( page.Revert ) then
 			page:Revert();
@@ -378,7 +389,7 @@ function Inspector.Refresh()
 			SetEmpty({
 				title = format("Loading %s...", Common.NameOf("creature", entry) or "creature template"),
 				text = format("Waiting for the server to send creature template %d. Editing needs GM level 3 on the server.", entry),
-				primary = "Ask again", onPrimary = function() Creature.Request(); end,
+				primary = "Ask again", onPrimary = function() Creature.Reload(); end,
 				secondary = "Close", onSecondary = Creature.CloseTemplate,
 				help = Creature.HELP,
 			});
@@ -420,7 +431,7 @@ function Inspector.Refresh()
 		SetEmpty({
 			title = format("Loading %s...", name or "creature"),
 			text = format("Waiting for the server to send entry %s. Editing needs GM level 3 on the server.", tostring(entry or "?")),
-			primary = "Ask again", onPrimary = function() Creature.Request(); end,
+			primary = "Ask again", onPrimary = function() Creature.Reload(); end,
 			help = Creature.HELP,
 		});
 		return;

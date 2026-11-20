@@ -94,7 +94,9 @@ function NoggitMenuItem_OnClick(self)
 	NoggitMenu_CloseAll();
 
 	if ( item.onClick ) then
+		NoggitFeedback_Begin(self.menu and self.menu:GetParent());
 		item.onClick();
+		NoggitFeedback_End();
 	end
 end
 

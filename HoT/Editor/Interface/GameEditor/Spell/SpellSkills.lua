@@ -305,9 +305,11 @@ end
 
 local function RevertAll()
 	local ids = NewIds();
+	local count = #store:Dirty();
 	store:ConfirmRevert(function()
 		BlankLocal(ids);
 		store:Changed();
+		GameEditor_Notify(format("%d skill line row%s reverted on this client. Nothing was sent to the server.", count, count == 1 and "" or "s"), "info");
 	end);
 end
 
@@ -457,6 +459,7 @@ local function AddSkill(skillLine)
 	local spellId = SE.CurrentId();
 
 	if ( not spellId ) then
+		GameEditor_Notify("Open a spell first.", "error");
 		return;
 	end
 
@@ -475,12 +478,14 @@ local function AddSkill(skillLine)
 	local doc = store:Create(TABLE, values);
 	selectedId = doc.id;
 	Refresh();
-	GameEditor_Notify(format("SkillLineAbility %d added, Save writes it to the dbc database", doc.id), "info");
+	GameEditor_Notify(format("SkillLineAbility %d added, not saved yet. Save Skill Rows writes it to the dbc database.", doc.id), "info");
 end
 
 local function Add()
 	if ( SE.cur ) then
 		GameEditor_PickValue("Add the spell to a skill line", SE.SkillLineItems, nil, AddSkill);
+	else
+		GameEditor_Notify("Open a spell first, then add it to a skill line.", "error");
 	end
 end
 
@@ -496,6 +501,7 @@ local function RemoveSelected()
 	local doc = SelectedDoc();
 
 	if ( not doc ) then
+		GameEditor_Notify("Select a skill line row first.", "error");
 		return;
 	end
 

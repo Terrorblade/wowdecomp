@@ -121,7 +121,10 @@ local function CreateRotationBox(parent)
 
 		if ( GameEditor_SetSelectionRotation(x, y, z, w) ) then
 			box.pause = 1;
+			return true;
 		end
+
+		return false;
 	end
 
 	local specs = {
@@ -142,7 +145,7 @@ local function CreateRotationBox(parent)
 	local reset = Common.Button(box, "Upright", 70, function()
 		NoggitSpinBox_SetValue(box.spins.pitch, 0, true);
 		NoggitSpinBox_SetValue(box.spins.roll, 0, true);
-		Apply();
+		GameObject.NotifyUpright(Apply());
 	end, "Clear pitch and roll, keep the yaw");
 	reset:SetPoint("TOPLEFT", box, "TOPLEFT", 3 * 102 + 4, -16);
 
@@ -194,7 +197,7 @@ local function BuildSpawnPage(container)
 	actions:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -90);
 	actions:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -90);
 
-	local ground = Common.Button(actions, "To ground", 74, function() GameEditor_SnapToGround(); end, "Drop the gameobject onto the ground below it (G)");
+	local ground = Common.Button(actions, "To ground", 74, function() Common.DropToGround("gameobject"); end, "Drop the gameobject onto the ground below it (G)");
 	ground:SetPoint("LEFT", actions, "LEFT", 0, 0);
 	local toMe = Common.Button(actions, "Move to me", 84, function()
 		GobEditor_SetFields(SCOPE_SPAWN, { ["position.save"] = 1 });
@@ -206,7 +209,7 @@ local function BuildSpawnPage(container)
 		GobEditor_SetFields(SCOPE_SPAWN, { respawn = 1 });
 	end, "Despawn and load the spawn again from the database (Ctrl+R)");
 	respawn:SetPoint("LEFT", goTo, "RIGHT", 4, 0);
-	local commit = Common.Button(actions, "Save live", 70, function() GobEditor_Commit(); end, "Send the position and rotation you see right now to the server");
+	local commit = Common.Button(actions, "Save live", 70, function() GameObject.CommitLive(); end, "Send the position and rotation you see right now to the server");
 	commit:SetPoint("LEFT", respawn, "RIGHT", 4, 0);
 
 	page.stored = Common.Label(page, "", nil, NOGGIT_COLOR_DISABLED);
@@ -280,15 +283,15 @@ local function Build(parent)
 
 	header = Common.CreateHeader(body);
 	header:AddButton("Delete", 56, function() Common.ConfirmDelete("gameobject"); end, "Delete this spawn from the world and the database (Del)");
-	header:AddButton("Reload", 56, function() GameObject.Request(); end, "Ask the server for a fresh snapshot (F5)");
-	header:AddButton("To ground", 70, function() GameEditor_SnapToGround(); end, "Drop the gameobject onto the ground below it (G)");
+	header:AddButton("Reload", 56, function() GameObject.Reload(); end, "Ask the server for a fresh snapshot (F5)");
+	header:AddButton("To ground", 70, function() Common.DropToGround("gameobject"); end, "Drop the gameobject onto the ground below it (G)");
 	Common.AddMoveButtons(header, UpdateDirty);
 
 	header.close = Common.Button(header, "Close", 56, function() GameObject.CloseTemplate(); end, "Stop editing the template and go back to the selection");
 	header.close:SetHeight(20);
 	header.close:SetPoint("TOPRIGHT", header, "TOPRIGHT", -6, -6);
 	header.close:Hide();
-	header.templateReload = Common.Button(header, "Reload", 56, function() GameObject.Request(); end, "Ask the server for a fresh copy of the template (F5)");
+	header.templateReload = Common.Button(header, "Reload", 56, function() GameObject.Reload(); end, "Ask the server for a fresh copy of the template (F5)");
 	header.templateReload:SetHeight(20);
 	header.templateReload:SetPoint("RIGHT", header.close, "LEFT", -4, 0);
 	header.templateReload:Hide();
@@ -342,7 +345,12 @@ function Inspector.HasChanges()
 end
 
 function Inspector.SaveAll()
-	local saved = GameObject.templateEntry and 0 or Common.SaveAllMoves();
+	local moves = GameObject.templateEntry and 0 or Common.SaveAllMoves();
+	local saved = moves;
+
+	if ( moves > 0 ) then
+		GameEditor_Notify(format("%d new position%s sent to the server to save", moves, moves == 1 and "" or "s"), "info");
+	end
 
 	for index = 1, #TAB_NAMES do
 		local page = pages[index];
@@ -358,6 +366,12 @@ function Inspector.SaveAll()
 end
 
 function Inspector.RevertAll()
+	if ( Inspector.HasChanges() ) then
+		GameEditor_Notify("Unsaved changes thrown away, nothing was sent to the server", "info");
+	else
+		GameEditor_Notify("Nothing to revert", "info");
+	end
+
 	for _, page in pairs(pages) do
 		page:Revert();
 	end
@@ -413,7 +427,7 @@ function Inspector.Refresh()
 			SetEmpty({
 				title = format("Loading %s...", Common.NameOf("gameobject", entry) or "gameobject template"),
 				text = format("Waiting for the server to send gameobject template %d. Editing needs GM level 3 on the server.", entry),
-				primary = "Ask again", onPrimary = function() GameObject.Request(); end,
+				primary = "Ask again", onPrimary = function() GameObject.Reload(); end,
 				secondary = "Close", onSecondary = GameObject.CloseTemplate,
 				help = GameObject.HELP,
 			});
@@ -454,7 +468,7 @@ function Inspector.Refresh()
 		SetEmpty({
 			title = format("Loading %s...", name or "gameobject"),
 			text = format("Waiting for the server to send entry %s. Editing needs GM level 3 on the server.", tostring(entry or "?")),
-			primary = "Ask again", onPrimary = function() GameObject.Request(); end,
+			primary = "Ask again", onPrimary = function() GameObject.Reload(); end,
 			help = GameObject.HELP,
 		});
 		return;

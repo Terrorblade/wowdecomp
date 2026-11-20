@@ -267,6 +267,26 @@ function Common.Duplicate(kind)
 
 	if ( GameEditor_Spawn(kind, entry, x + math.cos(side) * 2, y + math.sin(side) * 2, z, o) ) then
 		Remember(kind, entry);
+	else
+		GameEditor_Notify("Duplicating failed, check your GM level", "error");
+	end
+end
+
+function Common.DropToGround(kind)
+	local selected, _, _, _, _, _, z = GameEditor_GetSelection();
+
+	if ( selected ~= kind or not z ) then
+		GameEditor_Notify("Select a "..NOUN[kind].." first", "error");
+		return;
+	end
+
+	GameEditor_SnapToGround();
+	local _, _, _, _, _, _, after = GameEditor_GetSelection();
+
+	if ( after and math.abs(after - z) > 0.001 ) then
+		GameEditor_Notify("Dropped to the ground on your client only, Save move saves it", "info");
+	else
+		GameEditor_Notify("Already on the ground, or there is no ground below it", "info");
 	end
 end
 
@@ -305,6 +325,7 @@ function Common.EditTemplate(kind, entry)
 	local editor = Common.templateEditors[kind];
 
 	if ( not editor ) then
+		GameEditor_Notify("This kind of template can not be edited here", "error");
 		return false;
 	end
 
@@ -430,6 +451,14 @@ local function CreateSpawnWindow()
 	local searchButton = Common.Button(content, "Reload", 70, function()
 		GameEditor_ReloadTemplateList(spawnWindow.kind);
 		SpawnRefresh(true);
+
+		local _, loading = GameEditor_TemplateList(spawnWindow.kind);
+
+		if ( loading ) then
+			GameEditor_Notify("Reloading the template list from the server", "info");
+		else
+			GameEditor_Notify("Could not ask the server for the template list", "error");
+		end
 	end, "Ask the server for the template list again");
 	searchButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, 0);
 
@@ -593,12 +622,22 @@ function Common.SaveAllMoves()
 end
 
 function Common.AddMoveButtons(header, onChange)
-	header.saveMove = Common.Button(header, "Save move", 76, function() GameEditor_SaveMove(); end,
+	header.saveMove = Common.Button(header, "Save move", 76, function()
+		if ( GameEditor_SaveMove() ) then
+			GameEditor_Notify("New position sent to the server to save", "info");
+		else
+			GameEditor_Notify("Nothing to save, it has not been moved", "info");
+		end
+	end,
 		"Send the new position to the server, until then the move only exists on your client (Ctrl+S)");
 	header.saveMove:SetHeight(18);
 	header.saveMove:SetPoint("TOPRIGHT", header, "TOPRIGHT", -6, -57);
 
-	header.revertMove = Common.Button(header, "Revert move", 84, function() GameEditor_RevertMove(); end,
+	header.revertMove = Common.Button(header, "Revert move", 84, function()
+		if ( not GameEditor_RevertMove() ) then
+			GameEditor_Notify("Nothing to revert, it has not been moved", "info");
+		end
+	end,
 		"Put it back where it stood before you moved it");
 	header.revertMove:SetHeight(18);
 	header.revertMove:SetPoint("RIGHT", header.saveMove, "LEFT", -4, 0);

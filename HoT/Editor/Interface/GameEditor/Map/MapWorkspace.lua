@@ -82,11 +82,86 @@ local function ChangeTimeSpeed(delta)
 	end
 
 	timeSpeed = max(0, timeSpeed + delta);
+	GameEditor_Notify(timeSpeed > 0 and format("Time speed %d", timeSpeed) or "Time paused", "info");
+end
+
+local function PauseTime()
+	timeSpeed = 0;
+	GameEditor_Notify("Time paused", "info");
 end
 
 local function ResetTime()
 	timeSpeed = 0;
 	EditorClearTimeOfDay();
+	GameEditor_Notify("Using the game time again", "info");
+end
+
+local function ScaleCameraSpeedNotify(factor)
+	ScaleCameraSpeed(factor);
+	local _, _, _, _, _, speed = EditorGetCamera();
+
+	if ( speed ) then
+		GameEditor_Notify(format("Camera speed %.1f", speed), "info");
+	end
+end
+
+local function NeedsMap(action, done)
+	return function()
+		if ( not EditorIsMapLoaded() ) then
+			GameEditor_Notify("Load a map first", "error");
+			return;
+		end
+
+		action();
+
+		if ( done ) then
+			GameEditor_Notify(done, "info");
+		end
+	end;
+end
+
+local function HasObjectSelection()
+	if ( (EditorGetSelectionCount() or 0) == 0 ) then
+		GameEditor_Notify("Select an object first", "error");
+		return false;
+	end
+
+	return true;
+end
+
+local function NeedsSelection(action, done)
+	return function()
+		if ( not HasObjectSelection() ) then
+			return;
+		end
+
+		action();
+
+		if ( done ) then
+			GameEditor_Notify(done, "info");
+		end
+	end;
+end
+
+local function MenuPaste()
+	if ( not EditorHasClipboard() ) then
+		GameEditor_Notify("Nothing copied yet, copy an object or pick one in the asset browser", "error");
+		return;
+	end
+
+	EditorPasteObjects(true);
+end
+
+local function MenuUndo()
+	if ( not EditorUndo() ) then
+		GameEditor_Notify("Nothing to undo", "info");
+	end
+end
+
+local function MenuRedo()
+	if ( not EditorRedo() ) then
+		GameEditor_Notify("Nothing to redo", "info");
+	end
 end
 
 -- Returns false when the key does not apply to the current tool, so the shell can use it.
@@ -116,9 +191,12 @@ function MapEditor_Save(mode)
 	local saved, err = EditorSaveTiles(mode);
 
 	if ( not saved ) then
+		GameEditor_Notify("Map files not saved: "..(err or "saving failed"), "error");
 		NoggitMessageBox_Critical(err or "Saving failed");
+	elseif ( saved > 0 ) then
+		GameEditor_Notify(format("Wrote %d map file%s to disk, nothing was sent to the server", saved, saved == 1 and "" or "s"), "ok");
 	else
-		GameEditor_Notify(format("Saved %d file(s)", saved), saved > 0 and "ok" or "info");
+		GameEditor_Notify("No changed tiles, nothing was written to disk", "info");
 	end
 end
 
@@ -136,26 +214,26 @@ local function BuildMenus()
 			title = "Edit",
 			Header("Selected object"),
 			separator,
-			{ text = "Copy", shortcut = "Ctrl+C", onClick = EditorCopySelection },
-			{ text = "Paste at cursor", shortcut = "Ctrl+V", onClick = PasteAtCursor },
-			{ text = "Duplicate", shortcut = "Ctrl+B", onClick = EditorDuplicateSelection },
-			{ text = "Delete", shortcut = "Del", onClick = EditorDeleteSelection },
-			{ text = "Reset rotation", shortcut = "Ctrl+R", onClick = ResetRotation },
-			{ text = "Set to ground", shortcut = "PgDown", onClick = EditorObjectSnapToGround },
-			{ text = "Clear selection", onClick = EditorClearSelection },
+			{ text = "Copy", shortcut = "Ctrl+C", onClick = NeedsSelection(EditorCopySelection, "Copied, Ctrl+V pastes it at the cursor") },
+			{ text = "Paste at cursor", shortcut = "Ctrl+V", onClick = MenuPaste },
+			{ text = "Duplicate", shortcut = "Ctrl+B", onClick = NeedsSelection(EditorDuplicateSelection) },
+			{ text = "Delete", shortcut = "Del", onClick = NeedsSelection(EditorDeleteSelection) },
+			{ text = "Reset rotation", shortcut = "Ctrl+R", onClick = NeedsSelection(ResetRotation) },
+			{ text = "Set to ground", shortcut = "PgDown", onClick = NeedsSelection(EditorObjectSnapToGround) },
+			{ text = "Clear selection", onClick = NeedsSelection(EditorClearSelection) },
 			separator,
 			Header("State"),
 			separator,
-			{ text = "Undo", shortcut = "Ctrl+Z", onClick = EditorUndo },
-			{ text = "Redo", shortcut = "Ctrl+Shift+Z", onClick = EditorRedo },
+			{ text = "Undo", shortcut = "Ctrl+Z", onClick = MenuUndo },
+			{ text = "Redo", shortcut = "Ctrl+Shift+Z", onClick = MenuRedo },
 		},
 		{
 			title = "Assist",
 			Header("Current ADT"),
 			separator,
-			{ text = "Remove all holes", shortcut = "T", onClick = function() EditorSetTileHoles(false); end },
-			{ text = "Remove all ground", shortcut = "Alt+T", onClick = function() EditorSetTileHoles(true); end },
-			{ text = "Set area id on tile", shortcut = "F", onClick = EditorSetTileArea },
+			{ text = "Remove all holes", shortcut = "T", onClick = NeedsMap(function() EditorSetTileHoles(false); end, "Holes removed on this tile, save the tiles to write it to disk") },
+			{ text = "Remove all ground", shortcut = "Alt+T", onClick = NeedsMap(function() EditorSetTileHoles(true); end, "Ground removed on this tile, save the tiles to write it to disk") },
+			{ text = "Set area id on tile", shortcut = "F", onClick = NeedsMap(EditorSetTileArea, "Area id set on this tile, save the tiles to write it to disk") },
 		},
 		{
 			title = "View",
@@ -177,10 +255,10 @@ local function BuildMenus()
 			separator,
 			{ text = "Increase time speed", shortcut = "N", onClick = function() ChangeTimeSpeed(90); end },
 			{ text = "Decrease time speed", shortcut = "B", onClick = function() ChangeTimeSpeed(-90); end },
-			{ text = "Pause time", shortcut = "J", onClick = function() timeSpeed = 0; end },
+			{ text = "Pause time", shortcut = "J", onClick = PauseTime },
 			{ text = "Use game time", onClick = ResetTime },
-			{ text = "Decrease camera speed", shortcut = "O", onClick = function() ScaleCameraSpeed(0.5); end },
-			{ text = "Increase camera speed", shortcut = "P", onClick = function() ScaleCameraSpeed(2); end },
+			{ text = "Decrease camera speed", shortcut = "O", onClick = function() ScaleCameraSpeedNotify(0.5); end },
+			{ text = "Increase camera speed", shortcut = "P", onClick = function() ScaleCameraSpeedNotify(2); end },
 			separator,
 			{ text = "Texture palette", onClick = MapEditor_ShowTexturePalette },
 			{ text = "Asset browser", onClick = MapEditor_ShowAssetBrowser },

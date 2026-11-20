@@ -97,7 +97,8 @@ function NoggitButton_Refresh(self)
 		background = NOGGIT_COLOR_HOVER;
 	end
 
-	NoggitBox_Set(self, background, NOGGIT_COLOR_HOVER);
+	local tint, border = NoggitFeedback_Colors and NoggitFeedback_Colors(self);
+	NoggitBox_Set(self, tint or background, border or NOGGIT_COLOR_HOVER);
 end
 
 function NoggitPushButton_OnLoad(self)
@@ -106,6 +107,10 @@ function NoggitPushButton_OnLoad(self)
 	self:GetFontString():SetTextColor(NOGGIT_COLOR_TEXT[1], NOGGIT_COLOR_TEXT[2], NOGGIT_COLOR_TEXT[3]);
 	self:SetDisabledFontObject(NoggitFontDisabled);
 	NoggitButton_Refresh(self);
+
+	if ( NoggitFeedback_Attach ) then
+		NoggitFeedback_Attach(self);
+	end
 end
 
 -- Icons the bundled Font Awesome subset does not have, drawn as white textures and tinted.
@@ -147,6 +152,10 @@ function NoggitToolButton_OnLoad(self)
 	self.pressed = false;
 	self.checked = false;
 	NoggitToolButton_Refresh(self);
+
+	if ( NoggitFeedback_Attach ) then
+		NoggitFeedback_Attach(self);
+	end
 end
 
 function NoggitToolButton_Refresh(self)
@@ -161,7 +170,11 @@ function NoggitToolButton_Refresh(self)
 
 	icon:SetFontObject(NoggitIconFont);
 
-	if ( self.pressed or self.checked ) then
+	local tint, border = NoggitFeedback_Colors and NoggitFeedback_Colors(self);
+
+	if ( tint ) then
+		NoggitBox_Set(self, tint, border);
+	elseif ( self.pressed or self.checked ) then
 		NoggitBox_Set(self, NOGGIT_COLOR_DARK, NOGGIT_COLOR_MID);
 	elseif ( self.hover ) then
 		NoggitBox_Set(self, NOGGIT_COLOR_MID, NOGGIT_COLOR_HOVER);

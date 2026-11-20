@@ -58,6 +58,13 @@ function ME.SaveInPlace()
 		return false;
 	end
 
+	local info = Info();
+
+	if ( info and not info.dirty and entry.loose ~= false ) then
+		GameEditor_Notify(format("Nothing to save, %s has no unsaved changes", entry.path), "info");
+		return true;
+	end
+
 	local ok, message = ME.Do("ModelEditor_Save", entry.doc, nil, { overwrite = true });
 
 	if ( ok ) then
@@ -151,12 +158,12 @@ local function SendRow(tableName, id, values)
 	local applied = ME.Do("DbcEditor_ApplyLocal", tableName, id, values);
 
 	if ( not applied ) then
-		return false;
+		return false, false;
 	end
 
 	local sent = ME.Do("DbcEditor_Save", tableName, id, values);
 	state.pending[Key(tableName, id)] = sent and "sending" or "local only";
-	return true;
+	return true, sent and true or false;
 end
 
 function ME.OnDbcResult(ok, tableName, id, message)
@@ -229,12 +236,26 @@ local function CreateCreatureRows()
 		display["m_textureVariation["..(index - 1).."]"] = strtrim(page.variations[index]:GetText() or "");
 	end
 
-	if ( SendRow("CreatureModelData", modelId, model) and SendRow("CreatureDisplayInfo", displayId, display) ) then
+	local modelApplied, modelSent = SendRow("CreatureModelData", modelId, model);
+	local displayApplied, displaySent = false, false;
+
+	if ( modelApplied ) then
+		displayApplied, displaySent = SendRow("CreatureDisplayInfo", displayId, display);
+	end
+
+	if ( modelApplied and displayApplied ) then
 		state.created[Key("CreatureModelData", modelId)] = true;
 		state.created[Key("CreatureDisplayInfo", displayId)] = true;
 		state.lastDisplay = displayId;
 		state.lastKind = KIND_CREATURE;
-		GameEditor_Notify(format("CreatureModelData %d and CreatureDisplayInfo %d are live, the server saves them now", modelId, displayId), "ok");
+
+		if ( modelSent and displaySent ) then
+			GameEditor_Notify(format("Added CreatureModelData %d and CreatureDisplayInfo %d in the client, saving them to the database", modelId, displayId), "ok");
+		else
+			GameEditor_Notify(format("CreatureModelData %d and CreatureDisplayInfo %d are applied in the client only, not saved to the database", modelId, displayId), "error");
+		end
+	elseif ( modelApplied ) then
+		GameEditor_Notify(format("Only CreatureModelData %d was added, CreatureDisplayInfo %d failed", modelId, displayId), "error");
 	end
 
 	ME.Changed();
@@ -265,11 +286,18 @@ local function CreateGameObjectRow()
 	values.m_id = displayId;
 	values.m_modelName = ME.ToMdx(entry.path);
 
-	if ( SendRow("GameObjectDisplayInfo", displayId, values) ) then
+	local applied, sent = SendRow("GameObjectDisplayInfo", displayId, values);
+
+	if ( applied ) then
 		state.created[Key("GameObjectDisplayInfo", displayId)] = true;
 		state.lastDisplay = displayId;
 		state.lastKind = KIND_GAMEOBJECT;
-		GameEditor_Notify(format("GameObjectDisplayInfo %d is live, the server saves it now", displayId), "ok");
+
+		if ( sent ) then
+			GameEditor_Notify(format("Added GameObjectDisplayInfo %d in the client, saving it to the database", displayId), "ok");
+		else
+			GameEditor_Notify(format("GameObjectDisplayInfo %d is applied in the client only, not saved to the database", displayId), "error");
+		end
 	end
 
 	ME.Changed();
@@ -395,6 +423,7 @@ local function FindModelData()
 	local entry = Entry();
 
 	if ( not entry ) then
+		ME.Notice("Open a model first", "info");
 		return;
 	end
 
@@ -403,6 +432,11 @@ local function FindModelData()
 
 	for _, row in ipairs(ME.Find("CreatureModelData", "m_modelName", base, 100)) do
 		table.insert(items, { value = row.id, text = row.name or "" });
+	end
+
+	if ( #items == 0 ) then
+		ME.Notice(format("No CreatureModelData row names a model called %s", base), "info");
+		return;
 	end
 
 	GameEditor_PickValue("CreatureModelData to copy", items, floor(page.sourceModelData.value), function(value)
@@ -542,7 +576,15 @@ function ME.BuildSavePage(container)
 	Label(creature, "Copy display", cy);
 	page.sourceDisplay = IdSpin(creature, cy, "CreatureDisplayInfo row the new display copies, 0 for defaults");
 	page.loadVariations = Common.Button(creature, "Use its skins", 96, function()
-		page:LoadVariations(floor(page.sourceDisplay.value));
+		local displayId = floor(page.sourceDisplay.value);
+
+		if ( not ME.Row("CreatureDisplayInfo", displayId) ) then
+			ME.Notice(format("CreatureDisplayInfo %d does not exist, pick a display to copy first", displayId), "info");
+			return;
+		end
+
+		page:LoadVariations(displayId);
+		ME.Changed();
 	end, "Copy the texture variations of that display into the fields below");
 	page.loadVariations:SetPoint("LEFT", page.sourceDisplay, "RIGHT", 6, 0);
 

@@ -363,6 +363,7 @@ function I.Reload()
 
 	I.QueryTemplate();
 	I.Fire("RELOAD");
+	GameEditor_Notify(format("Loading item %d again from the server", I.entry), "info");
 end
 
 function I.Close()

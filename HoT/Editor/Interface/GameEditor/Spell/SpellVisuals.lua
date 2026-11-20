@@ -54,7 +54,7 @@ local function CreateKitWindow()
 			if ( visualEditor and kitWindow.column and (visualEditor.exists or visualEditor.isNew) ) then
 				visualEditor.values[kitWindow.column] = id;
 				visualEditor:Bind();
-				GameEditor_Notify(format("%s of visual %d now points to the new kit %d. Save both.", kitWindow.column, visualEditor.id, id), "info");
+				GameEditor_Notify(format("%s of visual %d now points to the new kit %d. Neither is saved yet, save both rows.", kitWindow.column, visualEditor.id, id), "info");
 			end
 		end,
 		onIdEntered = function(_, id)
@@ -103,6 +103,7 @@ end
 
 function SE.OpenMissile()
 	if ( not SE.cur ) then
+		GameEditor_Notify("Open a spell first to edit its missile.", "error");
 		return;
 	end
 
@@ -624,7 +625,13 @@ local function PickOtherSpell(edit, position, replaceTo, expected)
 	SE.PickSpell("Value from another spell", function(id)
 		id = tonumber(id);
 
-		if ( not id or not edit:IsVisible() ) then
+		if ( not id ) then
+			GameEditor_Notify("That is not a valid spell id.", "error");
+			return;
+		end
+
+		if ( not edit:IsVisible() ) then
+			GameEditor_Notify("The text field was closed, nothing was inserted.", "info");
 			return;
 		end
 

@@ -127,7 +127,11 @@ function Creature.CreateVendorPage(parent, onDirty)
 		local data = Creature.GetData();
 		local flags = data and data.template and Num(data.template.npcflag) or 0;
 
-		if ( not GameEditor_HasBit(flags, 7) ) then
+		if ( not data or not data.template ) then
+			GameEditor_Notify("Select a creature or open a template first", "error");
+		elseif ( GameEditor_HasBit(flags, 7) ) then
+			GameEditor_Notify("This entry already has the vendor flag", "info");
+		else
 			CreatureEditor_SetFields(0, { npcflag = flags + NPC_FLAG_VENDOR });
 		end
 	end, "Save creature_template.npcflag with the vendor bit so players can open the vendor window");
@@ -206,11 +210,16 @@ function Creature.CreateVendorPage(parent, onDirty)
 
 	local clear = Common.Button(addBar, "Remove all", 80, function()
 		if ( #page.items == 0 ) then
+			GameEditor_Notify("The vendor list is already empty", "info");
 			return;
 		end
 
 		NoggitMessageBox_Show("Remove all items", "Remove every item from this vendor? Nothing is saved until you press Save.", {
-			{ text = "Remove", onClick = function() page.items = {}; page:Refresh(); end },
+			{ text = "Remove", onClick = function()
+				page.items = {};
+				page:Refresh();
+				GameEditor_Notify("Every item removed from the list, Save makes it permanent", "info");
+			end },
 			{ text = "Cancel" },
 		});
 	end, "Empty the list, Save makes it permanent");
@@ -353,7 +362,12 @@ function Creature.CreateVendorPage(parent, onDirty)
 	page.AddItem = function(self, id)
 		id = tonumber(id);
 
-		if ( not id or id == 0 or not self.entry ) then
+		if ( not id or id == 0 ) then
+			return;
+		end
+
+		if ( not self.entry ) then
+			GameEditor_Notify("Select a creature or open a template first", "error");
 			return;
 		end
 
@@ -507,7 +521,7 @@ function Creature.CreateVendorPage(parent, onDirty)
 		self.saving = false;
 
 		if ( ok == 1 or ok == true ) then
-			GameEditor_Notify(format("Vendor list of entry %d saved, reopen the vendor window to see it", self.entry), "info");
+			GameEditor_Notify(format("Vendor list of entry %d saved to the database, reopen the vendor window to see it", self.entry), "info");
 			self:Query();
 		else
 			GameEditor_Notify("npc_vendor: "..(message or "save failed"), "error");

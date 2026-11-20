@@ -372,6 +372,7 @@ local function CloseCurrent()
 	local doc = ME.current;
 
 	if ( not doc ) then
+		ME.Notice("No model is open", "info");
 		return;
 	end
 
@@ -478,12 +479,15 @@ local function Export()
 end
 
 local function ReloadPreview()
-	if ( ME.current ) then
-		ME.Invalidate(ME.current);
+	if ( not ME.current ) then
+		ME.Notice("Open a model first", "info");
+		return;
 	end
 
+	ME.Invalidate(ME.current);
 	ME.PreviewReload(true);
 	ME.Changed();
+	GameEditor_Notify(format("Reloaded %s and its preview", ME.DocName(ME.current)), "info");
 end
 
 -- Build ---------------------------------------------------------------------------------------------------------------------
@@ -691,6 +695,8 @@ GameEditor_RegisterWorkspace({
 	title = "Models",
 	category = "Visuals",
 	order = 9,
+	-- Holds model previews, which draw in the wrong place inside a clip frame.
+	noClip = true,
 	dockWidth = 520,
 	tools = {
 		{ key = "select", name = "Models", icon = 0xF8B8, build = Build },

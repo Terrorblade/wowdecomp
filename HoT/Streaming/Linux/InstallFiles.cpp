@@ -129,6 +129,10 @@ bool HoldsRunningExe(const std::wstring& path) {
     return !rel.empty() && *rel.begin() != "..";
 }
 
+bool MoveReplacesOpenFiles() {
+    return true;
+}
+
 std::string NarrowPendingPath(const std::wstring& path, bool* lossy) {
     return Text::NarrowUtf8(path);
 }

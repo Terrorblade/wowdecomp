@@ -587,6 +587,8 @@ void OnCloseGame() {
 
 struct MountRequest {
     std::string m_path;
+    bool m_diffed = false;
+    std::vector<std::string> m_names;
 };
 
 struct DevReplace {
@@ -596,6 +598,8 @@ struct DevReplace {
     std::string m_sha256;
     std::string m_quick;
     std::string m_contentId;
+    bool m_diffed = false;
+    std::vector<std::string> m_names;
 };
 
 // Everything one pass produced for the main thread, applied only once the whole pass finished downloading.
@@ -613,6 +617,7 @@ static size_t s_frontJobsDone = 0;
 static PassBatch s_passBatch;
 // Path plus hash, so a re-download of a path still remounts.
 static std::set<std::wstring> s_mounted;
+static std::map<std::wstring, std::wstring> s_loadedCopy;
 
 static void PublishBatch() {
     if (s_passBatch.m_jobs.empty() && s_passBatch.m_devReplaces.empty() && s_passBatch.m_mounts.empty()) {
@@ -663,7 +668,7 @@ static void EnqueueEvent(std::function<void()> fn) {
     s_eventQueue.push_back(std::move(fn));
 }
 
-static void EnqueueMount(const std::wstring& path, const std::string& sha) {
+static void EnqueueMount(const std::wstring& path, const std::string& sha, const std::wstring& local, std::optional<MpqFile::NameMap> loaded) {
     std::string p = Text::NarrowAcp(path);
 
     if (!s_mounted.insert(Text::LowerPath(path) + L"|" + Widen(sha)).second) {
@@ -671,8 +676,33 @@ static void EnqueueMount(const std::wstring& path, const std::string& sha) {
         return;
     }
 
-    StreamLog("stream: queued mount %s", p.c_str());
-    s_passBatch.m_mounts.push_back(MountRequest{ std::move(p) });
+    MountRequest req;
+    req.m_path = p;
+    const std::wstring key = Text::LowerPath(local);
+    auto it = s_loadedCopy.find(key);
+
+    if (it != s_loadedCopy.end() && Text::LowerPath(it->second) != Text::LowerPath(path)) {
+        loaded = MpqFile::Names(it->second);
+    }
+
+    if (loaded) {
+        MpqFile::DiffNames(*loaded, MpqFile::Names(path), req.m_names);
+        req.m_diffed = true;
+        StreamLog("stream: queued mount %s, %d name(s) differ from the loaded copy", p.c_str(), static_cast<int32_t>(req.m_names.size()));
+    } else {
+        StreamLog("stream: queued mount %s", p.c_str());
+    }
+
+    s_loadedCopy[key] = path;
+    s_passBatch.m_mounts.push_back(std::move(req));
+}
+
+static std::optional<MpqFile::NameMap> NamesBeforeReplace(const std::wstring& local, bool isMpq) {
+    if (!isMpq || !InstallFiles::MoveReplacesOpenFiles() || FileSize(local) < 0) {
+        return std::nullopt;
+    }
+
+    return MpqFile::Names(local);
 }
 
 static int32_t RefreshUnitModel(WOWGUID guid, void* param) {
@@ -778,6 +808,7 @@ static bool DownloadWhole(const std::string& baseUrl, const ManifestFile& mf, co
 struct MountAfter {
     std::wstring m_path;
     std::string m_sha;
+    std::optional<MpqFile::NameMap> m_loaded;
 };
 
 static std::string ReadStamp(const fs::path& stamp) {
@@ -917,13 +948,15 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
         return mount;
     }
 
+    std::optional<MpqFile::NameMap> replaced = NamesBeforeReplace(local, isMpq);
+
     // Swap now when unlocked, else stage a hash named copy, mount it and swap later.
     if (MoveInstallFile(part.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED, gate)) {
         RememberPlaced(local, mf, arc);
         UnpackIfPackage(mf, local, gate);
 
         if (isMpq) {
-            mount = MountAfter{ local, mf.m_sha256 };
+            mount = MountAfter{ local, mf.m_sha256, std::move(replaced) };
         }
 
         SweepStagedSiblings(mf, local, L"");
@@ -940,7 +973,7 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
     }
 
     if (isMpq) {
-        mount = MountAfter{ np, mf.m_sha256 };
+        mount = MountAfter{ np, mf.m_sha256, MpqFile::Names(local) };
     }
 
     RecordPending(np, local, gate && !isMpq);
@@ -951,19 +984,20 @@ static std::optional<MountAfter> PlaceDownloaded(const ManifestFile& mf, const M
 
 static void SwapOrStage(const std::wstring& np, const std::wstring& local, const ManifestFile& mf, const ManifestArchive* arc, bool gate) {
     const bool isMpq = IsMpq(mf.m_path);
+    std::optional<MpqFile::NameMap> replaced = NamesBeforeReplace(local, isMpq);
 
     if (MoveInstallFile(np.c_str(), local.c_str(), InstallFiles::MOVE_REPLACE_EXISTING | InstallFiles::MOVE_WRITE_THROUGH | InstallFiles::MOVE_COPY_ALLOWED, gate)) {
         RememberPlaced(local, mf, arc);
         UnpackIfPackage(mf, local, gate);
 
         if (isMpq) {
-            EnqueueMount(local, mf.m_sha256);
+            EnqueueMount(local, mf.m_sha256, local, std::move(replaced));
         }
 
         SweepStagedSiblings(mf, local, L"");
     } else {
         if (isMpq) {
-            EnqueueMount(np, mf.m_sha256);
+            EnqueueMount(np, mf.m_sha256, local, MpqFile::Names(local));
         }
 
         RecordPending(np, local, gate && !isMpq);
@@ -1629,8 +1663,9 @@ static bool ApplyDevReplace(const DevReplace& rep, BatchProgress& bp) {
     const std::wstring target = rep.m_target;
     ArchiveMount mount;
     std::vector<std::string> names;
+    const bool wasMounted = ArchiveRegistry::Find(target, mount);
 
-    if (ArchiveRegistry::Find(target, mount)) {
+    if (wasMounted && !rep.m_diffed) {
         CollectArchiveNames(mount.m_archive, names);
     }
 
@@ -1656,7 +1691,12 @@ static bool ApplyDevReplace(const DevReplace& rep, BatchProgress& bp) {
     MarkPlaced(target);
 
     if (ArchiveRegistry::Find(target, mount)) {
-        CollectArchiveNames(mount.m_archive, names);
+        if (wasMounted && rep.m_diffed) {
+            names = rep.m_names;
+        } else {
+            CollectArchiveNames(mount.m_archive, names);
+        }
+
         bp.m_anyApplied = true;
     }
 
@@ -1813,7 +1853,12 @@ static void ProcessBatch() {
         if (ok) {
             s_ownedMounts.push_back(archive);
             std::vector<std::string> names;
-            CollectArchiveNames(archive, names);
+
+            if (req.m_diffed) {
+                names = req.m_names;
+            } else {
+                CollectArchiveNames(archive, names);
+            }
 
             for (const std::string& n : names) {
                 AddRefreshName(bp, n);
@@ -2014,6 +2059,9 @@ static bool PlaceDevCopy(PlannedItem& item) {
         rep.m_sha256 = mf.m_sha256;
         rep.m_quick = mf.m_quick;
         rep.m_contentId = item.m_arc ? item.m_arc->m_contentId : "";
+        MpqFile::DiffNames(MpqFile::Names(Text::WidenAcp(mount.m_openName)), MpqFile::Names(item.m_part), rep.m_names);
+        rep.m_diffed = true;
+        StreamLog("stream: dev copy %s queued, %d name(s) differ from the loaded copy", mf.m_path.c_str(), static_cast<int32_t>(rep.m_names.size()));
         s_passBatch.m_devReplaces.push_back(std::move(rep));
         Channels::NoteDevQueued(1);
         return true;
@@ -2244,7 +2292,7 @@ static void Run() {
             if (how == ArchivePlan::Current) {
                 // Restored from .disabled, so the client never loaded it at startup.
                 if (restored) {
-                    EnqueueMount(local, arc->m_contentId);
+                    EnqueueMount(local, arc->m_contentId, local, std::nullopt);
                 }
 
                 SweepStagedSiblings(mf, local, L"");
@@ -2267,7 +2315,7 @@ static void Run() {
 
         if (FileSize(local) == mf.m_size && LocalMatches(local, ExpectedDigest(mf))) {
             if (restored && IsMpq(mf.m_path)) {
-                EnqueueMount(local, mf.m_sha256);
+                EnqueueMount(local, mf.m_sha256, local, std::nullopt);
             }
 
             UnpackIfPackage(mf, local, binaryGate);
@@ -2635,7 +2683,7 @@ static void Run() {
                 }
             }
         } else if (mounts[i]) {
-            EnqueueMount(mounts[i]->m_path, mounts[i]->m_sha);
+            EnqueueMount(mounts[i]->m_path, mounts[i]->m_sha, item.m_local, std::move(mounts[i]->m_loaded));
         }
     }
 

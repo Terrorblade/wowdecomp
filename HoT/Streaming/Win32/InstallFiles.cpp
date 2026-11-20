@@ -20,6 +20,10 @@ bool HoldsRunningExe(const std::wstring& path) {
     return Platform::IsRunningExecutable(path);
 }
 
+bool MoveReplacesOpenFiles() {
+    return false;
+}
+
 std::string NarrowPendingPath(const std::wstring& s, bool* lossy) {
     if (s.empty()) {
         return "";

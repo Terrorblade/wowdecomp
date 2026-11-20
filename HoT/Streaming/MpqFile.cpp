@@ -6,6 +6,7 @@
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SComp.h"
 #include "HoT/Platform/Files.h"
 #include "HoT/Streaming/ArchiveManifest.h"
+#include "HoT/Streaming/TextConv.h"
 
 namespace HoT::Streaming::MpqFile {
 
@@ -450,6 +451,71 @@ bool ContentId(const std::wstring& archivePath, std::string& out) {
     }
 
     return true;
+}
+
+NameMap Names(const std::wstring& archivePath) {
+    NameMap out;
+
+    if (archivePath.empty()) {
+        return out;
+    }
+
+    std::string bytes;
+
+    if (ReadFile(archivePath, ArchiveManifest::s_fileName, bytes) && !bytes.empty()) {
+        std::vector<ArchiveEntry> entries;
+
+        if (ArchiveManifest::Parse(bytes, entries)) {
+            for (ArchiveEntry& e : entries) {
+                out[Text::LowerAscii(e.m_name)] = NamedDigest{ e.m_name, e.m_sha256 };
+            }
+
+            return out;
+        }
+    }
+
+    if (!ReadFile(archivePath, "(listfile)", bytes)) {
+        return out;
+    }
+
+    size_t i = 0;
+
+    while (i < bytes.size()) {
+        size_t nl = bytes.find_first_of("\r\n", i);
+
+        if (nl == std::string::npos) {
+            nl = bytes.size();
+        }
+
+        if (nl > i) {
+            std::string name(bytes, i, nl - i);
+            out[Text::LowerAscii(name)] = NamedDigest{ name, "" };
+        }
+
+        i = nl;
+
+        while (i < bytes.size() && (bytes[i] == '\r' || bytes[i] == '\n')) {
+            i++;
+        }
+    }
+
+    return out;
+}
+
+void DiffNames(const NameMap& before, const NameMap& after, std::vector<std::string>& out) {
+    for (const auto& kv : before) {
+        auto it = after.find(kv.first);
+
+        if (it == after.end() || kv.second.m_sha256.empty() || it->second.m_sha256 != kv.second.m_sha256) {
+            out.push_back(kv.second.m_name);
+        }
+    }
+
+    for (const auto& kv : after) {
+        if (before.find(kv.first) == before.end()) {
+            out.push_back(kv.second.m_name);
+        }
+    }
 }
 
 }

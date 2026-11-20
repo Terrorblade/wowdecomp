@@ -810,6 +810,7 @@ GameEditor_RegisterWorkspace({
 	title = "Cinematic Camera",
 	category = "Visuals",
 	order = 12,
+	fullOnly = true,
 	dockWidth = 470,
 	tools = {
 		{ key = "camera.edit", name = "Camera path", icon = 0xF8D8, build = Build },

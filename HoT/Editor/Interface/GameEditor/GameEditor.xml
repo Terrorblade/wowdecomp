@@ -8,8 +8,8 @@
 					<AbsDimension y="26"/>
 				</Size>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="EditorFrameRect"/>
-					<Anchor point="TOPRIGHT" relativeTo="EditorFrameRect"/>
+					<Anchor point="TOPLEFT"/>
+					<Anchor point="TOPRIGHT"/>
 				</Anchors>
 				<Frames>
 					<Frame name="EditorWorkspaceTabs">

@@ -11,6 +11,7 @@
 #include "Engine/Source/Frame/CSimpleTop.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameXML/FrameXML.h"
+#include "Engine/Source/Os/Gui.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/Source/MD5.h"
@@ -477,6 +478,37 @@ static std::string WithoutModifierSides(const char* key) {
     return result + key;
 }
 
+// The engine's modifier bits only reset on a focus change, so a missed key up leaves "ALT-F12" until an alt-tab.
+static std::string WithLiveModifiers(const std::string& plain) {
+    const char* name = plain.c_str();
+
+    for (;;) {
+        size_t length = !strncmp(name, "ALT-", 4) ? 4 : (!strncmp(name, "CTRL-", 5) ? 5 : (!strncmp(name, "SHIFT-", 6) ? 6 : 0));
+
+        if (!length || !name[length]) {
+            break;
+        }
+
+        name += length;
+    }
+
+    std::string result;
+
+    if (OsGuiIsModifierKeyDown(OSGUI_KEY_ALT)) {
+        result += "ALT-";
+    }
+
+    if (OsGuiIsModifierKeyDown(OSGUI_KEY_CONTROL)) {
+        result += "CTRL-";
+    }
+
+    if (OsGuiIsModifierKeyDown(OSGUI_KEY_SHIFT)) {
+        result += "SHIFT-";
+    }
+
+    return result + name;
+}
+
 static bool HasCtrl(const std::string& key) {
     return key.find("CTRL-") != std::string::npos;
 }
@@ -493,12 +525,12 @@ static bool TakeMiniKeyRelease(const std::string& key) {
 }
 
 // The mini editor only takes Ctrl hotkeys a workspace actually handles, every other key plays the game.
-static bool OnMiniKey(const std::string& key, bool down) {
+static bool OnMiniKey(const std::string& key, const std::string& hotkey, bool down) {
     if (!down) {
         return TakeMiniKeyRelease(key);
     }
 
-    if (!HasCtrl(key) || !CallLuaBool("GameEditor_OnHotkey", key.c_str())) {
+    if (!HasCtrl(hotkey) || !CallLuaBool("GameEditor_OnHotkey", hotkey.c_str())) {
         return false;
     }
 
@@ -534,9 +566,15 @@ bool OnWorldKey(const char* key, uint32_t metaKeys, bool down) {
         return false;
     }
 
+    // A key up reuses the string of its key down, so only the down is matched against the live modifiers.
     std::string plain = WithoutModifierSides(key);
+    std::string hotkey = down ? WithLiveModifiers(plain) : plain;
 
-    if (OnToggleKey(plain, down)) {
+    if (hotkey != plain) {
+        LOG_INFO << "game editor: key " << key << " arrived with stale modifiers, the keyboard says " << hotkey;
+    }
+
+    if (OnToggleKey(hotkey, down)) {
         return true;
     }
 
@@ -545,7 +583,7 @@ bool OnWorldKey(const char* key, uint32_t metaKeys, bool down) {
     }
 
     if (s_state.m_mini) {
-        return OnMiniKey(plain, down);
+        return OnMiniKey(plain, hotkey, down);
     }
 
     if (Handler* owner = ToolOwner()) {
@@ -554,7 +592,7 @@ bool OnWorldKey(const char* key, uint32_t metaKeys, bool down) {
         }
     }
 
-    if (down && CallLuaBool("GameEditor_OnHotkey", plain.c_str())) {
+    if (down && CallLuaBool("GameEditor_OnHotkey", hotkey.c_str())) {
         return true;
     }
 

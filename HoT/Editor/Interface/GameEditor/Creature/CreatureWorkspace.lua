@@ -354,9 +354,9 @@ GameEditor_RegisterWorkspace({
 	dockWidth = 540,
 	tools = {
 		{ key = "select", name = "Select and move", icon = 0xF8DB, build = Inspector.Build },
-		{ key = "move", name = "Move gizmo", icon = 0xF8C9, build = Inspector.Build },
-		{ key = "rotate", name = "Rotate gizmo", icon = 0xF8CA, build = Inspector.Build },
-		{ key = "waypoint", name = "Waypoints", icon = 0xF8D8, build = Waypoints.Build },
+		{ key = "move", name = "Move gizmo", icon = 0xF8C9, build = Inspector.Build, world = true },
+		{ key = "rotate", name = "Rotate gizmo", icon = 0xF8CA, build = Inspector.Build, world = true },
+		{ key = "waypoint", name = "Waypoints", icon = 0xF8D8, build = Waypoints.Build, world = true },
 	},
 	menus = BuildMenus,
 	viewItems = VIEW_ITEMS,

@@ -9,8 +9,8 @@ local NAV_WIDTH = 210;
 local KEY_LIST_WIDTH = 210;
 local PREVIEW_WIDTH = 340;
 local PANE_GAP = 8;
-local DRAG_MIN = 120;
 local COLLAPSE_WIDTH = 24;
+local COLLAPSE_SNAP = 48;
 
 local function Name(enumName, value)
 	return I.EnumText(enumName, value) or tostring(value);
@@ -643,19 +643,34 @@ local function BuildParent(section)
 
 	-- The gaps always stay, when the row editor runs out of room the preview shrinks and then collapses.
 	local function PreviewRoom()
-		return (view:GetWidth() or 0) - left:GetWidth() - PANE_GAP - PANE_GAP;
+		return (view:GetWidth() or 0) - (left:IsShown() and left:GetWidth() or 0) - PANE_GAP - PANE_GAP;
+	end
+
+	local function PreviewWidth()
+		return preview and preview:IsShown() and preview:GetWidth() or 0;
+	end
+
+	local function KeyWidth()
+		return left:IsShown() and left:GetWidth() or 0;
 	end
 
 	local function KeyListMax()
-		return max(DRAG_MIN, (view:GetWidth() or 0) - PANE_GAP - PANE_GAP - (preview and preview:IsShown() and preview:GetWidth() or 0));
+		return max(0, (view:GetWidth() or 0) - PANE_GAP - PANE_GAP - PreviewWidth());
 	end
 
 	local function PreviewMax()
-		return max(DRAG_MIN, PreviewRoom());
+		return max(0, PreviewRoom());
 	end
 
 	local function Relayout()
-		left:SetWidth(max(1, min(GameEditor_GetLayoutSize("itemgen_keys", KEY_LIST_WIDTH), (view:GetWidth() or 0) - PANE_GAP)));
+		local keys = min(GameEditor_GetLayoutSize("itemgen_keys", KEY_LIST_WIDTH), (view:GetWidth() or 0) - PANE_GAP);
+		left:SetWidth(max(1, keys));
+
+		if ( keys < COLLAPSE_WIDTH ) then
+			left:Hide();
+		else
+			left:Show();
+		end
 
 		if ( preview ) then
 			local width = min(GameEditor_GetLayoutSize("itemgen_preview", PREVIEW_WIDTH), PreviewRoom());
@@ -671,12 +686,12 @@ local function BuildParent(section)
 
 	local keySplitter = GameEditor_CreateSplitter(view, {
 		sign = 1,
-		get = function() return left:GetWidth(); end,
+		collapse = COLLAPSE_SNAP,
+		get = KeyWidth,
 		set = function(width)
 			GameEditor_SetLayoutSize("itemgen_keys", width);
 			Relayout();
 		end,
-		min = function() return DRAG_MIN; end,
 		max = KeyListMax,
 	});
 	keySplitter:SetPoint("TOPLEFT", left, "TOPRIGHT", 1, 0);
@@ -685,12 +700,12 @@ local function BuildParent(section)
 	if ( preview ) then
 		local previewSplitter = GameEditor_CreateSplitter(view, {
 			sign = -1,
-			get = function() return preview:GetWidth(); end,
+			collapse = COLLAPSE_SNAP,
+			get = PreviewWidth,
 			set = function(width)
 				GameEditor_SetLayoutSize("itemgen_preview", width);
 				Relayout();
 			end,
-			min = function() return DRAG_MIN; end,
 			max = PreviewMax,
 		});
 		previewSplitter:SetPoint("TOPRIGHT", preview, "TOPLEFT", -1, 0);

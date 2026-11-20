@@ -33,6 +33,7 @@ local keysWindow;
 local MINI_MIN_WIDTH = 320;
 local MINI_MIN_HEIGHT = 300;
 local COLLAPSE_WIDTH = 24;
+local COLLAPSE_SNAP = 48;
 local MINI_TOOLBAR_INSET = 54;
 
 local miniMode = false;
@@ -407,6 +408,7 @@ function GameEditor_SetLayoutSize(name, size)
 end
 
 -- A thin vertical handle that sizes a pane by dragging. sign is 1 when the pane is left of the handle, -1 when right.
+-- Dragging under options.collapse sets the size to 0, the handle stays so the pane can be dragged back out.
 function GameEditor_CreateSplitter(parent, options)
 	local handle = CreateFrame("Button", NoggitUI_NewName("GameEditorSplitter"), parent);
 	handle:SetWidth(6);
@@ -418,10 +420,22 @@ function GameEditor_CreateSplitter(parent, options)
 	line:SetPoint("BOTTOM", handle, "BOTTOM", 0, 0);
 	line:Hide();
 
+	local rest = NoggitUI_SolidTexture(handle, "ARTWORK", NOGGIT_COLOR_HOVER);
+	rest:SetWidth(2);
+	rest:SetPoint("TOP", handle, "TOP", 0, 0);
+	rest:SetPoint("BOTTOM", handle, "BOTTOM", 0, 0);
+	rest:Hide();
+
 	local function Clamp(size)
 		local low = options.min and options.min() or 0;
 		local high = options.max and options.max() or size;
-		return max(low, min(high, size));
+		size = max(low, min(high, size));
+
+		if ( options.collapse and size < options.collapse ) then
+			size = 0;
+		end
+
+		return size;
 	end
 
 	local function Finish(self)
@@ -435,7 +449,7 @@ function GameEditor_CreateSplitter(parent, options)
 	handle:SetScript("OnEnter", function(self)
 		self.hover = true;
 		line:Show();
-		NoggitTooltip_Show(self, "Drag to resize");
+		NoggitTooltip_Show(self, options.collapse and "Drag to resize, drag closed to collapse" or "Drag to resize");
 	end);
 	handle:SetScript("OnLeave", function(self)
 		self.hover = false;
@@ -455,6 +469,13 @@ function GameEditor_CreateSplitter(parent, options)
 	handle:SetScript("OnHide", Finish);
 	handle:SetScript("OnUpdate", function(self)
 		if ( not self.dragging ) then
+			-- A collapsed pane keeps a visible line to grab.
+			if ( options.collapse and options.get() < 1 ) then
+				rest:Show();
+			else
+				rest:Hide();
+			end
+
 			return;
 		end
 
@@ -1081,8 +1102,9 @@ local function LayoutShell()
 		end
 	end
 
+	-- The handle stays while the dock is only collapsed, not when the tool has no dock or the UI is hidden.
 	if ( dockSplitter ) then
-		if ( fillDock or not activeWorkspace ) then
+		if ( fillDock or not activeWorkspace or not toolPanelShown or ChromeHidden() ) then
 			dockSplitter:Hide();
 		else
 			dockSplitter:Show();
@@ -1890,18 +1912,19 @@ local function BuildMiniChrome()
 	EditorMainArea:SetScript("OnMouseDown", function() EditorParent:Raise(); end);
 	EditorFrameRect:SetScript("OnSizeChanged", function() LayoutShell(); end);
 
-	dockSplitter = GameEditor_CreateSplitter(EditorToolDock, {
+	dockSplitter = GameEditor_CreateSplitter(EditorParent, {
 		sign = -1,
-		get = function() return EditorToolDock:GetWidth(); end,
+		collapse = COLLAPSE_SNAP,
+		get = function() return EditorToolDock:IsShown() and EditorToolDock:GetWidth() or 0; end,
 		set = function(width)
 			GameEditor_SetLayoutSize("dock_"..activeWorkspace.key, width);
 			LayoutShell();
 		end,
-		min = function() return 120; end,
-		max = function() return max(120, (EditorFrameRect:GetWidth() or 0) - MainMinWidth(activeWorkspace)); end,
+		max = function() return max(0, (EditorFrameRect:GetWidth() or 0) - MainMinWidth(activeWorkspace)); end,
 	});
 	dockSplitter:SetPoint("TOPLEFT", EditorToolDock, "TOPLEFT", -3, 0);
 	dockSplitter:SetPoint("BOTTOMLEFT", EditorToolDock, "BOTTOMLEFT", -3, 0);
+	dockSplitter:SetFrameLevel(EditorToolDock:GetFrameLevel() + 4);
 
 	miniTitle = CreateFrame("Frame", "GameEditorMiniTitle", EditorParent, "NoggitBoxTemplate");
 	miniTitle:SetHeight(24);

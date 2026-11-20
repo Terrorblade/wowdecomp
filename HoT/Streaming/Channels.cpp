@@ -31,6 +31,7 @@
 #include "HoT/Streaming/Paths.h"
 #include "HoT/Streaming/StreamLog.h"
 #include "HoT/Streaming/TextConv.h"
+#include "HoT/Streaming/WorkerThreads.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 
@@ -538,10 +539,14 @@ static void PrefetchEntries(const std::vector<std::wstring>& paths) {
         return;
     }
 
-    std::thread([todo] {
+    bool started = WorkerThreads::Start([todo] {
         Platform::SetBackgroundThreadPriority();
 
         for (const std::wstring& path : todo) {
+            if (WorkerThreads::ShuttingDown()) {
+                break;
+            }
+
             auto item = std::make_shared<CachedEntries>();
             // Stat first, so a file that changes during the read is stamped stale and read again.
             item->m_ok = StatArchive(path, item->m_size, item->m_mtime) && ReadEntries(path, item->m_entries);
@@ -550,7 +555,15 @@ static void PrefetchEntries(const std::vector<std::wstring>& paths) {
             s_entriesCache[key] = std::move(item);
             s_entriesInFlight.erase(key);
         }
-    }).detach();
+    });
+
+    if (!started) {
+        std::lock_guard<std::mutex> lock(s_entriesMutex);
+
+        for (const std::wstring& path : todo) {
+            s_entriesInFlight.erase(KeyOf(path));
+        }
+    }
 }
 
 static void DropEntries() {

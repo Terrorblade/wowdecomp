@@ -55,6 +55,7 @@
 #include "HoT/Streaming/Sha256.h"
 #include "HoT/Streaming/StreamLog.h"
 #include "HoT/Streaming/TextConv.h"
+#include "HoT/Streaming/WorkerThreads.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Magic/MagicClient/SpellVisuals.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
@@ -569,8 +570,11 @@ static void StopPass() {
 static void AbandonPatchJob();
 
 void OnCloseGame() {
+    WorkerThreads::BeginShutdown();
     StopPass();
     AbandonPatchJob();
+    // The scanner reads the channel mount lists, so it has to be finished before they are closed.
+    WorkerThreads::WaitAll(1000);
     Channels::OnCloseGame();
 
     for (SArchive* archive : s_ownedMounts) {
@@ -2693,13 +2697,12 @@ void StartPolling() {
         return;
     }
 
-    std::thread([] {
-        for (;;) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(s_pollIntervalMs));
+    WorkerThreads::Start([] {
+        while (WorkerThreads::SleepFor(s_pollIntervalMs)) {
             StreamLog("stream: periodic update check");
             Trigger();
         }
-    }).detach();
+    });
 }
 
 void Trigger() {

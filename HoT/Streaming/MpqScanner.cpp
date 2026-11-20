@@ -16,6 +16,7 @@
 #include "HoT/Streaming/LocalDigests.h"
 #include "HoT/Streaming/Paths.h"
 #include "HoT/Streaming/TextConv.h"
+#include "HoT/Streaming/WorkerThreads.h"
 
 namespace fs = std::filesystem;
 
@@ -75,7 +76,7 @@ static void Rescan() {
         // Still reported so it counts as present, but the copy on disk is the old one so hashing it only costs I/O.
         info.m_updating = IsUpdatePending(path);
 
-        if (!info.m_updating) {
+        if (!info.m_updating && !WorkerThreads::ShuttingDown()) {
             info.m_digest = DigestOf(path);
         }
 
@@ -117,7 +118,9 @@ static void Rescan() {
         report(fs::path(extra).filename().wstring(), extra);
     }
 
-    LocalDigests::Save();
+    if (!WorkerThreads::ShuttingDown()) {
+        LocalDigests::Save();
+    }
 }
 
 bool IsDone() {
@@ -151,7 +154,7 @@ void ScanAsync(Callback onDone) {
     s_asyncRunning = true;
     s_asyncReady = false;
 
-    std::thread([] {
+    bool started = WorkerThreads::Start([] {
         Platform::SetBackgroundThreadPriority();
         std::vector<MpqInfo> scanned;
 
@@ -164,7 +167,11 @@ void ScanAsync(Callback onDone) {
         s_asyncResults = std::move(scanned);
         s_asyncReady = true;
         s_asyncRunning = false;
-    }).detach();
+    });
+
+    if (!started) {
+        s_asyncRunning = false;
+    }
 }
 
 void Pump() {
@@ -212,13 +219,15 @@ void Start() {
         return;
     }
 
-    std::thread([] {
+    WorkerThreads::Start([] {
         while (IsBusy()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            if (!WorkerThreads::SleepFor(500)) {
+                return;
+            }
         }
 
         ScanAsync(nullptr);
-    }).detach();
+    });
 }
 
 }

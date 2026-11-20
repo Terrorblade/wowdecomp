@@ -154,7 +154,7 @@ GameEditor_RegisterWorkspace({
 	mainMinWidth = I.BROWSER_MIN_WIDTH,
 	tools = {
 		{ key = "select", name = "Item editor", icon = 0xF8A4, build = Editor.Build },
-		{ key = "generator", name = "Item generator", icon = 0xF8B8, noPanel = true },
+		{ key = "generator", name = "Item generator", icon = 0xF8B8, noPanel = true, sectionMain = function(host) I.AttachGenerator(host, 6); end },
 	},
 	menus = BuildMenus,
 	keys = KEYS,

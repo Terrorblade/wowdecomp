@@ -232,7 +232,22 @@ local function BuildBrowser(parent)
 	return frame;
 end
 
--- Switches the main area between the item list and the generator tables.
+-- Builds the generator once and moves it into parent, the full editor's main area or its own mini window.
+function I.AttachGenerator(parent, leftOffset)
+	if ( not generator ) then
+		generator = I.BuildGenerator(parent, leftOffset);
+	elseif ( generator:GetParent() ~= parent ) then
+		generator:SetParent(parent);
+	end
+
+	generator:ClearAllPoints();
+	generator:SetPoint("TOPLEFT", parent, "TOPLEFT", leftOffset, -6);
+	generator:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -8, 6);
+	generator:Show();
+	return generator;
+end
+
+-- Switches the main area between the item list and the generator tables, the mini editor shows them in separate windows.
 function I.ShowView(view)
 	I.view = view;
 
@@ -240,14 +255,19 @@ function I.ShowView(view)
 		return;
 	end
 
-	if ( view == "generator" ) then
-		browser:Hide();
+	if ( GameEditor_IsMiniMode() ) then
+		browser:Show();
 
-		if ( not generator ) then
-			generator = I.BuildGenerator(root, LEFT_OFFSET);
+		if ( view ~= "generator" ) then
+			I.RefreshBrowser(true);
 		end
 
-		generator:Show();
+		return;
+	end
+
+	if ( view == "generator" ) then
+		browser:Hide();
+		I.AttachGenerator(root, LEFT_OFFSET);
 	else
 		if ( generator ) then
 			generator:Hide();

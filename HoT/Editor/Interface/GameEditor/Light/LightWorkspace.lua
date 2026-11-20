@@ -43,7 +43,7 @@ local updateElapsed = 0;
 local skyboxItems;
 
 local function IsActive()
-	return GameEditor_GetWorkspace() == "light";
+	return GameEditor_IsWorkspaceOpen("light");
 end
 
 local function Num(value)

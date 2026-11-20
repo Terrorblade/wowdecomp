@@ -652,7 +652,7 @@ end
 -- Layout, collapse and resize ----------------------------------------------------------------------------
 
 local function AreaWidth()
-	local width = EditorMainArea:GetWidth() or 0;
+	local width = root and root:GetParent() and root:GetParent():GetWidth() or 0;
 	return width > 200 and width or 1200;
 end
 
@@ -821,7 +821,7 @@ local function BuildMain(parent)
 
 	SE.mainWidth = min(1180, AreaWidth() - LEFT_OFFSET - 120);
 	ApplyLayout();
-	EditorMainArea:HookScript("OnSizeChanged", function() ApplyLayout(); end);
+	parent:HookScript("OnSizeChanged", function() ApplyLayout(); end);
 
 	SE.BuildServerSections(BuildSection);
 

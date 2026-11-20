@@ -34,21 +34,25 @@ local MINI_MIN_WIDTH = 320;
 local MINI_MIN_HEIGHT = 300;
 local COLLAPSE_WIDTH = 24;
 local COLLAPSE_SNAP = 48;
-local MINI_TOOLBAR_INSET = 54;
+local MINI_MAIN_TRIM = 48;
+local SECTION_STATUS_TIME = 0.25;
 
 local miniMode = false;
-local miniOpen = false;
 local modeApplied = false;
-local fullOnlyReturn;
-local autoSwitching = false;
-local miniTitle;
-local miniGrip;
-local mainBack;
+local fullReturn;
 local dockSplitter;
 local miniTabs = {};
+local sectionOrder = {};
+local sectionsById = {};
+local focusedSection;
+local focusClock = 0;
+local mouseWasDown = false;
+local sectionStatusElapsed = 0;
 local layout = { windows = {}, views = {}, sizes = {} };
 local layoutText;
 local layoutDirty = false;
+
+local SectionsOf, SectionFor, OpenSection, RefreshMiniTabs;
 
 -- The toggle keys are set in the game's Key Bindings menu under Game Editor.
 local function ToggleKeyText(mini)
@@ -89,9 +93,9 @@ local function Color(color, alpha)
 	return color[1], color[2], color[3], alpha or color[4];
 end
 
--- The mini editor shows only its bar until an editor is picked from it.
+-- The mini editor shows only its bar, every section opens in a window of its own.
 local function ChromeHidden()
-	return uiHidden or (miniMode and not miniOpen);
+	return uiHidden or miniMode;
 end
 
 local function SortedWorkspaces()
@@ -239,7 +243,7 @@ local function LoadLayout()
 	for entry in string.gmatch(layoutText, "[^\r\n]+") do
 		local key, value = string.match(entry, "^(%w+)=(.*)$");
 
-		if ( key == "ws" or key == "tool" or key == "fullws" or key == "miniws" ) then
+		if ( key == "ws" or key == "tool" or key == "miniws" or key == "open" or key == "focus" ) then
 			layout[key] = value;
 		elseif ( key == "miniopen" ) then
 			layout.miniopen = value == "1";
@@ -308,23 +312,38 @@ local function SaveLayout()
 
 	local parts = { "v1" };
 
-	if ( activeWorkspace ) then
-		table.insert(parts, "ws="..activeWorkspace.key);
+	local fullKey, fullTool;
 
-		if ( activeTool ) then
-			table.insert(parts, "tool="..activeTool);
+	-- The mini editor keeps the workspace the full editor goes back to.
+	if ( miniMode and fullReturn ) then
+		fullKey, fullTool = fullReturn.key, fullReturn.tool;
+	elseif ( miniMode ) then
+		fullKey, fullTool = layout.ws, layout.tool;
+	elseif ( activeWorkspace ) then
+		fullKey, fullTool = activeWorkspace.key, activeTool;
+	end
+
+	if ( fullKey ) then
+		table.insert(parts, "ws="..fullKey);
+
+		if ( fullTool ) then
+			table.insert(parts, "tool="..fullTool);
 		end
 	end
 
-	if ( fullOnlyReturn ) then
-		table.insert(parts, "fullws="..fullOnlyReturn);
+	local open = {};
+
+	for _, section in ipairs(sectionOrder) do
+		if ( section.open ) then
+			table.insert(open, section.id);
+		end
 	end
 
-	if ( layout.miniws ) then
-		table.insert(parts, "miniws="..layout.miniws);
-	end
+	table.insert(parts, "open="..table.concat(open, ","));
 
-	table.insert(parts, "miniopen="..(miniOpen and "1" or "0"));
+	if ( layout.focus ) then
+		table.insert(parts, "focus="..layout.focus);
+	end
 
 	local views = {};
 
@@ -1087,34 +1106,27 @@ local function DockWidth(workspace)
 end
 
 local function LayoutShell()
-	local top = (miniMode and miniTitle) or EditorMenuBar;
-	local inset = activeWorkspace and (activeWorkspace.visibleTools or 0) > 0 and MINI_TOOLBAR_INSET or 0;
-	local fillDock = miniMode and activeWorkspace and not activeWorkspace.main;
+	local top = EditorMenuBar;
 
 	EditorLeftToolbar:ClearAllPoints();
 	EditorLeftToolbar:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 5, -5);
 
-	-- A mini view of a workspace without a main area is all dock.
 	EditorToolDock:ClearAllPoints();
 	EditorToolDock:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT", 0, 0);
 	EditorToolDock:SetPoint("BOTTOMRIGHT", EditorStatusBar, "TOPRIGHT", 0, 0);
 
-	if ( fillDock ) then
-		EditorToolDock:SetPoint("TOPLEFT", top, "BOTTOMLEFT", inset, 0);
-	else
-		local width = activeWorkspace and DockWidth(activeWorkspace) or DOCK_WIDTH;
-		EditorToolDock:SetWidth(max(1, width));
+	local width = activeWorkspace and DockWidth(activeWorkspace) or DOCK_WIDTH;
+	EditorToolDock:SetWidth(max(1, width));
 
-		if ( width < COLLAPSE_WIDTH ) then
-			EditorToolDock:Hide();
-		elseif ( toolPanelShown and not ChromeHidden() ) then
-			EditorToolDock:Show();
-		end
+	if ( width < COLLAPSE_WIDTH ) then
+		EditorToolDock:Hide();
+	elseif ( toolPanelShown and not ChromeHidden() ) then
+		EditorToolDock:Show();
 	end
 
 	-- The handle stays while the dock is only collapsed, not when the tool has no dock or the UI is hidden.
 	if ( dockSplitter ) then
-		if ( fillDock or not activeWorkspace or not toolPanelShown or ChromeHidden() ) then
+		if ( not activeWorkspace or not toolPanelShown or ChromeHidden() ) then
 			dockSplitter:Hide();
 		else
 			dockSplitter:Show();
@@ -1143,7 +1155,7 @@ function GameEditor_SetToolPanelShown(shown)
 	LayoutShell();
 end
 
--- Shows the shell frames the mode, the Tab toggle and the mini view state call for.
+-- Shows the shell frames the mode and the Tab toggle call for.
 local function ApplyChrome()
 	local hidden = ChromeHidden();
 
@@ -1173,20 +1185,6 @@ local function ApplyChrome()
 		EditorViewToolbar:Hide();
 	end
 
-	local view = miniMode and miniOpen;
-
-	-- The view background sits on the main area itself so it always draws under the workspace frames.
-	if ( miniTitle ) then
-		if ( view ) then
-			miniTitle:Show();
-			mainBack:Show();
-		else
-			miniTitle:Hide();
-			mainBack:Hide();
-		end
-	end
-
-	EditorMainArea:EnableMouse(view);
 	GameEditor_SetToolPanelShown(toolPanelShown);
 end
 
@@ -1348,32 +1346,57 @@ local function RefreshToolButtons()
 	end
 end
 
--- The frame a workspace builds its dock panels or main area into, clipped to the shell unless noClip.
-local function WorkspaceHost(workspace, kind, area)
+-- The frames a workspace builds into, clipped unless noClip. trim slides inner left to hide the toolbar gutter.
+local function NewHost(workspace, area)
+	local host = {};
+
 	if ( workspace.noClip ) then
-		return area;
+		host.outer = CreateFrame("Frame", NoggitUI_NewName("GameEditorHost"), area);
+		host.content = host.outer;
+	else
+		host.outer, host.content = GameEditor_CreateClipFrame(area);
 	end
 
-	local field = kind.."Clip";
-
-	if ( not workspace[field] ) then
-		local clip = GameEditor_CreateClipFrame(area);
-		clip:SetAllPoints(area);
-		workspace[field] = clip;
-	end
-
-	return workspace[field].content;
+	host.inner = CreateFrame("Frame", NoggitUI_NewName("GameEditorHostInner"), host.content);
+	host.inner:SetAllPoints(host.content);
+	host.outer:SetAllPoints(area);
+	host.area = area;
+	return host;
 end
 
-local function SetWorkspaceClipsShown(workspace, shown)
-	for _, field in ipairs({ "dockClip", "mainClip" }) do
-		local clip = workspace[field];
+local function AttachHost(host, area, trim)
+	if ( host.outer:GetParent() ~= area ) then
+		host.outer:SetParent(area);
+	end
 
-		if ( clip and shown ) then
-			clip:Show();
-		elseif ( clip ) then
-			clip:Hide();
-		end
+	host.outer:ClearAllPoints();
+	host.outer:SetAllPoints(area);
+	host.inner:ClearAllPoints();
+	host.inner:SetPoint("TOPLEFT", host.content, "TOPLEFT", -(trim or 0), 0);
+	host.inner:SetPoint("BOTTOMRIGHT", host.content, "BOTTOMRIGHT", 0, 0);
+	host.outer:Show();
+	host.area = area;
+end
+
+local function MainHost(workspace)
+	workspace.mainHost = workspace.mainHost or NewHost(workspace, EditorMainArea);
+	return workspace.mainHost;
+end
+
+-- Every place that shows a workspace's tool panels has its own host, "full" for the shell dock and one per mini section.
+local function DockHost(workspace, key)
+	workspace.dockHosts = workspace.dockHosts or {};
+	workspace.dockHosts[key] = workspace.dockHosts[key] or NewHost(workspace, EditorToolDockContent);
+	return workspace.dockHosts[key];
+end
+
+local function BuildMain(workspace)
+	if ( workspace.buildMain and not workspace.main ) then
+		workspace.main = SafeCall(workspace.key, workspace.buildMain, MainHost(workspace).inner);
+	end
+
+	if ( workspace.main ) then
+		workspace.main:Show();
 	end
 end
 
@@ -1383,6 +1406,102 @@ local function HidePanels(workspace)
 	end
 end
 
+-- Several tools can share one panel, so a panel moves into whichever host shows it.
+local function ShowPanel(workspace, tool, host)
+	local panel = workspace.panels[tool.key];
+
+	if ( not panel and tool.build and not tool.noPanel ) then
+		panel = SafeCall(workspace.key, tool.build, host.inner);
+		workspace.panels[tool.key] = panel;
+	end
+
+	if ( panel ) then
+		if ( panel:GetParent() ~= host.inner ) then
+			panel:SetParent(host.inner);
+		end
+
+		panel:ClearAllPoints();
+		panel:SetPoint("TOPLEFT", host.inner, "TOPLEFT", 0, 0);
+		panel:SetPoint("BOTTOMRIGHT", host.inner, "BOTTOMRIGHT", 0, 0);
+		panel:Show();
+	end
+
+	return panel;
+end
+
+-- Hides what a workspace shows in the full editor's shell.
+local function HideFullUI(workspace)
+	HidePanels(workspace);
+
+	for _, field in ipairs({ "toolbar", "viewbar", "menuStrip" }) do
+		if ( workspace[field] ) then
+			workspace[field]:Hide();
+		end
+	end
+
+	if ( workspace.mainHost and workspace.mainHost.area == EditorMainArea ) then
+		workspace.mainHost.outer:Hide();
+	end
+
+	if ( workspace.dockHosts and workspace.dockHosts.full ) then
+		workspace.dockHosts.full.outer:Hide();
+	end
+end
+
+-- A workspace is live while it shows anywhere. Closing the editor suspends it, reopening runs onActivate again.
+local function Activate(workspace)
+	if ( workspace.live and not workspace.suspended ) then
+		return;
+	end
+
+	workspace.live = true;
+	workspace.suspended = nil;
+	SafeCall(workspace.key, workspace.onActivate);
+	ShowWorkspaceWindows(workspace);
+end
+
+local function Deactivate(workspace, closing)
+	if ( not workspace.live ) then
+		return;
+	end
+
+	local suspended = workspace.suspended;
+	workspace.live = nil;
+	workspace.suspended = nil;
+
+	if ( not suspended ) then
+		SafeCall(workspace.key, workspace.onDeactivate, closing);
+	end
+
+	HideWorkspaceWindows(workspace);
+end
+
+local function Suspend()
+	for _, workspace in ipairs(ordered) do
+		if ( workspace.live and not workspace.suspended ) then
+			SafeCall(workspace.key, workspace.onDeactivate, true);
+			workspace.suspended = true;
+		end
+	end
+end
+
+local function Resume()
+	for _, workspace in ipairs(ordered) do
+		if ( workspace.live and workspace.suspended ) then
+			workspace.suspended = nil;
+			SafeCall(workspace.key, workspace.onActivate);
+		end
+	end
+
+	GameEditor_SetTool(activeTool or "select");
+end
+
+-- True while the workspace shows, in the full editor or in any mini window.
+function GameEditor_IsWorkspaceOpen(key)
+	local workspace = workspaces[key];
+	return (workspace and workspace.live and not workspace.suspended) and true or false;
+end
+
 function GameEditor_SelectTool(key)
 	local tool, workspace = FindTool(key);
 
@@ -1390,17 +1509,7 @@ function GameEditor_SelectTool(key)
 		return;
 	end
 
-	if ( miniMode and tool.world ) then
-		tool = MiniTools(workspace)[1];
-
-		if ( not tool ) then
-			return;
-		end
-
-		key = tool.key;
-	end
-
-	if ( workspace ~= activeWorkspace ) then
+	if ( miniMode or workspace ~= activeWorkspace ) then
 		GameEditor_SetWorkspace(workspace.key, key);
 		return;
 	end
@@ -1410,33 +1519,9 @@ function GameEditor_SelectTool(key)
 	GameEditor_SetTool(key);
 
 	HidePanels(workspace);
-
-	if ( not tool.noPanel and tool.build and not workspace.panels[key] ) then
-		local host = WorkspaceHost(workspace, "dock", EditorToolDockContent);
-		local panel = SafeCall(workspace.key, tool.build, host);
-
-		if ( panel ) then
-			panel:ClearAllPoints();
-			panel:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0);
-			panel:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0);
-			workspace.panels[key] = panel;
-		end
-	end
-
-	local panel = workspace.panels[key];
-
-	if ( panel ) then
-		panel:Show();
-	end
-
+	local panel = ShowPanel(workspace, tool, DockHost(workspace, "full"));
 	EditorToolDockTitleText:SetText(tool.name or key);
-
-	if ( tool.noPanel or not panel ) then
-		GameEditor_SetToolPanelShown(false);
-	else
-		GameEditor_SetToolPanelShown(true);
-	end
-
+	GameEditor_SetToolPanelShown(panel ~= nil and not tool.noPanel);
 	RefreshToolButtons();
 	SafeCall(workspace.key, workspace.onToolSelected, key);
 end
@@ -1590,8 +1675,14 @@ function GameEditor_SetWorkspace(key, toolKey)
 		return;
 	end
 
-	if ( not autoSwitching ) then
-		fullOnlyReturn = nil;
+	if ( miniMode ) then
+		local section = SectionFor(workspace, toolKey);
+
+		if ( section ) then
+			OpenSection(section);
+		end
+
+		return;
 	end
 
 	NoggitMenu_CloseAll();
@@ -1599,32 +1690,12 @@ function GameEditor_SetWorkspace(key, toolKey)
 
 	if ( activeWorkspace and activeWorkspace ~= workspace ) then
 		local previous = activeWorkspace;
-		SafeCall(previous.key, previous.onDeactivate);
-		HidePanels(previous);
-		HideWorkspaceWindows(previous);
-
-		if ( previous.toolbar ) then
-			previous.toolbar:Hide();
-		end
-
-		if ( previous.viewbar ) then
-			previous.viewbar:Hide();
-		end
-
-		if ( previous.menuStrip ) then
-			previous.menuStrip:Hide();
-		end
-
-		if ( previous.main ) then
-			previous.main:Hide();
-		end
-
-		SetWorkspaceClipsShown(previous, false);
+		Deactivate(previous);
+		HideFullUI(previous);
 	end
 
 	activeWorkspace = workspace;
 	EditorToolDock:SetWidth(workspace.dockWidth or DOCK_WIDTH);
-	SetWorkspaceClipsShown(workspace, true);
 
 	BuildToolbar(workspace);
 	BuildViewbar(workspace);
@@ -1642,17 +1713,14 @@ function GameEditor_SetWorkspace(key, toolKey)
 		workspace.menuStrip:Show();
 	end
 
-	if ( workspace.buildMain and not workspace.main ) then
-		workspace.main = SafeCall(workspace.key, workspace.buildMain, WorkspaceHost(workspace, "main", EditorMainArea));
+	if ( workspace.buildMain ) then
+		AttachHost(MainHost(workspace), EditorMainArea, 0);
+		BuildMain(workspace);
 	end
 
-	if ( workspace.main ) then
-		workspace.main:Show();
-	end
-
+	AttachHost(DockHost(workspace, "full"), EditorToolDockContent, 0);
 	RefreshWorkspaceTabs();
-	SafeCall(workspace.key, workspace.onActivate);
-	ShowWorkspaceWindows(workspace);
+	Activate(workspace);
 
 	local tool = toolKey or workspace.lastTool or (workspace.tools[1] and workspace.tools[1].key);
 
@@ -1665,16 +1733,7 @@ function GameEditor_SetWorkspace(key, toolKey)
 	end
 
 	GameEditor_RefreshViewToolbar();
-
-	if ( miniMode ) then
-		layout.miniws = workspace.key;
-	end
-
-	if ( miniMode and not autoSwitching ) then
-		miniOpen = true;
-	end
-
-	GameEditor_RefreshMiniView();
+	ApplyChrome();
 	layoutDirty = true;
 end
 
@@ -1704,164 +1763,527 @@ local function MiniEntries(workspace)
 	return entries;
 end
 
-local function IsCurrentEntry(entry)
-	return activeWorkspace == entry.workspace and (not entry.split or activeTool == entry.tool);
+local function ToolOf(workspace, key)
+	for _, tool in ipairs(workspace.tools) do
+		if ( tool.key == key ) then
+			return tool;
+		end
+	end
 end
 
-local function CurrentEntryTitle()
-	if ( not activeWorkspace ) then
-		return "";
+-- Each bar entry is a section with a window of its own, a tool sets sectionMain to fill the main area itself.
+function SectionsOf(workspace)
+	if ( workspace.sections ) then
+		return workspace.sections;
 	end
 
-	for _, entry in ipairs(MiniEntries(activeWorkspace)) do
-		if ( IsCurrentEntry(entry) ) then
-			local category = activeWorkspace.category;
-			return category and category ~= entry.title and (category..": "..entry.title) or entry.title;
+	workspace.sections = {};
+
+	if ( workspace.fullOnly ) then
+		return workspace.sections;
+	end
+
+	for _, entry in ipairs(MiniEntries(workspace)) do
+		local id = workspace.key;
+
+		if ( entry.split ) then
+			id = string.gsub(workspace.key.."_"..entry.tool, "[^%w_]", "_");
+		end
+
+		local tool = entry.tool and ToolOf(workspace, entry.tool);
+		local category = workspace.category;
+		local section = {
+			id = id,
+			workspace = workspace,
+			tool = entry.tool,
+			title = entry.title,
+			split = entry.split,
+			fullTitle = category and category ~= entry.title and (category..": "..entry.title) or entry.title,
+			sectionMain = tool and tool.sectionMain,
+		};
+
+		section.hasMain = (section.sectionMain or workspace.buildMain) and true or false;
+		section.hasPanel = (tool and tool.build and not tool.noPanel) and true or false;
+		table.insert(workspace.sections, section);
+		table.insert(sectionOrder, section);
+		sectionsById[id] = section;
+	end
+
+	return workspace.sections;
+end
+
+local function AnyOpen(workspace)
+	for _, section in ipairs(SectionsOf(workspace)) do
+		if ( section.open ) then
+			return true;
 		end
 	end
 
-	return activeWorkspace.title or activeWorkspace.key;
+	return false;
+end
+
+local function LatestOpen()
+	local best;
+
+	for _, section in ipairs(sectionOrder) do
+		if ( section.open and (not best or (section.focusTime or 0) > (best.focusTime or 0)) ) then
+			best = section;
+		end
+	end
+
+	return best;
+end
+
+-- The section a tool key opens, a key without its own section goes to the open one or the last one used.
+function SectionFor(workspace, toolKey)
+	local list = SectionsOf(workspace);
+
+	if ( #list <= 1 ) then
+		return list[1];
+	end
+
+	local open, last;
+
+	for _, section in ipairs(list) do
+		if ( toolKey and section.tool == toolKey ) then
+			return section;
+		end
+
+		if ( section.open and (not open or (section.focusTime or 0) > (open.focusTime or 0)) ) then
+			open = section;
+		end
+
+		if ( section.tool == workspace.lastTool ) then
+			last = section;
+		end
+	end
+
+	return open or last or list[1];
 end
 
 local function ScreenSize()
 	return EditorParent:GetWidth() or 1024, EditorParent:GetHeight() or 768;
 end
 
--- The view of each workspace keeps its own place and size, a new one opens under the bar.
-local function ViewRect(workspace)
-	local saved = layout.views[workspace.key];
+local function SectionMainMin(section)
+	return max(0, MainMinWidth(section.workspace) - MINI_MAIN_TRIM);
+end
 
-	if ( saved ) then
-		return saved[1], saved[2], saved[3], saved[4];
+local function SectionDockWidth(section)
+	local workspace = section.workspace;
+	local wanted = layout.sizes["dock_"..section.id] or layout.sizes["dock_"..workspace.key] or workspace.dockWidth or DOCK_WIDTH;
+	local room = (section.window.body:GetWidth() or 0) - SectionMainMin(section);
+	return max(0, min(wanted, room));
+end
+
+local function LayoutSection(section)
+	local window = section.window;
+
+	if ( not window ) then
+		return;
 	end
 
-	local screenWidth, screenHeight = ScreenSize();
-	local width, height;
+	local body, main, dock, splitter = window.body, window.mainArea, window.dockArea, window.splitter;
+	main:ClearAllPoints();
+	dock:ClearAllPoints();
 
-	if ( workspace.buildMain ) then
-		width, height = min(1180, screenWidth - 80), min(680, screenHeight - 140);
+	if ( not section.hasMain ) then
+		main:Hide();
+		splitter:Hide();
+		dock:SetAllPoints(body);
+		dock:Show();
+		return;
+	end
+
+	main:Show();
+	main:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0);
+
+	if ( not section.hasPanel ) then
+		dock:Hide();
+		splitter:Hide();
+		main:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 0);
+		return;
+	end
+
+	local width = SectionDockWidth(section);
+	dock:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, 0);
+	dock:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 0);
+	splitter:Show();
+
+	if ( width < COLLAPSE_WIDTH ) then
+		dock:SetWidth(1);
+		dock:Hide();
+		main:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 0);
 	else
-		width, height = (workspace.dockWidth or DOCK_WIDTH) + MINI_TOOLBAR_INSET, min(640, screenHeight - 140);
+		dock:SetWidth(width);
+		dock:Show();
+		main:SetPoint("BOTTOMRIGHT", dock, "BOTTOMLEFT", 0, 0);
 	end
-
-	return Round((screenWidth - width) / 2), Round(screenHeight - 50), Round(width), Round(height);
 end
 
-local function PlaceView()
-	if ( not activeWorkspace ) then
-		return;
-	end
-
-	local left, top, width, height = ViewRect(activeWorkspace);
-	EditorFrameRect:SetMinResize(MINI_MIN_WIDTH, MINI_MIN_HEIGHT);
-	PlaceAt(EditorFrameRect, left, top, max(MINI_MIN_WIDTH, width), max(MINI_MIN_HEIGHT, height));
-end
-
-local function EndMiniMove()
-	EditorFrameRect:StopMovingOrSizing();
-
-	if ( not miniMode or not activeWorkspace ) then
-		return;
-	end
-
-	local left, top, width, height = FrameRect(EditorFrameRect);
+local function EndSectionMove(section)
+	local window = section.window;
+	window:StopMovingOrSizing();
+	local left, top, width, height = FrameRect(window);
 
 	if ( left ) then
-		layout.views[activeWorkspace.key] = { left, top, width, height };
+		layout.views[section.id] = { left, top, width, height };
+		PlaceAt(window, left, top, width, height);
 	end
 
-	PlaceView();
 	layoutDirty = true;
 end
 
-local function StartMiniMove()
-	if ( miniMode and miniOpen ) then
-		EditorParent:Raise();
-		EditorFrameRect:StartMoving();
+local CloseSection;
+
+local function SectionWindow(section)
+	if ( section.window ) then
+		return section.window;
+	end
+
+	local name = "GameEditorSection_"..section.id;
+	local window = CreateFrame("Frame", name, EditorParent, "NoggitBoxTemplate");
+	window:SetFrameStrata("MEDIUM");
+	window:SetToplevel(true);
+	window:EnableMouse(true);
+	window:SetMovable(true);
+	window:SetResizable(true);
+	window:SetClampedToScreen(true);
+	window:SetMinResize(MINI_MIN_WIDTH, MINI_MIN_HEIGHT);
+	window:Hide();
+	NoggitBox_Set(window, NOGGIT_COLOR_BASE, NOGGIT_COLOR_MID);
+	window.editorSection = section;
+	section.window = window;
+
+	local bar = CreateFrame("Frame", name.."Bar", window, "NoggitBoxTemplate");
+	bar:SetHeight(24);
+	bar:SetPoint("TOPLEFT", window, "TOPLEFT", 0, 0);
+	bar:SetPoint("TOPRIGHT", window, "TOPRIGHT", 0, 0);
+	bar:EnableMouse(true);
+	bar:RegisterForDrag("LeftButton");
+	bar:SetScript("OnDragStart", function() window:StartMoving(); end);
+	bar:SetScript("OnDragStop", function() EndSectionMove(section); end);
+	NoggitBox_Set(bar, NOGGIT_COLOR_DARK, NOGGIT_COLOR_MID);
+
+	local title = NoggitUI_FontString(bar, section.fullTitle);
+	title:SetPoint("LEFT", bar, "LEFT", 10, 0);
+	title:SetPoint("RIGHT", bar, "RIGHT", -40, 0);
+
+	local close = CreateFrame("Button", name.."Close", bar, "NoggitBoxTemplate");
+	close:SetWidth(32);
+	close:SetHeight(24);
+	close:SetPoint("RIGHT", bar, "RIGHT", 0, 0);
+	NoggitBox_Set(close, NOGGIT_COLOR_DARK, nil);
+	local icon = close:CreateTexture(nil, "ARTWORK");
+	icon:SetTexture("Interface\\GameEditor\\Textures\\icon_close.tga");
+	icon:SetTexCoord(0, 0.875, 0, 0.875);
+	icon:SetWidth(12);
+	icon:SetHeight(12);
+	icon:SetPoint("CENTER", close, "CENTER", 0, 0);
+	close:SetScript("OnEnter", function(self)
+		NoggitBox_Set(self, NOGGIT_COLOR_MID, nil);
+		NoggitTooltip_Show(self, "Close this editor, the bar and the other windows stay");
+	end);
+	close:SetScript("OnLeave", function(self)
+		NoggitBox_Set(self, NOGGIT_COLOR_DARK, nil);
+		NoggitTooltip_Hide();
+	end);
+	close:SetScript("OnClick", function() CloseSection(section); end);
+
+	local foot = CreateFrame("Frame", name.."Foot", window);
+	foot:SetHeight(18);
+	foot:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", 0, 0);
+	foot:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", 0, 0);
+
+	window.statusText = NoggitUI_FontString(foot, "");
+	window.statusText:SetPoint("LEFT", foot, "LEFT", 8, 0);
+	window.feedbackLine = NoggitUI_FontString(foot, "");
+	window.feedbackLine:SetPoint("LEFT", window.statusText, "RIGHT", 12, 0);
+	window.feedbackLine:SetPoint("RIGHT", foot, "RIGHT", -18, 0);
+
+	local body = CreateFrame("Frame", name.."Body", window);
+	body:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 1, 0);
+	body:SetPoint("BOTTOMRIGHT", foot, "TOPRIGHT", -1, 0);
+	window.body = body;
+
+	window.mainArea = CreateFrame("Frame", name.."Main", body);
+	NoggitUI_SolidTexture(window.mainArea, "BACKGROUND", NOGGIT_COLOR_DARK):SetAllPoints(window.mainArea);
+	window.dockArea = CreateFrame("Frame", name.."Dock", body);
+
+	window.splitter = GameEditor_CreateSplitter(body, {
+		sign = -1,
+		collapse = COLLAPSE_SNAP,
+		get = function() return window.dockArea:IsShown() and window.dockArea:GetWidth() or 0; end,
+		set = function(width)
+			GameEditor_SetLayoutSize("dock_"..section.id, width);
+			LayoutSection(section);
+		end,
+		max = function() return max(0, (body:GetWidth() or 0) - SectionMainMin(section)); end,
+	});
+	window.splitter:SetPoint("TOPLEFT", window.dockArea, "TOPLEFT", -3, 0);
+	window.splitter:SetPoint("BOTTOMLEFT", window.dockArea, "BOTTOMLEFT", -3, 0);
+	window.splitter:SetFrameLevel(window:GetFrameLevel() + 40);
+
+	local grip = CreateFrame("Button", name.."Grip", window);
+	grip:SetWidth(14);
+	grip:SetHeight(14);
+	grip:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -1, 1);
+	local mark = NoggitUI_SolidTexture(grip, "ARTWORK", NOGGIT_COLOR_HOVER);
+	mark:SetWidth(8);
+	mark:SetHeight(8);
+	mark:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", -2, 2);
+	grip:SetScript("OnMouseDown", function() window:StartSizing("BOTTOMRIGHT"); end);
+	grip:SetScript("OnMouseUp", function() EndSectionMove(section); end);
+	grip:SetFrameLevel(window:GetFrameLevel() + 45);
+
+	window:SetScript("OnSizeChanged", function() LayoutSection(section); end);
+	return window;
+end
+
+local function OpenCount()
+	local count = 0;
+
+	for _, section in ipairs(sectionOrder) do
+		if ( section.window and section.window:IsShown() ) then
+			count = count + 1;
+		end
+	end
+
+	return count;
+end
+
+-- A section goes back where it was moved to, a new one opens under the bar a step down from the last.
+local function PlaceSection(section)
+	local saved = layout.views[section.id];
+	local left, top, width, height;
+
+	if ( saved ) then
+		left, top, width, height = saved[1], saved[2], saved[3], saved[4];
+	else
+		local screenWidth, screenHeight = ScreenSize();
+
+		if ( section.hasMain ) then
+			width, height = min(1180, screenWidth - 80), min(680, screenHeight - 140);
+		else
+			width, height = (section.workspace.dockWidth or DOCK_WIDTH) + 4, min(640, screenHeight - 140);
+		end
+
+		local offset = 24 * OpenCount();
+		left, top = Round((screenWidth - width) / 2) + offset, Round(screenHeight - 50) - offset;
+	end
+
+	PlaceAt(section.window, left, top, max(MINI_MIN_WIDTH, width), max(MINI_MIN_HEIGHT, height));
+end
+
+local function AttachSection(section)
+	local workspace = section.workspace;
+	local window = SectionWindow(section);
+
+	if ( section.sectionMain ) then
+		section.mainHost = section.mainHost or NewHost(workspace, window.mainArea);
+		AttachHost(section.mainHost, window.mainArea, 0);
+		SafeCall(workspace.key, section.sectionMain, section.mainHost.inner);
+	elseif ( section.hasMain ) then
+		AttachHost(MainHost(workspace), window.mainArea, MINI_MAIN_TRIM);
+		BuildMain(workspace);
+	end
+
+	if ( section.hasPanel ) then
+		local host = DockHost(workspace, section.id);
+		AttachHost(host, window.dockArea, 0);
+		ShowPanel(workspace, ToolOf(workspace, section.tool), host);
 	end
 end
 
-local function RefreshMiniTabs()
+-- The focused section owns the menu bar, the hotkeys and the world tool.
+local function FocusSection(section)
+	local workspace = section.workspace;
+	local changed = focusedSection ~= section;
+	focusClock = focusClock + 1;
+	section.focusTime = focusClock;
+	focusedSection = section;
+	layout.focus = section.id;
+
+	if ( activeWorkspace ~= workspace ) then
+		if ( activeWorkspace and activeWorkspace.menuStrip ) then
+			activeWorkspace.menuStrip:Hide();
+		end
+
+		activeWorkspace = workspace;
+	end
+
+	if ( workspace.menuStrip ) then
+		workspace.menuStrip:Show();
+	end
+
+	activeTool = section.tool;
+
+	if ( section.tool ) then
+		workspace.lastTool = section.tool;
+	end
+
+	NoggitFeedback_DefaultLine = section.window.feedbackLine;
+	GameEditor_SetTool(section.tool or "select");
+
+	if ( changed ) then
+		SafeCall(workspace.key, workspace.onToolSelected, section.tool);
+	end
+
+	GameEditor_RefreshViewToolbar();
+	RefreshMiniTabs();
+	layoutDirty = true;
+end
+
+local function ClearFocus()
+	if ( activeWorkspace and activeWorkspace.menuStrip ) then
+		activeWorkspace.menuStrip:Hide();
+	end
+
+	focusedSection = nil;
+	activeWorkspace = nil;
+	activeTool = nil;
+	NoggitFeedback_DefaultLine = statusFeedback;
+	GameEditor_SetTool("select");
+end
+
+function OpenSection(section)
+	local workspace = section.workspace;
+	NoggitMenu_CloseAll();
+	NoggitTooltip_Hide();
+	BuildMenuStrip(workspace);
+
+	local window = SectionWindow(section);
+
+	if ( not window:IsShown() ) then
+		AttachSection(section);
+		PlaceSection(section);
+		section.open = true;
+		window:Show();
+		Activate(workspace);
+	end
+
+	window:Raise();
+	LayoutSection(section);
+	FocusSection(section);
+	layoutDirty = true;
+end
+
+function CloseSection(section)
+	section.open = false;
+	NoggitMenu_CloseAll();
+	NoggitTooltip_Hide();
+
+	if ( section.window ) then
+		section.window:Hide();
+	end
+
+	local workspace = section.workspace;
+
+	if ( not AnyOpen(workspace) ) then
+		Deactivate(workspace);
+
+		if ( workspace.menuStrip ) then
+			workspace.menuStrip:Hide();
+		end
+	end
+
+	if ( focusedSection == section ) then
+		local latest = LatestOpen();
+
+		if ( latest ) then
+			FocusSection(latest);
+		else
+			ClearFocus();
+			layout.focus = nil;
+		end
+	end
+
+	RefreshMiniTabs();
+	layoutDirty = true;
+end
+
+-- Called on a mouse press, the window under the cursor takes the focus.
+local function FocusUnderMouse()
+	local frame = GetMouseFocus();
+
+	while ( frame ) do
+		local section = frame.editorSection;
+
+		if ( section ) then
+			if ( section ~= focusedSection and section.open ) then
+				FocusSection(section);
+			end
+
+			return;
+		end
+
+		frame = frame.GetParent and frame:GetParent();
+	end
+end
+
+-- Each window shows its workspace's status cells, a split workspace only updates the focused one.
+local function UpdateSectionStatus(elapsed)
+	sectionStatusElapsed = sectionStatusElapsed + elapsed;
+
+	if ( sectionStatusElapsed < SECTION_STATUS_TIME ) then
+		return;
+	end
+
+	sectionStatusElapsed = 0;
+
+	for _, section in ipairs(sectionOrder) do
+		local window = section.window;
+		local workspace = section.workspace;
+
+		if ( window and window:IsVisible() and workspace.status and (not section.split or section == focusedSection) ) then
+			local cells = SafeCall(workspace.key, workspace.status);
+			window.statusText:SetText(type(cells) == "table" and table.concat(cells, "    ") or "");
+		end
+	end
+end
+
+local function ToggleSection(section)
+	if ( section.open and section == focusedSection and section.window and section.window:IsShown() ) then
+		CloseSection(section);
+	else
+		OpenSection(section);
+	end
+end
+
+function RefreshMiniTabs()
 	local width = 0;
 
 	for _, tab in ipairs(miniTabs) do
-		local active = false;
+		local open, focused;
 
-		for _, entry in ipairs(tab.entries) do
-			if ( IsCurrentEntry(entry) ) then
-				active = true;
+		for _, section in ipairs(tab.sections) do
+			if ( section.open ) then
+				open = true;
+			end
 
-				if ( tab.dropdown ) then
-					tab.text:SetText(tab.title..": "..entry.title);
-				end
+			if ( section == focusedSection ) then
+				focused = section;
 			end
 		end
 
-		if ( tab.dropdown and not active ) then
-			tab.text:SetText(tab.title);
+		if ( tab.dropdown ) then
+			tab.text:SetText(focused and (tab.title..": "..focused.title) or tab.title);
 		end
 
 		tab:SetWidth(tab.text:GetStringWidth() + (tab.dropdown and 38 or 24));
-		NoggitBox_Set(tab, (active and miniOpen) and NOGGIT_COLOR_ACCENT or ((active or tab.hover) and NOGGIT_COLOR_HOVER or NOGGIT_COLOR_BASE), nil);
+		NoggitBox_Set(tab, (miniMode and focused) and NOGGIT_COLOR_ACCENT or (tab.hover and NOGGIT_COLOR_HOVER or NOGGIT_COLOR_BASE), nil);
+
+		if ( open and not focused ) then
+			tab.underline:Show();
+		else
+			tab.underline:Hide();
+		end
+
 		width = width + tab:GetWidth() + 2;
 	end
 
 	if ( miniTabs.holder ) then
 		miniTabs.holder:SetWidth(max(10, width));
-	end
-
-	if ( miniTitle ) then
-		miniTitle.text:SetText(CurrentEntryTitle());
-	end
-end
-
-function GameEditor_RefreshMiniView()
-	if ( not miniTitle ) then
-		return;
-	end
-
-	if ( miniMode and miniOpen ) then
-		PlaceView();
-	end
-
-	ApplyChrome();
-	RefreshMiniTabs();
-end
-
-local function SetMiniOpen(open)
-	miniOpen = open and true or false;
-	NoggitMenu_CloseAll();
-	NoggitTooltip_Hide();
-	GameEditor_RefreshMiniView();
-
-	if ( miniOpen ) then
-		EditorParent:Raise();
-	end
-
-	layoutDirty = true;
-end
-
-local function OpenEntry(entry)
-	if ( activeWorkspace ~= entry.workspace ) then
-		GameEditor_SetWorkspace(entry.workspace.key, entry.tool);
-	elseif ( entry.tool and activeTool ~= entry.tool ) then
-		GameEditor_SelectTool(entry.tool);
-	end
-
-	if ( activeWorkspace == entry.workspace ) then
-		SetMiniOpen(true);
-	end
-end
-
-local function FirstMiniWorkspace()
-	if ( layout.miniws and workspaces[layout.miniws] and not workspaces[layout.miniws].fullOnly ) then
-		return workspaces[layout.miniws];
-	end
-
-	for _, workspace in ipairs(SortedWorkspaces()) do
-		if ( not workspace.fullOnly ) then
-			return workspace;
-		end
 	end
 end
 
@@ -1874,23 +2296,26 @@ local function BuildMiniTabs()
 	local previous;
 
 	for _, group in ipairs(TabEntries()) do
-		local entries = {};
+		local sections = {};
 
 		for _, workspace in ipairs(group.workspaces or { group.workspace }) do
-			if ( not workspace.fullOnly ) then
-				for _, entry in ipairs(MiniEntries(workspace)) do
-					table.insert(entries, entry);
-				end
+			for _, section in ipairs(SectionsOf(workspace)) do
+				table.insert(sections, section);
 			end
 		end
 
-		if ( #entries > 0 ) then
+		if ( #sections > 0 ) then
 			local tab = CreateFrame("Button", NoggitUI_NewName("GameEditorMiniTab"), holder, "NoggitBoxTemplate");
 			tab:SetHeight(22);
-			tab.entries = entries;
-			tab.dropdown = #entries > 1;
+			tab.sections = sections;
+			tab.dropdown = #sections > 1;
 			tab.title = group.title;
 			tab.text = NoggitUI_FontString(tab, tab.title, nil, "CENTER");
+			tab.underline = NoggitUI_SolidTexture(tab, "OVERLAY", NOGGIT_COLOR_ACCENT);
+			tab.underline:SetHeight(2);
+			tab.underline:SetPoint("BOTTOMLEFT", tab, "BOTTOMLEFT", 2, 1);
+			tab.underline:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", -2, 1);
+			tab.underline:Hide();
 
 			if ( tab.dropdown ) then
 				tab.text:SetPoint("LEFT", tab, "LEFT", 12, 0);
@@ -1900,11 +2325,11 @@ local function BuildMiniTabs()
 
 				local items = {};
 
-				for _, entry in ipairs(entries) do
+				for _, section in ipairs(sections) do
 					table.insert(items, {
-						text = entry.title,
-						checked = function() return IsCurrentEntry(entry); end,
-						onClick = function() OpenEntry(entry); end,
+						text = section.title,
+						checked = function() return section.open; end,
+						onClick = function() ToggleSection(section); end,
 					});
 				end
 
@@ -1913,15 +2338,7 @@ local function BuildMiniTabs()
 				end);
 			else
 				tab.text:SetPoint("CENTER", tab, "CENTER", 0, 0);
-				tab:SetScript("OnClick", function()
-					local entry = entries[1];
-
-					if ( miniOpen and IsCurrentEntry(entry) ) then
-						SetMiniOpen(false);
-					else
-						OpenEntry(entry);
-					end
-				end);
+				tab:SetScript("OnClick", function() ToggleSection(sections[1]); end);
 			end
 
 			tab:SetScript("OnEnter", function(self)
@@ -1947,12 +2364,25 @@ local function BuildMiniTabs()
 	RefreshMiniTabs();
 end
 
-local function BuildMiniChrome()
-	mainBack = NoggitUI_SolidTexture(EditorMainArea, "BACKGROUND", NOGGIT_COLOR_DARK);
-	mainBack:SetAllPoints(EditorMainArea);
-	mainBack:Hide();
+-- Marks the sections the layout file had open, the windows open the first time the mini editor shows.
+local function RestoreSections()
+	if ( layout.open ) then
+		for id in string.gmatch(layout.open, "[%w_]+") do
+			if ( sectionsById[id] ) then
+				sectionsById[id].open = true;
+			end
+		end
+	elseif ( layout.miniopen and layout.miniws and workspaces[layout.miniws] ) then
+		local section = SectionsOf(workspaces[layout.miniws])[1];
 
-	EditorMainArea:SetScript("OnMouseDown", function() EditorParent:Raise(); end);
+		if ( section ) then
+			section.open = true;
+			layout.focus = section.id;
+		end
+	end
+end
+
+local function BuildMiniChrome()
 	EditorFrameRect:SetScript("OnSizeChanged", function() LayoutShell(); end);
 
 	dockSplitter = GameEditor_CreateSplitter(EditorParent, {
@@ -1969,60 +2399,6 @@ local function BuildMiniChrome()
 	dockSplitter:SetPoint("BOTTOMLEFT", EditorToolDock, "BOTTOMLEFT", -3, 0);
 	dockSplitter:SetFrameLevel(EditorToolDock:GetFrameLevel() + 4);
 
-	miniTitle = CreateFrame("Frame", "GameEditorMiniTitle", EditorParent, "NoggitBoxTemplate");
-	miniTitle:SetHeight(24);
-	miniTitle:SetPoint("TOPLEFT", EditorFrameRect, "TOPLEFT", 0, 0);
-	miniTitle:SetPoint("TOPRIGHT", EditorFrameRect, "TOPRIGHT", 0, 0);
-	miniTitle:EnableMouse(true);
-	miniTitle:RegisterForDrag("LeftButton");
-	miniTitle:SetScript("OnDragStart", StartMiniMove);
-	miniTitle:SetScript("OnDragStop", EndMiniMove);
-	NoggitBox_Set(miniTitle, NOGGIT_COLOR_DARK, NOGGIT_COLOR_MID);
-	miniTitle.text = NoggitUI_FontString(miniTitle, "");
-	miniTitle.text:SetPoint("LEFT", miniTitle, "LEFT", 10, 0);
-	miniTitle.text:SetPoint("RIGHT", miniTitle, "RIGHT", -40, 0);
-
-	local close = CreateFrame("Button", "GameEditorMiniClose", miniTitle, "NoggitBoxTemplate");
-	close:SetWidth(32);
-	close:SetHeight(24);
-	close:SetPoint("RIGHT", miniTitle, "RIGHT", 0, 0);
-	NoggitBox_Set(close, NOGGIT_COLOR_DARK, nil);
-	local icon = close:CreateTexture(nil, "ARTWORK");
-	icon:SetTexture("Interface\\GameEditor\\Textures\\icon_close.tga");
-	icon:SetTexCoord(0, 0.875, 0, 0.875);
-	icon:SetWidth(12);
-	icon:SetHeight(12);
-	icon:SetPoint("CENTER", close, "CENTER", 0, 0);
-	close:SetScript("OnEnter", function(self)
-		NoggitBox_Set(self, NOGGIT_COLOR_MID, nil);
-		NoggitTooltip_Show(self, "Close this editor, the bar stays");
-	end);
-	close:SetScript("OnLeave", function(self)
-		NoggitBox_Set(self, NOGGIT_COLOR_DARK, nil);
-		NoggitTooltip_Hide();
-	end);
-	close:SetScript("OnClick", function() SetMiniOpen(false); end);
-	miniTitle:Hide();
-
-	EditorStatusBar:RegisterForDrag("LeftButton");
-	EditorStatusBar:SetScript("OnDragStart", StartMiniMove);
-	EditorStatusBar:SetScript("OnDragStop", EndMiniMove);
-
-	miniGrip = CreateFrame("Button", "GameEditorMiniGrip", EditorStatusBar);
-	miniGrip:SetWidth(14);
-	miniGrip:SetHeight(14);
-	miniGrip:SetPoint("BOTTOMRIGHT", EditorStatusBar, "BOTTOMRIGHT", -1, 1);
-	local mark = NoggitUI_SolidTexture(miniGrip, "ARTWORK", NOGGIT_COLOR_HOVER);
-	mark:SetWidth(8);
-	mark:SetHeight(8);
-	mark:SetPoint("BOTTOMRIGHT", miniGrip, "BOTTOMRIGHT", -2, 2);
-	miniGrip:SetScript("OnMouseDown", function()
-		EditorParent:Raise();
-		EditorFrameRect:StartSizing("BOTTOMRIGHT");
-	end);
-	miniGrip:SetScript("OnMouseUp", EndMiniMove);
-	miniGrip:Hide();
-
 	BuildMiniTabs();
 end
 
@@ -2034,11 +2410,13 @@ local function RefreshModeMenus()
 	end
 end
 
--- Moves the shell between the whole screen and the mini bar, every window stays where it is.
+-- Moves the editor between the full shell and the mini windows, returns true when the mode changed.
 local function ApplyMode(mini)
 	if ( modeApplied and mini == miniMode ) then
 		return false;
 	end
+
+	local changed = modeApplied;
 
 	if ( modeApplied ) then
 		for window in pairs(windows) do
@@ -2060,57 +2438,76 @@ local function ApplyMode(mini)
 
 		EditorWorkspaceTabs:Hide();
 		miniTabs.holder:Show();
-		miniGrip:Show();
+		EditorMenuBar:SetFrameStrata("HIGH");
 	else
-		EditorFrameRect:ClearAllPoints();
-		EditorFrameRect:SetAllPoints(EditorParent);
 		EditorWorkspaceTabs:Show();
 		miniTabs.holder:Hide();
-		miniGrip:Hide();
+		EditorMenuBar:SetFrameStrata("MEDIUM");
 	end
 
-	NoggitBox_Set(EditorStatusBar, NOGGIT_COLOR_BASE, mini and NOGGIT_COLOR_MID or nil);
 	RefreshModeMenus();
 	EditorParent:Raise();
 
-	local switched = false;
-	autoSwitching = true;
+	if ( mini ) then
+		local current = activeWorkspace;
 
-	if ( mini and activeWorkspace and activeWorkspace.fullOnly ) then
-		local target = FirstMiniWorkspace();
-
-		if ( target ) then
-			local from = activeWorkspace.key;
-			GameEditor_SetWorkspace(target.key);
-			fullOnlyReturn = from;
-			switched = true;
+		if ( current ) then
+			fullReturn = { key = current.key, tool = activeTool };
+			HideFullUI(current);
 		end
-	elseif ( not mini and fullOnlyReturn ) then
-		local key = fullOnlyReturn;
-		fullOnlyReturn = nil;
 
-		if ( workspaces[key] and activeWorkspace ~= workspaces[key] ) then
-			GameEditor_SetWorkspace(key);
-			switched = true;
-		end
-	end
-
-	if ( activeWorkspace ) then
-		LayoutToolbar(activeWorkspace);
-
-		if ( mini and activeTool ) then
-			local tool = FindTool(activeTool);
-
-			if ( tool and tool.world ) then
-				GameEditor_SelectTool(activeTool);
+		for _, workspace in ipairs(ordered) do
+			if ( workspace.live and not AnyOpen(workspace) ) then
+				Deactivate(workspace);
 			end
 		end
+
+		local focus = focusedSection or sectionsById[layout.focus or ""];
+		ClearFocus();
+
+		for _, section in ipairs(sectionOrder) do
+			if ( section.open ) then
+				OpenSection(section);
+			end
+		end
+
+		if ( focus and focus.open ) then
+			focus.window:Raise();
+			FocusSection(focus);
+		end
+	else
+		for _, section in ipairs(sectionOrder) do
+			if ( section.window ) then
+				section.window:Hide();
+			end
+		end
+
+		local target = (fullReturn and workspaces[fullReturn.key]) or activeWorkspace or SortedWorkspaces()[1];
+		local tool = fullReturn and target and fullReturn.key == target.key and fullReturn.tool or nil;
+		fullReturn = nil;
+
+		for _, workspace in ipairs(ordered) do
+			if ( workspace.live and workspace ~= target ) then
+				Deactivate(workspace);
+			end
+		end
+
+		if ( activeWorkspace and activeWorkspace.menuStrip ) then
+			activeWorkspace.menuStrip:Hide();
+		end
+
+		activeWorkspace = nil;
+		NoggitFeedback_DefaultLine = statusFeedback;
+
+		if ( target ) then
+			GameEditor_SetWorkspace(target.key, tool);
+		end
 	end
 
-	autoSwitching = false;
-	GameEditor_RefreshMiniView();
+	ApplyChrome();
+	RefreshMiniTabs();
 	layoutDirty = true;
-	return switched;
+	return changed;
 end
 
 -- Shell menus and keys -----------------------------------------------------------------------------------
@@ -2379,18 +2776,12 @@ function GameEditor_OnEvent(self, event, ...)
 
 			if ( skipNextActivate ) then
 				skipNextActivate = false;
-			elseif ( activeWorkspace and not switched ) then
-				SafeCall(activeWorkspace.key, activeWorkspace.onActivate);
-
-				if ( activeTool ) then
-					GameEditor_SetTool(activeTool);
-				end
+			elseif ( not switched ) then
+				Resume();
 			end
 		else
 			-- Closing keeps every window as it is, they come back with the editor.
-			if ( activeWorkspace ) then
-				SafeCall(activeWorkspace.key, activeWorkspace.onDeactivate, true);
-			end
+			Suspend();
 
 			NoggitMenu_CloseAll();
 			NoggitTooltip_Hide();
@@ -2476,16 +2867,10 @@ function GameEditor_OnLoad(self)
 	local saved = layout.ws and workspaces[layout.ws];
 	local first = saved or SortedWorkspaces()[1];
 
-	miniOpen = layout.miniopen and true or false;
+	RestoreSections();
 
 	if ( first ) then
-		autoSwitching = true;
 		GameEditor_SetWorkspace(first.key, saved and layout.tool and FindTool(layout.tool) and layout.tool or nil);
-		autoSwitching = false;
-
-		if ( saved and layout.fullws and workspaces[layout.fullws] and not saved.fullOnly ) then
-			fullOnlyReturn = layout.fullws;
-		end
 	else
 		GameEditor_SetToolPanelShown(false);
 	end
@@ -2512,7 +2897,23 @@ function GameEditor_OnUpdate(self, elapsed)
 		SaveLayout();
 	end
 
-	if ( activeWorkspace and activeWorkspace.onUpdate ) then
+	if ( miniMode ) then
+		local down = EditorIsMouseButtonDown();
+
+		if ( down and not mouseWasDown ) then
+			FocusUnderMouse();
+		end
+
+		mouseWasDown = down;
+
+		for _, workspace in ipairs(ordered) do
+			if ( workspace.live and not workspace.suspended and workspace.onUpdate ) then
+				SafeCall(workspace.key, workspace.onUpdate, elapsed);
+			end
+		end
+
+		UpdateSectionStatus(elapsed);
+	elseif ( activeWorkspace and activeWorkspace.onUpdate ) then
 		SafeCall(activeWorkspace.key, activeWorkspace.onUpdate, elapsed);
 	end
 

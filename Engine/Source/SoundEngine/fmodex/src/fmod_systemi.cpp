@@ -5820,10 +5820,13 @@ FMOD_RESULT SystemI::update()
         mUpdateTimeStamp.setPaused(false);
     }
 
-    FMOD_OS_CheckDriverList(&devicelistchanged);
-    if (devicelistchanged && mCallback[FMOD_SYSTEM_CALLBACKTYPE_DEVICELISTCHANGED])
+    if (mCallback[FMOD_SYSTEM_CALLBACKTYPE_DEVICELISTCHANGED])
     {
-        mCallback[FMOD_SYSTEM_CALLBACKTYPE_DEVICELISTCHANGED]((FMOD_SYSTEM *)this, FMOD_SYSTEM_CALLBACKTYPE_DEVICELISTCHANGED, 0, 0);
+        FMOD_OS_CheckDriverList(&devicelistchanged);
+        if (devicelistchanged)
+        {
+            mCallback[FMOD_SYSTEM_CALLBACKTYPE_DEVICELISTCHANGED]((FMOD_SYSTEM *)this, FMOD_SYSTEM_CALLBACKTYPE_DEVICELISTCHANGED, 0, 0);
+        }
     }
 
     for (count = 0; count < mNumListeners; count++)

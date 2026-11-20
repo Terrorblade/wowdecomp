@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <process.h>
 
+#include "wasapi\fmod_mmdeviceapi.h"
+
 #define USEMETEREDSECTIONS
 
 int gSizeofCriticalSection = sizeof(CRITICAL_SECTION);
@@ -856,11 +858,123 @@ FMOD_RESULT FMOD_OS_Library_Free(FMOD_OS_LIBRARY *handle)
 
 	[SEE_ALSO]
 */
+#ifdef FMOD_SUPPORT_WASAPI
+
+static const GUID IID_IMMNotificationClient = { 0x7991eec9, 0x7e89, 0x4d85, { 0x83, 0x90, 0x6c, 0x70, 0x3c, 0xec, 0x60, 0xc0 } };
+
+static volatile LONG gDeviceListChanged = 0;
+
+class FMOD_OS_DeviceNotificationClient : public IMMNotificationClient
+{
+  public:
+
+    HRESULT F_STDCALL QueryInterface(REFIID riid, void **object)
+    {
+        if (riid == IID_IUnknown || riid == IID_IMMNotificationClient)
+        {
+            *object = static_cast<IMMNotificationClient *>(this);
+            return S_OK;
+        }
+
+        *object = NULL;
+        return E_NOINTERFACE;
+    }
+
+    ULONG F_STDCALL AddRef()
+    {
+        return 1;
+    }
+
+    ULONG F_STDCALL Release()
+    {
+        return 1;
+    }
+
+    HRESULT F_STDCALL OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState)
+    {
+        InterlockedExchange(&gDeviceListChanged, 1);
+        return S_OK;
+    }
+
+    HRESULT F_STDCALL OnDeviceAdded(LPCWSTR pwstrDeviceId)
+    {
+        InterlockedExchange(&gDeviceListChanged, 1);
+        return S_OK;
+    }
+
+    HRESULT F_STDCALL OnDeviceRemoved(LPCWSTR pwstrDeviceId)
+    {
+        InterlockedExchange(&gDeviceListChanged, 1);
+        return S_OK;
+    }
+
+    HRESULT F_STDCALL OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDeviceId)
+    {
+        if (role == eConsole)
+        {
+            InterlockedExchange(&gDeviceListChanged, 1);
+        }
+        return S_OK;
+    }
+
+    HRESULT F_STDCALL OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key)
+    {
+        return S_OK;
+    }
+};
+
+static FMOD_OS_DeviceNotificationClient gDeviceNotificationClient;
+
+static bool FMOD_OS_RegisterDeviceNotifications()
+{
+    static IMMDeviceEnumerator *enumerator = NULL;
+    static bool                 attempted  = false;
+
+    if (attempted)
+    {
+        return enumerator != NULL;
+    }
+    attempted = true;
+
+    HRESULT hr = CoCreateInstance(CLSID_MMDeviceEnumerator, NULL, CLSCTX_INPROC_SERVER | CLSCTX_INPROC_HANDLER | CLSCTX_LOCAL_SERVER, IID_IMMDeviceEnumerator, (void **)&enumerator);
+
+    if (hr == CO_E_NOTINITIALIZED)
+    {
+        CoInitialize(NULL);
+        hr = CoCreateInstance(CLSID_MMDeviceEnumerator, NULL, CLSCTX_INPROC_SERVER | CLSCTX_INPROC_HANDLER | CLSCTX_LOCAL_SERVER, IID_IMMDeviceEnumerator, (void **)&enumerator);
+    }
+
+    if (hr < 0 || !enumerator)
+    {
+        enumerator = NULL;
+        return false;
+    }
+
+    if (enumerator->RegisterEndpointNotificationCallback(&gDeviceNotificationClient) < 0)
+    {
+        enumerator->Release();
+        enumerator = NULL;
+        return false;
+    }
+
+    return true;
+}
+
+#endif
+
 FMOD_RESULT FMOD_OS_CheckDriverList(bool *devicelistchanged)
 {
     static int  lastNumDrivers  = -1;
     int         numDrivers      = -1;
-    
+
+#ifdef FMOD_SUPPORT_WASAPI
+    if (FMOD_OS_RegisterDeviceNotifications())
+    {
+        *devicelistchanged = InterlockedExchange(&gDeviceListChanged, 0) != 0;
+        return FMOD_OK;
+    }
+#endif
+
     numDrivers  = waveOutGetNumDevs();
     numDrivers += waveInGetNumDevs();
 

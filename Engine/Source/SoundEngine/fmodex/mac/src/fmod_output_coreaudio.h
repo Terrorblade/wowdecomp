@@ -16,7 +16,8 @@ namespace FMOD
         CoreAudio output, polled like the DirectSound and WinMM outputs: FMOD mixes blocks into a ring
         buffer behind a play cursor, and an output audio unit plays from the cursor, advancing it from
         its render callback. The audio unit takes FMOD's software format as is and converts to the
-        device. Driver 0 is the system default output, followed by every output device.
+        device. Driver 0 is the system default output, named after the current default device, followed by
+        every other output device.
 
         FMOD constructs outputs as OutputPolled in zeroed memory of the plugin's size, so members here
         need no construction and rely on starting at zero.
@@ -27,6 +28,7 @@ namespace FMOD
 
         AudioComponentInstance      mUnit;
         AudioDeviceID               mDevices[64];
+        AudioDeviceID               mDefaultDevice;
         int                         mNumDevices;
         char                       *mBuffer;
         unsigned int                mBufferLengthBytes;

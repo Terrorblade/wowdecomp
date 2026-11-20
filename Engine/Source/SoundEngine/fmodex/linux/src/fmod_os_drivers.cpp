@@ -7,25 +7,21 @@
 
 #include <SDL.h>
 
-/*
-	[DESCRIPTION]
+static int gDeviceListChanged = 0;
 
-	[PARAMETERS]
+static int SDLCALL FMOD_OS_DeviceEventWatch(void *userdata, SDL_Event *event)
+{
+    if (event->type == SDL_AUDIODEVICEADDED || event->type == SDL_AUDIODEVICEREMOVED)
+    {
+        __atomic_store_n(&gDeviceListChanged, 1, __ATOMIC_RELEASE);
+    }
 
-	[RETURN_VALUE]
+    return 1;
+}
 
-	[REMARKS]
-    Counts SDL's playback + capture devices, like waveOut/waveIn on Windows.  Only meaningful once the SDL output
-    has initialized SDL audio.  This runs on every System::update, so it samples at most once a second.
-
-	[SEE_ALSO]
-*/
 FMOD_RESULT FMOD_OS_CheckDriverList(bool *devicelistchanged)
 {
-    static int          lastNumDrivers  = -1;
-    static unsigned int lastCheckTime   = 0;
-    int                 numDrivers      = -1;
-    unsigned int        now;
+    static bool registered = false;
 
     *devicelistchanged = false;
 
@@ -34,18 +30,14 @@ FMOD_RESULT FMOD_OS_CheckDriverList(bool *devicelistchanged)
         return FMOD_OK;
     }
 
-    FMOD_OS_Time_GetMs(&now);
-    if (lastNumDrivers != -1 && now - lastCheckTime < 1000)
+    if (!registered)
     {
+        SDL_AddEventWatch(FMOD_OS_DeviceEventWatch, NULL);
+        registered = true;
         return FMOD_OK;
     }
-    lastCheckTime = now;
 
-    numDrivers  = SDL_GetNumAudioDevices(0);
-    numDrivers += SDL_GetNumAudioDevices(1);
-
-    *devicelistchanged = (numDrivers != lastNumDrivers && lastNumDrivers != -1);
-    lastNumDrivers = numDrivers;
+    *devicelistchanged = __atomic_exchange_n(&gDeviceListChanged, 0, __ATOMIC_ACQ_REL) != 0;
 
     return FMOD_OK;
 }

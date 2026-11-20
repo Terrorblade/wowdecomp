@@ -5,24 +5,36 @@
 
 #include <CoreAudio/CoreAudio.h>
 
-/*
-    Reports when audio devices come or go, as the Win32 layer counts wave devices.
-*/
+static int gDeviceListChanged = 0;
+
+static OSStatus FMOD_OS_DeviceListener(AudioObjectID object, UInt32 numaddresses, const AudioObjectPropertyAddress *addresses, void *userdata)
+{
+    __atomic_store_n(&gDeviceListChanged, 1, __ATOMIC_RELEASE);
+    return noErr;
+}
+
+static void FMOD_OS_RegisterDeviceListeners()
+{
+    static bool registered = false;
+
+    if (registered)
+    {
+        return;
+    }
+    registered = true;
+
+    AudioObjectPropertyAddress devices = { kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    AudioObjectPropertyAddress defaultOutput = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+
+    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &devices, FMOD_OS_DeviceListener, NULL);
+    AudioObjectAddPropertyListener(kAudioObjectSystemObject, &defaultOutput, FMOD_OS_DeviceListener, NULL);
+}
+
 FMOD_RESULT FMOD_OS_CheckDriverList(bool *devicelistchanged)
 {
-    static int lastNumDrivers = -1;
+    FMOD_OS_RegisterDeviceListeners();
 
-    AudioObjectPropertyAddress address = { kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-    UInt32 size = 0;
-    int numDrivers = -1;
-
-    if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &address, 0, NULL, &size) == noErr)
-    {
-        numDrivers = (int)(size / sizeof(AudioDeviceID));
-    }
-
-    *devicelistchanged = (numDrivers != lastNumDrivers && lastNumDrivers != -1);
-    lastNumDrivers = numDrivers;
+    *devicelistchanged = __atomic_exchange_n(&gDeviceListChanged, 0, __ATOMIC_ACQ_REL) != 0;
 
     return FMOD_OK;
 }

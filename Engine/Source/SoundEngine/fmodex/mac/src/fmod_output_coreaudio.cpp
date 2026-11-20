@@ -49,14 +49,38 @@ static bool DeviceHasOutput(AudioDeviceID device)
     return AudioObjectGetPropertyDataSize(device, &address, 0, NULL, &size) == noErr && size > 0;
 }
 
-FMOD_RESULT OutputCoreAudio::enumerate()
+static void GetDeviceName(AudioDeviceID device, char *name, int namelen)
 {
-    if (mEnumerated)
+    AudioObjectPropertyAddress address = { kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    CFStringRef deviceName = NULL;
+    UInt32 size = sizeof(deviceName);
+
+    if (AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &deviceName) != noErr || !deviceName)
     {
-        return FMOD_OK;
+        FMOD_strncpy(name, "Audio Device", namelen);
+        return;
     }
 
+    if (!CFStringGetCString(deviceName, name, namelen, kCFStringEncodingUTF8))
+    {
+        FMOD_strncpy(name, "Audio Device", namelen);
+    }
+
+    CFRelease(deviceName);
+}
+
+FMOD_RESULT OutputCoreAudio::enumerate()
+{
     mNumDevices = 0;
+    mDefaultDevice = kAudioObjectUnknown;
+
+    AudioObjectPropertyAddress defaultAddress = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    UInt32 defaultSize = sizeof(mDefaultDevice);
+
+    if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &defaultAddress, 0, NULL, &defaultSize, &mDefaultDevice) != noErr)
+    {
+        mDefaultDevice = kAudioObjectUnknown;
+    }
 
     AudioObjectPropertyAddress address = { kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     UInt32 size = 0;
@@ -77,7 +101,7 @@ FMOD_RESULT OutputCoreAudio::enumerate()
         {
             for (UInt32 i = 0; i < size / sizeof(AudioDeviceID) && mNumDevices < (int)(sizeof(mDevices) / sizeof(mDevices[0])); i++)
             {
-                if (DeviceHasOutput(devices[i]))
+                if (devices[i] != mDefaultDevice && DeviceHasOutput(devices[i]))
                 {
                     mDevices[mNumDevices++] = devices[i];
                 }
@@ -120,26 +144,19 @@ FMOD_RESULT OutputCoreAudio::getDriverName(int driver, char *name, int namelen)
 
     if (driver == 0)
     {
-        FMOD_strncpy(name, "System Default", namelen);
+        if (mDefaultDevice == kAudioObjectUnknown)
+        {
+            FMOD_strncpy(name, "System Default", namelen);
+        }
+        else
+        {
+            GetDeviceName(mDefaultDevice, name, namelen);
+        }
+
         return FMOD_OK;
     }
 
-    AudioObjectPropertyAddress address = { kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-    CFStringRef deviceName = NULL;
-    UInt32 size = sizeof(deviceName);
-
-    if (AudioObjectGetPropertyData(mDevices[driver - 1], &address, 0, NULL, &size, &deviceName) != noErr || !deviceName)
-    {
-        FMOD_strncpy(name, "Audio Device", namelen);
-        return FMOD_OK;
-    }
-
-    if (!CFStringGetCString(deviceName, name, namelen, kCFStringEncodingUTF8))
-    {
-        FMOD_strncpy(name, "Audio Device", namelen);
-    }
-
-    CFRelease(deviceName);
+    GetDeviceName(mDevices[driver - 1], name, namelen);
 
     return FMOD_OK;
 }

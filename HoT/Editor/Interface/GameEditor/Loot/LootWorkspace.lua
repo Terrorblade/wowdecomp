@@ -524,6 +524,7 @@ GameEditor_RegisterWorkspace({
 	category = "Items",
 	order = 8,
 	dockWidth = 600,
+	mainMinWidth = LEFT_OFFSET + BROWSER_WIDTH + 12,
 	tools = {
 		{ key = "select", name = "Loot editor", icon = 0xF8A4, build = BuildDock },
 	},

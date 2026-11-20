@@ -7,6 +7,7 @@
 #include <typeinfo>
 #include "WoW/Source/Ui/UIBindings.h"
 #include "Controller/Controller.h"
+#include "HoT/Editor/Mode.h"
 #include "HoT/Spells/ActionRepeat.h"
 #include "Engine/Source/Base/ConvertUTF.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -489,6 +490,8 @@ void CGUIBindings::LoadBindings() {
             XMLTree_Free(tree);
         }
     }
+
+    HoT::Editor::Mode::AddDefaultBindings();
 
     s_loadPendingMask = 6;
     LoadAccountData(2, CGUIBindings::LoadBindingsCallback, reinterpret_cast<void*>(static_cast<uintptr_t>((s_initRound << 16) | BINDING_SET_ACCOUNT)));

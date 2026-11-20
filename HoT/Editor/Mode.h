@@ -7,6 +7,8 @@
 
 class CGWorldFrame;
 
+class CStatus;
+
 namespace HoT::Editor::Mode {
 
 // World editors implement this and register once, every call only happens while the editor is active.
@@ -73,6 +75,10 @@ void OnDecal(C3Vector& position, float& size, int32_t& style);
 void OnWorldRender(CGWorldFrame* frame);
 
 void RegisterScripts();
+
+// The toggle binding commands and their GM default keys, called while the game UI loads its bindings.
+void LoadBindingCommands(CStatus* status);
+void AddDefaultBindings();
 void OnGameInitialize();
 void OnGameDestroy();
 

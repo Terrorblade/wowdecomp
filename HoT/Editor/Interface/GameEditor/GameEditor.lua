@@ -30,8 +30,9 @@ local consoleFrame;
 local cameraWindow;
 local keysWindow;
 
-local MINI_MAIN_WIDTH = 640;
+local MINI_MIN_WIDTH = 320;
 local MINI_MIN_HEIGHT = 300;
+local COLLAPSE_WIDTH = 24;
 local MINI_TOOLBAR_INSET = 54;
 
 local miniMode = false;
@@ -41,15 +42,29 @@ local fullOnlyReturn;
 local autoSwitching = false;
 local miniTitle;
 local miniGrip;
-local miniBack;
+local mainBack;
+local dockSplitter;
 local miniTabs = {};
-local layout = { windows = {}, views = {} };
+local layout = { windows = {}, views = {}, sizes = {} };
 local layoutText;
 local layoutDirty = false;
 
+-- The toggle keys are set in the game's Key Bindings menu under Game Editor.
+local function ToggleKeyText(mini)
+	local key;
+
+	if ( mini ) then
+		key = GameEditor_GetMiniToggleKey and GameEditor_GetMiniToggleKey();
+	else
+		key = GameEditor_GetToggleKey and GameEditor_GetToggleKey();
+	end
+
+	return key or "not bound";
+end
+
 local SHELL_KEYS = {
-	{ "F12", "Open and close the game editor" },
-	{ "Shift+F12", "Open the mini editor, a bar of every editor over the normal game, only Ctrl hotkeys reach the editor" },
+	{ function() return ToggleKeyText(false); end, "Open and close the game editor, change it in Key Bindings > Game Editor" },
+	{ function() return ToggleKeyText(true); end, "Open the mini editor, a bar of every editor over the normal game, only Ctrl hotkeys reach the editor" },
 	{ "Tab", "Hide or show the editor UI" },
 	{ "Ctrl+1 .. Ctrl+9", "Switch workspace" },
 	{ "Enter", "Focus the command line (. commands go to the server, / commands run like chat)" },
@@ -216,7 +231,7 @@ local function Round(value)
 end
 
 local function LoadLayout()
-	layout = { windows = {}, views = {} };
+	layout = { windows = {}, views = {}, sizes = {} };
 	layoutText = GameEditor_LoadLayout and GameEditor_LoadLayout() or "";
 
 	for entry in string.gmatch(layoutText, "[^\r\n]+") do
@@ -226,6 +241,12 @@ local function LoadLayout()
 			layout[key] = value;
 		elseif ( key == "miniopen" ) then
 			layout.miniopen = value == "1";
+		elseif ( key == "n" ) then
+			local name, size = string.match(value, "^([%w_]+)/(%d+)$");
+
+			if ( name ) then
+				layout.sizes[name] = tonumber(size);
+			end
 		elseif ( key == "v" ) then
 			local name, x, y, w, h = string.match(value, "^([%w_]+)/(%-?%d+)/(%-?%d+)/(%d+)/(%d+)$");
 
@@ -315,6 +336,18 @@ local function SaveLayout()
 		table.insert(parts, format("v=%s/%d/%d/%d/%d", name, unpack(layout.views[name])));
 	end
 
+	local sizes = {};
+
+	for name in pairs(layout.sizes) do
+		table.insert(sizes, name);
+	end
+
+	table.sort(sizes);
+
+	for _, name in ipairs(sizes) do
+		table.insert(parts, format("n=%s/%d", name, layout.sizes[name]));
+	end
+
 	for window in pairs(windows) do
 		local name = not window.autoName and window:GetName();
 		local shown = WindowShown(window) and true or false;
@@ -357,6 +390,90 @@ local function SaveLayout()
 		layoutText = text;
 		GameEditor_SaveLayout(text);
 	end
+end
+
+-- Pane sizes set with a splitter, kept in the layout file by name.
+function GameEditor_GetLayoutSize(name, default)
+	return layout.sizes[name] or default;
+end
+
+function GameEditor_SetLayoutSize(name, size)
+	size = Round(size);
+
+	if ( layout.sizes[name] ~= size ) then
+		layout.sizes[name] = size;
+		layoutDirty = true;
+	end
+end
+
+-- A thin vertical handle that sizes a pane by dragging. sign is 1 when the pane is left of the handle, -1 when right.
+function GameEditor_CreateSplitter(parent, options)
+	local handle = CreateFrame("Button", NoggitUI_NewName("GameEditorSplitter"), parent);
+	handle:SetWidth(6);
+	handle:EnableMouse(true);
+
+	local line = NoggitUI_SolidTexture(handle, "OVERLAY", NOGGIT_COLOR_ACCENT);
+	line:SetWidth(2);
+	line:SetPoint("TOP", handle, "TOP", 0, 0);
+	line:SetPoint("BOTTOM", handle, "BOTTOM", 0, 0);
+	line:Hide();
+
+	local function Clamp(size)
+		local low = options.min and options.min() or 0;
+		local high = options.max and options.max() or size;
+		return max(low, min(high, size));
+	end
+
+	local function Finish(self)
+		self.dragging = false;
+
+		if ( not self.hover ) then
+			line:Hide();
+		end
+	end
+
+	handle:SetScript("OnEnter", function(self)
+		self.hover = true;
+		line:Show();
+		NoggitTooltip_Show(self, "Drag to resize");
+	end);
+	handle:SetScript("OnLeave", function(self)
+		self.hover = false;
+		NoggitTooltip_Hide();
+
+		if ( not self.dragging ) then
+			line:Hide();
+		end
+	end);
+	handle:SetScript("OnMouseDown", function(self)
+		self.startX = NoggitUI_CursorIn(self);
+		self.startSize = options.get();
+		self.dragging = true;
+		line:Show();
+	end);
+	handle:SetScript("OnMouseUp", Finish);
+	handle:SetScript("OnHide", Finish);
+	handle:SetScript("OnUpdate", function(self)
+		if ( not self.dragging ) then
+			return;
+		end
+
+		if ( not EditorIsMouseButtonDown() ) then
+			Finish(self);
+			return;
+		end
+
+		local x = NoggitUI_CursorIn(self);
+		local size = Clamp(self.startSize + (x - self.startX) * (options.sign or 1));
+
+		if ( size ~= self.lastSize ) then
+			self.lastSize = size;
+			options.set(size);
+		end
+	end);
+
+	handle.Clamp = Clamp;
+	return handle;
 end
 
 -- A window opened for the first time this session goes back where it was last time.
@@ -811,7 +928,7 @@ local function CreateCameraWindow()
 		NoggitCheckBox_SetChecked(self.sync, sync);
 		NoggitSpinBox_SetValue(self.scale, userScale, true);
 		NoggitCheckBox_SetChecked(self.freeCam, GameEditor_IsFreeCamEnabled());
-		self.toggleText:SetText(format("Toggle keys: %s full, %s mini (CVars editorToggleKey, editorMiniToggleKey)", GameEditor_GetToggleKey() or "F12", GameEditor_GetMiniToggleKey and GameEditor_GetMiniToggleKey() or "SHIFT-F12"));
+		self.toggleText:SetText(format("Toggle keys: %s full, %s mini (Key Bindings > Game Editor)", ToggleKeyText(false), ToggleKeyText(true)));
 	end);
 end
 
@@ -827,7 +944,7 @@ local function CreateKeysWindow()
 		local rows = {};
 
 		for _, key in ipairs(SHELL_KEYS) do
-			table.insert(rows, key);
+			table.insert(rows, type(key[1]) == "function" and { key[1](), key[2] } or key);
 		end
 
 		for _, workspace in ipairs(SortedWorkspaces()) do
@@ -920,9 +1037,28 @@ local function FindTool(key)
 	end
 end
 
+-- mainMinWidth is a number or a function: how much of the main area its content uses, the gap included.
+local function MainMinWidth(workspace)
+	local width = workspace.mainMinWidth;
+
+	if ( type(width) == "function" ) then
+		width = SafeCall(workspace.key, width);
+	end
+
+	return width or 0;
+end
+
+-- The dock keeps its dragged width while there is room, then shrinks so the gap stays and collapses at zero.
+local function DockWidth(workspace)
+	local wanted = layout.sizes["dock_"..workspace.key] or workspace.dockWidth or DOCK_WIDTH;
+	local room = (EditorFrameRect:GetWidth() or 0) - MainMinWidth(workspace);
+	return max(0, min(wanted, room));
+end
+
 local function LayoutShell()
 	local top = (miniMode and miniTitle) or EditorMenuBar;
 	local inset = activeWorkspace and (activeWorkspace.visibleTools or 0) > 0 and MINI_TOOLBAR_INSET or 0;
+	local fillDock = miniMode and activeWorkspace and not activeWorkspace.main;
 
 	EditorLeftToolbar:ClearAllPoints();
 	EditorLeftToolbar:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 5, -5);
@@ -932,10 +1068,25 @@ local function LayoutShell()
 	EditorToolDock:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT", 0, 0);
 	EditorToolDock:SetPoint("BOTTOMRIGHT", EditorStatusBar, "TOPRIGHT", 0, 0);
 
-	if ( miniMode and activeWorkspace and not activeWorkspace.main ) then
+	if ( fillDock ) then
 		EditorToolDock:SetPoint("TOPLEFT", top, "BOTTOMLEFT", inset, 0);
 	else
-		EditorToolDock:SetWidth(activeWorkspace and activeWorkspace.dockWidth or DOCK_WIDTH);
+		local width = activeWorkspace and DockWidth(activeWorkspace) or DOCK_WIDTH;
+		EditorToolDock:SetWidth(max(1, width));
+
+		if ( width < COLLAPSE_WIDTH ) then
+			EditorToolDock:Hide();
+		elseif ( toolPanelShown and not ChromeHidden() ) then
+			EditorToolDock:Show();
+		end
+	end
+
+	if ( dockSplitter ) then
+		if ( fillDock or not activeWorkspace ) then
+			dockSplitter:Hide();
+		else
+			dockSplitter:Show();
+		end
 	end
 
 	EditorMainArea:ClearAllPoints();
@@ -992,17 +1143,18 @@ local function ApplyChrome()
 
 	local view = miniMode and miniOpen;
 
+	-- The view background sits on the main area itself so it always draws under the workspace frames.
 	if ( miniTitle ) then
 		if ( view ) then
 			miniTitle:Show();
-			miniBack:Show();
+			mainBack:Show();
 		else
 			miniTitle:Hide();
-			miniBack:Hide();
+			mainBack:Hide();
 		end
 	end
 
-	EditorFrameRect:EnableMouse(view);
+	EditorMainArea:EnableMouse(view);
 	GameEditor_SetToolPanelShown(toolPanelShown);
 end
 
@@ -1372,7 +1524,7 @@ function GameEditor_SetWorkspace(key, toolKey)
 	end
 
 	if ( miniMode and workspace.fullOnly ) then
-		GameEditor_Notify(format("%s needs the full editor (%s)", workspace.title or workspace.key, GameEditor_GetToggleKey() or "F12"), "info");
+		GameEditor_Notify(format("%s needs the full editor (%s)", workspace.title or workspace.key, ToggleKeyText(false)), "info");
 		return;
 	end
 
@@ -1468,11 +1620,7 @@ function GameEditor_IsMiniMode()
 end
 
 function GameEditor_CurrentToggleKey()
-	if ( miniMode ) then
-		return GameEditor_GetMiniToggleKey and GameEditor_GetMiniToggleKey() or "SHIFT-F12";
-	end
-
-	return GameEditor_GetToggleKey() or "F12";
+	return ToggleKeyText(miniMode);
 end
 
 -- A workspace with several mini tools lists each one on the bar, the item generator next to the item editor.
@@ -1514,12 +1662,6 @@ local function ScreenSize()
 	return EditorParent:GetWidth() or 1024, EditorParent:GetHeight() or 768;
 end
 
-local function MinViewSize(workspace)
-	local screenWidth = ScreenSize();
-	local width = workspace.buildMain and MINI_MAIN_WIDTH or ((workspace.dockWidth or DOCK_WIDTH) + MINI_TOOLBAR_INSET);
-	return min(width, screenWidth - 20), MINI_MIN_HEIGHT;
-end
-
 -- The view of each workspace keeps its own place and size, a new one opens under the bar.
 local function ViewRect(workspace)
 	local saved = layout.views[workspace.key];
@@ -1546,9 +1688,8 @@ local function PlaceView()
 	end
 
 	local left, top, width, height = ViewRect(activeWorkspace);
-	local minWidth, minHeight = MinViewSize(activeWorkspace);
-	EditorFrameRect:SetMinResize(minWidth, minHeight);
-	PlaceAt(EditorFrameRect, left, top, max(minWidth, width), max(minHeight, height));
+	EditorFrameRect:SetMinResize(MINI_MIN_WIDTH, MINI_MIN_HEIGHT);
+	PlaceAt(EditorFrameRect, left, top, max(MINI_MIN_WIDTH, width), max(MINI_MIN_HEIGHT, height));
 end
 
 local function EndMiniMove()
@@ -1742,17 +1883,25 @@ local function BuildMiniTabs()
 end
 
 local function BuildMiniChrome()
-	miniBack = CreateFrame("Frame", "GameEditorMiniBack", EditorFrameRect);
-	miniBack:SetAllPoints(EditorFrameRect);
-	miniBack:SetFrameLevel(EditorParent:GetFrameLevel());
-	local edge = NoggitUI_SolidTexture(miniBack, "BACKGROUND", NOGGIT_COLOR_MID);
-	edge:SetAllPoints(miniBack);
-	local fill = NoggitUI_SolidTexture(miniBack, "BORDER", NOGGIT_COLOR_DARK);
-	fill:SetPoint("TOPLEFT", miniBack, "TOPLEFT", 1, -1);
-	fill:SetPoint("BOTTOMRIGHT", miniBack, "BOTTOMRIGHT", -1, 1);
-	miniBack:Hide();
+	mainBack = NoggitUI_SolidTexture(EditorMainArea, "BACKGROUND", NOGGIT_COLOR_DARK);
+	mainBack:SetAllPoints(EditorMainArea);
+	mainBack:Hide();
 
-	EditorFrameRect:SetScript("OnMouseDown", function() EditorParent:Raise(); end);
+	EditorMainArea:SetScript("OnMouseDown", function() EditorParent:Raise(); end);
+	EditorFrameRect:SetScript("OnSizeChanged", function() LayoutShell(); end);
+
+	dockSplitter = GameEditor_CreateSplitter(EditorToolDock, {
+		sign = -1,
+		get = function() return EditorToolDock:GetWidth(); end,
+		set = function(width)
+			GameEditor_SetLayoutSize("dock_"..activeWorkspace.key, width);
+			LayoutShell();
+		end,
+		min = function() return 120; end,
+		max = function() return max(120, (EditorFrameRect:GetWidth() or 0) - MainMinWidth(activeWorkspace)); end,
+	});
+	dockSplitter:SetPoint("TOPLEFT", EditorToolDock, "TOPLEFT", -3, 0);
+	dockSplitter:SetPoint("BOTTOMLEFT", EditorToolDock, "BOTTOMLEFT", -3, 0);
 
 	miniTitle = CreateFrame("Frame", "GameEditorMiniTitle", EditorParent, "NoggitBoxTemplate");
 	miniTitle:SetHeight(24);
@@ -1908,8 +2057,8 @@ local function BuildShellMenus()
 	local separator = { separator = true };
 	local workspaceItems = {};
 	local toggleUI = { text = "Toggle UI", shortcut = "Tab", uiToggle = true, onClick = function() GameEditor_SetUIHidden(not uiHidden); end };
-	local fullKey = GameEditor_GetToggleKey() or "F12";
-	local miniKey = GameEditor_GetMiniToggleKey and GameEditor_GetMiniToggleKey() or "SHIFT-F12";
+	local fullKey = ToggleKeyText(false);
+	local miniKey = ToggleKeyText(true);
 	table.insert(modeMenuItems, toggleUI);
 
 	for _, entry in ipairs(TabEntries()) do

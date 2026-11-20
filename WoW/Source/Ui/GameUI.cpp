@@ -2,6 +2,7 @@
 #include "HoT/HoT.h"
 #include "HoT/Profiler/Profiler.h"
 #include "Controller/Controller.h"
+#include "HoT/Editor/Mode.h"
 #include "HoT/Game/Session.h"
 #include "HoT/Runtime/SharedXML.h"
 #include "HoT/Streaming/PatchStatusUI.h"
@@ -1800,6 +1801,7 @@ void CGGameUI::InitializeFrameXML() {
 
     // Controller: gamepad binding commands, default pad bindings and UI glue.
     Controller::LoadGameUI(&status);
+    HoT::Editor::Mode::LoadBindingCommands(&status);
 
     uint8_t digest[16];
     MD5Final(digest, &md5);

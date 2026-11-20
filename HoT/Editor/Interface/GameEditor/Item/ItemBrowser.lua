@@ -7,6 +7,9 @@ local Common = GameEditorObject;
 local LEFT_OFFSET = 56;
 local BROWSER_WIDTH = 320;
 
+-- The item list plus a gap the editor dock never covers.
+I.BROWSER_MIN_WIDTH = LEFT_OFFSET + BROWSER_WIDTH + 12;
+
 local root, browser, generator, searchBox, list, status;
 
 I.view = "items";

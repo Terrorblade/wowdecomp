@@ -7,6 +7,10 @@ local Data = GameEditorData or {};
 
 local NAV_WIDTH = 210;
 local KEY_LIST_WIDTH = 210;
+local PREVIEW_WIDTH = 340;
+local PANE_GAP = 8;
+local DRAG_MIN = 120;
+local COLLAPSE_WIDTH = 24;
 
 local function Name(enumName, value)
 	return I.EnumText(enumName, value) or tostring(value);
@@ -634,8 +638,68 @@ local function BuildParent(section)
 		preview:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 0);
 		holder:ClearAllPoints();
 		holder:SetPoint("TOPLEFT", right, "TOPLEFT", 0, -28);
-		holder:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", -8, 0);
+		holder:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", -PANE_GAP, 0);
 	end
+
+	-- The gaps always stay, when the row editor runs out of room the preview shrinks and then collapses.
+	local function PreviewRoom()
+		return (view:GetWidth() or 0) - left:GetWidth() - PANE_GAP - PANE_GAP;
+	end
+
+	local function KeyListMax()
+		return max(DRAG_MIN, (view:GetWidth() or 0) - PANE_GAP - PANE_GAP - (preview and preview:IsShown() and preview:GetWidth() or 0));
+	end
+
+	local function PreviewMax()
+		return max(DRAG_MIN, PreviewRoom());
+	end
+
+	local function Relayout()
+		left:SetWidth(max(1, min(GameEditor_GetLayoutSize("itemgen_keys", KEY_LIST_WIDTH), (view:GetWidth() or 0) - PANE_GAP)));
+
+		if ( preview ) then
+			local width = min(GameEditor_GetLayoutSize("itemgen_preview", PREVIEW_WIDTH), PreviewRoom());
+			preview:SetWidth(max(1, width));
+
+			if ( width < COLLAPSE_WIDTH ) then
+				preview:Hide();
+			else
+				preview:Show();
+			end
+		end
+	end
+
+	local keySplitter = GameEditor_CreateSplitter(view, {
+		sign = 1,
+		get = function() return left:GetWidth(); end,
+		set = function(width)
+			GameEditor_SetLayoutSize("itemgen_keys", width);
+			Relayout();
+		end,
+		min = function() return DRAG_MIN; end,
+		max = KeyListMax,
+	});
+	keySplitter:SetPoint("TOPLEFT", left, "TOPRIGHT", 1, 0);
+	keySplitter:SetPoint("BOTTOMLEFT", left, "BOTTOMRIGHT", 1, 0);
+
+	if ( preview ) then
+		local previewSplitter = GameEditor_CreateSplitter(view, {
+			sign = -1,
+			get = function() return preview:GetWidth(); end,
+			set = function(width)
+				GameEditor_SetLayoutSize("itemgen_preview", width);
+				Relayout();
+			end,
+			min = function() return DRAG_MIN; end,
+			max = PreviewMax,
+		});
+		previewSplitter:SetPoint("TOPRIGHT", preview, "TOPLEFT", -1, 0);
+		previewSplitter:SetPoint("BOTTOMRIGHT", preview, "BOTTOMLEFT", -1, 0);
+	end
+
+	view:SetScript("OnSizeChanged", Relayout);
+	view:SetScript("OnShow", Relayout);
+	Relayout();
 
 	local function UpdateTabs()
 		if ( not section.editor ) then

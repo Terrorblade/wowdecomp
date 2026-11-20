@@ -99,6 +99,7 @@ GameEditor_RegisterWorkspace({
 	title = "Quests",
 	order = 5,
 	dockWidth = 560,
+	mainMinWidth = 56 + 320 + 12,
 	tools = {
 		{ key = "select", name = "Quest editor", icon = 0xF8A4, build = Editor.Build },
 	},

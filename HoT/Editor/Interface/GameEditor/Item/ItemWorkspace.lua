@@ -148,6 +148,7 @@ GameEditor_RegisterWorkspace({
 	category = "Items",
 	order = 6,
 	dockWidth = 600,
+	mainMinWidth = I.BROWSER_MIN_WIDTH,
 	tools = {
 		{ key = "select", name = "Item editor", icon = 0xF8A4, build = Editor.Build },
 		{ key = "generator", name = "Item generator", icon = 0xF8B8, noPanel = true },

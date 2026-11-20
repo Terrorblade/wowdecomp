@@ -11,6 +11,7 @@
 #include "Engine/Source/Frame/CSimpleTop.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameXML/FrameXML.h"
+#include "Engine/Source/FrameXML/XMLTree.h"
 #include "Engine/Source/Os/Gui.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -36,6 +37,14 @@ namespace HoT::Editor::Mode {
 static const char* const kToc = "Interface\\GameEditor\\GameEditor.toc";
 static const char* const kLayoutFile = "WTF\\GameEditorLayout.txt";
 static const uint32_t kLayoutMaxSize = 64 * 1024;
+static const char* const kFullCommand = "GAMEEDITOR";
+static const char* const kMiniCommand = "GAMEEDITORMINI";
+
+static const char* const kBindingNames = R"LUA(
+BINDING_HEADER_GAMEEDITOR = "Game Editor"
+BINDING_NAME_GAMEEDITOR = "Toggle Game Editor"
+BINDING_NAME_GAMEEDITORMINI = "Toggle Mini Game Editor"
+)LUA";
 
 // Game bindings that keep working while the editor owns the keyboard.
 static const char* const s_passThroughCommands[] = {
@@ -77,8 +86,6 @@ struct ModeState {
     bool m_eventsRegistered = false;
 
     std::string m_tool = "select";
-    std::string m_toggleKey = "F12";
-    std::string m_miniToggleKey = "SHIFT-F12";
 
     std::vector<Handler*> m_handlers;
 
@@ -543,8 +550,9 @@ static bool OnMiniKey(const std::string& key, const std::string& hotkey, bool do
 
 // The toggle keys open their editor, switch from the other one, or close their own.
 static bool OnToggleKey(const std::string& key, bool down) {
-    bool full = SameKey(key.c_str(), s_state.m_toggleKey.c_str());
-    bool mini = !full && SameKey(key.c_str(), s_state.m_miniToggleKey.c_str());
+    const char* command = CGUIBindings::s_bindings ? CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE, key.c_str(), 1) : nullptr;
+    bool full = SameKey(command, kFullCommand);
+    bool mini = SameKey(command, kMiniCommand);
 
     if ((!full && !mini) || (!s_state.m_active && !Session::HasClearance(3))) {
         return false;
@@ -766,14 +774,6 @@ void OnWorldRender(CGWorldFrame* frame) {
     }
 }
 
-static void OnToggleKeyChanged(const char* value) {
-    s_state.m_toggleKey = value && *value ? value : "F12";
-}
-
-static void OnMiniToggleKeyChanged(const char* value) {
-    s_state.m_miniToggleKey = value && *value ? value : "SHIFT-F12";
-}
-
 static int32_t Script_IsActive(lua_State* L) {
     lua_pushboolean(L, s_state.m_active ? 1 : 0);
     return 1;
@@ -822,14 +822,25 @@ static int32_t Script_GetTool(lua_State* L) {
     return 1;
 }
 
-static int32_t Script_GetToggleKey(lua_State* L) {
-    lua_pushstring(L, s_state.m_toggleKey.c_str());
+static int32_t PushBoundKey(lua_State* L, const char* command) {
+    const char* key = CGUIBindings::s_bindings ? CGUIBindings::s_bindings->GetCommandKey(BINDING_MODE_0, command, 0) : nullptr;
+
+    if (key) {
+        lua_pushstring(L, key);
+    } else {
+        lua_pushnil(L);
+    }
+
     return 1;
 }
 
+// The toggle keys are the Key Bindings entries, nil when unbound.
+static int32_t Script_GetToggleKey(lua_State* L) {
+    return PushBoundKey(L, kFullCommand);
+}
+
 static int32_t Script_GetMiniToggleKey(lua_State* L) {
-    lua_pushstring(L, s_state.m_miniToggleKey.c_str());
-    return 1;
+    return PushBoundKey(L, kMiniCommand);
 }
 
 // The window layout lives in its own file, archived CVars are cut at 260 characters.
@@ -904,8 +915,6 @@ static void OnFreeCamChanged(const char* value) {
 }
 
 void RegisterScripts() {
-    HoT::CVars::Register("editorToggleKey", "Key that opens and closes the game editor", "F12", OnToggleKeyChanged);
-    HoT::CVars::Register("editorMiniToggleKey", "Key that opens and closes the mini game editor, which keeps the game UI and controls", "SHIFT-F12", OnMiniToggleKeyChanged);
     HoT::CVars::Register("editorFreeCam", "Use the free camera while the game editor is open, 0 keeps the normal camera and movement", "1", OnFreeCamChanged);
     HoT::CVars::Register("editorUIScale", "Scale of the game editor UI, 1 is one pixel per unit", "1");
 
@@ -920,6 +929,44 @@ void RegisterScripts() {
     Lua::RegisterFunction("GameEditor_IsMouseOverWorld", Script_IsMouseOverWorld);
     Lua::RegisterFunction("GameEditor_LoadLayout", Script_LoadLayout);
     Lua::RegisterFunction("GameEditor_SaveLayout", Script_SaveLayout);
+}
+
+// Without GM clearance the commands are hidden, so the Key Bindings menu never lists them.
+void LoadBindingCommands(CStatus* status) {
+    CGUIBindings* bindings = CGUIBindings::s_bindings;
+
+    if (!bindings) {
+        return;
+    }
+
+    bool listed = Session::HasClearance(3);
+    std::string xml = "<Bindings>";
+    xml += listed ? "<Binding name=\"GAMEEDITOR\" header=\"GAMEEDITOR\">" : "<Binding name=\"GAMEEDITOR\" hidden=\"true\">";
+    xml += "GameEditor_Toggle()</Binding>";
+    xml += listed ? "<Binding name=\"GAMEEDITORMINI\">" : "<Binding name=\"GAMEEDITORMINI\" hidden=\"true\">";
+    xml += "GameEditor_Toggle(true)</Binding></Bindings>";
+
+    if (XMLTree* tree = XMLTree_Load(xml.c_str(), static_cast<uint32_t>(xml.size()))) {
+        for (XMLNode* node = XMLTree_GetRoot(tree)->m_child; node; node = node->m_next) {
+            bindings->LoadBinding("GameEditor", node, status);
+        }
+
+        XMLTree_Free(tree);
+    }
+
+    FrameScript_Execute(kBindingNames, "GameEditor", nullptr);
+}
+
+// Runs after DefaultBindings.wtf, F12 replaces its TOGGLEBACKPACK default for GMs only.
+void AddDefaultBindings() {
+    CGUIBindings* bindings = CGUIBindings::s_bindings;
+
+    if (!bindings || !Session::HasClearance(3)) {
+        return;
+    }
+
+    bindings->Bind(BINDING_SET_DEFAULT, BINDING_MODE_0, "F12", kFullCommand);
+    bindings->Bind(BINDING_SET_DEFAULT, BINDING_MODE_0, "SHIFT-F12", kMiniCommand);
 }
 
 void OnGameInitialize() {

@@ -428,7 +428,7 @@ Flags.ItemGenUniqueFlags = {
 Flags.ItemGenLegendaryFlags = {
     {bit = 0, name = "CRAFTED_ONLY", tooltip = "Only rolls on crafted items"},
     {bit = 1, name = "DROP_DISABLED", tooltip = "Only gained through essences"},
-    {bit = 2, name = "CORRUPTED", tooltip = "Only gained by corrupting an item, corruption then rolls nothing else"},
+    {bit = 2, name = "TIME_WARPED", tooltip = "Only gained by Time Warping an item, the warp then rolls nothing else"},
 }
 
 local Fields = {}

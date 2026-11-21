@@ -24,7 +24,7 @@ local RED = { 1, 0.3, 0.3 };
 local FLAG_TEXT = {
 	{ bit = 0, text = "Crafted items only" },
 	{ bit = 1, text = "Essence only, never drops" },
-	{ bit = 2, text = "Corrupted, rolls nothing else" },
+	{ bit = 2, text = "Time Warped, rolls nothing else" },
 };
 
 local function Num(values, column, default)

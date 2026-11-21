@@ -2,6 +2,7 @@
 #include "HoT/DB/Custom.h"
 #include "HoT/Profiler/Profiler.h"
 #include "HoT/Features/Features.h"
+#include "HoT/Spells/DescriptionVars.h"
 #include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/Types.h"
 #include "Engine/Source/Base/CDataStore.h"
@@ -3613,7 +3614,9 @@ uint32_t Spell_C_GetSpellLevel(const SpellRec* spell, int32_t isPet, int32_t isU
     }
 
     if (!unit) {
-        return 0;
+        // HoT: headless tools render at a set level, capped like CGUnit_C::GetSpellRank.
+        int32_t level = HoT::Spells::GetHeadlessLevel();
+        return static_cast<uint32_t>(spell->m_maxLevel > 0 && level > spell->m_maxLevel ? spell->m_maxLevel : level);
     }
 
     return static_cast<uint32_t>(unit->GetSpellRank(spell)) / 5;

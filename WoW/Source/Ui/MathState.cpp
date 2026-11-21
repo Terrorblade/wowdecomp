@@ -481,7 +481,12 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     // HoT: resolves its own variables and the unrounded ranged damage and speed first.
-    if (player && !HoT::Spells::GetDescriptionVariable(op, player, spell, value)) {
+    // HoT: headless tools have no player, the spell data ops still run through the stock switch.
+    bool spellData = !player && HoT::Spells::GetHeadlessLevel() && op >= MATHOP_MIN_POINTS_1 && op <= MATHOP_MISC_VALUE_3_UPPER;
+
+    if (!player && !spellData) {
+        HoT::Spells::GetHeadlessVariable(op, spell, value);
+    } else if (player ? !HoT::Spells::GetDescriptionVariable(op, player, spell, value) : !HoT::Spells::GetHeadlessVariable(op, spell, value)) {
         switch (op) {
             case MATHOP_STAT_STRENGTH:
             case MATHOP_STAT_AGILITY:

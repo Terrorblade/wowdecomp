@@ -226,6 +226,7 @@ add_subdirectory(HoT)
 add_subdirectory(Controller)
 if (WIN32)
     add_subdirectory(Tools/WowClient)
+    add_subdirectory(Tools/SpellTextExport)
 endif ()
 add_subdirectory(Tools/XvidDecoder)
 

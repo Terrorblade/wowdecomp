@@ -22,6 +22,94 @@ static float BaseEffectPoints(const SpellRec* spell, uint32_t effectIndex) {
     return static_cast<float>(maxPoints);
 }
 
+static int32_t s_headlessLevel = 0;
+
+void SetHeadlessLevel(int32_t level) {
+    s_headlessLevel = level > 0 ? level : 0;
+}
+
+int32_t GetHeadlessLevel() {
+    return s_headlessLevel;
+}
+
+bool GetHeadlessVariable(uint32_t op, const SpellRec* spell, float& value) {
+    if (!s_headlessLevel || !spell) {
+        return false;
+    }
+
+    switch (op) {
+        case MATHOP_LEVEL:
+        case MATHOP_LEVEL_UPPER:
+            value = static_cast<float>(s_headlessLevel);
+            return true;
+
+        // Base costs, the stock ops need a unit.
+        case MATHOP_POWER_COST:
+        case MATHOP_POWER_COST_UPPER:
+            value = static_cast<float>(spell->m_manaCost);
+            return true;
+
+        case MATHOP_POWER_COST_PER_SECOND:
+        case MATHOP_POWER_COST_PER_SECOND_UPPER:
+            value = static_cast<float>(spell->m_manaPerSecond);
+            return true;
+
+        // One-handed, so $HND conditionals take the common branch.
+        case MATHOP_HANDS:
+        case MATHOP_HANDS_UPPER:
+            value = 1.0f;
+            return true;
+
+        case MATHOP_MISC_VALUE_1:
+        case MATHOP_MISC_VALUE_2:
+        case MATHOP_MISC_VALUE_3:
+            value = static_cast<float>(spell->m_effectMiscValue[op - MATHOP_MISC_VALUE_1]);
+            return true;
+
+        case MATHOP_MISC_VALUE_1_UPPER:
+        case MATHOP_MISC_VALUE_2_UPPER:
+        case MATHOP_MISC_VALUE_3_UPPER:
+            value = static_cast<float>(spell->m_effectMiscValue[op - MATHOP_MISC_VALUE_1_UPPER]);
+            return true;
+
+        case MATHOP_BONUS_COEFFICIENT_1:
+        case MATHOP_BONUS_COEFFICIENT_2:
+        case MATHOP_BONUS_COEFFICIENT_3:
+            value = spell->m_effectBonusCoefficient[op - MATHOP_BONUS_COEFFICIENT_1];
+            return true;
+
+        case MATHOP_BONUS_COEFFICIENT_1_UPPER:
+        case MATHOP_BONUS_COEFFICIENT_2_UPPER:
+        case MATHOP_BONUS_COEFFICIENT_3_UPPER:
+            value = spell->m_effectBonusCoefficient[op - MATHOP_BONUS_COEFFICIENT_1_UPPER];
+            return true;
+
+        case MATHOP_HOT_AURA_1:
+        case MATHOP_HOT_AURA_2:
+        case MATHOP_HOT_AURA_3:
+            value = BaseEffectPoints(spell, op - MATHOP_HOT_AURA_1 + 1);
+            return true;
+
+        case MATHOP_HOT_AURA_1_UPPER:
+        case MATHOP_HOT_AURA_2_UPPER:
+        case MATHOP_HOT_AURA_3_UPPER:
+            value = BaseEffectPoints(spell, op - MATHOP_HOT_AURA_1_UPPER + 1);
+            return true;
+
+        case MATHOP_HOT_ABSORB:
+        case MATHOP_HOT_ABSORB_UPPER:
+            value = BaseEffectPoints(spell, 1);
+            return true;
+
+        case MATHOP_HOT_STACKS:
+        case MATHOP_HOT_STACKS_UPPER:
+            value = 1.0f;
+            return true;
+    }
+
+    return false;
+}
+
 static float AuraAmount(const SpellRec* spell, uint32_t effectIndex) {
     int32_t amount = 0;
 

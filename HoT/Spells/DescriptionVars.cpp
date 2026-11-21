@@ -1,7 +1,13 @@
 #include "HoT/Spells/DescriptionVars.h"
 #include "HoT/Features/Units.h"
+#include "WoW/Source/DB/DBClient/DBCacheInstances.h"
+#include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/DB/Rec/SpellShapeshiftFormRec.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Object/ItemStats.h"
+#include "WoW/Source/Object/ObjectClient/Bag_C.h"
+#include "WoW/Source/Object/ObjectClient/Item_C.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Ui/MathState.h"
 
@@ -11,7 +17,45 @@ static const uint32_t POWER_MANA = 0;
 static const uint32_t POWER_FOCUS = 2;
 static const int32_t RATING_HASTE_MELEE = 17;
 static const int32_t RATING_HASTE_RANGED = 18;
-static const int32_t RATING_HASTE_SPELL = 19;
+static const int32_t SLOT_MAIN_HAND = 15;
+static const int32_t SLOT_RANGED = 17;
+static const uint32_t BASE_ATTACK_TIME = 2000;
+
+static uint32_t UnhastedSwingMs(CGPlayer_C* player, bool ranged) {
+    if (!ranged) {
+        SpellShapeshiftFormRec* form = g_spellShapeshiftFormDB.GetRecord(player->GetShapeshiftForm());
+
+        if (form && form->m_combatRoundTime > 0) {
+            return static_cast<uint32_t>(form->m_combatRoundTime);
+        }
+    }
+
+    const CGItem_C* item = player->GetBag()->GetItemPointer(ranged ? SLOT_RANGED : SLOT_MAIN_HAND);
+
+    if (!item || !item->IsUsable()) {
+        return BASE_ATTACK_TIME;
+    }
+
+    WOWGUID none = { 0 };
+    ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, none, nullptr, nullptr, false);
+    return stats && stats->m_delay > 0 ? static_cast<uint32_t>(stats->m_delay) : 0;
+}
+
+static float SwingHastePct(CGPlayer_C* player, bool ranged) {
+    uint32_t swing = ranged ? player->m_unit->m_unitFieldRangedattacktime : player->m_unit->m_unitFieldBaseattacktime[0];
+    uint32_t base = UnhastedSwingMs(player, ranged);
+
+    if (!swing || !base) {
+        return player->GetCombatRatingPct(ranged ? RATING_HASTE_RANGED : RATING_HASTE_MELEE);
+    }
+
+    return (static_cast<float>(base) / static_cast<float>(swing) - 1.0f) * 100.0f;
+}
+
+static float SpellHastePct(CGPlayer_C* player) {
+    float castSpeed = player->m_unit->m_unitModCastSpeed;
+    return castSpeed > 0.0f ? (1.0f / castSpeed - 1.0f) * 100.0f : 0.0f;
+}
 
 // What $s<n> would have shown, for when no aura is in scope or the server sent nothing yet.
 static float BaseEffectPoints(const SpellRec* spell, uint32_t effectIndex) {
@@ -134,17 +178,17 @@ bool GetDescriptionVariable(uint32_t op, CGPlayer_C* player, const SpellRec* spe
 
         case MATHOP_HOT_MELEE_HASTE:
         case MATHOP_HOT_MELEE_HASTE_UPPER:
-            value = player->GetCombatRatingPct(RATING_HASTE_MELEE);
+            value = SwingHastePct(player, false);
             return true;
 
         case MATHOP_HOT_RANGED_HASTE:
         case MATHOP_HOT_RANGED_HASTE_UPPER:
-            value = player->GetCombatRatingPct(RATING_HASTE_RANGED);
+            value = SwingHastePct(player, true);
             return true;
 
         case MATHOP_HOT_SPELL_HASTE:
         case MATHOP_HOT_SPELL_HASTE_UPPER:
-            value = player->GetCombatRatingPct(RATING_HASTE_SPELL);
+            value = SpellHastePct(player);
             return true;
 
         // The stock $rw and $RW round down and up and clamp to 1, HoT hands back the raw field so formulas work on the real value.

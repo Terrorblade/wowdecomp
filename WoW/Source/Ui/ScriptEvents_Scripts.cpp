@@ -2498,7 +2498,7 @@ static int32_t Script_UnitCastingInfo(lua_State* L) {
     uint32_t now = OsGetAsyncTimeMs();
     SpellRec spell;
 
-    if (!g_spellDB.GetRecord(unit->m_castingSpellId, &spell) || static_cast<int32_t>(now - unit->m_castEndTime) >= 0) {
+    if (static_cast<int32_t>(now - unit->m_castEndTime) >= 0 || !g_spellDB.GetRecord(unit->m_castingSpellId, &spell)) {
         return 0;
     }
 
@@ -2924,7 +2924,7 @@ static int32_t Script_UnitChannelInfo(lua_State* L) {
     uint32_t now = OsGetAsyncTimeMs();
     SpellRec spell;
 
-    if (!g_spellDB.GetRecord(unit->m_channelSpellId, &spell) || static_cast<int32_t>(now - unit->m_channelEndTime) >= 0) {
+    if (static_cast<int32_t>(now - unit->m_channelEndTime) >= 0 || !g_spellDB.GetRecord(unit->m_channelSpellId, &spell)) {
         return 0;
     }
 

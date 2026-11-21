@@ -359,8 +359,10 @@ void CGNamePlateFrame::OnLayerUpdate(float elapsedSec) {
 void CGNamePlateFrame::UpdateColorDisplay(CGUnit_C* unit) {
     CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
+    uint8_t classId = unit->m_unit->m_unitFieldBytes0[1];
+
     if (g_ShowClassColorInNameplateCVar->m_intValue && (unit->m_obj->m_type & TYPE_PLAYER) && unit->UnitReaction(player) <= UNIT_REACTION_HOSTILE) {
-        this->m_healthBarColor = s_classColors[unit->m_unit->m_unitFieldBytes0[1]];
+        this->m_healthBarColor = s_classColors[classId < 12 ? classId : 0];
     } else if (unit->UnitReaction(player) <= UNIT_REACTION_HOSTILE) {
         this->m_healthBarColor = s_hostileColor;
     } else if (unit->m_obj->m_type & TYPE_PLAYER) {

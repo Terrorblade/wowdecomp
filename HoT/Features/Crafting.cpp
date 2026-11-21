@@ -629,9 +629,9 @@ static int32_t Packet_SMSG_CRAFTING_DATA(void* param, NETMESSAGE msgId, uint32_t
     s_catalystLookup.clear();
 
     uint8_t patternCount = packet.GetUInt8();
-    s_patterns.reserve(patternCount);
+    s_patterns.reserve(packet.ClampCount(patternCount, 5));
 
-    for (uint32_t i = 0; i < patternCount && packet.CanRead(1); i++) {
+    for (uint32_t i = 0; i < patternCount && packet.CanRead(5); i++) {
         PatternInfo info;
         info.m_entry = packet.GetUInt32();
         info.m_category = packet.GetUInt8();
@@ -639,9 +639,9 @@ static int32_t Packet_SMSG_CRAFTING_DATA(void* param, NETMESSAGE msgId, uint32_t
     }
 
     uint8_t materialCount = packet.GetUInt8();
-    s_materials.reserve(materialCount);
+    s_materials.reserve(packet.ClampCount(materialCount, 5));
 
-    for (uint32_t i = 0; i < materialCount && packet.CanRead(1); i++) {
+    for (uint32_t i = 0; i < materialCount && packet.CanRead(5); i++) {
         MaterialInfo info;
         info.m_entry = packet.GetUInt32();
         info.m_category = packet.GetUInt8();
@@ -649,9 +649,9 @@ static int32_t Packet_SMSG_CRAFTING_DATA(void* param, NETMESSAGE msgId, uint32_t
     }
 
     uint16_t recipeCount = packet.GetUInt16();
-    s_recipes.reserve(recipeCount);
+    s_recipes.reserve(packet.ClampCount(recipeCount, 16));
 
-    for (uint32_t i = 0; i < recipeCount && packet.CanRead(1); i++) {
+    for (uint32_t i = 0; i < recipeCount && packet.CanRead(16); i++) {
         RecipeInfo info;
         info.m_pattern = packet.GetUInt32();
         info.m_material = packet.GetUInt32();
@@ -662,9 +662,9 @@ static int32_t Packet_SMSG_CRAFTING_DATA(void* param, NETMESSAGE msgId, uint32_t
     }
 
     uint8_t catalystCount = packet.GetUInt8();
-    s_catalystList.reserve(catalystCount);
+    s_catalystList.reserve(packet.ClampCount(catalystCount, 13));
 
-    for (uint32_t i = 0; i < catalystCount && packet.CanRead(1); i++) {
+    for (uint32_t i = 0; i < catalystCount && packet.CanRead(13); i++) {
         CatalystInfo info;
         info.m_entry = packet.GetUInt32();
         info.m_type = packet.GetUInt8();
@@ -739,7 +739,7 @@ static int32_t Packet_SMSG_CRAFTING_SCRAP_RESULT(void* param, NETMESSAGE msgId, 
     int32_t rejected = 0;
     bool changed = false;
 
-    for (uint32_t i = 0; i < count && packet.CanRead(1); i++) {
+    for (uint32_t i = 0; i < count && packet.CanRead(9); i++) {
         uint64_t guid = packet.GetUInt64();
         uint8_t result = packet.GetUInt8();
 

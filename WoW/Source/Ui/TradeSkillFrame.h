@@ -26,6 +26,7 @@ struct TradeSkillInfo {
     /* 0018 */ int32_t m_numAvailable;
     /* 001C */ int32_t m_skillLineRank;
     /* 0020 */ int32_t m_visible;
+    const char* m_sortName;
 };
 
 struct TradeSkillSubClassInfo {

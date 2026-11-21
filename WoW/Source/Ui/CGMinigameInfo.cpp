@@ -45,10 +45,14 @@ void CGMinigameInfo::LeaveWorld() {
 // VERIFY: 67e71a08 auto
 // OFFSET: 0x005C5690
 int32_t Packet_SMSG_MINIGAME_SETUP(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint64_t guid;
-    uint8_t type;
+    uint64_t guid = 0;
+    uint8_t type = 0;
     msg->Get(guid);
     msg->Get(type);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (CGMinigameInfo::m_minigame) {
         delete CGMinigameInfo::m_minigame;

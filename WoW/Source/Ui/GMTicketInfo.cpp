@@ -115,10 +115,11 @@ void CGGMTicketInfo::CreateTicket(const char* text, int32_t needResponse, uint32
     if (strlen(chat)) {
         uint32_t length = static_cast<uint32_t>(strlen(chat)) + 1;
         uint32_t size = length / 1000 + length + 13;
-        uint8_t* compressed = static_cast<uint8_t*>(alloca(size));
+        uint8_t* compressed = static_cast<uint8_t*>(SMemAlloc(size, __FILE__, __LINE__, 0));
         zlib_compress(compressed, &size, reinterpret_cast<uint8_t*>(chat), length, -1);
         msg.Put(length);
         msg.PutData(compressed, size);
+        SMemFree(compressed, __FILE__, __LINE__, 0);
     } else {
         msg.Put(static_cast<uint32_t>(0));
     }
@@ -205,7 +206,7 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
     switch (msgId) {
         case SMSG_GM_TICKET_CREATE:
         case SMSG_GM_TICKET_UPDATE_TEXT: {
-            uint32_t result;
+            uint32_t result = 0;
             msg->Get(result);
 
             switch (result) {
@@ -231,8 +232,12 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
         }
 
         case SMSG_GM_TICKET_GET_TICKET: {
-            uint32_t status;
+            uint32_t status = 0xFFFFFFFF;
             msg->Get(status);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
 
             if (status != 6) {
                 if (!status) {
@@ -247,30 +252,34 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
             msg->Get(reinterpret_cast<uint32_t&>(CGGMTicketInfo::m_ticketID));
             char text[2000];
             msg->GetString(text, sizeof(text));
-            uint8_t category;
+            uint8_t category = 0;
             msg->Get(category);
-            float ticketAge;
+            float ticketAge = 0.0f;
             msg->Get(ticketAge);
 
             if (ticketAge < 0.0f) {
                 ticketAge = 0.0f;
             }
 
-            float oldestTicketAge;
+            float oldestTicketAge = 0.0f;
             msg->Get(oldestTicketAge);
-            float lastUpdate;
+            float lastUpdate = 0.0f;
             msg->Get(lastUpdate);
-            uint8_t assigned;
+            uint8_t assigned = 0;
             msg->Get(assigned);
-            uint8_t opened;
+            uint8_t opened = 0;
             msg->Get(opened);
             FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_TICKET, "%d%s%f%f%f%d%d", category, text, ticketAge, oldestTicketAge, lastUpdate, assigned, opened);
             break;
         }
 
         case SMSG_GM_TICKET_DELETE_TICKET: {
-            uint32_t result;
+            uint32_t result = 0;
             msg->Get(result);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
 
             if (result == 9) {
                 CGGMTicketInfo::m_ticketID = 0;
@@ -284,7 +293,7 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
         }
 
         case SMSG_GM_TICKET_STATUS_UPDATE: {
-            uint32_t status;
+            uint32_t status = 0;
             msg->Get(status);
 
             switch (status) {

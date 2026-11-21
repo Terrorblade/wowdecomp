@@ -685,10 +685,24 @@ uint32_t CLayoutFrame::IsProtected() {
 // VERIFY: c9d23c46 manual
 // OFFSET: 0x00489C30
 void CLayoutFrame::RegisterResize(CLayoutFrame* frame, uint32_t dependency) {
-    for (CLayoutFrame::FRAMENODE* node = this->m_resizeList.Head(); node; node = this->m_resizeList.Next(node)) {
-        if (node->m_frame == frame) {
-            node->m_dependency |= dependency;
-            return;
+    // A node for frame exists only while another of its used points is anchored here, so a big anchor list is not scanned otherwise.
+    bool anchored = false;
+
+    for (int32_t i = 0; i < FRAMEPOINT_NUMPOINTS; i++) {
+        CFramePoint* framePoint = frame->m_framePoints[i];
+
+        if (!(dependency & (1u << i)) && framePoint && !(framePoint->m_flags & 8) && framePoint->m_relative == this) {
+            anchored = true;
+            break;
+        }
+    }
+
+    if (anchored) {
+        for (CLayoutFrame::FRAMENODE* node = this->m_resizeList.Head(); node; node = this->m_resizeList.Next(node)) {
+            if (node->m_frame == frame) {
+                node->m_dependency |= dependency;
+                return;
+            }
         }
     }
 
@@ -708,11 +722,12 @@ void CLayoutFrame::RegisterResize(CLayoutFrame* frame, uint32_t dependency) {
 // VERIFY: a0d5b2b8 manual
 // OFFSET: 0x00489D70
 void CLayoutFrame::UnregisterResize(CLayoutFrame* frame, uint32_t dependency) {
-    CLayoutFrame::FRAMENODE* node = this->m_resizeList.Head();
+    // Each frame has at most one node, and frames that are re-anchored often sit near the tail.
+    CLayoutFrame::FRAMENODE* node = this->m_resizeList.Tail();
 
     while (node) {
         if (node->m_frame != frame) {
-            node = this->m_resizeList.Next(node);
+            node = this->m_resizeList.Prev(node);
             continue;
         }
 

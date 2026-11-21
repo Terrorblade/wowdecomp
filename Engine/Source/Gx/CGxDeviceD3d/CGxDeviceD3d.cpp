@@ -2454,6 +2454,21 @@ void CGxDeviceD3d::IReleaseD3dResources(int32_t freeTextures) {
         this->m_defDepthStencilSurface = nullptr;
     }
 
+    // Texture target surfaces hold a ref on their default pool texture, which makes Reset fail
+    for (uint32_t i = 0; i < 2; i++) {
+        CGxDevice::TextureTarget& target = this->m_textureTarget[i];
+
+        if (target.m_apiSpecific) {
+            static_cast<LPDIRECT3DSURFACE9>(target.m_apiSpecific)->Release();
+            target.m_apiSpecific = nullptr;
+        }
+
+        target.m_texture = nullptr;
+        target.m_plane = 0;
+    }
+
+    this->m_curWindowRect = this->m_defWindowRect;
+
     if (this->m_surface3B44) {
         this->m_surface3B44->Release();
         this->m_surface3B44 = nullptr;
@@ -3662,6 +3677,7 @@ void CGxDeviceD3d::ICreateDepthStencilSurface(uint32_t width, uint32_t height) {
         }
 
         this->m_defDepthStencilSurface->Release();
+        this->m_defDepthStencilSurface = nullptr;
     }
 
     D3DFORMAT formats[3] = { D3DFMT_D24S8, D3DFMT_D24X8, D3DFMT_D32 };

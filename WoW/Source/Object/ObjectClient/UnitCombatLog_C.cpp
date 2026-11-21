@@ -1,5 +1,8 @@
 #include "UnitCombatLog_C.h"
+#include <algorithm>
 #include <cstring>
+#include <functional>
+#include <vector>
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/DB/DBClient/CreatureStats_C.h"
@@ -400,6 +403,51 @@ PendingCombatLogData* GetPendingCombatLogData(CombatLogEntry* entry, const WOWGU
     return data;
 }
 
+static uint32_t s_invalidatedNameCount;
+static uint32_t s_invalidatedNameSweepAt = 256;
+
+// Frees invalidated name copies that no live combat log entry points at anymore.
+static void SweepInvalidatedNames() {
+    std::vector<const char*> names;
+    names.reserve(s_invalidatedNameCount);
+
+    for (InvalidatedName* node = s_invalidatedNames.Head(); node; node = s_invalidatedNames.Next(node)) {
+        names.push_back(node->m_name);
+    }
+
+    std::sort(names.begin(), names.end(), std::less<const char*>());
+    std::vector<uint8_t> used(names.size(), 0);
+
+    for (CombatLogEntry* entry = s_entries.Head(); entry; entry = s_entries.Next(entry)) {
+        const char* fields[] = { entry->m_sourceName, entry->m_destName, entry->m_sourceRealm, entry->m_destRealm, entry->m_info.m_names[1] };
+
+        for (const char* field : fields) {
+            auto it = std::lower_bound(names.begin(), names.end(), field, std::less<const char*>());
+
+            if (it != names.end() && *it == field) {
+                used[it - names.begin()] = 1;
+            }
+        }
+    }
+
+    uint32_t kept = 0;
+    InvalidatedName* node = s_invalidatedNames.Head();
+
+    while (node) {
+        auto it = std::lower_bound(names.begin(), names.end(), static_cast<const char*>(node->m_name), std::less<const char*>());
+
+        if (it != names.end() && *it == node->m_name && !used[it - names.begin()]) {
+            node = s_invalidatedNames.DeleteNode(node);
+        } else {
+            kept++;
+            node = s_invalidatedNames.Next(node);
+        }
+    }
+
+    s_invalidatedNameCount = kept;
+    s_invalidatedNameSweepAt = kept * 2 > 256 ? kept * 2 : 256;
+}
+
 // VERIFY: 106263c5 manual
 // OFFSET: 0x0074F400
 void UnitCombatLogInvalidateName(const char* name) {
@@ -424,6 +472,10 @@ void UnitCombatLogInvalidateName(const char* name) {
 
             *field = node->m_name;
         }
+    }
+
+    if (node && ++s_invalidatedNameCount >= s_invalidatedNameSweepAt) {
+        SweepInvalidatedNames();
     }
 }
 
@@ -473,6 +525,8 @@ void UnitCombatClientInitialize() {
     s_pendingData.Clear();
     s_freePendingData.Clear();
     s_invalidatedNames.Clear();
+    s_invalidatedNameCount = 0;
+    s_invalidatedNameSweepAt = 256;
     s_startTime = static_cast<uint32_t>(time(nullptr));
     s_startTimeMs = FrameTime::s_curTimeMs;
     ClientServices::SetMessageHandler(SMSG_SPELL_PERIODIC_AURA_LOG, Packet_SMSG_PERIODICAURALOG, nullptr);
@@ -1554,9 +1608,9 @@ int32_t Packet_SMSG_ENCHANTMENTLOG(void* param, NETMESSAGE msgId, uint32_t time,
     SmartGUID caster;
     *msg >> target;
     *msg >> caster;
-    uint32_t itemId;
+    uint32_t itemId = 0;
     msg->Get(itemId);
-    uint32_t enchantId;
+    uint32_t enchantId = 0;
     msg->Get(enchantId);
 
     SpellItemEnchantmentRec* enchant = g_spellItemEnchantmentDB.GetRecord(enchantId);
@@ -2887,6 +2941,8 @@ static void UnitCombatLogShutdown() {
     s_pendingData.Clear();
     s_freePendingData.Clear();
     s_invalidatedNames.Clear();
+    s_invalidatedNameCount = 0;
+    s_invalidatedNameSweepAt = 256;
     ClientServices::ClearMessageHandler(SMSG_SPELL_PERIODIC_AURA_LOG);
     ClientServices::ClearMessageHandler(SMSG_ENCHANTMENT_LOG);
     ClientServices::ClearMessageHandler(SMSG_PARTY_KILL_LOG);
@@ -3043,7 +3099,7 @@ void CombatLogEntry::PackEvent(char* buffer, uint32_t size) {
     char* cursor = buffer;
     uint32_t remaining = size;
     size_t length = SStrCopy(buffer, s_combatLogEventNames[this->m_event], size);
-    remaining += static_cast<uint32_t>(length);
+    remaining -= static_cast<uint32_t>(length);
     cursor += length;
     PackUnit(cursor, remaining, this->m_sourceGuid, this->m_sourceName, this->m_sourceRealm, this->m_sourceFlags);
     PackUnit(cursor, remaining, this->m_destGuid, this->m_destName, this->m_destRealm, this->m_destFlags);
@@ -3282,13 +3338,17 @@ int32_t Packet_SMSG_DESTRUCTIBLE_BUILDING_DAMAGE(void* param, NETMESSAGE msgId, 
     SmartGUID building;
     SmartGUID caster;
     SmartGUID owner;
-    int32_t damage;
-    int32_t spellId;
+    int32_t damage = 0;
+    int32_t spellId = 0;
     *msg >> building;
     *msg >> caster;
     *msg >> owner;
     msg->Get(reinterpret_cast<uint32_t&>(damage));
     msg->Get(reinterpret_cast<uint32_t&>(spellId));
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (damage <= 0) {
         WOWGUID a = caster;

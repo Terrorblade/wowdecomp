@@ -218,8 +218,9 @@ void AreaListRegisterLocation(int32_t mapId, CMapEntity* entity) {
     AreaTableRec* zone;
     int32_t zoneId;
 
-    if (area->m_parentAreaID) {
-        zone = g_areaTableDB.GetRecord(area->m_parentAreaID);
+    zone = area->m_parentAreaID ? g_areaTableDB.GetRecord(area->m_parentAreaID) : nullptr;
+
+    if (zone) {
         zoneId = zone->m_id;
     } else {
         zone = area;

@@ -439,7 +439,7 @@ void CChunkLiquid::Batch() {
             for (int32_t x = 0; x < 2; x++) {
                 CMapChunk* chunk = *slot;
 
-                for (CChunkLiquid* liquid = chunk->m_liquidChunkLinkList.Head(); liquid; liquid = chunk->m_liquidChunkLinkList.Next(liquid)) {
+                for (CChunkLiquid* liquid = chunk ? chunk->m_liquidChunkLinkList.Head() : nullptr; liquid; liquid = chunk->m_liquidChunkLinkList.Next(liquid)) {
                     if (liquid->m_type == this->m_type) {
                         s_batch.New(liquid);
                     }
@@ -651,7 +651,7 @@ bool CChunkLiquid::GetTris(World::TriData* triData, uint8_t* codes, const C2iVec
 
                         if (World::TriData::matrixPoolCount + 1 >= 32) {
                             World::TriData::statusFlags |= 1;
-                            matrix = nullptr;
+                            return false;
                         } else {
                             matrix = &World::TriData::matrixPool[World::TriData::matrixPoolCount++];
                         }

@@ -54,7 +54,7 @@ static int32_t Script_GetInventoryItemTexture(lua_State* L) {
 
                 if (ammoId && unit->GetBag()->GetItemTypeCount(ammoId, 0)) {
                     WOWGUID requester = unit->m_obj->m_guid;
-                    ItemStats_C* stats = g_itemDBCache.GetRecord(ammoId, requester, UnitInventoryChangedCallback, nullptr, false);
+                    ItemStats_C* stats = g_itemDBCache.GetRecord(ammoId, requester, UnitInventoryChangedCallback, nullptr, true);
 
                     if (stats) {
                         displayId = stats->m_displayId;
@@ -535,7 +535,7 @@ static int32_t Script_GetInspectArenaTeamData(lua_State* L) {
     }
 
     WOWGUID requester = CGCharacterInfo::m_inspectTarget;
-    ArenaTeamCache* cache = g_arenaTeamCache.GetRecord(team->m_teamId, requester, &InspectArenaTeamCacheCallback, nullptr, false);
+    ArenaTeamCache* cache = g_arenaTeamCache.GetRecord(team->m_teamId, requester, &InspectArenaTeamCacheCallback, nullptr, true);
 
     if (!cache) {
         return 0;
@@ -760,7 +760,7 @@ static int32_t Script_GetInventoryItemQuality(lua_State* L) {
         }
 
         WOWGUID requester = unit->m_obj->m_guid;
-        stats = g_itemDBCache.GetRecord(ammo, requester, &UnitInventoryChangedCallback, nullptr, false);
+        stats = g_itemDBCache.GetRecord(ammo, requester, &UnitInventoryChangedCallback, nullptr, true);
     }
 
     if (!stats) {

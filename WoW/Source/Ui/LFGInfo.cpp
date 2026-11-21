@@ -908,6 +908,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             CGLookingForGroup::m_roleCheckSlots.SetCount(slotCount);
 
             for (int32_t i = 0; i < slotCount; i++) {
+                CGLookingForGroup::m_roleCheckSlots.m_data[i] = 0;
                 msg->Get(CGLookingForGroup::m_roleCheckSlots.m_data[i]);
             }
 
@@ -918,12 +919,21 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
             for (uint32_t i = 0; i < memberCount; i++) {
                 LFGRoleCheckMember& member = CGLookingForGroup::m_roleCheckMembers.m_data[i];
+                member.m_guid.m_guid = 0;
+                member.m_roles = 0;
+                member.m_level = 0;
                 msg->Get(member.m_guid.m_guid);
                 uint8_t confirmed = 0;
                 msg->Get(confirmed);
                 member.m_confirmed = confirmed;
                 msg->Get(member.m_roles);
                 msg->Get(member.m_level);
+
+                if (msg->m_read > msg->m_size) {
+                    memberCount = static_cast<uint8_t>(i);
+                    CGLookingForGroup::m_roleCheckMembers.SetCount(memberCount);
+                    break;
+                }
 
                 if (ClntObjMgrGetActivePlayer() == member.m_guid) {
                     localIndex = i;

@@ -149,6 +149,15 @@ void Stop() {
     }
 }
 
+// Quitting with the profiler open would otherwise destroy a joinable std::thread, which calls std::terminate.
+struct StopAtExit {
+    ~StopAtExit() {
+        Stop();
+    }
+};
+
+static StopAtExit s_stopAtExit;
+
 static std::string SymbolName(uint64_t address) {
     static HANDLE process = nullptr;
 

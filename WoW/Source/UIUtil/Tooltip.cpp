@@ -1196,6 +1196,9 @@ CGTooltip::~CGTooltip() {
             ClntObjMgrUnsetObjMirrorHandler(this->m_healthGuid, ID_GAMEOBJECT, offsetof(CGGameObjectData, m_animProgress), ObjHealthUpdateHandler, this->m_statusBar);
         }
     }
+
+    // DBCache_ClearPending at UI shutdown does not cover the petition cache.
+    g_petitionCache.CancelCallbacksForParam(TooltipItemCallback, this);
 }
 
 // VERIFY: 870e83bb auto
@@ -1642,6 +1645,10 @@ int32_t CGItemStatsSummary::Create(CGItem_C* item, int32_t level) {
     WOWGUID none = WOWGUID();
     ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, none, nullptr, nullptr, false);
 
+    if (!stats) {
+        return 0;
+    }
+
     if (stats->m_scalingStatValue) {
         this->FillOutScalingItem(stats, level);
         this->CleanStatNames();
@@ -1879,7 +1886,7 @@ int32_t CGTooltip::SetUnit(const WOWGUID& guid, int32_t showHealth, const WOWGUI
 
             if (guildId) {
                 WOWGUID requester = unit->m_obj->m_guid;
-                GuildStats_C* guild = g_guildInfoCache.GetRecord(guildId, requester, TooltipUnitNameCallback, this, false);
+                GuildStats_C* guild = g_guildInfoCache.GetRecord(guildId, requester, TooltipUnitNameCallback, this, true);
 
                 if (guild) {
                     this->AddLine(guild->m_name, nullptr, textColor, textColor, 0);
@@ -2125,7 +2132,7 @@ int32_t CGTooltip::SetUnit(const WOWGUID& guid, int32_t showHealth, const WOWGUI
 
             for (uint32_t i = 0; i < CGQuestLog::m_numQuest; i++) {
                 WOWGUID requester = { 0 };
-                QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::GetQuestAt(i), requester, TooltipUnitNameCallback, this, false);
+                QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::GetQuestAt(i), requester, TooltipUnitNameCallback, this, true);
 
                 if (!quest) {
                     continue;
@@ -2197,7 +2204,7 @@ int32_t CGTooltip::SetUnit(const WOWGUID& guid, int32_t showHealth, const WOWGUI
     if (unit && dead) {
         if (unit->GetMasterLooter()) {
             WOWGUID requester = { 0 };
-            NameCache* looter = g_nameDBCache.GetRecord(unit->GetMasterLooter(), requester, TooltipUnitNameCallback, this, false);
+            NameCache* looter = g_nameDBCache.GetRecord(unit->GetMasterLooter(), requester, TooltipUnitNameCallback, this, true);
 
             if (looter) {
                 char buffer[64];
@@ -2208,7 +2215,7 @@ int32_t CGTooltip::SetUnit(const WOWGUID& guid, int32_t showHealth, const WOWGUI
 
         if (unit->GetLooter()) {
             WOWGUID requester = { 0 };
-            NameCache* looter = g_nameDBCache.GetRecord(unit->GetLooter(), requester, TooltipUnitNameCallback, this, false);
+            NameCache* looter = g_nameDBCache.GetRecord(unit->GetLooter(), requester, TooltipUnitNameCallback, this, true);
 
             if (looter) {
                 char buffer[64];
@@ -3598,7 +3605,7 @@ void GetScalingStatDamage(const ScalingStatValuesRec* values, uint32_t flags, fl
 // VERIFY: 64b947f2 manual
 // OFFSET: 0x0061A8F0
 int32_t GetFeralAttackPower(const ItemStats_C* stats, float damage) {
-    if (stats->m_class == 2 && (s_inventoryTypeSlots[stats->m_inventoryType] & 0x8000)) {
+    if (stats->m_class == 2 && stats->m_inventoryType < sizeof(s_inventoryTypeSlots) / sizeof(s_inventoryTypeSlots[0]) && (s_inventoryTypeSlots[stats->m_inventoryType] & 0x8000)) {
         double dps = damage / (stats->m_delay * 0.001f);
 
         if (dps > 54.81f) {
@@ -7015,8 +7022,7 @@ int32_t CGItemStatsSummary::CreateFromTooltip(CGTooltip* tooltip) {
     CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(tooltip->m_itemGuid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (item) {
-        this->Create(item, tooltip->m_itemDisplayedLevel);
-        return 1;
+        return this->Create(item, tooltip->m_itemDisplayedLevel);
     }
 
     WOWGUID none = WOWGUID();
@@ -7238,7 +7244,7 @@ int32_t SetCompareItem(CGTooltip* tooltip, uint32_t itemId, int32_t offset, int3
         return 0;
     }
 
-    uint32_t slots = s_inventoryTypeSlots[stats->m_inventoryType];
+    uint32_t slots = stats->m_inventoryType < sizeof(s_inventoryTypeSlots) / sizeof(s_inventoryTypeSlots[0]) ? s_inventoryTypeSlots[stats->m_inventoryType] : 0;
 
     if (offset == 2) {
         if (stats->m_scalingStatValue && CGMerchantInfo::m_merchant && !shift) {
@@ -7526,7 +7532,7 @@ int32_t CGTooltip::SetQuest(int32_t questId) {
 
     WOWGUID requester = { 0 };
     this->m_questId = questId;
-    QuestCache* quest = g_questDBCache.GetRecord(questId, requester, TooltipQuestCallback, this, false);
+    QuestCache* quest = g_questDBCache.GetRecord(questId, requester, TooltipQuestCallback, this, true);
 
     if (!quest) {
         return 0;
@@ -7724,7 +7730,7 @@ void CGTooltip::SetFrameStack(bool showHidden) {
                 lua_settop(L, -3);
 
                 if (object && object == frame) {
-                    SStrCopy(info.m_name, name, STORM_MAX_STR);
+                    SStrCopy(info.m_name, name, sizeof(info.m_name));
                 } else {
                     lua_rawgeti(L, LUA_REGISTRYINDEX, frame->GetLuaObjectRef());
                     SStrPrintf(info.m_name, sizeof(info.m_name), "%s: %p (%s)", lua_typename(L, lua_type(L, -1)), lua_topointer(L, -1), name);
@@ -7940,7 +7946,7 @@ void CGTooltip::SetObject(const WOWGUID& guid) {
 
         for (uint32_t i = 0; i < static_cast<uint32_t>(CGQuestLog::m_numQuest); i++) {
             WOWGUID requester = { 0 };
-            QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::GetQuestAt(i), requester, TooltipObjectCallback, this, false);
+            QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::GetQuestAt(i), requester, TooltipObjectCallback, this, true);
 
             if (!quest) {
                 continue;

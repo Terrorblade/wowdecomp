@@ -113,7 +113,7 @@ static void GossipTextCallback(int32_t id, const WOWGUID& guid, void* param, boo
 // VERIFY: b728608d manual
 // OFFSET: 0x0058AC30
 void CGGossipInfo::SetGossipText(int32_t textId) {
-    NPCText* text = g_npcTextDBCache.GetRecord(textId, CGGossipInfo::m_gossip, GossipTextCallback, nullptr, false);
+    NPCText* text = g_npcTextDBCache.GetRecord(textId, CGGossipInfo::m_gossip, GossipTextCallback, nullptr, true);
 
     if (!text) {
         CGGossipInfo::m_textPending = 1;
@@ -204,14 +204,19 @@ void CGGossipInfo::SetGossipText(int32_t textId) {
 int32_t Packet_SMSG_GOSSIP_MESSAGE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID guid;
     msg->Get(guid.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     CGGossipInfo::SetGossip(guid);
     CGGossipInfo::ClearOptions();
     msg->Get(CGGossipInfo::m_gossipID);
 
-    uint32_t textId;
+    uint32_t textId = 0;
     msg->Get(textId);
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
     if (count > 32) {
@@ -225,10 +230,10 @@ int32_t Packet_SMSG_GOSSIP_MESSAGE(void* param, NETMESSAGE msgId, uint32_t time,
         GossipOption& option = CGGossipInfo::m_options[i];
         msg->Get(reinterpret_cast<uint32_t&>(option.m_index));
 
-        uint8_t type;
+        uint8_t type = 0;
         msg->Get(type);
 
-        uint8_t coded;
+        uint8_t coded = 0;
         msg->Get(coded);
 
         option.m_type = type;
@@ -248,8 +253,15 @@ int32_t Packet_SMSG_GOSSIP_MESSAGE(void* param, NETMESSAGE msgId, uint32_t time,
         }
 
         option.m_boxText = text[0] ? SStrDupA(text, __FILE__, __LINE__) : nullptr;
+
+        if (msg->m_read > msg->m_size) {
+            option.m_index = -1;
+            CGGossipInfo::m_gossipOptionsCount = i;
+            break;
+        }
     }
 
+    count = 0;
     msg->Get(count);
 
     if (count > sizeof(CGGossipInfo::m_quests) / sizeof(CGGossipInfo::m_quests[0])) {
@@ -267,6 +279,11 @@ int32_t Packet_SMSG_GOSSIP_MESSAGE(void* param, NETMESSAGE msgId, uint32_t time,
         msg->Get(repeatable);
         quest.m_repeatable = repeatable;
         msg->GetString(quest.m_title, sizeof(quest.m_title));
+
+        if (msg->m_read > msg->m_size) {
+            quest.m_questID = 0;
+            break;
+        }
     }
 
     CGGossipInfo::SetGossipText(textId);
@@ -492,11 +509,11 @@ int32_t Packet_SMSG_GOSSIP_COMPLETE(void* param, NETMESSAGE msgId, uint32_t time
 // VERIFY: 06b6b0c5 auto
 // OFFSET: 0x0058A870
 int32_t Packet_SMSG_GOSSIP_POI(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t flags;
-    float x;
-    float y;
-    uint32_t icon;
-    uint32_t importance;
+    uint32_t flags = 0;
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t icon = 0;
+    uint32_t importance = 0;
     char name[64];
     msg->Get(flags);
     msg->Get(x);
@@ -504,6 +521,11 @@ int32_t Packet_SMSG_GOSSIP_POI(void* param, NETMESSAGE msgId, uint32_t time, CDa
     msg->Get(icon);
     msg->Get(importance);
     msg->GetString(name, sizeof(name));
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     MinimapSetDynamicPOI(1, flags, x, y, icon, importance, name);
     return 1;
 }

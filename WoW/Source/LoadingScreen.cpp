@@ -705,6 +705,19 @@ void LoadingScreenEnable(int32_t mapID, bool loadingWorld) {
     CGGameUI::SetAspect();
 
     if (s_gameTip) {
+        // Login enables the screen again from World::Preload while the first tip is still up.
+        if (s_batch) {
+            GxuFontDestroyBatch(s_batch);
+            s_batch = nullptr;
+        }
+
+        GxuFontDestroyString(s_tipStr);
+
+        if (s_textFont) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_textFont));
+            s_textFont = nullptr;
+        }
+
         s_textFont = TextBlockGenerateFont(s_fontNames[s_locale], 1, NDCToDDCHeight(0.018f));
         CGxFont* font = TextBlockGetFontPtr(s_textFont);
 
@@ -720,8 +733,8 @@ void LoadingScreenEnable(int32_t mapID, bool loadingWorld) {
         char* tip = static_cast<char*>(alloca(SStrLen(s_gameTip) + 1));
         memcpy(tip, s_gameTip, SStrLen(s_gameTip) + 1);
 
-        for (char* end = &tip[SStrLen(tip) - 1]; *end == '\r' || *end == '\n'; end--) {
-            *end = '\0';
+        for (uint32_t length = SStrLen(tip); length && (tip[length - 1] == '\r' || tip[length - 1] == '\n'); length--) {
+            tip[length - 1] = '\0';
         }
 
         CImVector color;
@@ -793,6 +806,7 @@ static void LoadingScreenDisableEvents() {
 
     if (s_sizeEventPosted) {
         EventQueuePost(EventGetCurrentContext(), EVENT_ID_SIZE, &s_sizeEvent, sizeof(s_sizeEvent));
+        s_sizeEventPosted = 0;
     }
 }
 
@@ -926,6 +940,10 @@ bool LoadDynamicBackground() {
     }
 
     for (uint32_t i = 0; i < 12; i++) {
+        if (s_dynamicBackgroundTextures[i]) {
+            continue;
+        }
+
         char fileName[260];
         SStrPrintf(fileName, sizeof(fileName), "Interface\\WorldMap\\World\\World%d", i + 1);
 
@@ -1241,6 +1259,8 @@ static bool InitializeSpline(uint32_t path, int32_t leg) {
 
     if (segments < 1) {
         segments = 1;
+    } else if (segments > 4096) {
+        segments = 4096;
     }
 
     s_dynamicElements.SetCount(4 * segments + 12);

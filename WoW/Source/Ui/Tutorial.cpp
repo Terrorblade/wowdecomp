@@ -181,7 +181,7 @@ void CGTutorial::LoadFlaggedTutorials() {
     list.m_state = 0;
     int32_t* tutorial = s_tutorialsCompleted;
 
-    for (uint32_t value = list.GetNextValue(); value; value = list.GetNextValue()) {
+    for (uint32_t value = list.GetNextValue(); value && tutorial < s_tutorialsCompleted + 60; value = list.GetNextValue()) {
         *tutorial++ = value;
     }
 

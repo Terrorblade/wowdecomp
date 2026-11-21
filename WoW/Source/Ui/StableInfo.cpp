@@ -39,8 +39,8 @@ int32_t Packet_MSG_LIST_STABLED_PETS(void* param, NETMESSAGE msgId, uint32_t tim
     }
 
     CGStableInfo::m_selectedPet = 0;
-    uint8_t numPets;
-    uint8_t numSlots;
+    uint8_t numPets = 0;
+    uint8_t numSlots = 0;
     msg->Get(numPets);
     msg->Get(numSlots);
     CGStableInfo::m_numPets = numPets;
@@ -60,6 +60,12 @@ int32_t Packet_MSG_LIST_STABLED_PETS(void* param, NETMESSAGE msgId, uint32_t tim
         msg->GetString(pet.m_name, sizeof(pet.m_name));
         msg->Get(pet.m_state);
 
+        if (msg->m_read > msg->m_size) {
+            memset(&pet, 0, sizeof(pet));
+            CGStableInfo::m_numPets = i;
+            break;
+        }
+
         if (!(pet.m_state & 0x2)) {
             CGStableInfo::m_pets[0].m_entry = pet.m_entry;
             CGStableInfo::m_pets[0].m_petNumber = pet.m_petNumber;
@@ -78,7 +84,7 @@ int32_t Packet_MSG_LIST_STABLED_PETS(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: 03f68cbf manual
 // OFFSET: 0x005A17F0
 int32_t Packet_SMSG_STABLE_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t result;
+    uint8_t result = 0;
     msg->Get(result);
 
     switch (result) {

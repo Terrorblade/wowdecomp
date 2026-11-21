@@ -5,7 +5,6 @@
 #include <cstring>
 #include <new>
 #include <typeinfo>
-#include <unordered_map>
 #include <vector>
 #include "Engine/Source/Services/ParticleSystem2.h"
 #include "Engine/Source/Base/Handle.h"
@@ -97,7 +96,6 @@ struct PrebuiltInstances {
 
 std::vector<PrebuiltInstances> s_prebuilt;
 uint32_t s_prebuiltCount;
-std::unordered_map<CParticleEmitter2*, uint32_t> s_prebuiltIndex;
 
 // One arena per pass, per-slot buffers each grew to the largest emitter that ever used the slot and never shrank.
 std::vector<CParticleEmitter2::ParticleInstance> s_prebuiltArena;
@@ -2215,6 +2213,7 @@ CParticleEmitter2::CParticleEmitter2() : m_random(0) {
     this->m_worldBounds.t.y = -3.4028235e38f;
     this->m_worldBounds.t.z = -3.4028235e38f;
     this->m_updateQueued = 0;
+    this->m_prebuiltSlot = 0;
 
     this->m_random.SetSeed((rand() << 16) | static_cast<uint16_t>(rand()));
     this->m_childEmitterCount = 0;
@@ -2323,6 +2322,11 @@ void CParticleEmitter2::BuildParticleVertices(ParticleVertex& vertex, uint32_t c
             CSortableParticleRecord record = CParticleEmitter2::s_pq.Pop();
             this->BuildVertex(*record.m_particle, vertex);
         }
+
+        // Drop the records past the vertex cap so they cannot leak into the next emitter on this thread.
+        if (CParticleEmitter2::s_pq.m_count > 1) {
+            CParticleEmitter2::s_pq.m_count = 1;
+        }
     } else {
         for (; i < count; i++) {
             uint32_t index = this->m_liveList[i];
@@ -2381,15 +2385,15 @@ void CParticleEmitter2::RenderParticles(const C44Matrix* frameOfReference, void*
     ParticleVertex vertex;
     vertex.m_instance = static_cast<ParticleInstance*>(buffer);
     vertex.m_count = 0;
-    auto prebuilt = s_prebuiltIndex.find(this);
+    uint32_t prebuilt = this->m_prebuiltSlot - 1;
 
-    if (prebuilt != s_prebuiltIndex.end() && s_prebuilt[prebuilt->second].m_frameOfReference == frameOfReference && !memcmp(&s_prebuilt[prebuilt->second].m_view, &view, sizeof(C44Matrix))) {
-        const PrebuiltInstances& entry = s_prebuilt[prebuilt->second];
+    if (prebuilt < s_prebuiltCount && s_prebuilt[prebuilt].m_emitter == this && s_prebuilt[prebuilt].m_frameOfReference == frameOfReference && !memcmp(&s_prebuilt[prebuilt].m_view, &view, sizeof(C44Matrix))) {
+        PrebuiltInstances& entry = s_prebuilt[prebuilt];
         memcpy(buffer, s_prebuiltArena.data() + entry.m_offset, entry.m_instanceCount * sizeof(ParticleInstance));
         vertex.m_count = entry.m_instanceCount;
         this->m_worldBounds = entry.m_worldBounds;
         this->m_renderedParticles = entry.m_renderedParticles;
-        s_prebuiltIndex.erase(prebuilt);
+        entry.m_emitter = nullptr;
     } else {
         this->BuildParticleVertices(vertex, count, view.AffineInverse());
     }
@@ -2441,7 +2445,7 @@ void CParticleEmitter2::PlaceParticleModels(const C44Matrix* frameOfReference) {
     }
 
     for (uint32_t i = 0; i < this->m_liveList.Count(); i++) {
-        CParticle2* particle = &this->m_particles[this->m_liveList[i]];
+        CParticle2* particle = static_cast<CParticle2*>(&this->m_particleModels[this->m_liveList[i]]);
         float depth = particle->m_position.z * xform.c2 + particle->m_position.y * xform.b2 + particle->m_position.x * xform.a2 + xform.d2;
         CParticleEmitter2::s_pq.Push(depth, particle);
     }
@@ -2619,6 +2623,7 @@ CParticleEmitter2::CParticleEmitter2(const CParticleEmitter2& source, int32_t co
     this->m_worldBounds.t.y = 0.0f;
     this->m_worldBounds.t.z = 0.0f;
     this->m_updateQueued = 0;
+    this->m_prebuiltSlot = 0;
 
     this->m_random.SetSeed((rand() << 16) | static_cast<uint16_t>(rand()));
     this->m_childEmitterCount = source.m_childEmitterCount;
@@ -3193,9 +3198,13 @@ uint32_t CParticleEmitter2::PrebuildAdd(const C44Matrix* frameOfReference, const
         return 0;
     }
 
-    if (!s_prebuiltIndex.emplace(this, s_prebuiltCount).second) {
+    uint32_t queued = this->m_prebuiltSlot - 1;
+
+    if (queued < s_prebuiltCount && s_prebuilt[queued].m_emitter == this) {
         return 0;
     }
+
+    this->m_prebuiltSlot = s_prebuiltCount + 1;
 
     if (s_prebuilt.size() <= s_prebuiltCount) {
         s_prebuilt.resize(s_prebuiltCount + 1);
@@ -3229,7 +3238,6 @@ uint32_t CParticleEmitter2::PrebuildAdd(const C44Matrix* frameOfReference, const
 
 void CParticleEmitter2::PrebuildClear() {
     s_prebuiltCount = 0;
-    s_prebuiltIndex.clear();
     s_prebuiltArenaUsed = 0;
 
     if (++s_prebuiltClears >= 1024) {

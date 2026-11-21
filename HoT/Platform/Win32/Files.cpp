@@ -51,6 +51,7 @@ bool IsAbsoluteHostPath(const std::string& path) {
 }
 
 bool ReadOnlyFile::Open(const std::filesystem::path& path) {
+    this->Close();
     HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
     if (file == INVALID_HANDLE_VALUE) {
@@ -61,6 +62,7 @@ bool ReadOnlyFile::Open(const std::filesystem::path& path) {
     LARGE_INTEGER size{};
 
     if (!GetFileSizeEx(file, &size)) {
+        this->Close();
         return false;
     }
 

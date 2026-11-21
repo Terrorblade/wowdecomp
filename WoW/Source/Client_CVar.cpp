@@ -485,7 +485,8 @@ bool UIFasterCallback(CVar* var, const char* oldValue, const char* value, void* 
 // VERIFY: 1cb25927 auto
 // OFFSET: 0x004022E0
 bool ProcessAffinityMaskCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
-    uint32_t maxMask = 0xFFFFFFFF >> (32 - OsGetNumberOfProcessors());
+    uint32_t processors = OsGetNumberOfProcessors();
+    uint32_t maxMask = processors >= 32 ? 0xFFFFFFFF : 0xFFFFFFFF >> (32 - processors);
     uint32_t mask = atol(value);
 
     if (mask > maxMask) {

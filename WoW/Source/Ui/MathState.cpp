@@ -57,6 +57,15 @@ static const char* s_mathDelimiters = "()[]^*/%+-#,> ";
 
 // VERIFY: 419474d0 auto
 // OFFSET: 0x00576B10
+static void EmitMathOp(MathState* state, uint32_t op) {
+    if (state->m_numOps >= 128) {
+        state->m_status = 1;
+        return;
+    }
+
+    state->m_ops[state->m_numOps++] = static_cast<uint8_t>(op);
+}
+
 static uint8_t LookupMathFunction(const char* name, int32_t* argCount) {
     for (uint32_t i = 0; i < 12; i++) {
         if (!SStrCmpI(name, s_mathFunctions[i].m_name, STORM_MAX_STR)) {
@@ -89,6 +98,12 @@ static uint8_t LookupMathVariable(const char* name) {
 // OFFSET: 0x00576B90
 uint32_t MathState::AddIntArg(int32_t value) {
     uint32_t index = this->m_numIntArgs;
+
+    if (index >= 64) {
+        this->m_status = 1;
+        return index;
+    }
+
     this->m_intArgs[index] = value;
     this->m_numIntArgs++;
     return index;
@@ -123,7 +138,11 @@ int32_t MathState::NextToken(char* token, int32_t* pos, int32_t* length) {
     char* out = token;
 
     while (*text && !SStrChr(s_mathDelimiters, *text)) {
-        *out++ = *text++;
+        if (out < token + 31) {
+            *out++ = *text;
+        }
+
+        text++;
         (*length)++;
     }
 
@@ -185,8 +204,7 @@ int32_t MathState::CompilePrimary(int32_t pos) {
 
         if (first == '-') {
             int32_t result = this->CompilePrimary(pos);
-            this->m_ops[this->m_numOps] = MATHOP_NEGATE;
-            this->m_numOps++;
+            EmitMathOp(this, MATHOP_NEGATE);
             return result;
         }
     }
@@ -195,10 +213,14 @@ int32_t MathState::CompilePrimary(int32_t pos) {
         const char* name = &token[1];
 
         if (token[1] == '<') {
+            if (this->m_numVariables >= 32) {
+                this->m_status = 1;
+                return pos;
+            }
+
             this->m_variables[this->m_numVariables] = GetSpellVariableValue(&token[2]);
             this->m_numVariables++;
-            this->m_ops[this->m_numOps] = MATHOP_SPELL_VARIABLE;
-            this->m_numOps++;
+            EmitMathOp(this, MATHOP_SPELL_VARIABLE);
             this->Expect(">", &pos);
             return pos;
         }
@@ -218,8 +240,7 @@ int32_t MathState::CompilePrimary(int32_t pos) {
                 pos = this->CompileSum(pos);
             }
 
-            this->m_ops[this->m_numOps] = function;
-            this->m_numOps++;
+            EmitMathOp(this, function);
             this->Expect(")", &pos);
             return pos;
         }
@@ -227,7 +248,7 @@ int32_t MathState::CompilePrimary(int32_t pos) {
         if (isdigit(token[1]) && token[1]) {
             int32_t count = 0;
 
-            while (token[1 + count] >= '0' && token[1 + count] <= '9') {
+            while (count < 7 && token[1 + count] >= '0' && token[1 + count] <= '9') {
                 digits[count] = token[1 + count];
                 count++;
             }
@@ -235,8 +256,7 @@ int32_t MathState::CompilePrimary(int32_t pos) {
             if (count) {
                 digits[count] = '\0';
                 this->AddIntArg(SStrToInt(digits));
-                this->m_ops[this->m_numOps] = MATHOP_SPELL;
-                this->m_numOps++;
+                EmitMathOp(this, MATHOP_SPELL);
                 name = &token[1 + count];
             }
         }
@@ -244,8 +264,7 @@ int32_t MathState::CompilePrimary(int32_t pos) {
         uint8_t variable = LookupMathVariable(name);
 
         if (variable) {
-            this->m_ops[this->m_numOps] = variable;
-            this->m_numOps++;
+            EmitMathOp(this, variable);
             return pos;
         }
     }
@@ -255,10 +274,14 @@ int32_t MathState::CompilePrimary(int32_t pos) {
         return pos;
     }
 
+    if (this->m_numConstants >= 64) {
+        this->m_status = 1;
+        return pos;
+    }
+
     this->m_constants[this->m_numConstants] = static_cast<float>(atof(token));
     this->m_numConstants++;
-    this->m_ops[this->m_numOps] = MATHOP_CONSTANT;
-    this->m_numOps++;
+    EmitMathOp(this, MATHOP_CONSTANT);
     return pos;
 }
 
@@ -269,8 +292,7 @@ int32_t MathState::CompilePower(int32_t pos) {
 
     while (this->m_text[pos] == '^') {
         pos = this->CompilePrimary(pos + 1);
-        this->m_ops[this->m_numOps] = MATHOP_POW;
-        this->m_numOps++;
+        EmitMathOp(this, MATHOP_POW);
     }
 
     return pos;
@@ -292,19 +314,16 @@ int32_t MathState::CompileProduct(int32_t pos) {
 
         while (this->m_text[pos] == '^') {
             pos = this->CompilePrimary(pos + 1);
-            this->m_ops[this->m_numOps] = MATHOP_POW;
-            this->m_numOps++;
+            EmitMathOp(this, MATHOP_POW);
         }
 
         if (op == '%') {
-            this->m_ops[this->m_numOps] = MATHOP_MOD;
+            EmitMathOp(this, MATHOP_MOD);
         } else if (op == '*') {
-            this->m_ops[this->m_numOps] = MATHOP_MUL;
+            EmitMathOp(this, MATHOP_MUL);
         } else {
-            this->m_ops[this->m_numOps] = MATHOP_DIV;
+            EmitMathOp(this, MATHOP_DIV);
         }
-
-        this->m_numOps++;
     }
 
     return pos;
@@ -323,8 +342,7 @@ int32_t MathState::CompileSum(int32_t pos) {
         }
 
         pos = this->CompileProduct(pos + 1);
-        this->m_ops[this->m_numOps] = (op != '+') + MATHOP_ADD;
-        this->m_numOps++;
+        EmitMathOp(this, (op != '+') + MATHOP_ADD);
     }
 
     return pos;
@@ -930,6 +948,11 @@ float MathState::Evaluate(const SpellRec* spell, int32_t spellLevel, int32_t sca
 
     for (uint32_t i = 0; i < this->m_numOps; i++) {
         uint8_t op = this->m_ops[i];
+
+        if (stack.m_top <= 0 || (op == MATHOP_SPELL && i + 1 >= this->m_numOps)) {
+            this->m_status = 1;
+            return 0.0f;
+        }
 
         if (op == MATHOP_SPELL) {
             if (!g_spellDB.GetRecord(QuestTextParser::Spell_C_SpellGetSpellIDForDifficulty(*intArg++), &loaded)) {

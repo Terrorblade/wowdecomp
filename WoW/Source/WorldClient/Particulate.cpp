@@ -156,6 +156,10 @@ void Particulate::SetTexture(const char* textureName) {
 C3Vector Particulate::ComputeMovement(float elapsed) {
     LiquidTypeRec* liquidType = g_liquidTypeDB.GetRecord(this->m_liquidType);
 
+    if (!liquidType) {
+        return C3Vector(0.0f, 0.0f, 0.0f);
+    }
+
     if (liquidType->m_particleMovement == 1) {
         return C3Vector(0.0f, 0.0f, s_sinkSpeed * elapsed);
     }
@@ -239,10 +243,22 @@ void Particulate::Render() {
         return;
     }
 
+    LiquidTypeRec* liquidType = g_liquidTypeDB.GetRecord(this->m_liquidType);
+
+    if (!liquidType) {
+        return;
+    }
+
     CGxTex* texture = TextureGetGxTex(this->m_texture, 0, nullptr);
 
     if (!texture) {
         return;
+    }
+
+    uint32_t texRow = static_cast<uint32_t>(liquidType->m_particleTexSlots);
+
+    if (texRow >= sizeof(s_texSlots) / sizeof(s_texSlots[0])) {
+        texRow = 0;
     }
 
     CGxBuf* vertexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, sizeof(CGxVertexPCT), 2664);
@@ -253,7 +269,6 @@ void Particulate::Render() {
     GxXformView(view);
     C44Matrix identity;
     g_theGxDevicePtr->XformSetView(identity);
-    LiquidTypeRec* liquidType = g_liquidTypeDB.GetRecord(this->m_liquidType);
     uint32_t vertexCount = 0;
     int32_t texSlot = 8;
 
@@ -290,11 +305,17 @@ void Particulate::Render() {
             }
         }
 
-        texSlot = s_texSlots[liquidType->m_particleTexSlots][i & 7];
+        texSlot = s_texSlots[texRow][i & 7];
     }
 
     GxBufUnlock(indexBuf, 0);
     GxBufUnlock(vertexBuf, 0);
+
+    if (!vertexCount) {
+        g_theGxDevicePtr->XformSetView(view);
+        return;
+    }
+
     g_theGxDevicePtr->RsPush();
     GxRsSet(GxRs_Fog, (liquidType->m_flags >> 4) & 1);
     GxRsSet(GxRs_Texture0, texture);

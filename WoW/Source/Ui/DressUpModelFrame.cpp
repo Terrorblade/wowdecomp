@@ -293,7 +293,14 @@ void CGDressUpModelFrame::TryOnWithVisual(int32_t itemId, int32_t visual, int32_
             }
 
             if (g_spellDB.GetRecord(learnedId, &learned) && learned.m_effect[0] == SPELL_EFFECT_CREATE_ITEM) {
-                this->TryOn(learned.m_effectItemType[0], nullptr, -1);
+                static int32_t s_recipeDepth = 0;
+
+                if (s_recipeDepth < 4) {
+                    s_recipeDepth++;
+                    this->TryOn(learned.m_effectItemType[0], nullptr, -1);
+                    s_recipeDepth--;
+                }
+
                 return;
             }
         }

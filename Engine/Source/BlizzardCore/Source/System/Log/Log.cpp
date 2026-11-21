@@ -236,7 +236,7 @@ const char* System_Log::Intern(const char* str) {
 
     uint32_t length = str ? static_cast<uint32_t>(strlen(str)) : 0;
 
-    if (s_stringPoolUsed + length + 1 > 4096) {
+    if (s_stringPoolUsed + length + 1 > s_stringPoolSize) {
         for (int32_t pass = 2; pass; pass--) {
             s_stringPoolUsed = 0;
 
@@ -278,10 +278,10 @@ const char* System_Log::Intern(const char* str) {
 
             uint32_t size = s_stringPoolSize;
 
-            if (s_stringPoolUsed > size) {
+            if (s_stringPoolUsed + length + 1 > size) {
                 do {
                     size *= 2;
-                } while (s_stringPoolUsed > size);
+                } while (s_stringPoolUsed + length + 1 > size);
 
                 s_stringPoolSize = size;
             }

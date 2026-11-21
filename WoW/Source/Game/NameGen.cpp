@@ -126,7 +126,7 @@ void CNameGen::CreateDictionary() {
                 }
             }
 
-            if (k >= this->m_dictionaryCount) {
+            if (k >= this->m_dictionaryCount && static_cast<uint32_t>(this->m_dictionaryCount) < this->m_dictionary.Count()) {
                 this->m_dictionary.m_data[this->m_dictionaryCount++] = record;
             }
         }

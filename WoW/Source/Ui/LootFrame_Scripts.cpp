@@ -182,7 +182,7 @@ static int32_t Script_GetMasterLootCandidate(lua_State* L) {
     }
 
     WOWGUID guid = GetMasterLootCandidate(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)) - 1));
-    NameCache* record = guid != WOWGUID() ? g_nameDBCache.GetRecord(guid.m_guid, guid, MasterLootCandidateNameCallback, nullptr, false) : nullptr;
+    NameCache* record = guid != WOWGUID() ? g_nameDBCache.GetRecord(guid.m_guid, guid, MasterLootCandidateNameCallback, nullptr, true) : nullptr;
 
     if (record) {
         lua_pushstring(L, record->m_name);

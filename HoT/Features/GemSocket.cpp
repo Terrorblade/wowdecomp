@@ -81,7 +81,7 @@ static int32_t Packet_SMSG_GEM_SOCKET_LIST(void* param, NETMESSAGE msgId, uint32
     s_sockets.clear();
     s_sockets.reserve(count);
 
-    for (uint8_t i = 0; i < count && packet.CanRead(1); i++) {
+    for (uint8_t i = 0; i < count && packet.CanRead(6); i++) {
         SocketEntry entry;
         entry.m_slot = packet.GetUInt8();
         entry.m_itemId = packet.GetUInt32();

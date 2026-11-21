@@ -269,24 +269,8 @@ static int32_t Script_GetCategoryNumAchievements(lua_State* L) {
             continue;
         }
 
-        CLIENT_ACHIEVEMENTS* done = nullptr;
-
-        for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node; node = s_completedAchievements.Next(node)) {
-            if (node->m_id == achievement->m_id) {
-                done = node;
-                break;
-            }
-        }
-
-        CLIENT_ACHIEVEMENTS* inspected = nullptr;
-
-        for (CLIENT_ACHIEVEMENTS* node = s_inspectAchievements.Head(); node; node = s_inspectAchievements.Next(node)) {
-            if (node->m_id == achievement->m_id) {
-                inspected = node;
-                break;
-            }
-        }
-
+        CLIENT_ACHIEVEMENTS* done = CGAchievementInfo::FindCompletedAchievement(achievement->m_id);
+        CLIENT_ACHIEVEMENTS* inspected = CGAchievementInfo::FindInspectAchievement(achievement->m_id);
         CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
         if (player && achievement->m_faction != -1 && achievement->m_faction != player->GetPVPFactionIndex() && !inspected) {
@@ -351,14 +335,7 @@ static int32_t Script_GetNumCompletedAchievements(lua_State* L) {
             continue;
         }
 
-        CLIENT_ACHIEVEMENTS* done = nullptr;
-
-        for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node; node = s_completedAchievements.Next(node)) {
-            if (node->m_id == achievement->m_id) {
-                done = node;
-                break;
-            }
-        }
+        CLIENT_ACHIEVEMENTS* done = CGAchievementInfo::FindCompletedAchievement(achievement->m_id);
 
         if (achievement->m_category == 81) {
             continue;
@@ -380,37 +357,19 @@ static int32_t Script_GetNumCompletedAchievements(lua_State* L) {
 // VERIFY: ed883a88 manual
 // OFFSET: 0x005B2350
 static CLIENT_ACHIEVEMENT_CRITERIA* GetCriteria(int32_t id) {
-    for (CLIENT_ACHIEVEMENT_CRITERIA* node = s_criteria.Head(); node; node = s_criteria.Next(node)) {
-        if (node->m_id == id) {
-            return node;
-        }
-    }
-
-    return nullptr;
+    return CGAchievementInfo::FindCriteria(id);
 }
 
 // VERIFY: fc2ec323 manual
 // OFFSET: 0x005B2380
 static CLIENT_ACHIEVEMENTS* GetCompletedAchievement(int32_t id) {
-    for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node; node = s_completedAchievements.Next(node)) {
-        if (node->m_id == id) {
-            return node;
-        }
-    }
-
-    return nullptr;
+    return CGAchievementInfo::FindCompletedAchievement(id);
 }
 
 // VERIFY: 76ebd783 manual
 // OFFSET: 0x005B23B0
 static CLIENT_ACHIEVEMENTS* GetInspectAchievement(int32_t id) {
-    for (CLIENT_ACHIEVEMENTS* node = s_inspectAchievements.Head(); node; node = s_inspectAchievements.Next(node)) {
-        if (node->m_id == id) {
-            return node;
-        }
-    }
-
-    return nullptr;
+    return CGAchievementInfo::FindInspectAchievement(id);
 }
 
 // VERIFY: 917fae55 manual
@@ -627,14 +586,8 @@ static int32_t Script_GetComparisonCategoryNumAchievements(lua_State* L) {
             continue;
         }
 
-        for (CLIENT_ACHIEVEMENTS* node = s_inspectAchievements.Head(); node; node = s_inspectAchievements.Next(node)) {
-            if (node->m_id == achievement->m_id) {
-                if (!CGAchievementInfo::IsSupersededByCompleted(achievement->m_id) || includeAll) {
-                    count++;
-                }
-
-                break;
-            }
+        if (CGAchievementInfo::FindInspectAchievement(achievement->m_id) && (!CGAchievementInfo::IsSupersededByCompleted(achievement->m_id) || includeAll)) {
+            count++;
         }
     }
 
@@ -661,14 +614,7 @@ static int32_t Script_GetNumComparisonCompletedAchievements(lua_State* L) {
             continue;
         }
 
-        CLIENT_ACHIEVEMENTS* inspected = nullptr;
-
-        for (CLIENT_ACHIEVEMENTS* node = s_inspectAchievements.Head(); node; node = s_inspectAchievements.Next(node)) {
-            if (node->m_id == achievement->m_id) {
-                inspected = node;
-                break;
-            }
-        }
+        CLIENT_ACHIEVEMENTS* inspected = CGAchievementInfo::FindInspectAchievement(achievement->m_id);
 
         if (achievement->m_category == 81) {
             continue;
@@ -706,11 +652,9 @@ static int32_t Script_GetNextAchievement(lua_State* L) {
 
         lua_pushnumber(L, achievement->m_id);
 
-        for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node; node = s_completedAchievements.Next(node)) {
-            if (node->m_id == achievement->m_id) {
-                lua_pushboolean(L, 1);
-                return 2;
-            }
+        if (CGAchievementInfo::FindCompletedAchievement(achievement->m_id)) {
+            lua_pushboolean(L, 1);
+            return 2;
         }
 
         return 1;
@@ -737,14 +681,7 @@ static int32_t Script_GetAchievementInfo(lua_State* L) {
         int32_t index = static_cast<int32_t>(lua_tonumber(L, 2));
 
         for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node && id == -1; node = s_completedAchievements.Next(node)) {
-            CLIENT_ACHIEVEMENTS* inspected = nullptr;
-
-            for (CLIENT_ACHIEVEMENTS* other = s_inspectAchievements.Head(); other; other = s_inspectAchievements.Next(other)) {
-                if (other->m_id == node->m_id) {
-                    inspected = other;
-                    break;
-                }
-            }
+            CLIENT_ACHIEVEMENTS* inspected = CGAchievementInfo::FindInspectAchievement(node->m_id);
 
             if (!inspected) {
                 continue;
@@ -775,14 +712,7 @@ static int32_t Script_GetAchievementInfo(lua_State* L) {
 
         if (id == -1 && index > 0) {
             for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node && id == -1; node = s_completedAchievements.Next(node)) {
-                CLIENT_ACHIEVEMENTS* inspected = nullptr;
-
-                for (CLIENT_ACHIEVEMENTS* other = s_inspectAchievements.Head(); other; other = s_inspectAchievements.Next(other)) {
-                    if (other->m_id == node->m_id) {
-                        inspected = other;
-                        break;
-                    }
-                }
+                CLIENT_ACHIEVEMENTS* inspected = CGAchievementInfo::FindInspectAchievement(node->m_id);
 
                 if (inspected) {
                     continue;
@@ -813,14 +743,7 @@ static int32_t Script_GetAchievementInfo(lua_State* L) {
 
             if (id == -1 && index > 0) {
                 for (CLIENT_ACHIEVEMENTS* node = s_inspectAchievements.Head(); node && id == -1; node = s_inspectAchievements.Next(node)) {
-                    CLIENT_ACHIEVEMENTS* done = nullptr;
-
-                    for (CLIENT_ACHIEVEMENTS* other = s_completedAchievements.Head(); other; other = s_completedAchievements.Next(other)) {
-                        if (other->m_id == node->m_id) {
-                            done = other;
-                            break;
-                        }
-                    }
+                    CLIENT_ACHIEVEMENTS* done = CGAchievementInfo::FindCompletedAchievement(node->m_id);
 
                     if (done) {
                         continue;
@@ -859,6 +782,10 @@ static int32_t Script_GetAchievementInfo(lua_State* L) {
             for (int32_t i = 0; i < g_achievementDB.m_numRecords && id == -1; i++) {
                 AchievementRec* achievement = g_achievementDB.GetRecordByIndex(i);
                 CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
+
+                if (!achievement) {
+                    continue;
+                }
 
                 if (player && achievement->m_faction != -1 && achievement->m_faction != player->GetPVPFactionIndex()) {
                     continue;
@@ -938,14 +865,7 @@ static int32_t Script_GetAchievementInfo(lua_State* L) {
         return 0;
     }
 
-    CLIENT_ACHIEVEMENTS* done = nullptr;
-
-    for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node; node = s_completedAchievements.Next(node)) {
-        if (node->m_id == achievement->m_id) {
-            done = node;
-            break;
-        }
-    }
+    CLIENT_ACHIEVEMENTS* done = CGAchievementInfo::FindCompletedAchievement(achievement->m_id);
 
     if ((achievement->m_flags & 0x800) && !done) {
         return 0;
@@ -1138,11 +1058,9 @@ static int32_t Script_GetStatistic(lua_State* L) {
 
     if (source) {
         for (SPECIFIC_CRITERIA* spec = source->m_criteria.Head(); spec; spec = source->m_criteria.Next(spec)) {
-            for (CLIENT_ACHIEVEMENT_CRITERIA* node = s_criteria.Head(); node; node = s_criteria.Next(node)) {
-                if (node->m_id != spec->m_criteria->m_id) {
-                    continue;
-                }
+            CLIENT_ACHIEVEMENT_CRITERIA* node = CGAchievementInfo::FindCriteria(spec->m_criteria->m_id);
 
+            if (node) {
                 int32_t flags = achievement->m_rec->m_flags;
 
                 if (flags & 0x8) {
@@ -1173,8 +1091,6 @@ static int32_t Script_GetStatistic(lua_State* L) {
                 if (!earliest || node->m_timer2 < earliest->m_timer2) {
                     earliest = node;
                 }
-
-                break;
             }
         }
 
@@ -1416,13 +1332,9 @@ static int32_t Script_GetComparisonStatistic(lua_State* L) {
 
     if (source) {
         for (SPECIFIC_CRITERIA* spec = source->m_criteria.Head(); spec; spec = source->m_criteria.Next(spec)) {
-            int32_t criteriaId = spec->m_criteria->m_id;
+            CLIENT_ACHIEVEMENT_CRITERIA* node = CGAchievementInfo::FindInspectCriteria(spec->m_criteria->m_id);
 
-            for (CLIENT_ACHIEVEMENT_CRITERIA* node = s_inspectCriteria.Head(); node; node = s_inspectCriteria.Next(node)) {
-                if (node->m_id != criteriaId) {
-                    continue;
-                }
-
+            if (node) {
                 int32_t flags = achievement->m_rec->m_flags;
 
                 if (flags & 0x8) {
@@ -1453,8 +1365,6 @@ static int32_t Script_GetComparisonStatistic(lua_State* L) {
                 if (!earliest || node->m_timer2 < earliest->m_timer2) {
                     earliest = node;
                 }
-
-                break;
             }
         }
 
@@ -1510,11 +1420,9 @@ static int32_t Script_GetAchievementLink(lua_State* L) {
                 continue;
             }
 
-            for (CLIENT_ACHIEVEMENT_CRITERIA* node = s_criteria.Head(); node; node = s_criteria.Next(node)) {
-                if (node->m_id != criteria->m_id) {
-                    continue;
-                }
+            CLIENT_ACHIEVEMENT_CRITERIA* node = CGAchievementInfo::FindCriteria(criteria->m_id);
 
+            if (node) {
                 if (node->m_counter >= static_cast<uint64_t>(static_cast<int64_t>(spec->m_criteria->m_quantity))) {
                     if (index < 32) {
                         criteriaBits[0] |= 1 << index;
@@ -1526,8 +1434,6 @@ static int32_t Script_GetAchievementLink(lua_State* L) {
                         criteriaBits[3] |= 1 << (index - 96);
                     }
                 }
-
-                break;
             }
 
             index++;

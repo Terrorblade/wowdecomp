@@ -83,6 +83,7 @@ void ComSat::Network::Manager::Work(uint32_t time) {
                     }
                 }
             }
+            size = sizeof(packet);
             if (!this->m_socket->RecvFrom(from, reinterpret_cast<uint8_t*>(&packet), size)) {
                 break;
             }

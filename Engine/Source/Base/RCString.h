@@ -28,7 +28,11 @@ class CStringMemory : public TSGrowableArray<void*> {
 
 class CStringManager {
     public:
-    /* 0000 */ char* m_buckets[521];
+    enum : uint32_t {
+        BUCKET_COUNT = 8191,
+    };
+
+    /* 0000 */ char* m_buckets[BUCKET_COUNT];
     /* 0824 */ CStringMemory m_memory;
 
     static CStringManager* s_stringManager;

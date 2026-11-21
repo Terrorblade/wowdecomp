@@ -203,7 +203,8 @@ static void NoteSetting(const char* name, double value) {
 }
 
 static void OnHook(lua_State* L, lua_Debug* ar) {
-    if (L != s_profileState) {
+    // Entries are only rolled up and cleared while luaPerfStats is on, collecting without it would only grow.
+    if (L != s_profileState || !g_statsEnabled) {
         return;
     }
 

@@ -430,7 +430,7 @@ void CGRuneInfo::ResyncRunes(CDataStore* msg) {
 // VERIFY: a086b4eb auto
 // OFFSET: 0x005EE520
 void CGRuneInfo::AddRunePower(CDataStore* msg) {
-    uint32_t runes;
+    uint32_t runes = 0;
     msg->Get(runes);
 
     for (int32_t i = 0; i < static_cast<int32_t>(CGRuneInfo::m_numRunes); i++) {

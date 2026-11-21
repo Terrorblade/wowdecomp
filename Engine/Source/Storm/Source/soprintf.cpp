@@ -140,8 +140,8 @@ int32_t vsnoprintf(char* out, size_t outSize, const char* format, va_list argume
     char* end = &out[outSize - 1];
 
     ArgumentSize sizes[MAX_ARGUMENTS + 1] = {};
-    ArgumentValue values[MAX_ARGUMENTS] = {};
-    FormatSpecifier specifiers[MAX_ARGUMENTS] = {};
+    ArgumentValue values[MAX_ARGUMENTS];
+    FormatSpecifier specifiers[MAX_ARGUMENTS];
     sizes[MAX_ARGUMENTS] = e_takesNoSpace;
 
     int32_t orderingPtr = 0;

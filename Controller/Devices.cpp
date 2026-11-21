@@ -281,31 +281,23 @@ static void MapFromGamepad(Device* device, MappedState& state, float* axes) {
 }
 
 static void MapFromRawConfig(Device* device, MappedState& state, float* axes) {
-    const Config* config = device->m_config.m_device;
-
-    for (const RawButtonMapping& mapping : config->m_rawButtonMappings) {
+    for (const ResolvedRawButton& mapping : device->m_config.m_rawButtons) {
         if (mapping.m_rawIndex < 0 || mapping.m_rawIndex >= static_cast<int32_t>(device->m_rawButtons.size()) || !device->m_rawButtons[mapping.m_rawIndex]) {
             continue;
         }
 
-        int32_t button = ButtonFromName(mapping.m_button.c_str());
-
-        if (button >= 0) {
-            state.m_buttons[button] = true;
+        if (mapping.m_button >= 0) {
+            state.m_buttons[mapping.m_button] = true;
         }
 
-        int32_t axis = AxisFromName(mapping.m_axis.c_str());
-
-        if (axis >= 0) {
-            axes[axis] = mapping.m_axisValue.value_or(1.0f);
+        if (mapping.m_axis >= 0) {
+            axes[mapping.m_axis] = mapping.m_axisValue;
         }
     }
 
-    for (const RawAxisMapping& mapping : config->m_rawAxisMappings) {
-        int32_t axis = AxisFromName(mapping.m_axis.c_str());
-
-        if (axis >= 0 && mapping.m_rawIndex >= 0 && mapping.m_rawIndex < static_cast<int32_t>(device->m_rawAxes.size())) {
-            axes[axis] = device->m_rawAxes[mapping.m_rawIndex];
+    for (const ResolvedRawAxis& mapping : device->m_config.m_rawAxes) {
+        if (mapping.m_axis >= 0 && mapping.m_rawIndex >= 0 && mapping.m_rawIndex < static_cast<int32_t>(device->m_rawAxes.size())) {
+            axes[mapping.m_axis] = device->m_rawAxes[mapping.m_rawIndex];
         }
     }
 }
@@ -350,7 +342,7 @@ static void ReadMapped(Device* device) {
     MappedState state;
     float axes[AXIS_COUNT] = {};
 
-    if (device->m_config.m_device && (!device->m_config.m_device->m_rawButtonMappings.empty() || !device->m_config.m_device->m_rawAxisMappings.empty())) {
+    if (device->m_config.m_rawMapped) {
         MapFromRawConfig(device, state, axes);
     } else if (device->m_gamepad) {
         MapFromGamepad(device, state, axes);

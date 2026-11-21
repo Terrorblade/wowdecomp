@@ -47,8 +47,8 @@ void OsMacRefreshGameCursor();
 // Bounces the Dock icon once while the game is in the background, as a flashed Windows taskbar button. Any thread.
 void OsMacRequestAttention();
 
-// Hands queued Cocoa events to the application without blocking. Returns false when the application
-// was asked to quit.
-bool OsMacPumpEvents();
+// Hands queued Cocoa events to the application without blocking, until stop returns true or none are
+// left. Returns false when the application was asked to quit.
+bool OsMacPumpEvents(bool (*stop)());
 
 #endif

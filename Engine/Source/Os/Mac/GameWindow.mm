@@ -649,9 +649,15 @@ void OsMacSetGameCursor(void* cursor, bool visible) {
     }
 }
 
-bool OsMacPumpEvents() {
+bool OsMacPumpEvents(bool (*stop)()) {
     @autoreleasepool {
-        while (NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES]) {
+        while (!stop || !stop()) {
+            NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES];
+
+            if (!event) {
+                break;
+            }
+
             // NSApplication drops key-up events while Command is held; Command acts as Control in the
             // client, so deliver those to the window directly.
             if (event.type == NSEventTypeKeyUp && (event.modifierFlags & NSEventModifierFlagCommand) && event.window) {

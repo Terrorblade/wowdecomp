@@ -38,8 +38,11 @@ void CVehicleCamera_C::InitSystem() {
 
     CVehicleCameraHeap* pool = static_cast<CVehicleCameraHeap*>(SMemAlloc(sizeof(CVehicleCameraHeap), __FILE__, __LINE__, 0));
 
+    // ObjectAlloc cannot remove a heap, so every login reuses the first one.
+    static uint32_t s_heapId = ObjectAllocAddHeap(sizeof(CVehicleCamera_C), 4, "Vehicle Camera", true);
+
     if (pool) {
-        pool->m_heapId = ObjectAllocAddHeap(sizeof(CVehicleCamera_C), 4, "Vehicle Camera", true);
+        pool->m_heapId = s_heapId;
         s_cameraPool = pool;
     } else {
         s_cameraPool = nullptr;

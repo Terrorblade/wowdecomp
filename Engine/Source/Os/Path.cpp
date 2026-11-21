@@ -21,10 +21,9 @@ uint32_t OsPathGetRootChars(const char* path) {
 
     const char* p = path + 2;
 
-    for (int32_t i = 2; i; i--) {
-        if (p) {
-            p = SStrChr(p, '\\') + 1;
-        }
+    for (int32_t i = 2; i && p; i--) {
+        const char* separator = SStrChr(p, '\\');
+        p = separator ? separator + 1 : nullptr;
     }
 
     if (p) {

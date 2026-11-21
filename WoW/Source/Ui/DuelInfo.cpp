@@ -53,7 +53,7 @@ int32_t Packet_SMSG_DUEL_COUNTDOWN(void* param, NETMESSAGE msgId, uint32_t time,
 // VERIFY: ed3c6531 auto
 // OFFSET: 0x005CFA90
 int32_t Packet_SMSG_DUEL_COMPLETE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t completed;
+    uint8_t completed = 1;
     msg->Get(completed);
 
     if (s_duelArbiter) {
@@ -77,9 +77,9 @@ int32_t Packet_SMSG_DUEL_COMPLETE(void* param, NETMESSAGE msgId, uint32_t time, 
 // VERIFY: a77809b9 auto
 // OFFSET: 0x005CFB20
 int32_t Packet_SMSG_DUEL_WINNER(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t retreat;
-    char winner[48];
-    char loser[48];
+    uint8_t retreat = 0;
+    char winner[48] = {};
+    char loser[48] = {};
     msg->Get(retreat);
     msg->GetString(winner, sizeof(winner));
     msg->GetString(loser, sizeof(loser));
@@ -121,8 +121,12 @@ void CGDuelInfo::CancelDuel() {
 // OFFSET: 0x005CFCD0
 int32_t Packet_SMSG_DUEL_REQUESTED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     msg->Get(s_duelArbiter.m_guid);
-    WOWGUID requester;
+    WOWGUID requester = WOWGUID();
     msg->Get(requester.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (requester == ClntObjMgrGetActivePlayer()) {
         CGGameUI::DisplayError(ERR_DUEL_REQUESTED);

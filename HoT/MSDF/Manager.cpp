@@ -292,6 +292,11 @@ bool Manager::LoadGlyph(const BlockWrap& wrap, uint32_t codepoint, GlyphMetrics&
         return false;
     }
 
+    // A torn block could name more pixels than it stores, the atlas copy reads width * height * 4 bytes.
+    if (entry.m_dataSize > 0 && entry.m_dataSize < static_cast<uint32_t>(entry.m_width) * entry.m_height * 4) {
+        return false;
+    }
+
     outMetrics.m_width = entry.m_width;
     outMetrics.m_height = entry.m_height;
     outMetrics.m_bitmapTop = entry.m_bitmapTop;

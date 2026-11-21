@@ -529,6 +529,13 @@ void CGxDevice::ICursorDraw() {
     CGxBuf* buf = GxBufStream(GxPoolTarget_Vertex, 24, 4);
     uint32_t* vertices = reinterpret_cast<uint32_t*>(GxBufLock(buf));
     if (!vertices) {
+        GxXformPop(GxXform_World);
+
+        if (this->StereoEnabled()) {
+            GxXformSetProjection(projection);
+        }
+
+        g_theGxDevicePtr->RsPop();
         return;
     }
 

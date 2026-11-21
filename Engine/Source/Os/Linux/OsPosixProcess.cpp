@@ -35,9 +35,13 @@ bool OsPosixGameDirectory(char* buffer, size_t size) {
 }
 
 int32_t OsPosixProcessArguments(char** argv, int32_t maxArgs, char* buffer, size_t size) {
+    if (!size) {
+        return 0;
+    }
+
     int fd = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
 
-    if (fd < 0 || !size) {
+    if (fd < 0) {
         return 0;
     }
 

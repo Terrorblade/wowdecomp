@@ -61,7 +61,6 @@ static void FlushLog(_LOG* logptr) {
     if (logptr->bufferused) {
         DWORD byteswritten;
         WriteFile(logptr->file, logptr->buffer, logptr->bufferused, &byteswritten, nullptr);
-        FlushFileBuffers(logptr->file);
         logptr->bufferused = 0;
         logptr->pendpoint = 0;
     }

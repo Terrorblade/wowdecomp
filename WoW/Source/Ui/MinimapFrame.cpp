@@ -417,6 +417,12 @@ static C2Vector s_tileSize(1066.6666f, 1066.6666f);
 // STATIC: 0x00A41EF0
 static const int32_t s_tileOffsets[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
 
+static void ResetBlipBuffers() {
+    s_blipVertices.SetCount(0);
+    s_blipTexCoords2.SetCount(0);
+    s_blipIndices.SetCount(0);
+}
+
 // INLINED
 void CGMinimapFrame::operator delete(void* ptr) {
     if (ptr) {
@@ -1068,6 +1074,8 @@ void MinimapInitialize(int32_t mapId) {
     s_closestPOIs[0] = -1;
     s_closestPOIs[1] = -1;
     s_closestPOIs[2] = -1;
+    s_numClosestPOIs = 0;
+    s_closestPOIsChanged = 1;
     s_outdoorZoom = g_minimapZoomCVar->m_intValue;
     s_indoorZoom = g_minimapInsideZoomCVar->m_intValue;
     FrameScript_SignalEvent(SCRIPT_EVENT_MINIMAP_UPDATE_ZOOM, nullptr);
@@ -1895,7 +1903,7 @@ void CGMinimapFrame::Render() {
     int32_t poisChanged;
     TSGrowableArray<AreaPOIRec*>* pois = MinimapGetPOI(&poisChanged);
 
-    if (poisChanged) {
+    if (poisChanged || s_poiInfo.m_count != pois->m_count) {
         s_poiInfo.SetCount(pois->m_count);
 
         for (uint32_t i = 0; i < s_poiInfo.m_count; i++) {
@@ -1931,6 +1939,8 @@ void CGMinimapFrame::Render() {
         untranslate.Translate(C3Vector(-translation.x, -translation.y, -translation.z));
         rotation *= untranslate;
     }
+
+    ResetBlipBuffers();
 
     for (uint32_t i = 0; i < s_poiInfo.m_count; i++) {
         if (static_cast<uint32_t>(s_poiInfo.m_data[i].m_icon) > 195) {
@@ -2702,6 +2712,8 @@ void CGMinimapFrame::RenderGroupBlips(const C44Matrix& rotation) {
         return;
     }
 
+    ResetBlipBuffers();
+
     for (uint32_t list = MINIMAP_RAID; list < MINIMAP_PLAYER_HOSTILE; list++) {
         for (uint32_t i = 0; i < s_objInfo[list].m_count; i++) {
             OBJINFO* info = &s_objInfo[list].m_data[i];
@@ -2740,6 +2752,10 @@ void CGMinimapFrame::RenderGroupBlips(const C44Matrix& rotation) {
 
             int32_t icon = info->m_icon - 1;
 
+            if (static_cast<uint32_t>(icon) >= 16) {
+                icon = 0;
+            }
+
             if (!list) { // Raid classes use the second half of the class atlas.
                 icon += 16;
             }
@@ -2776,6 +2792,8 @@ void CGMinimapFrame::RenderObjectBlips(const C44Matrix& rotation, bool otherFloo
     if (!s_blipTexture) {
         return;
     }
+
+    ResetBlipBuffers();
 
     for (uint32_t list = MINIMAP_PLAYER_HOSTILE; list < MINIMAP_VEHICLE_GROUND_UNOCCUPIED; list++) {
         for (uint32_t i = 0; i < s_objInfo[list].m_count; i++) {
@@ -2849,6 +2867,8 @@ void CGMinimapFrame::RenderVehicleBlips(const C44Matrix& rotation) {
             continue;
         }
 
+        ResetBlipBuffers();
+
         for (uint32_t i = 0; i < s_objInfo[list].m_count; i++) {
             OBJINFO* info = &s_objInfo[list].m_data[i];
 
@@ -2900,13 +2920,14 @@ void CGMinimapFrame::RenderVehicleBlips(const C44Matrix& rotation) {
         }
 
         if (!s_blipVertices.m_count) {
-            return;
+            continue;
         }
 
         CGxTex* gxTex = TextureGetGxTex(texture, 0, nullptr);
 
         if (!gxTex) {
-            return;
+            ResetBlipBuffers();
+            continue;
         }
 
         g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex);
@@ -2932,6 +2953,7 @@ void CGMinimapFrame::RenderPartyBlips(const C44Matrix& rotation) {
     }
 
     MinimapGetPartyMembers(s_partyMembers);
+    ResetBlipBuffers();
 
     for (uint32_t i = 0; i < 5; i++) {
         if (!s_partyMembers[i].m_offMap) {
@@ -3016,6 +3038,7 @@ void CGMinimapFrame::RenderRaidArrows(const C44Matrix& rotation) {
     }
 
     MinimapGetRaidMembers(s_raidMembers);
+    ResetBlipBuffers();
 
     for (uint32_t i = 0; i < 40; i++) {
         if (!s_raidMembers[i].m_offMap) {
@@ -3641,7 +3664,10 @@ void CGMinimapFrame::ShutdownGame() {
     s_classBlipTexture = nullptr;
 
     for (uint32_t i = 0; i < 7; i++) {
-        HandleClose(reinterpret_cast<HOBJECT>(s_vehicleTextures[i]));
+        if (s_vehicleTextures[i]) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_vehicleTextures[i]));
+        }
+
         s_vehicleTextures[i] = nullptr;
     }
 

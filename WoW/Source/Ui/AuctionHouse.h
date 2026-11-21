@@ -173,6 +173,7 @@ bool AuctionSortToColumnIndex(const char* name, int32_t* column);
 int32_t AuctionListComparer(const void* a, const void* b);
 int32_t CompareFunction(const void* a, const void* b);
 int32_t AuctionBidderListComparer(const void* a, const void* b);
+void SortAuctionList(TSGrowableArray<AuctionItemInfo>& list, const AuctionSortCriteria* criteria);
 void RequestListPendingSales();
 void BidderListItems(int32_t page);
 void AuctionListItemQueryCallback(int32_t id, const WOWGUID& guid, void* param, bool success);

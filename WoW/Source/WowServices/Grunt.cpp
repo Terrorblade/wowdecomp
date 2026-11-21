@@ -355,9 +355,11 @@ void Grunt::Pending::CheckExpired(bool all) {
     Grunt::Pending::Data* data = this->m_list.Head();
 
     while (!this->m_list.IsEnd(data)) {
+        Grunt::Pending::Data* next = this->m_list.RawNext(data);
+
         if (!all) {
             if (!data->m_time) {
-                data = this->m_list.RawNext(data);
+                data = next;
                 continue;
             }
 
@@ -368,7 +370,7 @@ void Grunt::Pending::CheckExpired(bool all) {
 
         this->m_list.UnlinkNode(data);
         expired.LinkToTail(data);
-        data = this->m_list.RawNext(data);
+        data = next;
     }
 
     this->m_lock.Leave();
@@ -776,6 +778,13 @@ void Grunt::ClientLink::WCDataReady(WowConnection* connection, uint32_t timeStam
 
         void* rest;
         this->m_datastore.GetDataInSitu(rest, remaining);
+
+        // The leftover bytes can overlap the front of the buffer, so shift them with memmove before re-adding.
+        if (rest && remaining && rest != this->m_datastore.m_data) {
+            memmove(this->m_datastore.m_data, rest, remaining);
+            rest = this->m_datastore.m_data;
+        }
+
         this->m_datastore.m_read = -1;
         this->m_datastore.Reset();
         this->m_datastore.PutData(rest, remaining);

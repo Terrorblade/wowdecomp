@@ -2892,6 +2892,7 @@ int32_t DayNight::GetFogOverride() {
 void DayNight::DNPlanet::Destroy() {
     if (this->m_texture) {
         HandleClose(reinterpret_cast<HOBJECT>(this->m_texture));
+        this->m_texture = nullptr;
     }
 }
 
@@ -2900,10 +2901,12 @@ void DayNight::DNPlanet::Destroy() {
 void DayNight::DNGlare::Destroy() {
     if (this->m_texture) {
         HandleClose(reinterpret_cast<HOBJECT>(this->m_texture));
+        this->m_texture = nullptr;
     }
 
     if (this->m_occlusionQuery) {
         GxQueryDestroy(this->m_occlusionQuery);
+        this->m_occlusionQuery = nullptr;
     }
 }
 

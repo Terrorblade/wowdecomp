@@ -14,6 +14,7 @@
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/Ui/LootFrame.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include <unordered_map>
 
 // STATIC: 0x00ACFD98
 TSList<CLIENT_ACHIEVEMENT_CRITERIA, TSGetLink<CLIENT_ACHIEVEMENT_CRITERIA>> s_criteria;
@@ -52,6 +53,48 @@ TSHashTable<ACHIEVEMENT, HASHKEY_NONE> s_achievements;
 int32_t CGAchievementInfo::m_showAchievementUI;
 // STATIC: 0x00C1F458
 WOWGUID CGAchievementInfo::m_inspect;
+
+// Id indexes over the lists above, which hold at most one node per id.
+static std::unordered_map<int32_t, CLIENT_ACHIEVEMENT_CRITERIA*> s_criteriaById;
+static std::unordered_map<int32_t, CLIENT_ACHIEVEMENTS*> s_completedById;
+static std::unordered_map<int32_t, CLIENT_ACHIEVEMENT_CRITERIA*> s_inspectCriteriaById;
+static std::unordered_map<int32_t, CLIENT_ACHIEVEMENTS*> s_inspectAchievementsById;
+
+static std::unordered_multimap<int32_t, int32_t> s_supersededBy;
+static const AchievementRec* s_supersededByRecords;
+static int32_t s_supersededByCount = -1;
+
+template <class T>
+static T* FindById(const std::unordered_map<int32_t, T*>& index, int32_t id) {
+    auto it = index.find(id);
+    return it != index.end() ? it->second : nullptr;
+}
+
+CLIENT_ACHIEVEMENT_CRITERIA* CGAchievementInfo::FindCriteria(int32_t id) {
+    return FindById(s_criteriaById, id);
+}
+
+CLIENT_ACHIEVEMENTS* CGAchievementInfo::FindCompletedAchievement(int32_t id) {
+    return FindById(s_completedById, id);
+}
+
+CLIENT_ACHIEVEMENT_CRITERIA* CGAchievementInfo::FindInspectCriteria(int32_t id) {
+    return FindById(s_inspectCriteriaById, id);
+}
+
+CLIENT_ACHIEVEMENTS* CGAchievementInfo::FindInspectAchievement(int32_t id) {
+    return FindById(s_inspectAchievementsById, id);
+}
+
+static void ClearAchievementIndexes() {
+    s_criteriaById.clear();
+    s_completedById.clear();
+    s_inspectCriteriaById.clear();
+    s_inspectAchievementsById.clear();
+    s_supersededBy.clear();
+    s_supersededByRecords = nullptr;
+    s_supersededByCount = -1;
+}
 
 
 // VERIFY: edba74cb manual
@@ -104,6 +147,7 @@ void CGAchievementInfo::InitializeGame() {
     s_inspectAchievements.Clear();
     s_trackedAchievements.Clear();
     s_completedQuests.Clear();
+    ClearAchievementIndexes();
 
     for (int32_t i = 0; i < g_achievementDB.m_numRecords; i++) {
         AchievementRec* rec = i < 0 || i >= g_achievementDB.m_numRecords ? nullptr : &g_achievementDB.m_records[i];
@@ -181,24 +225,12 @@ bool CGAchievementInfo::IsCriteriaStat(int32_t criteriaId) {
 // VERIFY: 17ab1c39 manual
 // OFFSET: 0x005B2520
 void CGAchievementInfo::UpdateCriteria(int32_t id, uint64_t counter, uint32_t flags, WowTime date, WOWGUID player, uint32_t timer1, uint32_t timer2) {
-    CLIENT_ACHIEVEMENT_CRITERIA* criteria = nullptr;
+    CLIENT_ACHIEVEMENT_CRITERIA* criteria = CGAchievementInfo::FindCriteria(id);
 
-    for (CLIENT_ACHIEVEMENT_CRITERIA* node = s_criteria.Head(); node; node = s_criteria.Next(node)) {
-        if (node->m_id == id) {
-            criteria = node;
-            break;
-        }
-    }
-
+    // Nothing reads s_criteria in order, so new nodes skip the date sorted insert.
     if (!criteria) {
-        criteria = s_criteria.NewNode(0, 0, 0);
-        CLIENT_ACHIEVEMENT_CRITERIA* position = s_criteria.Head();
-
-        while (position && position->m_date > date) {
-            position = s_criteria.Next(position);
-        }
-
-        s_criteria.LinkNode(criteria, 2, position);
+        criteria = s_criteria.NewNode(2, 0, 0);
+        s_criteriaById[id] = criteria;
     }
 
     criteria->m_counter = counter;
@@ -210,6 +242,7 @@ void CGAchievementInfo::UpdateCriteria(int32_t id, uint64_t counter, uint32_t fl
     criteria->m_timer2 = timer2;
 
     if (flags & 1) {
+        s_criteriaById.erase(id);
         s_criteria.UnlinkNode(criteria);
         delete criteria;
         return;
@@ -258,15 +291,7 @@ void CGAchievementInfo::UpdateCriteria(int32_t id, uint64_t counter, uint32_t fl
 // VERIFY: b31d5df0 manual
 // OFFSET: 0x005B28D0
 void CGAchievementInfo::UpdateAchievement(int32_t id, WowTime date) {
-    CLIENT_ACHIEVEMENTS* achievement = nullptr;
-
-    for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node; node = s_completedAchievements.Next(node)) {
-        if (node->m_id == id) {
-            achievement = node;
-            break;
-        }
-    }
-
+    CLIENT_ACHIEVEMENTS* achievement = CGAchievementInfo::FindCompletedAchievement(id);
     AchievementRec* rec = g_achievementDB.GetRecord(id);
 
     if (!rec) {
@@ -275,6 +300,7 @@ void CGAchievementInfo::UpdateAchievement(int32_t id, WowTime date) {
 
     if (!achievement) {
         achievement = s_completedAchievements.NewNode(0, 0, 0);
+        s_completedById[id] = achievement;
         CLIENT_ACHIEVEMENTS* position = s_completedAchievements.Head();
         bool found = false;
 
@@ -430,16 +456,20 @@ int32_t Packet_SMSG_RESPOND_INSPECT_ACHIEVEMENTS(void* param, NETMESSAGE msgId, 
 // VERIFY: 0126902f manual
 // OFFSET: 0x005B3610
 int32_t Packet_SMSG_ACHIEVEMENT_DELETED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    int32_t id;
+    int32_t id = 0;
     msg->Get(reinterpret_cast<uint32_t&>(id));
 
-    for (CLIENT_ACHIEVEMENTS* node = s_completedAchievements.Head(); node; node = s_completedAchievements.Next(node)) {
-        if (node->m_id == id) {
-            s_completedAchievements.UnlinkNode(node);
-            FrameScript_SignalEvent(SCRIPT_EVENT_ACHIEVEMENT_EARNED, "%d", id);
-            delete node;
-            return 1;
-        }
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
+    CLIENT_ACHIEVEMENTS* node = CGAchievementInfo::FindCompletedAchievement(id);
+
+    if (node) {
+        s_completedById.erase(id);
+        s_completedAchievements.UnlinkNode(node);
+        FrameScript_SignalEvent(SCRIPT_EVENT_ACHIEVEMENT_EARNED, "%d", id);
+        delete node;
     }
 
     return 1;
@@ -448,16 +478,20 @@ int32_t Packet_SMSG_ACHIEVEMENT_DELETED(void* param, NETMESSAGE msgId, uint32_t 
 // VERIFY: bbcea87a manual
 // OFFSET: 0x005B36F0
 int32_t Packet_SMSG_CRITERIA_DELETED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    int32_t id;
+    int32_t id = 0;
     msg->Get(reinterpret_cast<uint32_t&>(id));
 
-    for (CLIENT_ACHIEVEMENT_CRITERIA* node = s_criteria.Head(); node; node = s_criteria.Next(node)) {
-        if (node->m_id == id) {
-            s_criteria.UnlinkNode(node);
-            FrameScript_SignalEvent(SCRIPT_EVENT_CRITERIA_UPDATE, nullptr);
-            delete node;
-            return 1;
-        }
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
+    CLIENT_ACHIEVEMENT_CRITERIA* node = CGAchievementInfo::FindCriteria(id);
+
+    if (node) {
+        s_criteriaById.erase(id);
+        s_criteria.UnlinkNode(node);
+        FrameScript_SignalEvent(SCRIPT_EVENT_CRITERIA_UPDATE, nullptr);
+        delete node;
     }
 
     return 1;
@@ -503,6 +537,7 @@ void CGAchievementInfo::ShutdownGame() {
     s_inspectAchievements.Clear();
     s_trackedAchievements.Clear();
     s_completedQuests.Clear();
+    ClearAchievementIndexes();
 
     for (uint32_t i = 0; i < 124; i++) {
         ACHIEVEMENTCRITERIALIST* list = s_criteriaByType[i].m_fulllist.Head();
@@ -570,19 +605,12 @@ void CGAchievementInfo::UpdateInspectAchievement(WOWGUID guid, int32_t id, WowTi
         return;
     }
 
-    CLIENT_ACHIEVEMENTS* achievement = nullptr;
-
-    for (CLIENT_ACHIEVEMENTS* node = s_inspectAchievements.Head(); node; node = s_inspectAchievements.Next(node)) {
-        if (node->m_id == id) {
-            achievement = node;
-            break;
-        }
-    }
-
+    CLIENT_ACHIEVEMENTS* achievement = CGAchievementInfo::FindInspectAchievement(id);
     AchievementRec* rec = g_achievementDB.GetRecord(id);
 
     if (!achievement) {
         achievement = s_inspectAchievements.NewNode(0, 0, 0);
+        s_inspectAchievementsById[id] = achievement;
         CLIENT_ACHIEVEMENTS* position = s_inspectAchievements.Head();
         bool found = false;
 
@@ -616,24 +644,11 @@ void CGAchievementInfo::UpdateInspectCriteria(WOWGUID guid, int32_t id, uint64_t
         return;
     }
 
-    CLIENT_ACHIEVEMENT_CRITERIA* criteria = nullptr;
-
-    for (CLIENT_ACHIEVEMENT_CRITERIA* node = s_inspectCriteria.Head(); node; node = s_inspectCriteria.Next(node)) {
-        if (node->m_id == id) {
-            criteria = node;
-            break;
-        }
-    }
+    CLIENT_ACHIEVEMENT_CRITERIA* criteria = CGAchievementInfo::FindInspectCriteria(id);
 
     if (!criteria) {
-        criteria = s_inspectCriteria.NewNode(0, 0, 0);
-        CLIENT_ACHIEVEMENT_CRITERIA* position = s_inspectCriteria.Head();
-
-        while (position && position->m_date > date) {
-            position = s_inspectCriteria.Next(position);
-        }
-
-        s_inspectCriteria.LinkNode(criteria, 2, position);
+        criteria = s_inspectCriteria.NewNode(2, 0, 0);
+        s_inspectCriteriaById[id] = criteria;
     }
 
     criteria->m_counter = counter;
@@ -685,12 +700,16 @@ void CGAchievementInfo::UpdateInspectCriteria(WOWGUID guid, int32_t id, uint64_t
 int32_t Packet_SMSG_ACHIEVEMENT_EARNED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WowTime date;
     SmartGUID player;
-    int32_t id;
-    uint32_t silent;
+    int32_t id = 0;
+    uint32_t silent = 0;
     *msg >> player;
     msg->Get(reinterpret_cast<uint32_t&>(id));
     *msg >> date;
     msg->Get(silent);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (ClntObjMgrGetActivePlayer() == player) {
         CGAchievementInfo::UpdateAchievement(id, date);
@@ -705,10 +724,13 @@ int32_t Packet_SMSG_ACHIEVEMENT_EARNED(void* param, NETMESSAGE msgId, uint32_t t
     if (!(achievement->m_flags & 0x4)) {
         void* memory = SMemAlloc(sizeof(CEffect), __FILE__, __LINE__, 0);
         CEffect* effect = memory ? new (memory) CEffect() : nullptr;
-        WOWGUID guid = player;
-        effect->AddSpecialEffect(SPECIALEFFECT_ACHIEVEMENTBASE, guid, CGObject_C::EffectOnceHandler);
-        effect->m_flags |= 0x20;
-        effect->Release();
+
+        if (effect) {
+            WOWGUID guid = player;
+            effect->AddSpecialEffect(SPECIALEFFECT_ACHIEVEMENTBASE, guid, CGObject_C::EffectOnceHandler);
+            effect->m_flags |= 0x20;
+            effect->Release();
+        }
     }
 
     if (ClntObjMgrGetActivePlayer() == player) {
@@ -724,12 +746,12 @@ int32_t Packet_SMSG_ACHIEVEMENT_EARNED(void* param, NETMESSAGE msgId, uint32_t t
 int32_t Packet_SMSG_CRITERIA_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     CGAchievementInfo::m_showAchievementUI = 1;
     WowTime date;
-    int32_t id;
+    int32_t id = 0;
     SmartGUID counter;
     SmartGUID player;
-    uint32_t flags;
-    uint32_t timer1;
-    uint32_t timer2;
+    uint32_t flags = 0;
+    uint32_t timer1 = 0;
+    uint32_t timer2 = 0;
     msg->Get(reinterpret_cast<uint32_t&>(id));
     *msg >> counter;
     *msg >> player;
@@ -737,6 +759,11 @@ int32_t Packet_SMSG_CRITERIA_UPDATE(void* param, NETMESSAGE msgId, uint32_t time
     *msg >> date;
     msg->Get(timer1);
     msg->Get(timer2);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     uint32_t elapsed1 = ::time(nullptr) - timer1;
     uint32_t elapsed2 = ::time(nullptr) - timer2;
     CGAchievementInfo::UpdateCriteria(id, counter.m_guid, flags, date, player, elapsed1, elapsed2);
@@ -790,17 +817,27 @@ bool CGAchievementInfo::IsRealAchievement(int32_t id) {
 // VERIFY: 57bfe33b manual
 // OFFSET: 0x005B37C0
 bool CGAchievementInfo::IsSupersededByCompleted(int32_t id) {
-    for (int32_t i = 0; i < g_achievementDB.m_numRecords; i++) {
-        AchievementRec* achievement = g_achievementDB.GetRecordByIndex(i);
+    // Rebuilt whenever a HoT table reload swaps the achievement rows.
+    if (s_supersededByRecords != g_achievementDB.m_records || s_supersededByCount != g_achievementDB.m_numRecords) {
+        s_supersededBy.clear();
 
-        if (!achievement || achievement->m_supercedes != id) {
-            continue;
+        for (int32_t i = 0; i < g_achievementDB.m_numRecords; i++) {
+            AchievementRec* achievement = g_achievementDB.GetRecordByIndex(i);
+
+            if (achievement) {
+                s_supersededBy.emplace(achievement->m_supercedes, achievement->m_id);
+            }
         }
 
-        for (CLIENT_ACHIEVEMENTS* completed = s_completedAchievements.Head(); completed; completed = s_completedAchievements.Next(completed)) {
-            if (completed->m_id == achievement->m_id) {
-                return true;
-            }
+        s_supersededByRecords = g_achievementDB.m_records;
+        s_supersededByCount = g_achievementDB.m_numRecords;
+    }
+
+    auto range = s_supersededBy.equal_range(id);
+
+    for (auto it = range.first; it != range.second; ++it) {
+        if (CGAchievementInfo::FindCompletedAchievement(it->second)) {
+            return true;
         }
     }
 
@@ -953,7 +990,8 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
             SStrPrintf(total, sizeof(total), "%d", required ? required : criteriaRec->m_quantity);
         }
 
-        SStrPrintf(buffer, size, "%s / %s", buffer, total);
+        size_t length = SStrLen(buffer);
+        SStrPrintf(buffer + length, size - length, " / %s", total);
     }
 
     return result;
@@ -962,6 +1000,9 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
 // VERIFY: 203cf12b manual
 // OFFSET: 0x005B2FB0
 void CGAchievementInfo::ReleaseInspect() {
+    s_inspectCriteriaById.clear();
+    s_inspectAchievementsById.clear();
+
     for (CLIENT_ACHIEVEMENT_CRITERIA* node = s_inspectCriteria.Head(); node; ) {
         node = s_inspectCriteria.DeleteNode(node);
     }

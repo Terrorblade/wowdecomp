@@ -2369,6 +2369,12 @@ void CSimpleFrame::LoadXML(XMLNode* node, CStatus* status) {
 
     for (XMLNode* child = node->m_child; child; child = child->m_next) {
         if (!SStrCmpI(child->m_name.m_str, "TitleRegion", STORM_MAX_STR)) {
+            // An inherited template may already have created one.
+            if (this->m_titleRegion) {
+                delete this->m_titleRegion;
+                this->m_titleRegion = nullptr;
+            }
+
             void* mem = SMemAlloc(sizeof(CSimpleTitleRegion), __FILE__, __LINE__, 0);
             CSimpleTitleRegion* titleRegion = mem ? new (mem) CSimpleTitleRegion : nullptr;
 

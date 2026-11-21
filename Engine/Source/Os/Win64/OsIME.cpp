@@ -60,7 +60,8 @@ static int32_t GetCompositionString(DWORD index, char* buffer, uint32_t bufferSi
 
     uint16_t wide[512];
     uint32_t written;
-    ImmGetCompositionStringA(context, index, buffer, bufferSize);
+    // One byte short of the buffer so the zeroed tail keeps the string terminated.
+    ImmGetCompositionStringA(context, index, buffer, bufferSize - 1);
     MultiByteToWideChar(GetACP(), MB_PRECOMPOSED, buffer, -1, reinterpret_cast<LPWSTR>(wide), 512);
     ConvertUTF16toUTF8(buffer, bufferSize - 1, wide, 512, &written, nullptr);
     buffer[written] = '\0';
@@ -173,11 +174,16 @@ void OsIMESync() {
     } else if (context) {
         ImmAssociateContext(window, nullptr);
     }
+
+    if (context) {
+        ImmReleaseContext(window, context);
+    }
 }
 
 // OFFSET: 0x0086D030
 void OsIMESetLanguageMode(int32_t native) {
-    HIMC context = ImmGetContext(static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX)));
+    HWND window = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
+    HIMC context = ImmGetContext(window);
     if (!context) {
         return;
     }
@@ -193,6 +199,7 @@ void OsIMESetLanguageMode(int32_t native) {
     }
 
     ImmSetConversionStatus(context, conversion, sentence);
+    ImmReleaseContext(window, context);
 }
 
 // OFFSET: 0x0086D0A0

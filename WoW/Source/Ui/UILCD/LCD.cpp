@@ -299,6 +299,11 @@ void CGLCD::Login() {
     }
 
     CGLCD::m_player = ClntObjMgrGetActivePlayerObj();
+
+    if (!CGLCD::m_player) {
+        return;
+    }
+
     CGLCD::SetScreen(1);
     CGLCD::m_lcd->ShowSubscreen(0);
     CGPlayer_C* player = CGLCD::m_player;
@@ -702,6 +707,10 @@ void CGLCD::UpdateMapPositions() {
         }
     }
 
+    if (!map) {
+        return;
+    }
+
     int32_t y = CMath::fint_(map->m_sizeY * position.y + map->m_offsetY - 8.0f);
     int32_t x = CMath::fint_(map->m_sizeX * position.x + map->m_offsetX - 8.0f);
     CGLCD::m_lcd->SetOrigin(CGLCD::GetHandle("PlayerIcon"), x, y);
@@ -710,7 +719,7 @@ void CGLCD::UpdateMapPositions() {
     for (uint32_t i = 0; i < CGRaidInfo::m_numMembers; i++) {
         CGRaidMember* member = CGRaidInfo::m_members[i];
 
-        if (member->m_guid != ClntObjMgrGetActivePlayer() && member->m_guid) {
+        if (member && member->m_guid != ClntObjMgrGetActivePlayer() && member->m_guid) {
             CGWorldMap::GetPlayerPosition(member->m_guid, &position.x, &position.y);
             char name[32];
             SStrPrintf(name, sizeof(name), "PartyIcon%d", i + 1);
@@ -737,7 +746,7 @@ void CGLCD::UpdateMapPositions() {
 
             AreaPOIRec* rec = g_areaPOIDB.GetRecord(landmark->m_id);
 
-            if ((landmark->m_isGossip || CGWorldMap::m_currentZone == -1) && rec->m_flags < 0) {
+            if (rec && (landmark->m_isGossip || CGWorldMap::m_currentZone == -1) && rec->m_flags < 0) {
                 uint32_t iconIndex = 0;
 
                 if (rec->m_worldStateID) {
@@ -1054,31 +1063,31 @@ void CGLCD::SetAlertText() {
 
         switch (message.m_type) {
             case 1:
-                SStrCopy(format, s_whisperFromText, STORM_MAX_STR);
+                SStrCopy(format, s_whisperFromText, sizeof(format));
                 break;
 
             case 2:
-                SStrCopy(format, s_idleLogoutText, STORM_MAX_STR);
+                SStrCopy(format, s_idleLogoutText, sizeof(format));
                 break;
 
             case 3:
-                SStrCopy(format, s_outbidText, STORM_MAX_STR);
+                SStrCopy(format, s_outbidText, sizeof(format));
                 break;
 
             case 4:
-                SStrCopy(format, FrameScript_GetText("AUCTION_EXPIRED_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE), STORM_MAX_STR);
+                SStrCopy(format, FrameScript_GetText("AUCTION_EXPIRED_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE), sizeof(format));
                 break;
 
             case 5:
-                SStrCopy(format, FrameScript_GetText("AUCTION_WON_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE), STORM_MAX_STR);
+                SStrCopy(format, FrameScript_GetText("AUCTION_WON_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE), sizeof(format));
                 break;
 
             case 6:
-                SStrCopy(format, FrameScript_GetText("AUCTION_ITEM_SOLD", -1, GENDER_NOT_APPLICABLE), STORM_MAX_STR);
+                SStrCopy(format, FrameScript_GetText("AUCTION_ITEM_SOLD", -1, GENDER_NOT_APPLICABLE), sizeof(format));
                 break;
 
             default:
-                SStrCopy(format, "", STORM_MAX_STR);
+                SStrCopy(format, "", sizeof(format));
                 break;
         }
 
@@ -1153,6 +1162,11 @@ void CGLCD::PushAlert(const char* text, int32_t type) {
     CGLCD::SetScreen(6);
     s_alertExpireTime = s_alertDuration + OsGetAsyncTimeMs();
     s_alertExpired = 0;
+
+    if (CGLCD::m_chatAlertLines <= 0) {
+        return;
+    }
+
     int32_t i = CGLCD::m_chatAlertLines - 1;
 
     for (; i > 0; i--) {
@@ -1180,9 +1194,9 @@ void CGLCD::PostInit() {
         return;
     }
 
-    SStrCopy(s_whisperFromText, FrameScript_GetText("WHISPER_FROM", -1, GENDER_NOT_APPLICABLE), STORM_MAX_STR);
-    SStrCopy(s_outbidText, FrameScript_GetText("OUTBID_ON_SHORT", -1, GENDER_NOT_APPLICABLE), STORM_MAX_STR);
-    SStrCopy(s_idleLogoutText, FrameScript_GetText("IDLE_LOGOUT_WARNING", -1, GENDER_NOT_APPLICABLE), STORM_MAX_STR);
+    SStrCopy(s_whisperFromText, FrameScript_GetText("WHISPER_FROM", -1, GENDER_NOT_APPLICABLE), sizeof(s_whisperFromText));
+    SStrCopy(s_outbidText, FrameScript_GetText("OUTBID_ON_SHORT", -1, GENDER_NOT_APPLICABLE), sizeof(s_outbidText));
+    SStrCopy(s_idleLogoutText, FrameScript_GetText("IDLE_LOGOUT_WARNING", -1, GENDER_NOT_APPLICABLE), sizeof(s_idleLogoutText));
     s_chatMessages.SetCount(CGLCD::m_chatAlertLines);
 
     for (int32_t i = 0; i < CGLCD::m_chatAlertLines; i++) {
@@ -1296,10 +1310,10 @@ int32_t CGLCD::Update(const void* data, void* param) {
                         CGLCD::SetScreen(s_inBattlefield ? 3 : 1);
                     }
                 }
-            } else {
+            } else if (LCDHANDLE* alert = CGLCD::m_handles.Ptr("BATTLEFIELD_ALERT")) {
                 char duration[32];
                 CGTooltip::GetDurationString(duration, sizeof(duration), s_battlefieldPortExpiration - OsGetAsyncTimeMs(), "SPELL_TIME_REMAINING", nullptr, 1, 0);
-                const char* token = CGLCD::m_handles.Ptr("BATTLEFIELD_ALERT")->m_text.m_str;
+                const char* token = alert->m_text.m_str;
                 const char* remaining = LanguageProcess(duration);
                 char text[128];
                 SStrPrintf(text, sizeof(text), FrameScript_GetText(token, -1, GENDER_NOT_APPLICABLE), s_battlefieldAlert, remaining);

@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstring>
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
@@ -29,6 +30,20 @@ const char* g_scriptEvents[NUM_SCRIPT_EVENTS];
 
 // STATIC: 0x00C259FC
 static TSGrowableArray<UniqueSignal> s_uniqueSignals;
+
+static constexpr uint32_t UNIQUE_SIGNAL_HASH_SIZE = 2048;
+static constexpr uint32_t UNIQUE_SIGNAL_HASH_LIMIT = UNIQUE_SIGNAL_HASH_SIZE / 2;
+static uint32_t s_uniqueSignalHash[UNIQUE_SIGNAL_HASH_SIZE];
+static bool s_uniqueSignalHashDirty;
+
+static void ResetUniqueSignals() {
+    s_uniqueSignals.m_count = 0;
+
+    if (s_uniqueSignalHashDirty) {
+        memset(s_uniqueSignalHash, 0, sizeof(s_uniqueSignalHash));
+        s_uniqueSignalHashDirty = false;
+    }
+}
 
 // STATIC: 0x00C25A28
 static char s_nameWithRealm[305];
@@ -207,7 +222,28 @@ CGUnit_C* GetUnitFromName(const char* token) {
 // VERIFY: 99bf3109 manual
 // OFFSET: 0x006143F0
 void Script_SendUniqueSignal(const WOWGUID& guid, int32_t signal) {
-    for (uint32_t i = 0; i < s_uniqueSignals.Count(); i++) {
+    // Every unit aura change lands here, so the first entries are found through a small hash instead of a scan.
+    uint32_t count = s_uniqueSignals.Count();
+    uint64_t hash = guid.m_guid ^ (guid.m_guid >> 29) ^ (static_cast<uint64_t>(static_cast<uint32_t>(signal)) * 0x9E3779B1ULL);
+    uint32_t slot = static_cast<uint32_t>(hash ^ (hash >> 32)) & (UNIQUE_SIGNAL_HASH_SIZE - 1);
+
+    for (uint32_t probe = 0; probe < UNIQUE_SIGNAL_HASH_SIZE; probe++) {
+        uint32_t index = s_uniqueSignalHash[slot];
+
+        if (!index) {
+            break;
+        }
+
+        UniqueSignal& entry = s_uniqueSignals[index - 1];
+
+        if (entry.m_guid == guid && entry.m_signal == signal) {
+            return;
+        }
+
+        slot = (slot + 1) & (UNIQUE_SIGNAL_HASH_SIZE - 1);
+    }
+
+    for (uint32_t i = UNIQUE_SIGNAL_HASH_LIMIT; i < count; i++) {
         UniqueSignal& entry = s_uniqueSignals[i];
 
         if (entry.m_guid == guid && entry.m_signal == signal) {
@@ -218,6 +254,11 @@ void Script_SendUniqueSignal(const WOWGUID& guid, int32_t signal) {
     UniqueSignal* entry = s_uniqueSignals.New();
     entry->m_guid = guid;
     entry->m_signal = signal;
+
+    if (count < UNIQUE_SIGNAL_HASH_LIMIT) {
+        s_uniqueSignalHash[slot] = count + 1;
+        s_uniqueSignalHashDirty = true;
+    }
 }
 
 // VERIFY: a6908deb manual
@@ -331,7 +372,7 @@ void Script_SendUniqueSignals() {
         }
     }
 
-    s_uniqueSignals.m_count = 0;
+    ResetUniqueSignals();
 }
 
 
@@ -1195,5 +1236,5 @@ int32_t PushUnitAura(lua_State* L, ScriptAuraInfo* info) {
 // VERIFY: 9260c5f6 auto
 // OFFSET: 0x006147B0
 void ClearUniqueSignals() {
-    s_uniqueSignals.m_count = 0;
+    ResetUniqueSignals();
 }

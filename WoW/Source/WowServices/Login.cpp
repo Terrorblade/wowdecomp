@@ -229,6 +229,13 @@ void LoginResponse::HandleRealmData(uint32_t result, CDataStore* msg) {
 
     uint16_t count = 0;
     msg->Get(count);
+
+    uint32_t available = msg->m_read <= msg->m_size ? msg->m_size - msg->m_read : 0;
+
+    if (count > available / 12) {
+        count = static_cast<uint16_t>(available / 12);
+    }
+
     this->m_realmList.SetCount(count);
 
     for (uint32_t i = 0; i < count; i++) {

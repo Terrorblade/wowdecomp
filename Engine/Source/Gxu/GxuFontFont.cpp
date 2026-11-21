@@ -372,6 +372,12 @@ CHARCODEDESC* CGxFont::NewCodeDesc(uint32_t code) {
 
         if (!current->m_texture || !TextureGetGxTex(current->m_texture, 1, nullptr)) {
             cache = current;
+
+            if (cache->m_texture) {
+                HandleClose(reinterpret_cast<HOBJECT>(cache->m_texture));
+                cache->m_texture = nullptr;
+            }
+
             cache->CreateTexture(this->m_fontFlags & 4);
             cache->Initialize(this, this->m_cellHeight);
             desc = cache->AllocateNewGlyph(&data);

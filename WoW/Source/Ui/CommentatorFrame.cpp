@@ -489,13 +489,18 @@ uint64_t CGCommentator::GetArenaMember(int32_t index) {
 // VERIFY: 5a8913ac manual
 // OFFSET: 0x0056B280
 int32_t CGCommentator::OnReceivePlayerInfo(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t mapID;
+    uint32_t mapID = 0;
     CommentatorInstanceKey key;
     msg->Get(mapID);
     key.Read(msg);
 
     WOWGUID guid;
+    guid.m_guid = 0;
     msg->Get(guid.m_guid);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     CGCommentator::InstanceInfo* instance = nullptr;
 

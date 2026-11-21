@@ -200,12 +200,17 @@ int32_t Packet_SMSG_SEND_MAIL_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
     uint32_t itemGuid = 0;
     uint32_t inventoryError = BAG_INTERNAL_BAG_ERROR;
     uint32_t itemCount = 0;
-    uint32_t messageID;
-    uint32_t action;
-    uint32_t result;
+    uint32_t messageID = 0;
+    uint32_t action = 0;
+    uint32_t result = 0;
     msg->Get(messageID);
     msg->Get(action);
     msg->Get(result);
+
+    if (msg->m_read > msg->m_size) {
+        CGMailInfo::m_commandPending = 0;
+        return 1;
+    }
 
     if (result == 1) {
         msg->Get(inventoryError);
@@ -343,7 +348,7 @@ int32_t Packet_SMSG_SEND_MAIL_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: ef1a9c14 auto
 // OFFSET: 0x00571A10
 int32_t Packet_SMSG_RECEIVED_MAIL(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    float delay;
+    float delay = 0.0f;
     msg->Get(delay);
     CGMailInfo::ReceivedMail(delay);
     return 1;
@@ -394,28 +399,22 @@ int32_t Packet_SMSG_MAIL_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
         msg->Get(reinterpret_cast<uint32_t&>(message->m_mailTemplateID));
         msg->GetString(message->m_subject, sizeof(message->m_subject));
         msg->GetString(message->m_body, sizeof(message->m_body));
-        uint8_t numItems;
+        uint8_t numItems = 0;
         msg->Get(numItems);
         memset(message->m_attachments, 0, sizeof(message->m_attachments));
 
-        TSBitField<TSGrowableArray<uint32_t> > used;
-        used.m_count = 16;
-        used.m_bits.ReallocData(1);
+        uint32_t used = 0;
 
-        if (used.m_count) {
-            used.m_bits.m_data[0] = 0;
-        }
-
-        for (int32_t j = 0; j < numItems; j++) {
-            uint8_t index;
+        for (int32_t j = 0; j < numItems && msg->m_read <= msg->m_size; j++) {
+            uint8_t index = 0;
             msg->Get(index);
 
             if (index >= 16) {
                 index = 0;
             }
 
-            if (used.m_bits.m_data[index >> 5] & (1 << (index & 0x1F))) {
-                for (index = 0; used.m_bits.m_data[index >> 5] & (1 << (index & 0x1F)); ) {
+            if (used & (1u << index)) {
+                for (index = 0; used & (1u << index); ) {
                     if (++index >= 16) {
                         break;
                     }
@@ -429,7 +428,7 @@ int32_t Packet_SMSG_MAIL_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
                 attachment = &unused;
             } else {
                 attachment = &message->m_attachments[index];
-                used.m_bits.m_data[index >> 5] |= 1 << (index & 0x1F);
+                used |= 1u << index;
             }
 
             msg->Get(attachment->m_itemGuid);
@@ -447,9 +446,15 @@ int32_t Packet_SMSG_MAIL_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
             msg->Get(reinterpret_cast<uint32_t&>(attachment->m_spellCharges));
             msg->Get(attachment->m_maxDurability);
             msg->Get(attachment->m_durability);
-            uint8_t unknown;
+            uint8_t unknown = 0;
             msg->Get(unknown);
             attachment->unk_0078 = unknown;
+        }
+
+        if (msg->m_read > msg->m_size) {
+            memset(message, 0, sizeof(*message));
+            count = i;
+            break;
         }
 
         message->m_invoiceItemID = 0;
@@ -755,6 +760,11 @@ void CGMailInfo::ParseInboxSubject(MailboxMessageInfo* message) {
         }
 
         WOWGUID none = WOWGUID();
+
+        if (!itemID) {
+            message->m_subject[0] = '\0';
+            return;
+        }
 
         if (!g_itemDBCache.GetRecord(itemID, none, nullptr, nullptr, false)) {
             uint32_t* messageID = static_cast<uint32_t*>(SMemAlloc(sizeof(uint32_t), __FILE__, __LINE__, 0));
@@ -1375,7 +1385,7 @@ const char* GetSenderName(int32_t entry, int32_t type, WOWGUID guid, int32_t sta
                 return FrameScript_GetText("GM_EMAIL_NAME", -1, GENDER_NOT_APPLICABLE);
             }
 
-            NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, guid, &SenderNameQueryCallback, nullptr, false);
+            NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, guid, &SenderNameQueryCallback, nullptr, true);
             return name ? name->m_name : nullptr;
         }
 
@@ -1391,7 +1401,7 @@ const char* GetSenderName(int32_t entry, int32_t type, WOWGUID guid, int32_t sta
 
         case 3: {
             WOWGUID none = WOWGUID();
-            CreatureStats_C* stats = g_creatureDBCache.GetRecord(entry, none, &SenderNameQueryCallback, nullptr, false);
+            CreatureStats_C* stats = g_creatureDBCache.GetRecord(entry, none, &SenderNameQueryCallback, nullptr, true);
 
             if (stats) {
                 return stats->GetName(0);
@@ -1402,7 +1412,7 @@ const char* GetSenderName(int32_t entry, int32_t type, WOWGUID guid, int32_t sta
 
         case 4: {
             WOWGUID none = WOWGUID();
-            GameObjectStats_C* stats = g_gameObjectDBCache.GetRecord(entry, none, &SenderNameQueryCallback, nullptr, false);
+            GameObjectStats_C* stats = g_gameObjectDBCache.GetRecord(entry, none, &SenderNameQueryCallback, nullptr, true);
 
             if (stats) {
                 return stats->GetName(0);
@@ -1432,7 +1442,7 @@ void CGMailInfo::ParseInboxSubject(uint32_t messageID) {
 // OFFSET: 0x0056DAF0
 int32_t Packet_MSG_QUERY_NEXT_MAIL_TIME(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     msg->Get(CGMailInfo::m_nextMailTime);
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
     for (uint32_t i = 0; i < count; i++) {

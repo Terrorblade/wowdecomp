@@ -51,7 +51,7 @@ void CShaderEffectManager::AddEffectFile(const char* fileName) {
     char path[256];
     sprintf(path, "Shaders\\Effects\\%s", fileName);
 
-    SFileImpl* file;
+    SFileImpl* file = nullptr;
     SFileOpenFile(path, &file);
 
     if (!file) {
@@ -62,6 +62,7 @@ void CShaderEffectManager::AddEffectFile(const char* fileName) {
     char* data = static_cast<char*>(SMemAlloc(size + 1, __FILE__, __LINE__, 0));
     SFileReadFile(file, data, size, nullptr, nullptr, 0);
     SFileCloseFile(file);
+    data[size] = '\0';
 
     CShaderEffectParser::ParseEffectFile(data, size, CShaderEffectManager::ParseEffectCallback, nullptr);
 

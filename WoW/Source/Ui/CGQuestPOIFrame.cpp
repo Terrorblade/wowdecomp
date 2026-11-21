@@ -375,8 +375,16 @@ void CGQuestPOIFrame::BuildBlobOutline(QuestPOIBlob* blob, TSGrowableArray<Quest
     }
 
     C3Spline_CatmullRom spline;
-    C3Vector controls[15];
+    C3Vector localControls[15];
+    TSGrowableArray<C3Vector> extraControls;
+    C3Vector* controls = localControls;
     uint32_t count = blob->m_points.Count();
+
+    if (count + 3 > sizeof(localControls) / sizeof(localControls[0])) {
+        extraControls.SetCount(count + 3);
+        controls = extraControls.m_data;
+    }
+
     controls[0] = C3Vector(static_cast<float>(blob->m_points.m_data[count - 1].m_x), static_cast<float>(blob->m_points.m_data[count - 1].m_y), 0.0f);
 
     for (uint32_t i = 0; i < count; i++) {

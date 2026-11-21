@@ -161,12 +161,19 @@ void CLCDText::SetFontColor(COLORREF color) {
 // VERIFY: 4106d234 manual
 // OFFSET: 0x0095C450
 void CLCDText::SetText(const WCHAR* text) {
-    if (!text || !wcscmp(this->m_szText, text)) {
+    if (!text) {
         return;
     }
 
-    wcscpy(this->m_szText, text);
-    this->m_nTextLength = SStrLen(reinterpret_cast<const uint16_t*>(text));
+    size_t length = wcsnlen(text, sizeof(this->m_szText) / sizeof(this->m_szText[0]) - 1);
+
+    if (!wcsncmp(this->m_szText, text, length) && !this->m_szText[length]) {
+        return;
+    }
+
+    memcpy(this->m_szText, text, length * sizeof(WCHAR));
+    this->m_szText[length] = 0;
+    this->m_nTextLength = static_cast<int32_t>(length);
     this->m_dtp.iLeftMargin = 0;
     this->m_dtp.iRightMargin = 0;
     this->m_bRecalcExtent = 1;

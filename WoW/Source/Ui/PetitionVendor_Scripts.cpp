@@ -63,7 +63,7 @@ static int32_t Script_GetPetitionItemInfo(lua_State* L) {
     GuildPetitionInfo* petition;
     WOWGUID none;
 
-    if (index < CGPetitionVendorInfo::m_numPetitionItems && (petition = &CGPetitionVendorInfo::m_petitionItems[index]) && petition->m_itemID && (none = WOWGUID(), g_itemDBCache.GetRecord(petition->m_itemID, none, PetitionVendorItemCallback, nullptr, false))) {
+    if (index < CGPetitionVendorInfo::m_numPetitionItems && (petition = &CGPetitionVendorInfo::m_petitionItems[index]) && petition->m_itemID && (none = WOWGUID(), g_itemDBCache.GetRecord(petition->m_itemID, none, PetitionVendorItemCallback, nullptr, true))) {
         char name[256];
         CGItem_C::BuildItemName(name, sizeof(name), petition->m_itemID, 0);
         lua_pushstring(L, name);

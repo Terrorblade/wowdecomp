@@ -92,6 +92,11 @@ static int32_t CvarCommandHandler(const char* command, const char* arguments) {
     CVar* var = CVar::Lookup(command);
     const char* value = arguments;
 
+    // DeleteCharacterCVars and DeleteAccountCVars drop the cvar but leave its console command registered.
+    if (!var) {
+        return 1;
+    }
+
     while (*value == ' ') {
         value++;
     }
@@ -911,7 +916,7 @@ void CVar::Initialize(const char* fileName) {
 
     char path[260];
     SFile::GetBasePath(path, sizeof(path));
-    SStrPrintf(path, sizeof(path), "%s%s\\", path, "WTF");
+    SStrPack(path, "WTF\\", sizeof(path));
     TryCreateDirectory(path);
 
     ConsoleCommandRegister("set", SetCommandHandler, CATEGORY_DEFAULT, "Set the value of a CVar");

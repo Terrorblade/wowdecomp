@@ -207,6 +207,9 @@ int32_t ComSat::Manager::EnumerateCaptureDevices(ComSat::DeviceInfo* devices, in
 // VERIFY: 6221267c manual
 // OFFSET: 0x0087FD30
 bool ComSat::Manager::UnpackStableBitrateData(uint64_t session, uint64_t talker, const uint8_t* data, uint32_t size) {
+    if (size < 3) {
+        return false;
+    }
     bool reliable = false;
     uint32_t offset = 2;
     do {
@@ -243,6 +246,9 @@ bool ComSat::Manager::UnpackStableBitrateData(uint64_t session, uint64_t talker,
 // VERIFY: 866f6aa1 manual
 // OFFSET: 0x0087FE30
 bool ComSat::Manager::UnpackVariableBitrateData(uint64_t session, uint64_t talker, const uint8_t* data, uint32_t size) {
+    if (size < 3) {
+        return false;
+    }
     uint16_t sequence = data[0] | (data[1] << 8);
     uint32_t position = 3;
     uint8_t header = data[2];
@@ -250,6 +256,9 @@ bool ComSat::Manager::UnpackVariableBitrateData(uint64_t session, uint64_t talke
     uint8_t count = header & 0x7F;
     if (count > 20) {
         count = 20;
+    }
+    if (count > size - position) {
+        return false;
     }
     ComSat::Sound::Manager::VoicePacket packet;
     uint32_t lengths[20];
@@ -282,6 +291,10 @@ bool ComSat::Manager::UnpackVariableBitrateData(uint64_t session, uint64_t talke
 // OFFSET: 0x0087FF70
 bool ComSat::Manager::UnpackBitpackedVariableBitrateData(uint64_t session, uint64_t talker, const uint8_t* data, uint32_t size) {
     ComSat::Sound::Manager::VoicePacket packet;
+    // A peer packet larger than one frame would overflow packet.m_data on the stack.
+    if (size < 2 || size - 2 > sizeof(packet.m_data)) {
+        return false;
+    }
     packet.m_sequence = *reinterpret_cast<const uint16_t*>(data);
     ComSat::BitUnpacker unpacker(data + 2, 8 * size - 16);
     packet.m_bits = 8 * size - 16;
@@ -451,6 +464,9 @@ void ComSat::Manager::LocalChatDataReady(uint8_t player, uint8_t* data, uint32_t
         }
     }
     if (size <= 128) {
+        if (localTalker->m_frameCount >= sizeof(localTalker->m_frames) / sizeof(localTalker->m_frames[0])) {
+            this->SendVoiceDataToCurrentSession(player);
+        }
         LocalTalker* target = this->m_localTalkers[player];
         target->m_frames[target->m_frameCount].m_size = size;
         memcpy(&target->m_frames[target->m_frameCount], data, size);
@@ -539,8 +555,8 @@ bool ComSat::Manager::LocalTalkerDestroy(uint8_t localTalker) {
     if (!local || !local->m_guid) {
         return true;
     }
-    uint32_t count = local->m_sessions.Count();
-    for (uint32_t i = 0; i < count; i++) {
+    // SessionRemove erases from m_sessions, so walk it from the back.
+    for (uint32_t i = local->m_sessions.Count(); i-- > 0; ) {
         this->SessionRemove(local->m_sessions[i], local->m_guid);
     }
     bool result = this->m_soundManager->DestroyLocalPlayer(localTalker);

@@ -468,7 +468,8 @@ static int32_t Packet_SMSG_UNIT_HEAL_PREDICTION(void* param, NETMESSAGE msgId, u
     std::vector<IncomingHeal>& heals = s_incomingHeals[target];
 
     for (auto heal = heals.begin(); heal != heals.end();) {
-        heal = heal->m_caster == caster ? heals.erase(heal) : std::next(heal);
+        bool expired = static_cast<int32_t>(OsGetAsyncTimeMs() - heal->m_expiresMs) >= 0;
+        heal = heal->m_caster == caster || expired ? heals.erase(heal) : std::next(heal);
     }
 
     if (amount > 0) {
@@ -578,6 +579,9 @@ namespace HoT::UnitLevel {
 
 static const uint32_t RETRY_INTERVAL_MS = 2000;
 static const uint8_t MAX_ATTEMPTS = 4;
+static const size_t PRUNE_REQUEST_THRESHOLD = 4096;
+static const uint32_t PRUNE_REQUEST_AGE_MS = 600000;
+static const uint32_t PRUNE_REQUEST_INTERVAL_MS = 30000;
 
 struct Request {
     uint32_t m_lastMs;
@@ -625,9 +629,30 @@ static bool HasUnitLevel(WOWGUID guid) {
     return s_playerItemLevels.count(guid) || s_creatureDungeonLevels.count(guid);
 }
 
+// Exhausted requests for silent units would otherwise pile up until the next loading screen.
+static void PruneRequests(uint32_t now) {
+    static uint32_t s_lastPruneMs;
+
+    if (s_requests.size() < PRUNE_REQUEST_THRESHOLD || now - s_lastPruneMs < PRUNE_REQUEST_INTERVAL_MS) {
+        return;
+    }
+
+    s_lastPruneMs = now;
+
+    for (auto it = s_requests.begin(); it != s_requests.end();) {
+        it = now - it->second.m_lastMs >= PRUNE_REQUEST_AGE_MS ? s_requests.erase(it) : std::next(it);
+    }
+}
+
 static void StampRequest(WOWGUID guid) {
+    uint32_t now = OsGetAsyncTimeMs();
+
+    if (!s_requests.count(guid)) {
+        PruneRequests(now);
+    }
+
     Request& request = s_requests[guid];
-    request.m_lastMs = OsGetAsyncTimeMs();
+    request.m_lastMs = now;
 
     if (request.m_attempts < MAX_ATTEMPTS) {
         request.m_attempts++;

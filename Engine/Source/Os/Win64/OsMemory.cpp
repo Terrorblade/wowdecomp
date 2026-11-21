@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <set>
+#include <utility>
 #include <vector>
 #include <windows.h>
 #include "Engine/Source/Os/OsMemory.h"
@@ -22,7 +24,7 @@ struct NearArena {
     uintptr_t m_base;
     uintptr_t m_end;
     std::map<uintptr_t, size_t> m_freeByAddr;
-    std::multimap<size_t, uintptr_t> m_freeBySize;
+    std::set<std::pair<size_t, uintptr_t>> m_freeBySize;
 };
 
 // HoT: model data and everything its 32-bit offsets point at share one region under 2GB, so every offset fits
@@ -150,19 +152,11 @@ static void InsertFree(NearArena* arena, uintptr_t address, size_t size) {
 
 static void EraseFree(NearArena* arena, uintptr_t address, size_t size) {
     arena->m_freeByAddr.erase(address);
-
-    auto range = arena->m_freeBySize.equal_range(size);
-
-    for (auto it = range.first; it != range.second; ++it) {
-        if (it->second == address) {
-            arena->m_freeBySize.erase(it);
-            break;
-        }
-    }
+    arena->m_freeBySize.erase(std::make_pair(size, address));
 }
 
 static void* ArenaAlloc(NearArena* arena, size_t need, bool zero) {
-    auto fit = arena->m_freeBySize.lower_bound(need);
+    auto fit = arena->m_freeBySize.lower_bound(std::make_pair(need, static_cast<uintptr_t>(0)));
 
     if (fit == arena->m_freeBySize.end()) {
         return nullptr;

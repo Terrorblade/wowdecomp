@@ -6,6 +6,7 @@
 #include <cstring>
 #include <map>
 #include <set>
+#include <string_view>
 #include <vector>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Model2/M2Model.h"
@@ -45,7 +46,7 @@ struct FileEdits {
 };
 
 static std::vector<Handle> s_handles;
-static std::map<std::string, FileEdits> s_files;
+static std::map<std::string, FileEdits, std::less<>> s_files;
 
 static std::string FileKey(const char* path) {
     std::string key = path;
@@ -175,7 +176,16 @@ uint32_t GetHandle(uint32_t mapObjUniqueId, uint16_t doodadRef) {
 
 SMODoodadDef* Resolve(CMapObj* mapObj, uint16_t doodadRef) {
     if (!s_files.empty()) {
-        auto file = s_files.find(FileKey(mapObj->m_wmoName));
+        // Every doodad ref of every WMO group comes through here, so the key is built without a heap allocation.
+        char key[sizeof(mapObj->m_wmoName)];
+        size_t length = 0;
+
+        for (; length < sizeof(key) && mapObj->m_wmoName[length]; length++) {
+            char c = mapObj->m_wmoName[length];
+            key[length] = c == '/' ? '\\' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+
+        auto file = s_files.find(std::string_view(key, length));
 
         if (file != s_files.end()) {
             if (file->second.m_removed.count(doodadRef)) {

@@ -79,11 +79,11 @@ static EQUIPMENT_SET* AllocSet(uint32_t* heap) {
     uint32_t handle;
     void* object = nullptr;
 
-    if (!ObjectAlloc(*heap, &handle, &object, false)) {
+    if (!ObjectAlloc(*heap, &handle, &object, false) || !object) {
         return nullptr;
     }
 
-    EQUIPMENT_SET* set = object ? new (object) EQUIPMENT_SET() : nullptr;
+    EQUIPMENT_SET* set = new (object) EQUIPMENT_SET();
     set->m_handle = handle;
     return set;
 }
@@ -108,6 +108,11 @@ void CGEquipmentManager::CreateEquipmentSet(const char* name, const char* icon) 
     }
 
     EQUIPMENT_SET* set = AllocSet(CGEquipmentManager::s_equipmentSetHeap);
+
+    if (!set) {
+        return;
+    }
+
     set->m_id = id;
     EQUIPMENT_SET_NODE* node = CGEquipmentManager::s_equipmentSets.NewNode(2, 0, 8);
     node->m_set = set;
@@ -293,7 +298,7 @@ bool CGEquipmentManager::ModifyEquipmentSet(EQUIPMENT_SET* set, const char* name
         return false;
     }
 
-    SStrCopy(set->m_name, name, STORM_MAX_STR);
+    SStrCopy(set->m_name, name, sizeof(set->m_name));
     CGEquipmentManager::SaveSet(set, name, set->m_icon);
     FrameScript_SignalEvent(SCRIPT_EVENT_EQUIPMENT_SETS_CHANGED, nullptr);
     return true;
@@ -337,27 +342,39 @@ int32_t Packet_SMSG_EQUIPMENT_SET_LIST(void* param, NETMESSAGE msgId, uint32_t t
     }
 
     for (int32_t i = 0; i < static_cast<int32_t>(count) && i < 10; i++) {
-        EQUIPMENT_SET* set = nullptr;
-        uint32_t handle;
-        void* object = nullptr;
-
-        if (ObjectAlloc(*CGEquipmentManager::s_equipmentSetHeap, &handle, &object, false)) {
-            set = object ? new (object) EQUIPMENT_SET() : nullptr;
-            set->m_handle = handle;
-        }
+        EQUIPMENT_SET local;
+        local.m_id = 0;
+        local.m_name[0] = '\0';
+        local.m_icon[0] = '\0';
 
         SmartGUID guid;
+        guid.m_guid = 0;
         *msg >> guid;
-        set->m_guid = guid;
-        msg->Get(reinterpret_cast<uint32_t&>(set->m_id));
-        msg->GetString(set->m_name, sizeof(set->m_name));
-        msg->GetString(set->m_icon, sizeof(set->m_icon));
+        local.m_guid = guid;
+        msg->Get(reinterpret_cast<uint32_t&>(local.m_id));
+        msg->GetString(local.m_name, sizeof(local.m_name));
+        msg->GetString(local.m_icon, sizeof(local.m_icon));
 
         for (uint32_t slot = 0; slot < 19; slot++) {
             SmartGUID item;
+            item.m_guid = 0;
             *msg >> item;
-            set->m_items[slot] = item;
+            local.m_items[slot] = item;
         }
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
+        EQUIPMENT_SET* set = AllocSet(CGEquipmentManager::s_equipmentSetHeap);
+
+        if (!set) {
+            break;
+        }
+
+        uint32_t handle = set->m_handle;
+        *set = local;
+        set->m_handle = handle;
 
         EQUIPMENT_SET_NODE* node = CGEquipmentManager::s_equipmentSets.NewNode(2, 0, 0);
         node->m_set = set;
@@ -637,8 +654,12 @@ void CGEquipmentManager::SaveSet(EQUIPMENT_SET* set, const char* name, const cha
         return;
     }
 
-    SStrCopy(set->m_name, name, STORM_MAX_STR);
-    SStrCopy(set->m_icon, icon, STORM_MAX_STR);
+    SStrCopy(set->m_name, name, sizeof(set->m_name));
+
+    if (icon != set->m_icon) {
+        SStrCopy(set->m_icon, icon, sizeof(set->m_icon));
+    }
+
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (!player) {
@@ -693,7 +714,6 @@ void CGEquipmentManager::ShutdownGame() {
         ObjectFree(*CGEquipmentManager::s_equipmentSetHeap, node->m_set->m_handle);
     }
 
+    // The heap id is kept because ObjectAlloc cannot remove a heap and InitializeGame would add a new one per login.
     CGEquipmentManager::s_equipmentSets.Clear();
-    delete CGEquipmentManager::s_equipmentSetHeap;
-    CGEquipmentManager::s_equipmentSetHeap = nullptr;
 }

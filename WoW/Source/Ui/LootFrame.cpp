@@ -457,6 +457,10 @@ void CGLootInfo::DoAutoLoot(int32_t a1) {
 
         ItemStats_C* stats = g_itemDBCache.GetRecord(slot.m_itemID, CGLootInfo::m_lootObj, nullptr, nullptr, false);
 
+        if (!stats) {
+            continue;
+        }
+
         if (stats->m_bonding != 1 || stats->m_quality < 2 || (stats->m_flags[0] & 0x800) || slotType == 4) {
             SI2::PlayItemSound(ITEMSOUND_PICKUP, stats->m_displayId);
             CGPlayer_C::AutoStoreLootItem(slot.m_slot);
@@ -792,7 +796,7 @@ void CGLootInfo::OnLootSlotChanged(uint8_t slot) {
     entry.m_slot = slot;
     entry.m_slotType = CGPlayer_C::GetLootItemSlotType(slot);
 
-    if (g_itemDBCache.GetRecord(entry.m_itemID, CGLootInfo::m_lootObj, CGLootInfo::LootButtonItemStatsCallback, nullptr, false)) {
+    if (!entry.m_itemID || g_itemDBCache.GetRecord(entry.m_itemID, CGLootInfo::m_lootObj, CGLootInfo::LootButtonItemStatsCallback, nullptr, false)) {
         entry.m_pending = 0;
     } else {
         CGLootInfo::m_itemsPending++;

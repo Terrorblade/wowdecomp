@@ -163,7 +163,13 @@ static int32_t Script_GetUpperEmblemTexture(lua_State* L) {
         uint32_t stride;
 
         if (blp.Lock(PIXEL_ARGB8888, 0, data, stride)) {
-            for (uint32_t i = 0; i < s_texels.m_count; i++) {
+            uint32_t count = blp.m_header.m_width * blp.m_header.m_height;
+
+            if (count > s_texels.m_count) {
+                count = s_texels.m_count;
+            }
+
+            for (uint32_t i = 0; i < count; i++) {
                 CImVector& texel = s_texels.m_data[i];
                 texel.a = data[4 * i + 3];
                 texel.r = 0xFF;
@@ -224,7 +230,13 @@ static int32_t Script_GetLowerEmblemTexture(lua_State* L) {
         uint32_t stride;
 
         if (blp.Lock(PIXEL_ARGB8888, 0, data, stride)) {
-            for (uint32_t i = 0; i < s_texels.m_count; i++) {
+            uint32_t count = blp.m_header.m_width * blp.m_header.m_height;
+
+            if (count > s_texels.m_count) {
+                count = s_texels.m_count;
+            }
+
+            for (uint32_t i = 0; i < count; i++) {
                 CImVector& texel = s_texels.m_data[i];
                 texel.a = data[4 * i + 3];
                 texel.r = 0xFF;

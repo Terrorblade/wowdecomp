@@ -129,7 +129,8 @@ uint32_t CGGameObject_C_Type_Transport::GetSequenceTimeFromRealTime(int32_t stat
     uint32_t period = this->m_owner->m_gameObject->m_level;
 
     if (!period) {
-        return time % this->m_frames[count - 1].m_time;
+        uint32_t total = this->m_frames[count - 1].m_time;
+        return total ? time % total : 0;
     }
 
     uint32_t elapsed = time - this->m_stateChangeTime;
@@ -290,6 +291,7 @@ C3Vector CGGameObject_C_Type_Transport::GetMovement(uint32_t time) {
     uint32_t next = this->m_frameCount != this->m_currentFrame + 1 ? this->m_currentFrame + 1 : 0;
     TransportFrame* current;
     TransportFrame* following;
+    uint32_t tries = this->m_frameCount;
 
     while (true) {
         following = &this->m_frames[next];
@@ -299,11 +301,19 @@ C3Vector CGGameObject_C_Type_Transport::GetMovement(uint32_t time) {
             break;
         }
 
+        // A time past the last frame matches no interval, so hold on the last frame instead of spinning forever.
+        if (!tries--) {
+            this->m_currentFrame = this->m_frameCount - 1;
+            current = &this->m_frames[this->m_currentFrame];
+            following = current;
+            break;
+        }
+
         this->m_currentFrame = next;
         next = this->m_frameCount != next + 1 ? next + 1 : 0;
     }
 
-    float t = static_cast<float>(time - current->m_time) / static_cast<float>(following->m_time - current->m_time);
+    float t = following != current ? static_cast<float>(time - current->m_time) / static_cast<float>(following->m_time - current->m_time) : 0.0f;
 
     if (this->m_worldObject) {
         uint32_t sequence = current->m_sequenceId;
@@ -346,7 +356,17 @@ C4Quaternion CGGameObject_C_Type_Transport::GetRotation(uint32_t time) {
         endTime = this->m_frames[this->m_frameCount - 1].m_time;
     }
 
+    uint32_t tries = count;
+
     while (!(time >= static_cast<uint32_t>(current->m_timeIndex) && time < endTime)) {
+        // Same guard as GetMovement, no interval matches so hold on the last rotation.
+        if (!tries--) {
+            this->m_currentRotation = count - 1;
+            current = &this->m_rotations[this->m_currentRotation];
+            following = current;
+            break;
+        }
+
         this->m_currentRotation = next;
         next = this->m_rotationCount != next + 1 ? next + 1 : 0;
         current = &this->m_rotations[this->m_currentRotation];
@@ -358,7 +378,7 @@ C4Quaternion CGGameObject_C_Type_Transport::GetRotation(uint32_t time) {
         }
     }
 
-    float t = static_cast<float>(time - current->m_timeIndex) / static_cast<float>(following->m_timeIndex - current->m_timeIndex);
+    float t = following != current ? static_cast<float>(time - current->m_timeIndex) / static_cast<float>(following->m_timeIndex - current->m_timeIndex) : 0.0f;
     C4Quaternion rotation = C4Quaternion::Slerp(t, reinterpret_cast<const C4Quaternion&>(current->m_rot), reinterpret_cast<const C4Quaternion&>(following->m_rot));
     return rotation * reinterpret_cast<const C4Quaternion&>(this->m_owner->m_gameObject->m_parentRotation);
 }

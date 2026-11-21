@@ -6,6 +6,7 @@
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include <cstring>
 #include "Engine/Source/Gx/CGxTexFlags.h"
+#include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
@@ -57,6 +58,8 @@ int32_t CGQuestLog::m_numQuest;
 // STATIC: 0x00C23AF4
 static uint32_t s_questCallbackCount;
 
+static bool s_questCallbackLoaded;
+
 // STATIC: 0x00AD1018
 float CGQuestLog::m_questIconOverlapPushDist = 18.0f;
 
@@ -93,6 +96,15 @@ int32_t CGQuestLog::m_nextQuestUpdate;
 
 // STATIC: 0x00C23AFC
 static CVar* s_cvPOIShiftComplete;
+
+static bool s_poiOrderValid;
+static int32_t s_poiOrderFrame;
+static uint32_t s_poiOrderCount;
+static int32_t s_poiOrder[HoT::QuestLog::NUM_POIS + 25];
+
+static void InvalidatePOIOrder() {
+    s_poiOrderValid = false;
+}
 
 // HoT: sized for the HoT 100 slot quest log.
 // STATIC: 0x00C23B00
@@ -529,6 +541,7 @@ int32_t CountQuestItemDropsNeeded(int32_t questId, void (*callback)(int32_t id, 
 // VERIFY: 89b5e6a8 manual
 // OFFSET: 0x005E64D0
 int32_t CGQuestLog::AddQuestWatch(int32_t questId, int32_t duration) {
+    InvalidatePOIOrder();
     int32_t now = static_cast<int32_t>(time(nullptr));
     int32_t i;
 
@@ -568,17 +581,26 @@ int32_t CGQuestLog::AddQuestWatch(int32_t questId, int32_t duration) {
 static void QuestQueryCounterCallback(int32_t id, const WOWGUID& guid, void* param, bool success) {
     if (!success) {
         ConsoleWrite("Invalid quest log entry", DEFAULT_COLOR);
+
+        // A denied quest used to leave the counter stuck and block every later quest log rebuild.
+        if (s_questCallbackCount && --s_questCallbackCount == 0 && s_questCallbackLoaded) {
+            CGQuestLog::Update(1);
+        }
+
         return;
     }
 
     if (s_questCallbackCount == 0 || --s_questCallbackCount == 0) {
         CGQuestLog::Update(1);
+    } else {
+        s_questCallbackLoaded = true;
     }
 }
 
 // VERIFY: 51715ead manual
 // OFFSET: 0x005DEA60
 void CGQuestLog::RemoveQuestWatch(int32_t questId) {
+    InvalidatePOIOrder();
     uint32_t count = CGQuestLog::m_numQuestWatches;
     uint32_t i;
 
@@ -684,6 +706,7 @@ bool CGQuestLog::GetQuestPOIIcon(int32_t questId, bool* complete, int32_t* mapId
 // VERIFY: e94a9f5a manual
 // OFFSET: 0x005DEF60
 void CGQuestLog::ShiftQuestWatches(uint32_t from, uint32_t to) {
+    InvalidatePOIOrder();
     int32_t step;
 
     if (to > from && to < CGQuestLog::m_numQuestWatches) {
@@ -816,9 +839,14 @@ int32_t CGQuestLog::IsSelectedQuestExpired() {
 // OFFSET: 0x005E08A0
 int32_t Packet_SMSG_QUERY_TIME_RESPONSE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     uint32_t serverTime = 0;
-    uint32_t resetTime;
+    uint32_t resetTime = 0;
     msg->Get(serverTime);
     msg->Get(resetTime);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     CGQuestLog::SetServerTime(serverTime, resetTime);
     return 1;
 }
@@ -1073,11 +1101,13 @@ void CGQuestLog::Update(int32_t a1) {
         }
     }
 
+    InvalidatePOIOrder();
     memset(CGQuestLog::m_quests, 0, sizeof(CGQuestLog::m_quests));
     memset(CGQuestLog::m_sortTypes, 0, sizeof(CGQuestLog::m_sortTypes));
     CGQuestLog::m_numQuest = 0;
     CGQuestLog::m_numSortTypes = 0;
     s_questCallbackCount = 0;
+    s_questCallbackLoaded = false;
     int32_t numUnknown = 0;
     int32_t unknown[HoT::QuestLog::NUM_SLOTS] = { 0 };
     int32_t timeOffset = CGQuestLog::m_timeOffset;
@@ -1813,6 +1843,8 @@ int32_t CGQuestLog::FindOrFreePOISlot(int32_t questId) {
 // VERIFY: 89be692d manual
 // OFFSET: 0x005E7370
 void CGQuestLog::HandlePOIQueryResponse(CDataStore* msg) {
+    InvalidatePOIOrder();
+
     if (!msg) {
         return;
     }
@@ -2063,6 +2095,8 @@ int32_t CGQuestLog::GetQuestPOILeaderBoardByID(int32_t questId, QuestLogLeaderBo
 // VERIFY: 246aa072 manual
 // OFFSET: 0x005E5A50
 int32_t CGQuestLog::UpdateAllQuestPOI() {
+    InvalidatePOIOrder();
+
     if (!g_questPOICVar->m_intValue) {
         return 0;
     }
@@ -2128,6 +2162,7 @@ int32_t CGQuestLog::UpdateAllQuestPOI() {
 // OFFSET: 0x005E6F30
 void CGQuestLog::ShutdownGame() {
     ClientServices::ClearMessageHandler(SMSG_QUERY_TIME_RESPONSE);
+    InvalidatePOIOrder();
 
     for (uint32_t i = 0; i < HoT::QuestLog::NUM_POIS; i++) {
         QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[i];
@@ -2548,51 +2583,42 @@ QuestPOIInfo* CGQuestLog::GetQuestPOIInfo(int32_t questId) {
     return &CGQuestLog::m_questPOIs[index];
 }
 
-// VERIFY: c90d8914 manual
-// OFFSET: 0x005E3840
-int32_t CGQuestLog::GetPOIQuestIDByVisibleIndex(int32_t index) {
-    if (static_cast<uint32_t>(index) >= HoT::QuestLog::NUM_POIS) {
-        return -1;
-    }
+static bool IsPOIQuestDone(int32_t questId) {
+    int32_t index = CGQuestLog::GetQuestIndex(questId) - 1;
+    return CGQuestLog::IsQuestCompleteEx(index, 1) || CGQuestLog::HasNoObjectives(index);
+}
 
-    int32_t visible = 0;
+static void BuildPOIOrder() {
+    s_poiOrderCount = 0;
+    bool done[HoT::QuestLog::NUM_POIS];
 
     for (uint32_t i = 0; i < HoT::QuestLog::NUM_POIS; i++) {
         QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[i];
+        done[i] = poi->m_visible && IsPOIQuestDone(poi->m_questId);
 
-        if (!poi->m_visible) {
-            continue;
-        }
-
-        if (CGQuestLog::IsQuestCompleteEx(CGQuestLog::GetQuestIndex(poi->m_questId) - 1, 1) || CGQuestLog::HasNoObjectives(CGQuestLog::GetQuestIndex(poi->m_questId) - 1)) {
-            if (index == visible++) {
-                return CGQuestLog::m_questPOIs[i].m_questId;
-            }
+        if (done[i]) {
+            s_poiOrder[s_poiOrderCount++] = poi->m_questId;
         }
     }
 
-    for (int32_t i = 0; i < static_cast<int32_t>(CGQuestLog::m_numQuestWatches); i++) {
+    for (uint32_t i = 0; i < CGQuestLog::m_numQuestWatches && i < 25; i++) {
         int32_t questId = CGQuestLog::m_questWatches[i].m_questId;
 
-        if (CGQuestLog::IsQuestCompleteEx(CGQuestLog::GetQuestIndex(questId) - 1, 1) || CGQuestLog::HasNoObjectives(CGQuestLog::GetQuestIndex(questId) - 1)) {
+        if (IsPOIQuestDone(questId)) {
             continue;
         }
 
         int32_t poi = CGQuestLog::GetQuestPOIIndex(questId);
 
-        if (poi >= 0 && CGQuestLog::m_questPOIs[poi].m_visible && index == visible++) {
-            return CGQuestLog::m_questPOIs[poi].m_questId;
+        if (poi >= 0 && CGQuestLog::m_questPOIs[poi].m_visible) {
+            s_poiOrder[s_poiOrderCount++] = CGQuestLog::m_questPOIs[poi].m_questId;
         }
     }
 
     for (uint32_t i = 0; i < HoT::QuestLog::NUM_POIS; i++) {
         QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[i];
 
-        if (!poi->m_visible) {
-            continue;
-        }
-
-        if (CGQuestLog::IsQuestCompleteEx(CGQuestLog::GetQuestIndex(poi->m_questId) - 1, 1) || CGQuestLog::HasNoObjectives(CGQuestLog::GetQuestIndex(poi->m_questId) - 1)) {
+        if (!poi->m_visible || done[i]) {
             continue;
         }
 
@@ -2602,12 +2628,33 @@ int32_t CGQuestLog::GetPOIQuestIDByVisibleIndex(int32_t index) {
             watch++;
         }
 
-        if (watch >= CGQuestLog::m_numQuestWatches && index == visible++) {
-            return CGQuestLog::m_questPOIs[i].m_questId;
+        if (watch >= CGQuestLog::m_numQuestWatches) {
+            s_poiOrder[s_poiOrderCount++] = poi->m_questId;
         }
     }
+}
 
-    return -1;
+// VERIFY: c90d8914 manual
+// OFFSET: 0x005E3840
+int32_t CGQuestLog::GetPOIQuestIDByVisibleIndex(int32_t index) {
+    if (static_cast<uint32_t>(index) >= HoT::QuestLog::NUM_POIS) {
+        return -1;
+    }
+
+    // The world map asks for every index in turn, so the ordered list is built once per frame.
+    int32_t frame = g_theGxDevicePtr ? g_theGxDevicePtr->m_frameCount : 0;
+
+    if (!s_poiOrderValid || s_poiOrderFrame != frame) {
+        BuildPOIOrder();
+        s_poiOrderValid = true;
+        s_poiOrderFrame = frame;
+    }
+
+    if (static_cast<uint32_t>(index) >= s_poiOrderCount) {
+        return -1;
+    }
+
+    return s_poiOrder[index];
 }
 
 // VERIFY: ad3a094a manual
@@ -2886,6 +2933,7 @@ static float GetQuestPOIDistance(int32_t questId) {
 // VERIFY: b3c23830 manual
 // OFFSET: 0x005E5C10
 bool CGQuestLog::SortQuestWatches() {
+    InvalidatePOIOrder();
     int32_t sort = g_trackerSortingCVar->m_intValue;
 
     if (!sort || CGQuestLog::m_numQuestWatches <= 1) {
@@ -2921,6 +2969,8 @@ bool CGQuestLog::SortQuestWatches() {
 // VERIFY: f8c30a89 manual
 // OFFSET: 0x005E70D0
 void CGQuestLog::UpdateQuestPOIFromUserServer() {
+    InvalidatePOIOrder();
+
     for (uint32_t i = 0; i < HoT::QuestLog::NUM_POIS; i++) {
         QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[i];
 

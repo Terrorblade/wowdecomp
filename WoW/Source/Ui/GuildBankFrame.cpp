@@ -479,10 +479,16 @@ int32_t Packet_MSG_GUILD_BANK_LOG_QUERY(void* param, NETMESSAGE msgId, uint32_t 
 
     for (uint32_t i = 0; i < count; i++) {
         GuildBankLogEntry* entry = &CGGuildBankInfo::m_log[tab][i];
-        uint8_t type;
+        uint8_t type = 0;
         msg->Get(type);
         entry->m_type = type;
         msg->Get(entry->m_guid.m_guid);
+
+        if (msg->m_read > msg->m_size) {
+            count = static_cast<uint8_t>(i);
+            break;
+        }
+
         entry->m_index = i;
 
         if (entry->m_type == 4 || entry->m_type == 5 || entry->m_type == 6 || entry->m_type == 8 || entry->m_type == 9) {
@@ -506,7 +512,7 @@ int32_t Packet_MSG_GUILD_BANK_LOG_QUERY(void* param, NETMESSAGE msgId, uint32_t 
             s_pendingLogQueries++;
         }
 
-        uint32_t age;
+        uint32_t age = 0;
         msg->Get(age);
         entry->m_time = now - age;
     }
@@ -717,7 +723,11 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
         s_pendingItemQueries = 0;
 
         for (uint32_t i = 0; i < CGGuildBankInfo::m_tabSlots[tab].m_count; i++) {
-            g_nameDBCache.CancelCallback(*reinterpret_cast<uint64_t*>(&CGGuildBankInfo::m_tabSlots[tab].m_data[i]), Signal_EVENT_GUILDBANKBAGSLOTS_CHANGED, nullptr);
+            int32_t itemID = CGGuildBankInfo::m_tabSlots[tab].m_data[i].m_itemID;
+
+            if (itemID) {
+                g_itemDBCache.CancelCallback(itemID, Signal_EVENT_GUILDBANKBAGSLOTS_CHANGED, nullptr);
+            }
         }
     }
 

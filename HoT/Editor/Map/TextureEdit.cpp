@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -35,6 +36,11 @@ static std::map<uint32_t, ChunkTextures*> s_chunks;
 static std::vector<ChunkTextures*> s_retired;
 static std::vector<uint32_t> s_pendingRebuild;
 static std::vector<std::string> s_tilesets;
+// Never destroyed, a loaded area can still point at a name during shutdown.
+static std::set<std::string>& TextureNames() {
+    static std::set<std::string>* names = new std::set<std::string>();
+    return *names;
+}
 static bool s_tilesetsBuilt;
 static bool s_stroking;
 
@@ -237,9 +243,8 @@ static int32_t FindAreaTexture(CMapArea* area, const char* name, bool add) {
         return -1;
     }
 
-    size_t length = SStrLen(name) + 1;
-    char* copy = static_cast<char*>(SMemAlloc(static_cast<uint32_t>(length), __FILE__, __LINE__, 0));
-    SStrCopy(copy, name, static_cast<uint32_t>(length));
+    // Areas borrow the name and never free it, one interned copy per name outlives every area that uses it.
+    char* copy = const_cast<char*>(TextureNames().insert(name).first->c_str());
 
     CMapAreaTexture* texture = area->m_textures.New();
     texture->m_textureName = copy;

@@ -73,7 +73,9 @@ void CMapObj::Load() {
 
     chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
     this->m_groupInfo = reinterpret_cast<SMOGroupInfo*>(&chunk->m_data);
-    this->m_groupInfoCount = chunk->m_size / sizeof(SMOGroupInfo);
+    uint32_t groupInfoCount = chunk->m_size / sizeof(SMOGroupInfo);
+    const uint32_t maxGroups = sizeof(this->m_mapObjGroupArray) / sizeof(this->m_mapObjGroupArray[0]);
+    this->m_groupInfoCount = static_cast<int32_t>(groupInfoCount > maxGroups ? maxGroups : groupInfoCount);
 
     chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
     this->m_skybox = reinterpret_cast<char*>(&chunk->m_data);

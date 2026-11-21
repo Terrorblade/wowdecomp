@@ -9,7 +9,7 @@ SteelseriesMouse::~SteelseriesMouse() {
 
 // VERIFY: c632886d manual
 // OFFSET: 0x008C2F50
-WowMouse::WowMouse() {
+WowMouse::WowMouse() : m_hidManager(nullptr) {
     void* window = OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX);
 
     if (window) {
@@ -31,5 +31,5 @@ WowMouse::~WowMouse() {
 // VERIFY: c463f2f6 auto
 // OFFSET: 0x008C2F30
 int32_t WowMouse::IsConnected() {
-    return this->m_hidManager->GetDeviceCount() != 0;
+    return this->m_hidManager && this->m_hidManager->GetDeviceCount() != 0;
 }

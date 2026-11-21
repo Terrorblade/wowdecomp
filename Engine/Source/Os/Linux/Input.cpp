@@ -62,6 +62,8 @@ static uint32_t s_pendingCharCount;
 
 static uint32_t s_pendingCharHead;
 
+static int32_t s_polledThisPass;
+
 void OsQueuePut(OSINPUT id, int32_t param0, int32_t param1, int32_t param2, int32_t param3) {
     int32_t next = s_queueTail == 15 ? 0 : s_queueTail + 1;
 
@@ -770,18 +772,24 @@ int32_t OsInputGet(OSINPUT* id, int32_t* param0, int32_t* param1, int32_t* param
     }
 
     if (s_queueHead == s_queueTail) {
-        OsPollJoysticks(s_appActive);
-        // Controller: gamepads post their buttons into the queue here.
-        Controller::Poll(s_appActive);
+        // Devices are polled once per pass of the caller's loop, not again after every event that queued input.
+        if (!s_polledThisPass) {
+            s_polledThisPass = 1;
+            OsPollJoysticks(s_appActive);
+            // Controller: gamepads post their buttons into the queue here.
+            Controller::Poll(s_appActive);
+        }
 
         SDL_Event event;
 
         while (s_queueHead == s_queueTail) {
             if (!SDL_PollEvent(&event)) {
+                s_polledThisPass = 0;
                 return 0;
             }
 
             if (event.type == SDL_QUIT) {
+                s_polledThisPass = 0;
                 *id = OS_INPUT_SHUTDOWN;
                 return 1;
             }

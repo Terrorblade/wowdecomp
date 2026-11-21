@@ -36,6 +36,7 @@ static int32_t s_WindowResizeLock;
 static void (*s_eventPollProc)();
 static float s_wheelRemainder;
 static bool s_cursorDetached;
+static bool s_polledThisPass;
 
 // Modifier keys currently down, by KEY (KEY_LSHIFT .. KEY_RALT).
 static bool s_modifierDown[6];
@@ -58,6 +59,10 @@ void OsQueuePut(OSINPUT id, int32_t param0, int32_t param1, int32_t param2, int3
     event.param[3] = OsGetAsyncTimeMs();
 
     s_queueTail = next;
+}
+
+static bool QueueHasEvents() {
+    return s_queueHead != s_queueTail;
 }
 
 int32_t OsQueueGet(OSINPUT* id, int32_t* param0, int32_t* param1, int32_t* param2, int32_t* param3) {
@@ -556,14 +561,21 @@ int32_t OsInputGet(OSINPUT* id, int32_t* param0, int32_t* param1, int32_t* param
     }
 
     if (s_queueHead == s_queueTail) {
-        OsPollJoysticks(s_appActive);
+        // Joysticks are polled once per pass of the caller's loop, not again after every event that queued input.
+        if (!s_polledThisPass) {
+            s_polledThisPass = true;
+            OsPollJoysticks(s_appActive);
+        }
 
-        if (!OsMacPumpEvents()) {
+        // Pumping stops at the first queued input, so a busy frame cannot overrun the 16 entry queue and drop key ups.
+        if (!OsMacPumpEvents(QueueHasEvents)) {
+            s_polledThisPass = false;
             *id = OS_INPUT_SHUTDOWN;
             return 1;
         }
 
         if (s_queueHead == s_queueTail) {
+            s_polledThisPass = false;
             return 0;
         }
     }

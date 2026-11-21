@@ -87,9 +87,8 @@ static int32_t Script_GetActionInfo(lua_State* L) {
         int32_t petSpell = 0;
         int32_t spellId = CGActionBar::GetSpell(slot - 1, petSpell);
         SpellRec spell;
-        g_spellDB.GetRecord(spellId, &spell);
 
-        if (SpellIsCallCompanion(&spell)) {
+        if (g_spellDB.GetRecord(spellId, &spell) && SpellIsCallCompanion(&spell)) {
             int32_t type = CGSpellBook::GetCompanionType(&spell);
             lua_pushstring(L, "companion");
             lua_pushnumber(L, CGSpellBook::FindCompanionSlotByID(spellId, type) + 1);
@@ -448,8 +447,7 @@ static int32_t Script_IsPossessBarVisible(lua_State* L) {
     }
 
     SpellRec spell;
-    g_spellDB.GetRecord(spellId, &spell);
-    lua_pushboolean(L, !SpellRec::HasAura(&spell, 236));
+    lua_pushboolean(L, !g_spellDB.GetRecord(spellId, &spell) || !SpellRec::HasAura(&spell, 236));
     return 1;
 }
 

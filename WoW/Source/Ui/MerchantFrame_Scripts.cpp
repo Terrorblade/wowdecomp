@@ -346,7 +346,7 @@ static int32_t Script_GetBuybackItemInfo(lua_State* L) {
     ItemStats_C* stats;
     WOWGUID none = { 0 };
 
-    if (player && slot && slot < static_cast<uint32_t>(player->m_bag.m_numSlots) && player->m_bag.m_slots[slot] && (item = player->m_bag.GetItemPointer(slot)) && (stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, none, BuybackItemStatsCallback, nullptr, false))) {
+    if (player && slot && slot < static_cast<uint32_t>(player->m_bag.m_numSlots) && player->m_bag.m_slots[slot] && (item = player->m_bag.GetItemPointer(slot)) && (stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, none, BuybackItemStatsCallback, nullptr, true))) {
         char buffer[260];
         item->GetFullItemName(buffer, sizeof(buffer));
         lua_pushstring(L, buffer);

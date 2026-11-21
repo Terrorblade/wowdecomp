@@ -458,7 +458,7 @@ static int32_t Script_GetGuildRosterInfo(lua_State* L) {
     GuildMemberInfo* member;
     uint32_t index;
 
-    if (!player || !(stats = g_guildInfoCache.GetRecord(player->m_player->m_playerGuildid, player->m_obj->m_guid, GuildInfoCacheCallback, nullptr, false)) || (index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1) >= CGGuildInfo::m_numMembers || !(member = CGGuildInfo::m_roster.m_data[index])) {
+    if (!player || !(stats = g_guildInfoCache.GetRecord(player->m_player->m_playerGuildid, player->m_obj->m_guid, GuildInfoCacheCallback, nullptr, true)) || (index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1) >= CGGuildInfo::m_numMembers || !(member = CGGuildInfo::m_roster.m_data[index])) {
         lua_pushnil(L);
         lua_pushnil(L);
         lua_pushnumber(L, 0.0);
@@ -874,7 +874,7 @@ static int32_t Script_GuildControlGetRankName(lua_State* L) {
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
 
     if (player && index < CGGuildInfo::m_numRanks) {
-        GuildStats_C* stats = g_guildInfoCache.GetRecord(player->m_player->m_playerGuildid, player->m_obj->m_guid, GuildInfoCacheCallback, nullptr, false);
+        GuildStats_C* stats = g_guildInfoCache.GetRecord(player->m_player->m_playerGuildid, player->m_obj->m_guid, GuildInfoCacheCallback, nullptr, true);
 
         if (stats) {
             SStrCopy(name, stats->m_rankNames[index], STORM_MAX_STR);
@@ -963,7 +963,7 @@ static int32_t Script_GetGuildEventInfo(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player && entry->m_rank < CGGuildInfo::m_numRanks) {
-        GuildStats_C* stats = g_guildInfoCache.GetRecord(player->m_player->m_playerGuildid, player->m_obj->m_guid, GuildInfoCacheCallback, nullptr, false);
+        GuildStats_C* stats = g_guildInfoCache.GetRecord(player->m_player->m_playerGuildid, player->m_obj->m_guid, GuildInfoCacheCallback, nullptr, true);
 
         if (stats) {
             char rankName[64];

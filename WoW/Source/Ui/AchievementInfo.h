@@ -66,6 +66,10 @@ class CGAchievementInfo {
     static bool IsSupersededByCompleted(int32_t id);
     static uint64_t BuildOutputString(char* buffer, int32_t size, uint64_t sum, uint64_t highest, int32_t highestId, uint64_t count, uint64_t value, CLIENT_ACHIEVEMENT_CRITERIA* criteria, int32_t flags, int32_t criteriaFlags, bool completed, const AchievementRec* achievement, const Achievement_CriteriaRec* criteriaRec, int32_t required);
     static void ReleaseInspect();
+    static CLIENT_ACHIEVEMENT_CRITERIA* FindCriteria(int32_t id);
+    static CLIENT_ACHIEVEMENTS* FindCompletedAchievement(int32_t id);
+    static CLIENT_ACHIEVEMENT_CRITERIA* FindInspectCriteria(int32_t id);
+    static CLIENT_ACHIEVEMENTS* FindInspectAchievement(int32_t id);
 
     static void InitializeGame();
     static void ShutdownGame();

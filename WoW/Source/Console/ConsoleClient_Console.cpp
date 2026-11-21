@@ -196,7 +196,7 @@ int32_t ConsoleCommand_FontColor(const char* command, const char* arguments) {
     uint32_t green;
     uint32_t blue;
 
-    if (sscanf(arguments, "%s %d %d %d", colorClass, &red, &green, &blue) != 4) {
+    if (sscanf(arguments, "%63s %d %d %d", colorClass, &red, &green, &blue) != 4) {
         ConsoleWrite("Invalid number of parameters", ERROR_COLOR);
         ConsoleCommandWriteHelp(command);
 

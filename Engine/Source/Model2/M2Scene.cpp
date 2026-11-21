@@ -444,7 +444,8 @@ uint32_t CM2Scene::SphereTestModels(const C3Vector& start, const C3Vector& dir, 
         }
 
         M2Data* data = model->m_shared->m_data;
-        const M2Bounds* bounds = model->m_hitTestMode == 3 ? &data->m_collisionBounds : &data->m_sequences[model->m_bones->m_sequence.m_sequenceIndex].m_bounds;
+        uint16_t sequenceIndex = model->m_bones->m_sequence.m_sequenceIndex;
+        const M2Bounds* bounds = model->m_hitTestMode == 3 ? &data->m_collisionBounds : sequenceIndex < data->m_sequences.m_count ? &data->m_sequences[sequenceIndex].m_bounds : &data->m_bounds;
 
         if (fabsf(bounds->m_radius) < 0.00000023841858f) {
             continue;

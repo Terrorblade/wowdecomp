@@ -271,14 +271,16 @@ TalentGroupTier_C* TalentGroupTab_C::FindTier(int32_t tier) {
         uint32_t mid = static_cast<uint32_t>(low + high) >> 1;
         TalentGroupTier_C* entry = this->m_tiers.m_data[mid];
 
-        if (entry) {
-            if (entry->m_tier < tier) {
-                low = mid + 1;
-            } else if (entry->m_tier > tier) {
-                high = mid - 1;
-            } else {
-                return entry;
-            }
+        if (!entry) {
+            break;
+        }
+
+        if (entry->m_tier < tier) {
+            low = mid + 1;
+        } else if (entry->m_tier > tier) {
+            high = mid - 1;
+        } else {
+            return entry;
         }
     }
 
@@ -910,7 +912,7 @@ static void ReadTalentGroups(CDataStore* msg, uint32_t* activeGroup, int32_t* un
         return;
     }
 
-    uint32_t points;
+    uint32_t points = 0;
     msg->Get(points);
 
     if (unspent) {
@@ -931,28 +933,36 @@ static void ReadTalentGroups(CDataStore* msg, uint32_t* activeGroup, int32_t* un
         *activeGroup = active;
     }
 
-    for (uint8_t i = 0; i < num; i++) {
+    for (uint8_t i = 0; i < num && msg->m_read <= msg->m_size; i++) {
         CGTalentGroup_C* group = i < count ? &groups[i] : nullptr;
-        uint8_t numTalents;
+        uint8_t numTalents = 0;
         msg->Get(numTalents);
 
         for (uint8_t j = 0; j < numTalents; j++) {
-            uint32_t talentId;
+            uint32_t talentId = 0;
             msg->Get(talentId);
-            uint8_t rank;
+            uint8_t rank = 0;
             msg->Get(rank);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
 
             if (group) {
                 group->AddTalentItem(talentId, rank);
             }
         }
 
-        uint8_t numGlyphs;
+        uint8_t numGlyphs = 0;
         msg->Get(numGlyphs);
 
         for (uint8_t j = 0; j < numGlyphs; j++) {
-            uint16_t glyph;
+            uint16_t glyph = 0;
             msg->Get(glyph);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
 
             if (group && j < 6) {
                 group->m_glyphs[j] = glyph;
@@ -968,17 +978,22 @@ static void ReadPetTalents(CDataStore* msg, CGTalentGroup_C* group) {
         return;
     }
 
-    uint32_t points;
+    uint32_t points = 0;
     msg->Get(points);
     group->m_unspentPoints = points;
-    uint8_t count;
+    uint8_t count = 0;
     msg->Get(count);
 
     for (uint16_t i = 0; i < count; i++) {
-        uint32_t talentId;
+        uint32_t talentId = 0;
         msg->Get(talentId);
-        uint8_t rank;
+        uint8_t rank = 0;
         msg->Get(rank);
+
+        if (msg->m_read > msg->m_size) {
+            break;
+        }
+
         group->AddTalentItem(talentId, rank);
     }
 }
@@ -1002,6 +1017,13 @@ void CGTalentGroup_C::UpdateTabs(const TSFixedArray<TalentTabInfo*>* tabs) {
     this->m_tabs.SetCount(count);
 
     for (uint32_t i = 0; i < count; i++) {
+        TSGrowableArray<TalentGroupTier_C*>& tiers = this->m_tabs.m_data[i].m_tiers;
+
+        for (uint32_t t = 0; t < tiers.m_count; t++) {
+            delete tiers.m_data[t];
+        }
+
+        tiers.Clear();
         this->m_tabs.m_data[i].m_tabId = tabs->m_data[i]->m_tabId;
         this->m_tabs.m_data[i].m_pointsSpent = 0;
 

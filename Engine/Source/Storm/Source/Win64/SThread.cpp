@@ -81,20 +81,23 @@ static void SetThreadName(uint32_t threadId, const char* threadName) {
 int32_t CInitCritSect::Enter() {
     int32_t result = 0;
 
-    if (!this->m_critsect) {
+    CCritSect* volatile& critsect = this->m_critsect;
+
+    if (!critsect) {
         while (InterlockedExchange(&this->m_spinLock, 1)) {
         }
 
-        if (!this->m_critsect) {
-            this->m_critsect = reinterpret_cast<CCritSect*>(this->m_critsectData);
+        if (!critsect) {
             new (this->m_critsectData) CCritSect();
+            MemoryBarrier();
+            critsect = reinterpret_cast<CCritSect*>(this->m_critsectData);
             result = 1;
         }
 
-        this->m_spinLock = 0;
+        InterlockedExchange(&this->m_spinLock, 0);
     }
 
-    this->m_critsect->Enter();
+    critsect->Enter();
     return result;
 }
 
@@ -107,6 +110,7 @@ void CInitCritSect::Leave() {
 static uint32_t STORMAPI ProcessCompletionCallbackThread(void* vdata) {
     PROCESSCOMPLETION* completion = static_cast<PROCESSCOMPLETION*>(vdata);
     WaitForSingleObject(completion->process, INFINITE);
+    CloseHandle(completion->process);
     completion->callback(completion->data);
     delete completion;
     return 0;
@@ -180,19 +184,29 @@ HANDLE SCreateThread(uint32_t dwStackSize, uint32_t (STORMAPI* lpStartAddress)(v
     S_Thread::s_threadCrit.Enter();
 
     HANDLE hThread = CreateThread(nullptr, dwStackSize, reinterpret_cast<LPTHREAD_START_ROUTINE>(S_Thread::s_SLaunchThread), launch, dwCreationFlags, reinterpret_cast<LPDWORD>(lpThreadId));
-    launch->threadH = hThread;
 
-    S_Thread::SThreadTrack* track = &S_Thread::s_threads[S_Thread::s_numthreads];
-    track->threadId = *lpThreadId;
-    track->threadH = launch->threadH;
-    track->live = 1;
-    track->suspended = (dwCreationFlags & CREATE_SUSPENDED) != 0;
-
-    if (threadName) {
-        SStrCopy(track->name, threadName, sizeof(track->name));
+    if (!hThread) {
+        S_Thread::s_threadCrit.Leave();
+        SMemFree(launch, __FILE__, __LINE__, 0);
+        return nullptr;
     }
 
-    S_Thread::s_numthreads++;
+    launch->threadH = hThread;
+
+    if (S_Thread::s_numthreads < S_Thread::s_maxthreads) {
+        S_Thread::SThreadTrack* track = &S_Thread::s_threads[S_Thread::s_numthreads];
+        track->threadId = *lpThreadId;
+        track->threadH = hThread;
+        track->live = 1;
+        track->suspended = (dwCreationFlags & CREATE_SUSPENDED) != 0;
+
+        if (threadName) {
+            SStrCopy(track->name, threadName, sizeof(track->name));
+        }
+
+        S_Thread::s_numthreads++;
+    }
+
     S_Thread::s_threadCrit.Leave();
 
     return hThread;
@@ -253,8 +267,11 @@ int32_t STORMAPI SCreateProcess(const char* appName, char* commandLine, void (*c
         return 0;
     }
 
+    CloseHandle(processInfo.hThread);
+
     if (callbackWhenProcessCompletes) {
         if (WaitForInputIdle(processInfo.hProcess, 10000)) {
+            CloseHandle(processInfo.hProcess);
             return 0;
         }
 
@@ -264,7 +281,16 @@ int32_t STORMAPI SCreateProcess(const char* appName, char* commandLine, void (*c
         completion->process = processInfo.hProcess;
 
         uint32_t threadId;
-        SCreateThread(ProcessCompletionCallbackThread, completion, &threadId, nullptr, nullptr, 0);
+        HANDLE thread = SCreateThread(ProcessCompletionCallbackThread, completion, &threadId, nullptr, nullptr, 0);
+
+        if (thread) {
+            CloseHandle(thread);
+        } else {
+            CloseHandle(processInfo.hProcess);
+            SMemFree(completion, __FILE__, __LINE__, 0);
+        }
+    } else {
+        CloseHandle(processInfo.hProcess);
     }
 
     return 1;

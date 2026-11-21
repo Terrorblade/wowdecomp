@@ -32,10 +32,33 @@ static int32_t Script_GetBindingKey(lua_State* L) {
     CGUIBindings* bindings = CGUIBindings::s_bindings;
     int32_t count = 0;
     const char* command = lua_tolstring(L, 1, nullptr);
+    const char* keys[32] = {};
+    TSHashTable<KEYBINDING, HASHKEY_STRI>& current = bindings->m_bindings[BINDING_SET_CURRENT];
 
-    for (const char* key = bindings->GetCommandKey(mode, command, 0); key; key = bindings->GetCommandKey(mode, command, count)) {
+    for (KEYBINDING* binding = current.m_fulllist.Head(); binding; binding = current.m_fulllist.Next(binding)) {
+        const char* bound = bindings->GetBindingCommand(binding, mode);
+
+        if (!bound || SStrCmpI(bound, command, STORM_MAX_STR)) {
+            continue;
+        }
+
+        int32_t index = bindings->GetBindingIndex(binding, mode);
+
+        if (index >= 0 && index < 32 && !keys[index]) {
+            keys[index] = binding->m_key.m_str;
+        }
+    }
+
+    while (count < 32 && keys[count]) {
+        lua_pushstring(L, keys[count]);
         count++;
-        lua_pushstring(L, key);
+    }
+
+    if (count == 32) {
+        for (const char* key = bindings->GetCommandKey(mode, command, count); key; key = bindings->GetCommandKey(mode, command, count)) {
+            count++;
+            lua_pushstring(L, key);
+        }
     }
 
     return count;

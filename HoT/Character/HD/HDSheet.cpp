@@ -562,13 +562,21 @@ static void StartJob(SheetSlot& slot, Recipe&& recipe) {
     auto job = std::make_shared<Job>();
     job->m_recipe = std::move(recipe);
     slot.m_job = job;
+    std::weak_ptr<Job> pending = job;
 
-    Pool::Submit([job] {
+    // A job its component dropped before a helper picked it up is skipped.
+    Pool::Submit([pending] {
+        std::shared_ptr<Job> live = pending.lock();
+
+        if (!live) {
+            return;
+        }
+
         auto start = std::chrono::steady_clock::now();
-        std::shared_ptr<const SheetData> sheet = Compose(job->m_recipe, false);
-        CacheInsert(job->m_recipe.m_key, sheet);
-        job->m_result = std::move(sheet);
-        job->m_done.store(true, std::memory_order_release);
+        std::shared_ptr<const SheetData> sheet = Compose(live->m_recipe, false);
+        CacheInsert(live->m_recipe.m_key, sheet);
+        live->m_result = std::move(sheet);
+        live->m_done.store(true, std::memory_order_release);
         LOG_DEBUG << "hd characters: sheet composed on a worker thread in " << Millis(start) << " ms";
     }, nullptr, false);
 }

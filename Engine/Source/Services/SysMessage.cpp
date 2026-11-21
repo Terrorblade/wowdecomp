@@ -1,6 +1,5 @@
 #include <cstdarg>
 #include <cstdint>
-#include <cstdio>
 #include "Engine/Source/Services/SysMessage.h"
 #include "Engine/Source/Storm/H/storm.h"
 
@@ -55,10 +54,6 @@ int32_t SysMsgAdd(CStatus* status) {
 // VERIFY: 9315395b manual
 // OFFSET: 0x004B4FF0
 int32_t SysMsgVPrintf(SYSMSG_TYPE severity, uint32_t flags, const char* format, va_list args) {
-    char buffer[256];
-    _vsnprintf(buffer, sizeof(buffer), format, args);
-    buffer[255] = '\0';
-
     if (severity < SYSMSG_NUMTYPES) {
         return 1;
     }
@@ -71,17 +66,8 @@ int32_t SysMsgVPrintf(SYSMSG_TYPE severity, uint32_t flags, const char* format, 
 // VERIFY: 82062d21 manual
 // OFFSET: 0x004B5040
 int32_t SysMsgPrintf(SYSMSG_TYPE severity, uint32_t flags, const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-
-    if (format) {
-        char buffer[256];
-        _vsnprintf(buffer, sizeof(buffer), format, args);
-        buffer[255] = '\0';
-
-        if (severity < SYSMSG_NUMTYPES) {
-            return 1;
-        }
+    if (format && severity < SYSMSG_NUMTYPES) {
+        return 1;
     }
 
     SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);

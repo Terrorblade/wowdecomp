@@ -337,6 +337,10 @@ static int32_t Packet_SMSG_APPLY_MOVEMENT_FORCE(void* param, NETMESSAGE msgId, u
     field.m_durationMs = packet.GetInt32();
     field.m_startMs = OsGetAsyncTimeMs();
 
+    if (!packet.CanRead(0) || !guid) {
+        return 1;
+    }
+
     if (field.m_radius < 0.0f) {
         field.m_radius = 0.0f;
     }

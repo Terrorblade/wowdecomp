@@ -792,6 +792,20 @@ THROTTLEDCHAT::~THROTTLEDCHAT() {
     SMemFree(this->m_text, __FILE__, __LINE__, 0);
 }
 
+// INLINED
+PROFANITYCHECK::~PROFANITYCHECK() {
+    if (this->m_filteredText) {
+        SMemFree(this->m_filteredText, __FILE__, __LINE__, 0);
+    }
+}
+
+// INLINED
+SPAMCHECK::~SPAMCHECK() {
+    if (this->m_filteredText) {
+        SMemFree(this->m_filteredText, __FILE__, __LINE__, 0);
+    }
+}
+
 // VERIFY: f592c07c manual
 // OFFSET: 0x00502D00
 void CGChat::QueueChatText(const char* text, int32_t type, const char* senderName, const char* targetName, uint32_t language, const char* channelName, const char* flags, int32_t queued, int32_t a9, WOWGUID senderGuid, uint32_t senderUnk, WOWGUID targetGuid, int32_t achievementID, bool isGM, const ChatConversation* conversation) {
@@ -2006,6 +2020,10 @@ int32_t CGChat::OnCheckReloadSpamFilter(void* param, NETMESSAGE msgId, uint32_t 
         count = remaining;
     }
 
+    for (uint32_t i = 0; i < s_expectedSpamRecords.Count(); i++) {
+        regfree(&s_expectedSpamRecords.m_data[i]);
+    }
+
     s_expectedSpamRecords.SetCount(count);
 
     uint32_t valid = 0;
@@ -3124,7 +3142,7 @@ void CGChat::LogXPGain(CGUnit_C* unit, int32_t amount, int32_t type, int32_t bon
     SStrPrintf(bonusText, sizeof(bonusText), "%s%d", rafBonus >= 0 ? "+" : "", rafBonus);
     ExhaustionRec* exhaustion = g_exhaustionDB.GetRecord(6);
     char text[3000];
-    SStrPrintf(text, sizeof(text), FrameScript_GetText("COMBATLOG_XPGAIN_QUEST", -1, GENDER_NOT_APPLICABLE), amount, bonusText, exhaustion->m_name, rafBonus);
+    SStrPrintf(text, sizeof(text), FrameScript_GetText("COMBATLOG_XPGAIN_QUEST", -1, GENDER_NOT_APPLICABLE), amount, bonusText, exhaustion ? exhaustion->m_name : "", rafBonus);
     CGChat::AddChatMessage(text, CHAT_MSG_COMBAT_XP_GAIN, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
 }
 
@@ -3495,6 +3513,10 @@ PENDINGCHAT::~PENDINGCHAT() {
 
     if (this->m_senderName) {
         SMemFree(this->m_senderName, __FILE__, __LINE__, 0);
+    }
+
+    if (this->m_targetName) {
+        SMemFree(this->m_targetName, __FILE__, __LINE__, 0);
     }
 
     if (this->m_conversation) {
@@ -4084,6 +4106,17 @@ void CGChat::EnterWorld() {
     CGChat::m_afk = player && (player->m_player->m_playerFlags & 0x2) ? 1 : 0;
     s_queueChat = 0;
     CGChat::ProcessPendingChatQueue();
+
+    // Queued text emotes are never shown, so free them instead of keeping them forever.
+    PENDINGTEXTEMOTE* next;
+
+    for (PENDINGTEXTEMOTE* pending = CGChat::s_pendingTextEmotes.Head(); !CGChat::s_pendingTextEmotes.IsEnd(pending); pending = next) {
+        next = CGChat::s_pendingTextEmotes.RawNext(pending);
+
+        if (pending->m_queued) {
+            CGChat::s_pendingTextEmotes.DeleteNode(pending);
+        }
+    }
 }
 
 // VERIFY: bff5dc80 manual
@@ -5210,6 +5243,12 @@ void CGChat::ShutdownGame() {
     s_profanityCache.Clear();
     s_spamCache.Clear();
     CGChat::s_pendingChat.Clear();
+    CGChat::s_pendingTextEmotes.Clear();
+
+    for (uint32_t i = 0; i < CGChat::s_channels.Count(); i++) {
+        CGChat::s_channels.m_data[i].m_pendingUsers.Clear();
+    }
+
     CGChat::s_channels.SetCount(0);
     s_channelColors.Clear();
 
@@ -5584,6 +5623,8 @@ int32_t CGChat::OnDisplayChannelList(CDataStore* msg) {
         }
     }
 
+    CGPlayer_C* activePlayer = ClntObjMgrGetActivePlayer() ? ClntObjMgrGetActivePlayerObj() : nullptr;
+
     for (uint32_t i = 0; i < count; i++) {
         PENDINGUSERLIST* user = &s_pendingUsers.m_data[i];
         WOWGUID guid;
@@ -5608,8 +5649,8 @@ int32_t CGChat::OnDisplayChannelList(CDataStore* msg) {
             }
         }
 
-        if (ClntObjMgrGetActivePlayer() && ClntObjMgrGetActivePlayerObj()->m_obj->m_guid) {
-            if (user->m_guid == ClntObjMgrGetActivePlayerObj()->m_obj->m_guid) {
+        if (activePlayer && activePlayer->m_obj->m_guid) {
+            if (user->m_guid == activePlayer->m_obj->m_guid) {
                 s_activeDisplayChannelFlags = user->m_flags;
 
                 if (index) {
@@ -5917,7 +5958,7 @@ int32_t CGChat::OnVoiceStatusChanged(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: 8a5c30c2 manual
 // OFFSET: 0x00500D80
 void CGChat::SilencePartyMember(bool silence, const char* name) {
-    if (!CGRaidInfo::m_numMembers && !CGPartyInfo::m_members[0]) {
+    if (!name || (!CGRaidInfo::m_numMembers && !CGPartyInfo::m_members[0])) {
         return;
     }
 
@@ -6171,7 +6212,7 @@ void CGChat::LogHonorGain(CGUnit_C* unit, const WOWGUID& victim, int32_t rank, i
         return;
     }
 
-    char token[64];
+    char token[64] = {};
     FactionTemplateRec* faction = g_factionTemplateDB.GetRecord(target->m_unit->m_unitFieldFactiontemplate);
 
     if (faction) {

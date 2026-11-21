@@ -97,17 +97,18 @@ void CGItemText::DisplayText(const WOWGUID& guid, int32_t translate) {
         } else {
             WOWGUID none = WOWGUID();
             ItemStats_C* stats = g_itemDBCache.GetRecord(object->m_obj->m_entryID, none, nullptr, nullptr, false);
+            uint32_t language = stats ? stats->m_languageId : 0;
             uint32_t skill = 0;
 
             if (translate) {
                 CGPlayer_C* activePlayer = ClntObjMgrGetActivePlayerObj();
 
                 if (activePlayer) {
-                    activePlayer->GetLanguageSkill(stats->m_languageId, skill);
+                    activePlayer->GetLanguageSkill(language, skill);
                 }
             }
 
-            CGChat::TranslateMessage(stats->m_languageId, skill, buffer, CGItemText::m_text, sizeof(CGItemText::m_text), 1, 1);
+            CGChat::TranslateMessage(language, skill, buffer, CGItemText::m_text, sizeof(CGItemText::m_text), 1, 1);
         }
     } else if (object->m_obj->m_type & TYPE_GAMEOBJECT) {
         int32_t language = static_cast<CGGameObject_C*>(object)->GetPageTextLanguage();

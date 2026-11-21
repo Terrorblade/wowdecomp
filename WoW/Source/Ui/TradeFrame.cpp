@@ -276,6 +276,10 @@ void CGTradeInfo::DenyPlayerItem(int32_t slot) {
         return;
     }
 
+    if (slot < 0 || slot > 6) {
+        return;
+    }
+
     CGGameUI::UnlockItem(CGTradeInfo::m_playerItems[slot]);
     CGTradeInfo::m_playerItems[slot] = WOWGUID();
     CGTradeInfo::m_playerItemContainer[slot] = WOWGUID();

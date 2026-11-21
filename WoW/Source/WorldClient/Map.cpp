@@ -960,27 +960,36 @@ void CMap::InvalidateMapObjDefQueries() {
     s_mapObjDefQueryDirty = true;
 }
 
-bool CMap::QueryLiquidStatusMapObjsExt(C3Vector* pos, int32_t* liquidType, float* height) {
-    if (s_mapObjDefQueryDirty) {
-        s_mapObjDefQueryBoxes.clear();
-
-        for (CMapObjDef* mapObjDef = CMap::mapObjDefHash.m_fulllist.Head(); mapObjDef; mapObjDef = CMap::mapObjDefHash.m_fulllist.Next(mapObjDef)) {
-            if (!(mapObjDef->m_flags & 0x100)) {
-                s_mapObjDefQueryBoxes.push_back({ mapObjDef->m_bbox, mapObjDef });
-            }
-        }
-
-        s_mapObjDefQueryDirty = false;
+static void RefreshMapObjDefQueryBoxes() {
+    if (!s_mapObjDefQueryDirty) {
+        return;
     }
 
-    for (const MapObjDefQueryBox& entry : s_mapObjDefQueryBoxes) {
-        const CAaBox& box = entry.m_box;
+    s_mapObjDefQueryBoxes.clear();
+
+    for (CMapObjDef* mapObjDef = CMap::mapObjDefHash.m_fulllist.Head(); mapObjDef; mapObjDef = CMap::mapObjDefHash.m_fulllist.Next(mapObjDef)) {
+        s_mapObjDefQueryBoxes.push_back({ mapObjDef->m_bbox, mapObjDef });
+    }
+
+    s_mapObjDefQueryDirty = false;
+}
+
+bool CMap::QueryLiquidStatusMapObjsExt(C3Vector* pos, int32_t* liquidType, float* height) {
+    RefreshMapObjDefQueryBoxes();
+
+    for (size_t i = 0; i < s_mapObjDefQueryBoxes.size(); i++) {
+        const CAaBox box = s_mapObjDefQueryBoxes[i].m_box;
 
         if (box.b.x > pos->x || box.b.y > pos->y || box.b.z > pos->z || box.t.x < pos->x || box.t.y < pos->y || box.t.z < pos->z) {
             continue;
         }
 
-        CMapObjDef* mapObjDef = entry.m_def;
+        CMapObjDef* mapObjDef = s_mapObjDefQueryBoxes[i].m_def;
+
+        if (mapObjDef->m_flags & 0x100) {
+            continue;
+        }
+
         C3Vector local = *pos * mapObjDef->m_invMat;
         CMapObj* mapObj = mapObjDef->m_owner;
 
@@ -1041,12 +1050,20 @@ void CMap::VectorIntersectSX(CiRect& rect) {
 
     if (x <= rect.maxX) {
         do {
+            if (CMap::cCount >= 0x7FE) {
+                return;
+            }
+
             CMap::scCollideList.m_data[CMap::cCount++] = x;
             CMap::scCollideList.m_data[CMap::cCount++] = rect.minY;
             x++;
         } while (x <= rect.maxX);
     } else {
         do {
+            if (CMap::cCount >= 0x7FE) {
+                return;
+            }
+
             CMap::scCollideList.m_data[CMap::cCount++] = x;
             CMap::scCollideList.m_data[CMap::cCount++] = rect.minY;
             x--;
@@ -1061,12 +1078,20 @@ void CMap::VectorIntersectSY(CiRect& rect) {
 
     if (y <= rect.maxY) {
         do {
+            if (CMap::cCount >= 0x7FE) {
+                return;
+            }
+
             CMap::scCollideList.m_data[CMap::cCount++] = rect.minX;
             CMap::scCollideList.m_data[CMap::cCount++] = y;
             y++;
         } while (y <= rect.maxY);
     } else {
         do {
+            if (CMap::cCount >= 0x7FE) {
+                return;
+            }
+
             CMap::scCollideList.m_data[CMap::cCount++] = rect.minX;
             CMap::scCollideList.m_data[CMap::cCount++] = y;
             y--;
@@ -1694,7 +1719,14 @@ CMapArea* CMap::GetAreaAtPosition(const C2Vector* pos) {
     float y = -(pos->y - HALF_WORLD_SIZE) * 0.001875f;
     x = x * 0.001875f;
 
-    return CMap::m_areaTable[64 * CMath::fint_(x - 0.5f) + CMath::fint_(y - 0.5f)];
+    int32_t areaX = CMath::fint_(x - 0.5f);
+    int32_t areaY = CMath::fint_(y - 0.5f);
+
+    if (areaX < 0 || areaX >= 64 || areaY < 0 || areaY >= 64) {
+        return nullptr;
+    }
+
+    return CMap::m_areaTable[64 * areaX + areaY];
 }
 
 // VERIFY: 8231832c manual
@@ -2150,6 +2182,7 @@ void CMap::PrepareMapObjDef(CMapObjDef* mapObjDef, CMapObj* mapObj) {
     }
 
     CMap::CreateMapObjDefGroups(mapObj, mapObjDef);
+    CMap::InvalidateMapObjDefQueries();
 }
 
 // VERIFY: 1db2d5f4 manual
@@ -2906,6 +2939,7 @@ CMapObjDef* CMap::CreateMapObjDef(const char* fileName, const C3Vector* position
         mapObj->GetBounds(&bounds);
         CWorldMath::TransformAABox(mapObjDef->m_mat, bounds, mapObjDef->m_bbox);
         mapObjDef->m_lightsArray.m_count = 0;
+        CMap::InvalidateMapObjDefQueries();
         return mapObjDef;
     }
 
@@ -2930,6 +2964,7 @@ CMapObjDef* CMap::CreateMapObjDef(const char* fileName, const C3Vector* position
     mapObjDef->m_sphere.c = *position;
     mapObjDef->m_sphere.r = sphereRadius;
     mapObjDef->m_lightsArray.m_count = 0;
+    CMap::InvalidateMapObjDefQueries();
 
     return mapObjDef;
 }
@@ -2958,7 +2993,22 @@ void CMap::LoadWdt() {
     if (CMap::header.m_flags & 1) {
         char fileName[256];
         SFileReadFile(file, &iffChunk, offsetof(SIffChunk, m_data), nullptr, nullptr, 0);
-        SFileReadFile(file, fileName, iffChunk.m_size, nullptr, nullptr, 0);
+        uint32_t nameSize = iffChunk.m_size < sizeof(fileName) - 1 ? iffChunk.m_size : sizeof(fileName) - 1;
+        fileName[0] = '\0';
+        SFileReadFile(file, fileName, nameSize, nullptr, nullptr, 0);
+        fileName[nameSize] = '\0';
+
+        for (uint32_t remaining = iffChunk.m_size - nameSize; remaining;) {
+            char skip[256];
+            uint32_t count = remaining < sizeof(skip) ? remaining : sizeof(skip);
+
+            if (!SFileReadFile(file, skip, count, nullptr, nullptr, 0)) {
+                break;
+            }
+
+            remaining -= count;
+        }
+
         SFileReadFile(file, &iffChunk, offsetof(SIffChunk, m_data), nullptr, nullptr, 0);
 
         SMMapObjDef def;
@@ -3550,7 +3600,8 @@ void CMap::LinkIntersectMapObjDefGroup(CMapObjDef* mapObjDef, CMapObjDefGroup* m
         interiorHit->t = t;
         interiorHit->group = portalGroup;
         interiorHit->faceIndex = -1;
-        interiorHit->interior = !(mapObj->GetGroup(portalGroup->m_groupNum, 0)->m_flags & 0x8);
+        CMapObjGroup* portalObjGroup = mapObj->GetGroup(portalGroup->m_groupNum, 0);
+        interiorHit->interior = portalObjGroup ? !(portalObjGroup->m_flags & 0x8) : interior;
     }
 }
 
@@ -4628,7 +4679,17 @@ bool CMap::GetMapObjFacets(CAaBox* queryBox, CAaBox* box, World::FacetData* face
         }
     }
 
-    for (CMapObjDef* def = CMap::mapObjDefHash.m_fulllist.Head(); def; def = CMap::mapObjDefHash.m_fulllist.Next(def)) {
+    RefreshMapObjDefQueryBoxes();
+
+    for (size_t defIndex = 0; defIndex < s_mapObjDefQueryBoxes.size(); defIndex++) {
+        const CAaBox defBox = s_mapObjDefQueryBoxes[defIndex].m_box;
+
+        if (box->t.x < defBox.b.x || box->t.y < defBox.b.y || box->t.z < defBox.b.z || box->b.x > defBox.t.x || box->b.y > defBox.t.y || box->b.z > defBox.t.z) {
+            continue;
+        }
+
+        CMapObjDef* def = s_mapObjDefQueryBoxes[defIndex].m_def;
+
         if (def->m_flags & 0x100) {
             continue;
         }
@@ -4636,10 +4697,6 @@ bool CMap::GetMapObjFacets(CAaBox* queryBox, CAaBox* box, World::FacetData* face
         CMapObj* owner = def->m_owner;
 
         if (!owner) {
-            continue;
-        }
-
-        if (box->t.x < def->m_bbox.b.x || box->t.y < def->m_bbox.b.y || box->t.z < def->m_bbox.b.z || box->b.x > def->m_bbox.t.x || box->b.y > def->m_bbox.t.y || box->b.z > def->m_bbox.t.z) {
             continue;
         }
 
@@ -4993,14 +5050,18 @@ bool CMap::VectorIntersect(C3Vector* start, C3Vector* end, uint32_t flags, uint3
     MapObjIntersectCandidate* candidates = static_cast<MapObjIntersectCandidate*>(alloca(sizeof(MapObjIntersectCandidate) * 500));
     uint32_t candidateCount = 0;
 
-    for (CMapObjDef* def = CMap::mapObjDefHash.m_fulllist.Head(); def; def = CMap::mapObjDefHash.m_fulllist.Next(def)) {
+    RefreshMapObjDefQueryBoxes();
+
+    for (size_t defIndex = 0; defIndex < s_mapObjDefQueryBoxes.size(); defIndex++) {
+        CMapObjDef* def = s_mapObjDefQueryBoxes[defIndex].m_def;
+
         if (defIgnoreFlags & def->m_flags) {
             continue;
         }
 
         CMapObj* owner = def->m_owner;
 
-        if (!owner || !owner->m_isGroupLoaded || !CWorldMath::VectorIntersectAABox2(def->m_bbox, *start, *end)) {
+        if (!owner || !owner->m_isGroupLoaded || !CWorldMath::VectorIntersectAABox2(s_mapObjDefQueryBoxes[defIndex].m_box, *start, *end)) {
             continue;
         }
 
@@ -5192,7 +5253,8 @@ int32_t CMap::QueryAreaIdTerrain(const C3Vector* pos) {
 // OFFSET: 0x00782560
 bool CMap::QueryAreaId(CMapEntity* entity, uint32_t& areaId) {
     if (CMap::bDungeon) {
-        int32_t areaTableId = g_mapDB.GetRecord(s_mapId)->m_areaTableID;
+        MapRec* mapRec = g_mapDB.GetRecord(s_mapId);
+        int32_t areaTableId = mapRec ? mapRec->m_areaTableID : 0;
 
         if (!areaTableId) {
             return false;
@@ -5233,7 +5295,7 @@ bool CMap::QueryAreaId(CMapEntity* entity, uint32_t& areaId) {
         }
 
         CMapObjGroup* group = mapObjDef->m_owner->GetGroup(static_cast<CMapObjDefGroup*>(link->m_ref)->m_groupNum, 0);
-        WMOAreaTableRec* rec = GetWMOAreaRec(mapObjDef->m_owner->m_header->m_wmoID, mapObjDef->m_nameSet, group->m_wmoGroupId);
+        WMOAreaTableRec* rec = group ? GetWMOAreaRec(mapObjDef->m_owner->m_header->m_wmoID, mapObjDef->m_nameSet, group->m_wmoGroupId) : nullptr;
 
         if (rec && rec->m_areaTableID) {
             areaId = rec->m_areaTableID;
@@ -5590,6 +5652,10 @@ int32_t CMap::GetFlightBounds(const C3Vector& pos, float* height, int32_t which)
     int32_t cellY = CMath::fint_(y - 0.5f);
     x = x * 0.00375f;
     int32_t cellX = CMath::fint_(x - 0.5f);
+
+    if (cellX < 0 || cellX >= 128 || cellY < 0 || cellY >= 128) {
+        return 0;
+    }
 
     CMapArea* area = CMap::m_areaTable[((cellX >> 1) << 6) + (cellY >> 1)];
 
@@ -6223,28 +6289,30 @@ bool CMap::GetTriSubchunk(CMapChunk* chunk, const CiRect* rect, const CAaBox* bo
                             matrix = nullptr;
                         }
 
-                        matrix->a0 = 1.0f;
-                        matrix->a1 = 0.0f;
-                        matrix->a2 = 0.0f;
-                        matrix->a3 = 0.0f;
-                        matrix->b0 = 0.0f;
-                        matrix->b1 = 1.0f;
-                        matrix->b2 = 0.0f;
-                        matrix->b3 = 0.0f;
-                        matrix->c0 = 0.0f;
-                        matrix->c1 = 0.0f;
-                        matrix->c2 = 1.0f;
-                        matrix->c3 = 0.0f;
-                        matrix->d0 = chunk->m_topLeftCoords.x;
-                        matrix->d1 = chunk->m_topLeftCoords.y;
-                        matrix->d2 = chunk->m_topLeftCoords.z;
-                        matrix->d3 = 1.0f;
-                        batch->m_matrix = matrix;
-                        batch->m_vertexList = CMapChunk::vertexList;
-                        batch->m_heightList = chunk->m_height;
-                        batch->m_normalList = nullptr;
-                        indices = World::TriData::AllocIndices(12 * (rect->maxX - rect->minX + 1) * (rect->maxY - rect->minY + 1));
-                        batch->m_indices = indices;
+                        if (matrix) {
+                            matrix->a0 = 1.0f;
+                            matrix->a1 = 0.0f;
+                            matrix->a2 = 0.0f;
+                            matrix->a3 = 0.0f;
+                            matrix->b0 = 0.0f;
+                            matrix->b1 = 1.0f;
+                            matrix->b2 = 0.0f;
+                            matrix->b3 = 0.0f;
+                            matrix->c0 = 0.0f;
+                            matrix->c1 = 0.0f;
+                            matrix->c2 = 1.0f;
+                            matrix->c3 = 0.0f;
+                            matrix->d0 = chunk->m_topLeftCoords.x;
+                            matrix->d1 = chunk->m_topLeftCoords.y;
+                            matrix->d2 = chunk->m_topLeftCoords.z;
+                            matrix->d3 = 1.0f;
+                            batch->m_matrix = matrix;
+                            batch->m_vertexList = CMapChunk::vertexList;
+                            batch->m_heightList = chunk->m_height;
+                            batch->m_normalList = nullptr;
+                            indices = World::TriData::AllocIndices(12 * (rect->maxX - rect->minX + 1) * (rect->maxY - rect->minY + 1));
+                            batch->m_indices = indices;
+                        }
                     }
                 }
 

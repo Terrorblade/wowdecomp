@@ -942,6 +942,14 @@ void VoiceSessionRosterUpdate(uint64_t session, uint16_t networkId, int32_t type
         return;
     }
 
+    constexpr int32_t maxRemote = static_cast<int32_t>(sizeof(s_comsatData[0].m_members) / sizeof(s_comsatData[0].m_members[0])) - 1;
+
+    if (count < 0) {
+        count = 0;
+    } else if (count > maxRemote) {
+        count = maxRemote;
+    }
+
     if (comsat->SessionCreate(session)) {
         comsat->SessionAddLocal(session, 0, self);
 
@@ -994,15 +1002,13 @@ void VoiceSessionRosterUpdate(uint64_t session, uint16_t networkId, int32_t type
 
         int32_t j = 0;
 
-        if (count >= 0) {
-            for (; j <= count; j++) {
-                if (members[j].m_guid.m_guid == talker) {
-                    break;
-                }
+        for (; j < count; j++) {
+            if (members[j].m_guid.m_guid == talker) {
+                break;
             }
         }
 
-        if (j != count) {
+        if (j < count) {
             continue;
         }
 
@@ -1029,6 +1035,11 @@ void VoiceSessionRosterUpdate(uint64_t session, uint16_t networkId, int32_t type
     for (int32_t i = 0; i < count; i++) {
         comsat->SessionAddRemote(session, members[i].m_guid.m_guid, members[i].m_priority, sessionKey, members[i].m_address);
         comsat->SessionSetTalkerPriority(session, members[i].m_guid.m_guid, members[i].m_talkerPriority);
+    }
+
+    if (index >= 32) {
+        s_comsatDeviceLock.Leave();
+        return;
     }
 
     COMSATDATA* data = &s_comsatData[index];

@@ -49,5 +49,6 @@ struct regmatch_t {
 
 int32_t regcomp(regex_t* preg, const char* pattern, int32_t cflags);
 int32_t regexec(const regex_t* preg, const char* string, size_t nmatch, regmatch_t pmatch[], int32_t eflags);
+void regfree(regex_t* preg);
 
 #endif

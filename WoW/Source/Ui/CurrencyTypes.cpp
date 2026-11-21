@@ -75,7 +75,12 @@ void CGCurrencyTypes::SetCategoryExpand(int32_t index, int32_t expand) {
 // OFFSET: 0x005AFD90
 void CGCurrencyTypes::InitializeGame() {
     int32_t numCategories = g_currencyCategoryDB.m_numRecords;
-    CGCurrencyTypes::m_numCategories = g_currencyCategoryDB.m_numRecords;
+
+    if (numCategories > static_cast<int32_t>(sizeof(CGCurrencyTypes::m_categories) / sizeof(CGCurrencyTypes::m_categories[0]))) {
+        numCategories = sizeof(CGCurrencyTypes::m_categories) / sizeof(CGCurrencyTypes::m_categories[0]);
+    }
+
+    CGCurrencyTypes::m_numCategories = numCategories;
     memset(CGCurrencyTypes::m_categories, 0, sizeof(CGCurrencyTypes::m_categories));
 
     for (int32_t i = 0; i < numCategories; i++) {
@@ -182,6 +187,10 @@ void CGCurrencyTypes::BuildDisplayList() {
     auto callback = reinterpret_cast<void (*)(int32_t, const WOWGUID&, void*, bool)>(&CGCurrencyTypes::EnterWorld);
 
     for (int32_t category = 0; category < CGCurrencyTypes::m_numCategories; category++) {
+        if (CGCurrencyTypes::m_listSize >= static_cast<int32_t>(sizeof(CGCurrencyTypes::m_list) / sizeof(CGCurrencyTypes::m_list[0]))) {
+            break;
+        }
+
         if (!CGCurrencyTypes::CategoryHasKnownTypes(category, known1, known2, unused1, unused2)) {
             continue;
         }
@@ -203,6 +212,10 @@ void CGCurrencyTypes::BuildDisplayList() {
 
             if (!rec) {
                 continue;
+            }
+
+            if (CGCurrencyTypes::m_listSize >= static_cast<int32_t>(sizeof(CGCurrencyTypes::m_list) / sizeof(CGCurrencyTypes::m_list[0]))) {
+                break;
             }
 
             uint32_t known;
@@ -389,7 +402,7 @@ int32_t CGCurrencyTypes::IsCurrencyShown(int32_t index) {
     }
 
     if (CGCurrencyTypes::m_list[index].m_isHeader) {
-        return CGCurrencyTypes::m_list[index].m_categoryID == CGCurrencyTypes::m_categories[CGCurrencyTypes::m_numCategories - 1].m_id;
+        return CGCurrencyTypes::m_numCategories > 0 && CGCurrencyTypes::m_list[index].m_categoryID == CGCurrencyTypes::m_categories[CGCurrencyTypes::m_numCategories - 1].m_id;
     }
 
     CurrencyTypesRec* rec = CGCurrencyTypes::GetCurrencyRec(index);

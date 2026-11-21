@@ -80,8 +80,8 @@ bool System_Thread::ThreadWorker::Start(Blizzard::Thread::ThreadPoolRecord* pool
     }
 
     if (this->m_thread) {
-        DWORD_PTR processMask;
-        DWORD_PTR systemMask;
+        DWORD_PTR processMask = 0;
+        DWORD_PTR systemMask = 0;
         GetProcessAffinityMask(this->m_thread->m_handle, &processMask, &systemMask);
         this->m_affinity = static_cast<int32_t>(systemMask);
     }

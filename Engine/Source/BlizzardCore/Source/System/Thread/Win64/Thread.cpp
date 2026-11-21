@@ -77,18 +77,25 @@ bool System_Thread::GetPriorityLevel(Blizzard::Thread::ThreadRecord* thread, int
     switch (GetThreadPriority(thread->m_handle)) {
         case THREAD_PRIORITY_IDLE:
             *level = 0;
+            break;
         case THREAD_PRIORITY_LOWEST:
             *level = 1;
+            break;
         case THREAD_PRIORITY_BELOW_NORMAL:
             *level = 2;
+            break;
         case THREAD_PRIORITY_NORMAL:
             *level = 3;
+            break;
         case THREAD_PRIORITY_ABOVE_NORMAL:
             *level = 4;
+            break;
         case THREAD_PRIORITY_HIGHEST:
             *level = 5;
+            break;
         case THREAD_PRIORITY_TIME_CRITICAL:
             *level = 6;
+            break;
     }
 
     return false;

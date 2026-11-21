@@ -647,15 +647,24 @@ VALIDATE_NAME_RESULT ValidateGuildBankTabName(uint32_t language, const char* nam
     return result;
 }
 
+static void FreeTokens(TSFixedArray<regex_t>& tokens) {
+    for (uint32_t i = 0; i < tokens.Count(); i++) {
+        regfree(&tokens.m_data[i]);
+    }
+
+    tokens.Clear();
+}
+
 // VERIFY: e87ebce3 manual
 // OFFSET: 0x007E21B0
 void ValidateNameDestroy() {
     for (uint32_t i = 0; i < sizeof(g_profanityTokens) / sizeof(g_profanityTokens[0]); i++) {
-        g_profanityTokens[i].Clear();
-        g_chatProfanityTokens[i].Clear();
-        g_reservedNameTokens[i].Clear();
+        FreeTokens(g_profanityTokens[i]);
+        FreeTokens(g_chatProfanityTokens[i]);
+        FreeTokens(g_reservedNameTokens[i]);
     }
 
+    FreeTokens(g_chatSpamTokens);
     s_charsetCached = false;
 }
 

@@ -365,7 +365,7 @@ void CGPetInfo::UpdatePetSpellAction(const PetAction* action) {
 // OFFSET: 0x005D4C30
 int32_t Packet_Group_7(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     char name[512];
-    uint32_t spellId;
+    uint32_t spellId = 0;
 
     switch (msgId) {
         case SMSG_PET_LEARNED_SPELLS: {
@@ -413,7 +413,7 @@ int32_t Packet_Group_7(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
 // VERIFY: f2816ce6 auto
 // OFFSET: 0x005D4DA0
 int32_t Packet_SMSG_PET_ACTION_FEEDBACK(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t feedback;
+    uint8_t feedback = 0;
     msg->Get(feedback);
 
     switch (feedback) {
@@ -881,12 +881,12 @@ int32_t Packet_SMSG_PET_SPELLS(void* param, NETMESSAGE msgId, uint32_t time, CDa
     if (pet) {
         msg->Get(family);
         msg->Get(expiration);
-        uint32_t mode;
+        uint32_t mode = 0;
         msg->Get(mode);
         CGPetInfo::m_petMode = mode;
 
         for (uint32_t i = 0; i < 10; i++) {
-            uint32_t action;
+            uint32_t action = 0;
             msg->Get(action);
             PetAction value;
             value.m_data = action;
@@ -897,29 +897,35 @@ int32_t Packet_SMSG_PET_SPELLS(void* param, NETMESSAGE msgId, uint32_t time, CDa
             }
         }
 
-        uint8_t count;
+        uint8_t count = 0;
         msg->Get(count);
         s_petSpellActions.SetCount(count);
         ClearPetSpellInfo();
 
         for (uint32_t i = 0; i < count; i++) {
-            uint32_t action;
+            uint32_t action = 0;
             msg->Get(action);
             s_petSpellActions.m_data[i].m_data = action;
             CGSpellBook::AddPetSpell(action & 0xFFFFFF);
         }
 
+        count = 0;
         msg->Get(count);
 
         for (uint32_t i = 0; i < count; i++) {
-            uint32_t spellId;
+            uint32_t spellId = 0;
             msg->Get(spellId);
-            uint16_t category;
+            uint16_t category = 0;
             msg->Get(category);
-            uint32_t cooldown;
+            uint32_t cooldown = 0;
             msg->Get(cooldown);
-            uint32_t categoryCooldown;
+            uint32_t categoryCooldown = 0;
             msg->Get(categoryCooldown);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
+
             bool onHold = static_cast<int32_t>(categoryCooldown) < 0;
             categoryCooldown &= ~0x80000000;
             Spell_C_SetCooldownLeft(spellId, 0, category, cooldown, categoryCooldown, onHold, 1);
@@ -1064,7 +1070,9 @@ void CGPetInfo::UpdatePetTempBar() {
         CVehicle_C* vehicle;
         VehicleSeatRec* seat;
 
-        if (!s_pets.m_count || !s_pets.m_data[0].m_guid || player->GetTransportGUID() != s_pets.m_data[0].m_guid || !(vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__))->m_vehicle) || !(seat = vehicle->GetVehicleSeatRec(static_cast<uint8_t>(player->m_movementData.m_transportSeat))) || (active = seat->m_vehicleAbilityDisplay == 1) != 0) {
+        CGUnit_C* petUnit;
+
+        if (!s_pets.m_count || !s_pets.m_data[0].m_guid || player->GetTransportGUID() != s_pets.m_data[0].m_guid || !(petUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__))) || !(vehicle = petUnit->m_vehicle) || !(seat = vehicle->GetVehicleSeatRec(static_cast<uint8_t>(player->m_movementData.m_transportSeat))) || (active = seat->m_vehicleAbilityDisplay == 1) != 0) {
             CGActionBar::UpdateTemporaryActionBar(PetTempActionBarCallback, nullptr);
         }
     }
@@ -1190,10 +1198,14 @@ void CGPetInfo::PetAttackTarget(const WOWGUID& target, int32_t a2) {
 // VERIFY: 317c171a manual
 // OFFSET: 0x005D3630
 int32_t Packet_SMSG_PET_MODE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID pet;
-    uint32_t mode;
+    WOWGUID pet = WOWGUID();
+    uint32_t mode = 0;
     msg->Get(pet.m_guid);
     msg->Get(mode);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (pet == CGPetInfo::GetPet(0)) {
         CGPetInfo::m_petMode = mode;
@@ -1208,10 +1220,14 @@ int32_t Packet_SMSG_PET_MODE(void* param, NETMESSAGE msgId, uint32_t time, CData
 int32_t Packet_SMSG_PET_UPDATE_COMBO_POINTS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     SmartGUID pet;
     SmartGUID target;
-    uint8_t points;
+    uint8_t points = 0;
     *msg >> pet;
     *msg >> target;
     msg->Get(points);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (pet == CGPetInfo::GetPet(0)) {
         CGPetInfo::SetComboPoints(target, points);

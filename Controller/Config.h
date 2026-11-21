@@ -74,9 +74,23 @@ struct ResolvedStick {
     float m_deadzoneY = 0.0f;
 };
 
+struct ResolvedRawButton {
+    int32_t m_rawIndex = 0;
+    int32_t m_button = -1;
+    int32_t m_axis = -1;
+    float m_axisValue = 1.0f;
+};
+
+struct ResolvedRawAxis {
+    int32_t m_rawIndex = 0;
+    int32_t m_axis = -1;
+};
+
 // The effective settings for one device, built from the default config and its own config.
 struct ResolvedConfig {
-    const Config* m_device = nullptr;
+    bool m_rawMapped = false;
+    std::vector<ResolvedRawButton> m_rawButtons;
+    std::vector<ResolvedRawAxis> m_rawAxes;
     std::string m_labelStyle;
     ResolvedAxis m_axes[AXIS_COUNT];
     ResolvedStick m_sticks[STICK_PHYSICAL_COUNT];

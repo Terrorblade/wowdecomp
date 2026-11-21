@@ -18,6 +18,7 @@
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
 #include <cstdio>
+#include <unordered_map>
 #include "WoW/Source/Client.h"
 #include "WoW/Source/DB/Rec/GemPropertiesRec.h"
 #include "WoW/Source/DB/Rec/ItemSubClassRec.h"
@@ -391,7 +392,9 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
         uint8_t bit = 0;
 
         for (uint32_t i = 0; i < linkCount; i++) {
-            if ((1 << bit) & s_base64Decode[static_cast<const uint8_t*>(CGTradeSkillInfo::m_linkData)[offset]]) {
+            uint8_t c = static_cast<const uint8_t*>(CGTradeSkillInfo::m_linkData)[offset];
+
+            if (c < sizeof(s_base64Decode) && ((1 << bit) & s_base64Decode[c])) {
                 SpellRec spell;
 
                 if (g_spellDB.GetRecord(ability->m_spell, &spell) && (spell.m_attributes & 0x20)) {
@@ -442,6 +445,8 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
         skillRank = CGTradeSkillInfo::m_skillRank;
     }
 
+    std::unordered_map<int32_t, int32_t> reagentCounts;
+
     for (uint32_t i = 0; i < CGTradeSkillInfo::m_numDisplayEntries; i++) {
         int32_t spellId;
         const SkillLineAbilityRec* ability;
@@ -457,10 +462,11 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
         TradeSkillInfo* info = CGTradeSkillInfo::m_displayList.m_data[i];
         info->m_spellId = spellId;
         info->m_difficulty = TRADESKILL_OPTIMAL;
-        info->m_skillLineRank = ability->m_trivialSkillLineRankHigh;
+        info->m_sortName = nullptr;
 
-        int32_t high = ability->m_trivialSkillLineRankHigh;
-        int32_t low = ability->m_trivialSkillLineRankLow;
+        int32_t high = ability ? ability->m_trivialSkillLineRankHigh : 0;
+        int32_t low = ability ? ability->m_trivialSkillLineRankLow : 0;
+        info->m_skillLineRank = high;
 
         if (!low) {
             low = high != 25 ? high - 25 : 0;
@@ -480,12 +486,24 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
         SpellRec spell;
 
         if (g_spellDB.GetRecord(spellId, &spell)) {
+            info->m_sortName = spell.m_name;
+
             for (uint32_t m = 0; m < 8 && numAvailable; m++) {
                 if (!spell.m_reagent[m] || !spell.m_reagentCount[m]) {
                     continue;
                 }
 
-                int32_t available = player ? player->m_bag.GetItemTypeCount(spell.m_reagent[m], 0) / spell.m_reagentCount[m] : 0;
+                int32_t available = 0;
+
+                if (player) {
+                    auto it = reagentCounts.find(spell.m_reagent[m]);
+
+                    if (it == reagentCounts.end()) {
+                        it = reagentCounts.emplace(spell.m_reagent[m], player->m_bag.GetItemTypeCount(spell.m_reagent[m], 0)).first;
+                    }
+
+                    available = it->second / spell.m_reagentCount[m];
+                }
 
                 if (numAvailable == -1 || numAvailable >= available) {
                     numAvailable = available;
@@ -708,7 +726,7 @@ const char* GetInventorySlotToken(int32_t slot) {
         case 13:
             return "TRINKET1SLOT_UNIQUE";
         default:
-            return s_invSlotTokens[slot];
+            return slot >= 0 && slot < static_cast<int32_t>(sizeof(s_invSlotTokens) / sizeof(s_invSlotTokens[0])) ? s_invSlotTokens[slot] : "NONEQUIPSLOT";
     }
 }
 
@@ -918,10 +936,7 @@ int32_t QSortSkills(const void* a, const void* b) {
         return infoB->m_spellId == -1 ? 1 : -1;
     }
 
-    SpellRec spellA;
-    SpellRec spellB;
-
-    if (!g_spellDB.GetRecord(infoA->m_spellId, &spellA) || !g_spellDB.GetRecord(infoB->m_spellId, &spellB)) {
+    if (!infoA->m_sortName || !infoB->m_sortName) {
         return 0;
     }
 
@@ -937,7 +952,7 @@ int32_t QSortSkills(const void* a, const void* b) {
         return infoA->m_itemLevel < infoB->m_itemLevel ? 1 : -1;
     }
 
-    return SStrSortUTF8I(spellA.m_name, spellB.m_name, STORM_MAX_STR);
+    return SStrSortUTF8I(infoA->m_sortName, infoB->m_sortName, STORM_MAX_STR);
 }
 
 // VERIFY: 414f239b manual

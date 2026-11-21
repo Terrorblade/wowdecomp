@@ -858,6 +858,11 @@ int32_t FriendList::DoLocalWho() {
     }
 
     NameCache* selfName = g_nameDBCache.GetRecord(info->m_guid.m_guid, WOWGUID(), nullptr, nullptr, false);
+
+    if (!selfName) {
+        return 0;
+    }
+
     int32_t print = 0;
 
     if (!FriendList::s_whoToUI) {
@@ -1638,10 +1643,10 @@ void FriendList::HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* ms
 
         case FRIEND_ONLINE: {
             error = ERR_FRIEND_ONLINE_SS;
-            uint8_t flags;
-            uint32_t area;
-            uint32_t level;
-            uint32_t classId;
+            uint8_t flags = 0;
+            uint32_t area = 0;
+            uint32_t level = 0;
+            uint32_t classId = 0;
             msg->Get(flags);
             msg->Get(area);
             msg->Get(level);
@@ -1689,10 +1694,10 @@ void FriendList::HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* ms
         case FRIEND_ADDED_ONLINE: {
             error = ERR_FRIEND_ADDED_S;
             char note[512];
-            uint8_t flags;
-            uint32_t area;
-            uint32_t level;
-            uint32_t classId;
+            uint8_t flags = 0;
+            uint32_t area = 0;
+            uint32_t level = 0;
+            uint32_t classId = 0;
             msg->GetString(note, sizeof(note));
             msg->Get(flags);
             msg->Get(area);
@@ -1837,7 +1842,7 @@ void FriendList::HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* ms
             return;
 
         case FRIEND_FLAGS_UPDATED: {
-            uint8_t flags;
+            uint8_t flags = 0;
             msg->Get(flags);
 
             for (uint32_t i = 0; i < 100; i++) {
@@ -1853,7 +1858,7 @@ void FriendList::HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* ms
         }
 
         case FRIEND_AREA_UPDATED: {
-            uint32_t area;
+            uint32_t area = 0;
             msg->Get(area);
 
             for (uint32_t i = 0; i < 100; i++) {
@@ -1939,9 +1944,14 @@ resolved:
 // VERIFY: c080ab2c auto
 // OFFSET: 0x006B86B0
 int32_t Packet_SMSG_FRIEND_STATUS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint8_t status;
-    WOWGUID guid;
+    uint8_t status = 0;
+    WOWGUID guid = WOWGUID();
     msg->Get(status);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     msg->Get(guid.m_guid);
 
     if (FriendList::s_friendList) {
@@ -2063,7 +2073,7 @@ uint32_t FriendList::GetNumMutes() {
 // VERIFY: 7cdd7e91 manual
 // OFFSET: 0x006B36D0
 uint64_t FriendList::GetIgnore(uint32_t index) {
-    if (index > 50) {
+    if (index >= 50) {
         return 0;
     }
 

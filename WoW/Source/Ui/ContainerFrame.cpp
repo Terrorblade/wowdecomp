@@ -304,7 +304,7 @@ int32_t UpdateContainerContents(WOWGUID guid, uint32_t fieldOffset, uint32_t fie
 
     if (newItem) {
         WOWGUID none = WOWGUID();
-        ItemStats_C* stats = g_itemDBCache.GetRecord(newItem->m_obj->m_entryID, none, MultiCastBarItemStatsCallback, nullptr, false);
+        ItemStats_C* stats = g_itemDBCache.GetRecord(newItem->m_obj->m_entryID, none, MultiCastBarItemStatsCallback, nullptr, true);
 
         if (stats) {
             TriggerMultiCastBarUpdate(stats);
@@ -361,7 +361,7 @@ int32_t UpdateInvContents(WOWGUID guid, uint32_t fieldOffset, uint32_t fieldSize
 
     if (newItem) {
         WOWGUID none = WOWGUID();
-        ItemStats_C* stats = g_itemDBCache.GetRecord(newItem->m_obj->m_entryID, none, MultiCastBarItemStatsCallback, nullptr, false);
+        ItemStats_C* stats = g_itemDBCache.GetRecord(newItem->m_obj->m_entryID, none, MultiCastBarItemStatsCallback, nullptr, true);
 
         if (stats) {
             TriggerMultiCastBarUpdate(stats);

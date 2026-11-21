@@ -103,7 +103,7 @@ int32_t CWorld::ConsoleCommand_ShowLowDetail(const char* command, const char* ar
 // VERIFY: cdeaae87 auto
 // OFFSET: 0x0077F600
 int32_t CWorld::ConsoleCommand_MaxLOD(const char* command, const char* arguments) {
-    uint32_t lod;
+    uint32_t lod = static_cast<uint32_t>(World::lodMax);
     sscanf(arguments, "%d", &lod);
 
     if (lod > 3) {
@@ -122,7 +122,7 @@ int32_t CWorld::ConsoleCommand_MaxLOD(const char* command, const char* arguments
 // VERIFY: c74f284a manual
 // OFFSET: 0x0077F700
 int32_t CWorld::ConsoleCommand_DetailDoodadAlpha(const char* command, const char* arguments) {
-    uint32_t alphaRef;
+    uint32_t alphaRef = 0xFFFFFFFF;
     sscanf(arguments, "%d", &alphaRef);
 
     if (alphaRef <= 0xFF) {
@@ -137,7 +137,7 @@ int32_t CWorld::ConsoleCommand_DetailDoodadAlpha(const char* command, const char
 // VERIFY: 54e3d8ec auto
 // OFFSET: 0x0077F750
 int32_t CWorld::ConsoleCommand_CharacterAmbient(const char* command, const char* arguments) {
-    float ambient;
+    float ambient = -1.0f;
     sscanf(arguments, "%f", &ambient);
 
     if (ambient < 0.0f || ambient > 1.0f) {
@@ -153,7 +153,7 @@ int32_t CWorld::ConsoleCommand_CharacterAmbient(const char* command, const char*
 // VERIFY: ed3a1d1c manual
 // OFFSET: 0x00780E20
 int32_t CWorld::ConsoleCommand_SetShadow(const char* command, const char* arguments) {
-    float color[4];
+    float color[4] = { -1.0f, -1.0f, -1.0f, -1.0f };
     sscanf(arguments, "%f %f %f %f", &color[0], &color[1], &color[2], &color[3]);
 
     for (uint32_t i = 0; i < 4; i++) {

@@ -192,7 +192,8 @@ static BOOL CALLBACK EnumDevicesCallback(LPCDIDEVICEINSTANCEA instance, LPVOID r
 // OFFSET: 0x008706E0
 uint32_t OsJoystickCount() {
     if (!s_joysticks.Count()) {
-        if (DirectInput8Create(GetModuleHandleA(nullptr), DIRECTINPUT_VERSION, IID_IDirectInput8A, reinterpret_cast<void**>(&s_directInput), nullptr) < 0) {
+        // An enumeration that finds nothing reuses the interface instead of leaking one per call.
+        if (!s_directInput && DirectInput8Create(GetModuleHandleA(nullptr), DIRECTINPUT_VERSION, IID_IDirectInput8A, reinterpret_cast<void**>(&s_directInput), nullptr) < 0) {
             return 0;
         }
 

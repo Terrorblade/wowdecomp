@@ -2055,6 +2055,12 @@ int32_t CSimpleTexture::SetTexture(CTexture* texture) {
 int32_t CSimpleTexture::SetTexture(const CImVector& color) {
     CTexture* texture = TextureCreateSolid(color);
 
+    // The solid color cache hands back the same object for the same color, so skip the layer rebuild.
+    if (this->m_texture && texture && !HandleCompare(reinterpret_cast<HOBJECT>(this->m_texture), reinterpret_cast<HOBJECT>(texture))) {
+        HandleClose(reinterpret_cast<HOBJECT>(texture));
+        return 1;
+    }
+
     if (this->m_texture) {
         HandleClose(reinterpret_cast<HOBJECT>(this->m_texture));
     }

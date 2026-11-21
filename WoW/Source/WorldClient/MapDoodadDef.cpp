@@ -34,6 +34,7 @@ void CMapDoodadDef::ExtendBounds(CMapDoodadDef* doodadDef, CMapBaseObj* parent) 
 
         CMapBaseObjLink* link = group->m_parentLinkList.Head();
         static_cast<CMapObjDef*>(link->m_ref)->m_bbox |= doodadDef->m_bbox;
+        CMap::InvalidateMapObjDefQueries();
     }
 }
 

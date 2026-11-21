@@ -50,6 +50,7 @@ bool IsAbsoluteHostPath(const std::string& path) {
 }
 
 bool ReadOnlyFile::Open(const std::filesystem::path& path) {
+    this->Close();
     int file = open(path.c_str(), O_RDONLY | O_CLOEXEC);
 
     if (file < 0) {
@@ -60,6 +61,7 @@ bool ReadOnlyFile::Open(const std::filesystem::path& path) {
     struct stat info;
 
     if (fstat(file, &info) != 0) {
+        this->Close();
         return false;
     }
 

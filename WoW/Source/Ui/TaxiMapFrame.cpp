@@ -234,6 +234,10 @@ void CGTaxiMap::TakeTaxiNode(uint32_t index) {
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
+    if (!player) {
+        return;
+    }
+
     if (player->m_mountDisplayId > 0 && !(player->m_clientFlags & 0x10000000)) {
         CGGameUI::DisplayError(ERR_TAXIPLAYERALREADYMOUNTED);
         return;
@@ -264,6 +268,10 @@ void CGTaxiMap::TaxiNodeSetCurrent(uint32_t index) {
     s_selectedNode = -1;
 
     if (index >= static_cast<uint32_t>(CGTaxiMap::m_numNodes) || !CGTaxiMap::m_nodes.m_data[index].m_reachable) {
+        return;
+    }
+
+    if (CGTaxiMap::m_nodes.m_data[index].m_noDirectPath && !CGTaxiMap::m_nodes.m_data[index].m_path) {
         return;
     }
 
@@ -348,6 +356,10 @@ float CGTaxiMap::CalculateAccurateDistance(uint32_t index, uint32_t parent) {
         return 9.9999998e10f;
     }
 
+    if (pathNodes->m_distanceCached) {
+        return pathNodes->m_cachedDistance;
+    }
+
     for (int32_t i = 0; i < pathNodes->m_numNodes; i++) {
         if (!i) {
             continue;
@@ -368,6 +380,8 @@ float CGTaxiMap::CalculateAccurateDistance(uint32_t index, uint32_t parent) {
         distance = sqrt((y - prevY) * (y - prevY) + (z - prevZ) * (z - prevZ) + (x - prevX) * (x - prevX)) + distance;
     }
 
+    pathNodes->m_cachedDistance = distance;
+    pathNodes->m_distanceCached = 1;
     return distance;
 }
 
@@ -701,6 +715,6 @@ void CGTaxiMap::ShutdownGame() {
 // VERIFY: 93b0ba02 auto
 // OFFSET: 0x00591AC0
 void CGTaxiMap::LeaveWorld() {
-    CGTaxiMap::FreeRouteLines();
     CGTaxiMap::CloseMap();
+    CGTaxiMap::FreeRouteLines();
 }

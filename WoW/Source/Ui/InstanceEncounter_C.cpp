@@ -249,10 +249,10 @@ static void OnObjectiveMessage(int32_t type, uint8_t value) {
 // VERIFY: f40341b3 manual
 // OFFSET: 0x005EDDD0
 int32_t Packet_SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t type;
+    uint32_t type = 0xFFFFFFFF;
     SmartGUID guid;
-    uint8_t value;
-    uint8_t delta;
+    uint8_t value = 0;
+    uint8_t delta = 0;
     msg->Get(type);
 
     switch (type) {
@@ -261,6 +261,11 @@ int32_t Packet_SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT(void* param, NETMESSAGE msgId
         case 2:
             *msg >> guid;
             msg->Get(value);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
+
             OnUnitMessage(type, guid, value);
             break;
 
@@ -268,12 +273,22 @@ int32_t Packet_SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT(void* param, NETMESSAGE msgId
         case 4:
         case 6:
             msg->Get(value);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
+
             OnObjectiveMessage(type, value);
             break;
 
         case 5:
             msg->Get(value);
             msg->Get(delta);
+
+            if (msg->m_read > msg->m_size) {
+                break;
+            }
+
             UpdateObjective(value, delta);
             break;
 

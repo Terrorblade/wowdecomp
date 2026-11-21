@@ -866,7 +866,7 @@ static int32_t Script_GetBattlefieldPosition(lua_State* L) {
     CGWorldMap::GetWorldPosition(position, CGBattlefieldInfo::m_activeMapID, &x, &y, nullptr, false, 0);
     lua_pushnumber(L, x);
     lua_pushnumber(L, y);
-    NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, guid, &WorldMapNameUpdateCallback, nullptr, false);
+    NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, guid, &WorldMapNameUpdateCallback, nullptr, true);
 
     if (name) {
         char fullName[308];
@@ -905,7 +905,7 @@ static int32_t Script_GetBattlefieldVehicleInfo(lua_State* L) {
     }
 
     VehicleRec* vehicle = unit->GetVehicleRec();
-    bool hasType = vehicle && (vehicle->m_flags & 0x10000000);
+    bool hasType = vehicle && (vehicle->m_flags & 0x10000000) && static_cast<uint32_t>(vehicle->m_uiLocomotionType) < sizeof(s_vehicleTypes) / sizeof(s_vehicleTypes[0]);
     lua_pushnumber(L, x);
     lua_pushnumber(L, y);
     lua_pushstring(L, unit->GetUnitName(nullptr, true));

@@ -262,7 +262,7 @@ void Liquid::CChunkGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf*
 
     static TSGrowableArray<uint16_t> s_vertexCounts;
 
-    s_vertexCounts.Clear();
+    s_vertexCounts.SetCount(0);
 
     uint32_t vertexCount = 0;
     uint32_t indexCount = 0;
@@ -353,6 +353,8 @@ void Liquid::CChunkGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf*
         g_theGxDevicePtr->BufUnlock(ib, 0);
         ib->m_hasData = 1;
         this->m_batch = *batch;
+    } else {
+        *batch = this->m_batch;
     }
 
     this->m_format = format;

@@ -62,7 +62,7 @@ int32_t CGBag_C::FindItemSlot(const CGItem_C* item) const {
     for (uint32_t slot = 0; slot < static_cast<uint32_t>(this->m_numSlots); slot++) {
         WOWGUID guid = slot < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
 
-        if (ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__) == item) {
+        if (guid == item->m_obj->m_guid && ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__) == item) {
             return slot;
         }
     }
@@ -891,8 +891,9 @@ bool CGBag_C::ItemCountValid(int32_t itemId, const ItemStats_C* stats, int32_t c
         }
     }
 
-    if (stats->m_itemLimitCategory) {
-        ItemLimitCategoryRec* category = g_itemLimitCategoryDB.GetRecord(stats->m_itemLimitCategory);
+    ItemLimitCategoryRec* category = stats->m_itemLimitCategory ? g_itemLimitCategoryDB.GetRecord(stats->m_itemLimitCategory) : nullptr;
+
+    if (category) {
         int32_t data[2] = { static_cast<int32_t>(stats->m_itemLimitCategory), 0 };
         WOWGUID container;
         uint32_t slot;

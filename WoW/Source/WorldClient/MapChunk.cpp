@@ -771,13 +771,12 @@ bool CMapChunk::GetLiquidHeight(const C2Vector& pos, float* height) const {
 // VERIFY: bb038337 manual
 // OFFSET: 0x007C5690
 void CMapChunk::CreateLiquids(bool a3) {
-    CChunkLiquid* liquid = this->m_liquidChunkLinkList.Head();
+    CChunkLiquid* liquid;
 
-    while (liquid) {
+    while ((liquid = this->m_liquidChunkLinkList.Head()) != nullptr) {
         liquid->m_chunkLink.Unlink();
         liquid->Purge();
         CMap::FreeChunkLiquid(liquid);
-        liquid = this->m_liquidChunkLinkList.Next(liquid);
     }
 
     SMLiquidChunk* mclq = this->m_liquid;
@@ -794,7 +793,13 @@ void CMapChunk::CreateLiquids(bool a3) {
                 }
 
                 LiquidTypeRec* typeRec = g_liquidTypeDB.GetRecord(type);
-                LiquidMaterialRec* materialRec = g_liquidMaterialDB.GetRecord(typeRec->m_materialID);
+                LiquidMaterialRec* materialRec = typeRec ? g_liquidMaterialDB.GetRecord(typeRec->m_materialID) : nullptr;
+
+                if (!materialRec) {
+                    mclq++;
+                    flag *= 2;
+                    continue;
+                }
 
                 CChunkLiquid* chunkLiquid = CMap::AllocChunkLiquid();
                 this->m_liquidChunkLinkList.LinkToTail(chunkLiquid);

@@ -474,8 +474,8 @@ static bool CVGxResolutionCallback(CVar* var, const char* oldValue, const char* 
                 message[0] = '\0';
             }
 
-            char entry[16];
-            SStrPrintf(entry, 32, "%dx%d", resolutions[j].x, resolutions[j].y);
+            char entry[32];
+            SStrPrintf(entry, sizeof(entry),"%dx%d", resolutions[j].x, resolutions[j].y);
             strcat(message, entry);
         }
 

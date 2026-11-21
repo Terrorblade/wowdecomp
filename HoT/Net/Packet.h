@@ -43,6 +43,9 @@ class Packet {
     bool CanRead(uint32 bytes) const;
     uint32 Remaining() const;
 
+    // Caps a server sent element count by what the remaining bytes could hold.
+    uint32 ClampCount(uint32 count, uint32 wireSize) const;
+
     void Send();
 
     CDataStore* Raw() { return this->m_ds; }

@@ -142,7 +142,7 @@ static bool IsDanceMoveAvailable(const DanceMovesRec* move, uint8_t race) {
 // VERIFY: 86f950dc auto
 // OFFSET: 0x00575850
 int32_t Packet_SMSG_STOP_DANCE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = WOWGUID();
     msg->Get(guid.m_guid);
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
@@ -179,10 +179,7 @@ void CGDanceStudio::PlayDance(DanceCache* record, DANCE_REQUEST* request) {
 
         if (i < record->m_dataCount && record->m_data[i].m_type == 1) {
             DanceMovesRec* move = g_danceMovesDB.GetRecord(record->m_data[i].m_moveId);
-
-            if (move) {
-                dance->m_moves[count] = move->m_fallback;
-            }
+            dance->m_moves[count] = move ? move->m_fallback : 0;
         } else {
             dance->m_moves[count] = i < record->m_dataCount ? record->m_data[i].m_moveId : 0;
         }
@@ -204,7 +201,7 @@ static void DanceSequenceCallBack(int32_t id, const WOWGUID& guid, void* param, 
         WOWGUID none = WOWGUID();
         DanceCache* record = g_danceCache.GetRecord(id, none, nullptr, nullptr, false);
 
-        if (ClntObjMgrObjectPtr(request->m_guid, TYPE_PLAYER, __FILE__, __LINE__)) {
+        if (record && ClntObjMgrObjectPtr(request->m_guid, TYPE_PLAYER, __FILE__, __LINE__)) {
             CGDanceStudio::PlayDance(record, request);
         }
     }
@@ -215,16 +212,20 @@ static void DanceSequenceCallBack(int32_t id, const WOWGUID& guid, void* param, 
 // VERIFY: 73009a16 auto
 // OFFSET: 0x00575AB0
 int32_t Packet_SMSG_PLAY_DANCE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
-    int32_t danceId;
-    uint32_t start;
-    uint32_t seed;
-    uint32_t version;
+    WOWGUID guid = WOWGUID();
+    int32_t danceId = 0;
+    uint32_t start = 0;
+    uint32_t seed = 0;
+    uint32_t version = 0;
     msg->Get(guid.m_guid);
     msg->Get(reinterpret_cast<uint32_t&>(danceId));
     msg->Get(start);
     msg->Get(seed);
     msg->Get(version);
+
+    if (!danceId || msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     WOWGUID none = WOWGUID();
     DanceCache* record = g_danceCache.GetRecord(danceId, none, nullptr, nullptr, false);
@@ -239,12 +240,20 @@ int32_t Packet_SMSG_PLAY_DANCE(void* param, NETMESSAGE msgId, uint32_t time, CDa
         return 1;
     }
 
+    if (record) {
+        g_danceCache.Invalidate(danceId);
+    }
+
     DANCE_REQUEST* request = new (SMemAlloc(sizeof(DANCE_REQUEST), __FILE__, __LINE__, 0)) DANCE_REQUEST;
     request->m_danceId = danceId;
     InitializeRandomSeed(&request->m_seed, seed);
     request->m_start = start;
     request->m_guid = guid;
-    g_danceCache.GetRecord(danceId, none, DanceSequenceCallBack, request, false);
+
+    if (g_danceCache.GetRecord(danceId, none, DanceSequenceCallBack, request, false)) {
+        delete request;
+    }
+
     return 1;
 }
 

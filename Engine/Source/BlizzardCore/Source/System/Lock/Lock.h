@@ -1,6 +1,7 @@
 #ifndef ENGINE_SOURCE_BLIZZARDCORE_SOURCE_SYSTEM_LOCK_LOCK_H
 #define ENGINE_SOURCE_BLIZZARDCORE_SOURCE_SYSTEM_LOCK_LOCK_H
 
+#include <atomic>
 #include <cstdint>
 #include <new>
 #if defined(_WIN32)
@@ -88,16 +89,21 @@ void Blizzard::Lock::ConstructOnce<T>::Construct(void* param) {
 // INLINED
 template <class T>
 T* Blizzard::Lock::ConstructOnce<T>::Get() {
-    if (!this->m_constructed) {
+    volatile bool& constructed = this->m_constructed;
+
+    if (!constructed) {
         if (this->m_count.Increment() == 1) {
             Construct(this);
-            this->m_constructed = true;
+            std::atomic_thread_fence(std::memory_order_release);
+            constructed = true;
         } else {
-            while (!this->m_constructed) {
+            while (!constructed) {
                 Blizzard::Process::Sleep(1);
             }
         }
     }
+
+    std::atomic_thread_fence(std::memory_order_acquire);
 
     return reinterpret_cast<T*>(this->m_storage);
 }

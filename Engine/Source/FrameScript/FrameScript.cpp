@@ -27,6 +27,9 @@ static void* s_mempool;
 // STATIC: 0x00D3F78C
 lua_State* s_context;
 
+// Bumped whenever s_context is created or closed, so registry refs from an older state can be told apart.
+static uint32_t s_contextGeneration = 1;
+
 // STATIC: 0x00D3F790
 static int64_t s_scriptTimeUsed;
 
@@ -236,6 +239,10 @@ void SetDecimalConversion(int32_t convert) {
 // OFFSET: 0x00817DB0
 lua_State* FrameScript_GetContext() {
     return s_context;
+}
+
+uint32_t FrameScript_GetContextGeneration() {
+    return s_contextGeneration;
 }
 
 // VERIFY: 02c71ffb auto
@@ -1147,6 +1154,7 @@ int32_t FrameScript_Initialize(int32_t profile) {
     // HoT:'s size class pool replaces the stock Lua allocator.
     s_mempool = HoT::LuaRuntime::CreatePool();
     s_context = lua_newstate(HoT::LuaRuntime::Realloc, s_mempool, profile);
+    s_contextGeneration++;
     s_scriptTimeUsed = 0;
     s_scriptProfileEnabled = profile;
     s_errorHandlerFunc = -1;
@@ -1615,6 +1623,7 @@ void FrameScript_UnregisterScriptEvent(FrameScript_Object* object, FrameScript_E
 void FrameScript_Destroy() {
     lua_close(s_context);
     s_context = nullptr;
+    s_contextGeneration++;
     HoT::LuaRuntime::DestroyPool(s_mempool);
     s_mempool = nullptr;
     s_scriptEventsHash.Clear();

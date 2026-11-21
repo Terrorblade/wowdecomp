@@ -723,9 +723,73 @@ void Reset() {
     WmoDoodadEdit::Reset();
 }
 
+static std::vector<uint32_t> s_pruneIds[2];
+static std::vector<uint8_t> s_pruneFound[2];
+
+static bool PruneFound(int32_t kind, uint32_t uniqueId) {
+    const std::vector<uint32_t>& ids = s_pruneIds[kind == KIND_DOODAD ? 0 : 1];
+    auto it = std::lower_bound(ids.begin(), ids.end(), uniqueId);
+    return it != ids.end() && *it == uniqueId && s_pruneFound[kind == KIND_DOODAD ? 0 : 1][it - ids.begin()];
+}
+
+static void MarkFound(uint32_t list, uint32_t uniqueId, size_t& remaining) {
+    const std::vector<uint32_t>& ids = s_pruneIds[list];
+    auto it = std::lower_bound(ids.begin(), ids.end(), uniqueId);
+
+    if (it != ids.end() && *it == uniqueId && !s_pruneFound[list][it - ids.begin()]) {
+        s_pruneFound[list][it - ids.begin()] = 1;
+        remaining--;
+    }
+}
+
+// Runs every frame from the draw and the Lua panels, so the loaded placements are scanned once for the whole selection.
 static void PruneSelection() {
+    if (s_selection.empty()) {
+        return;
+    }
+
+    for (uint32_t list = 0; list < 2; list++) {
+        s_pruneIds[list].clear();
+    }
+
+    for (const Selected& selected : s_selection) {
+        if (selected.m_kind != KIND_WMO_DOODAD) {
+            s_pruneIds[selected.m_kind == KIND_DOODAD ? 0 : 1].push_back(selected.m_uniqueId);
+        }
+    }
+
+    size_t remaining = 0;
+
+    for (uint32_t list = 0; list < 2; list++) {
+        std::vector<uint32_t>& ids = s_pruneIds[list];
+        std::sort(ids.begin(), ids.end());
+        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+        s_pruneFound[list].assign(ids.size(), 0);
+        remaining += ids.size();
+    }
+
+    for (uint32_t i = 0; i < 4096 && remaining; i++) {
+        CMapArea* area = CMap::m_areaTable[i];
+
+        if (!area || area->m_asyncObject || !area->m_header) {
+            continue;
+        }
+
+        if (!s_pruneIds[0].empty()) {
+            for (int32_t j = 0; j < area->m_doodadDefCount && remaining; j++) {
+                MarkFound(0, area->m_doodadDef[j].m_uniqueId, remaining);
+            }
+        }
+
+        if (!s_pruneIds[1].empty()) {
+            for (int32_t j = 0; j < area->m_mapObjDefCount && remaining; j++) {
+                MarkFound(1, area->m_mapObjDef[j].m_uniqueId, remaining);
+            }
+        }
+    }
+
     s_selection.erase(std::remove_if(s_selection.begin(), s_selection.end(), [](const Selected& selected) {
-        return !ObjectExists(selected.m_kind, selected.m_uniqueId);
+        return selected.m_kind == KIND_WMO_DOODAD ? !WmoDoodadEdit::Exists(selected.m_uniqueId) : !PruneFound(selected.m_kind, selected.m_uniqueId);
     }), s_selection.end());
 }
 

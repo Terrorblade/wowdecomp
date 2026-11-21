@@ -241,6 +241,12 @@ bool Font::UploadGlyphToAtlas(GlyphMetrics& metrics, uint32_t codepoint) {
         return true;
     }
 
+    if (metrics.m_width + 2 * ATLAS_GUTTER > ATLAS_SIZE || metrics.m_height + 2 * ATLAS_GUTTER > ATLAS_SIZE) {
+        metrics.m_width = 0;
+        metrics.m_height = 0;
+        return false;
+    }
+
     int32_t pageIndex = -1;
     AtlasPage* target = nullptr;
 

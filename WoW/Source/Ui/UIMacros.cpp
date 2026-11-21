@@ -789,7 +789,7 @@ void CGUIMacros::LoadMacrosCallback(HOSFILE localFile, HOSFILE cacheFile, void* 
         uint32_t size = static_cast<uint32_t>(OsGetFileSize(cacheFile));
 
         if (size) {
-            char* buffer = static_cast<char*>(alloca(size + 1));
+            char* buffer = static_cast<char*>(SMemAlloc(size + 1, __FILE__, __LINE__, 0));
             uint32_t bytesRead;
 
             if (OsReadFile(cacheFile, buffer, size, &bytesRead)) {
@@ -867,6 +867,8 @@ void CGUIMacros::LoadMacrosCallback(HOSFILE localFile, HOSFILE cacheFile, void* 
                     }
                 } while (cursor && *cursor);
             }
+
+            SMemFree(buffer, __FILE__, __LINE__, 0);
         }
     }
 

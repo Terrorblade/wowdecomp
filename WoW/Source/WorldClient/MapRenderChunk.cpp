@@ -349,6 +349,10 @@ void CMapRenderChunk::CreateLayer(CMapArea* area, SMLayer* layer, int32_t checkD
         }
     }
 
+    if (this->m_layersCount >= 4 || layer->m_textureId >= area->m_textures.Count()) {
+        return;
+    }
+
     CMapRenderChunkLayer* renderLayer = &this->m_layers[this->m_layersCount];
     renderLayer->m_flags = layer->m_flags;
     renderLayer->m_layerIndex = this->m_layersCount;
@@ -1664,7 +1668,7 @@ void CMapRenderChunk::CreateShaderTexture() {
     }
 
     CMapChunk* chunk = this->m_mapChunks[0];
-    uint32_t layerCount = chunk->m_header->m_nLayers;
+    uint32_t layerCount = chunk->m_header->m_nLayers < 4 ? chunk->m_header->m_nLayers : 4;
     uint8_t* shadowMap = nullptr;
     SLayerAlpha layers[4];
     layers[0].m_alphaData = nullptr;

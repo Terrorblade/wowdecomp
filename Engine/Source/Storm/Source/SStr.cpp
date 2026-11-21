@@ -52,13 +52,11 @@ char* SStrChr(const char* string, char search) {
         return nullptr;
     }
 
-    for (; *string; string++) {
-        if (*string == search) {
-            return const_cast<char*>(string);
-        }
+    if (!search) {
+        return nullptr;
     }
 
-    return nullptr;
+    return const_cast<char*>(strchr(string, search));
 }
 
 // VERIFY: c2203f65 auto
@@ -69,15 +67,11 @@ char* SStrChrR(const char* string, char search) {
         return nullptr;
     }
 
-    const char* result = nullptr;
-
-    for (; *string; string++) {
-        if (*string == search) {
-            result = string;
-        }
+    if (!search) {
+        return nullptr;
     }
 
-    return const_cast<char*>(result);
+    return const_cast<char*>(strrchr(string, search));
 }
 
 // VERIFY: 8e9003dc auto
@@ -415,22 +409,10 @@ size_t STORMAPI SStrCopy(char* dest, const char* source, size_t destsize) {
         return 0;
     }
 
-    char* curr = dest;
-
-    if (destsize == STORM_MAX_STR) {
-        while (*source) {
-            *curr++ = *source++;
-        }
-    } else {
-        char* end = dest + destsize - 1;
-
-        while (*source && curr < end) {
-            *curr++ = *source++;
-        }
-    }
-
-    *curr = 0;
-    return curr - dest;
+    size_t length = destsize == STORM_MAX_STR ? strlen(source) : strnlen(source, destsize ? destsize - 1 : 0);
+    memmove(dest, source, length);
+    dest[length] = 0;
+    return length;
 }
 
 // VERIFY: 4cf8cd50 manual
@@ -474,13 +456,7 @@ size_t STORMAPI SStrLen(const char* string) {
         return 0;
     }
 
-    const char* curr = string;
-
-    while (*curr) {
-        curr++;
-    }
-
-    return curr - string;
+    return strlen(string);
 }
 
 // VERIFY: 32365d2c auto
@@ -567,26 +543,19 @@ size_t STORMAPI SStrPack(char* dest, const char* source, size_t destsize) {
         return 0;
     }
 
-    char* curr = dest;
-
-    while (*curr) {
-        curr++;
-    }
+    char* curr = dest + strlen(dest);
+    size_t length;
 
     if (destsize == STORM_MAX_STR) {
-        while (*source) {
-            *curr++ = *source++;
-        }
+        length = strlen(source);
     } else {
         char* end = dest + destsize - 1;
-
-        while (*source && curr < end) {
-            *curr++ = *source++;
-        }
+        length = curr < end ? strnlen(source, static_cast<size_t>(end - curr)) : 0;
     }
 
-    *curr = 0;
-    return curr - dest;
+    memmove(curr, source, length);
+    curr[length] = 0;
+    return curr + length - dest;
 }
 
 // VERIFY: 98987d37 manual
@@ -630,7 +599,9 @@ size_t SStrPrintf(char* dest, size_t maxchars, const char* format, ...) {
 
     va_list arglist;
     va_start(arglist, format);
-    return ISStrVPrintf(dest, maxchars, format, arglist);
+    size_t result = ISStrVPrintf(dest, maxchars, format, arglist);
+    va_end(arglist);
+    return result;
 }
 
 // VERIFY: 190c39be manual

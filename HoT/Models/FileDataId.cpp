@@ -27,9 +27,6 @@ struct Tables {
     std::once_flag m_onceStems;
     bool m_texReady = false;
     bool m_modelReady = false;
-    std::mutex m_cacheMutex;
-    std::unordered_map<uint32_t, std::string> m_texCache;
-    std::unordered_map<uint32_t, std::string> m_modelCache;
 };
 
 // Leaked on purpose since the warm thread can still be loading at teardown.
@@ -103,43 +100,12 @@ static void BuildStemIndex() {
     }
 }
 
-static bool LookupTexPath(uint32_t fileDataId, std::string& outPath) {
-    const PathRow* row = static_cast<const PathRow*>(T().m_tex.RowById(static_cast<int32_t>(fileDataId)));
-    const char* path = row ? T().m_tex.Str(static_cast<uint32_t>(row->m_path)) : nullptr;
+// The tables never change after their one load and are never freed, so their strings serve as the returned paths.
+static const char* LookupPath(const Db2Table& table, uint32_t fileDataId) {
+    const PathRow* row = static_cast<const PathRow*>(table.RowById(static_cast<int32_t>(fileDataId)));
+    const char* path = row ? table.Str(static_cast<uint32_t>(row->m_path)) : nullptr;
 
-    if (!path || !*path) {
-        return false;
-    }
-
-    outPath = path;
-    return true;
-}
-
-static bool LookupModelPath(uint32_t fileDataId, std::string& outPath) {
-    if (T().m_modelReady) {
-        const PathRow* row = static_cast<const PathRow*>(T().m_model.RowById(static_cast<int32_t>(fileDataId)));
-        const char* path = row ? T().m_model.Str(static_cast<uint32_t>(row->m_path)) : nullptr;
-
-        if (path && *path) {
-            outPath = path;
-            return true;
-        }
-    }
-
-    return T().m_texReady && LookupTexPath(fileDataId, outPath);
-}
-
-static const char* Cached(std::unordered_map<uint32_t, std::string>& cache, uint32_t fileDataId, bool (*lookup)(uint32_t, std::string&)) {
-    std::lock_guard<std::mutex> lock(T().m_cacheMutex);
-    auto it = cache.find(fileDataId);
-
-    if (it == cache.end()) {
-        std::string path;
-        lookup(fileDataId, path);
-        it = cache.emplace(fileDataId, std::move(path)).first;
-    }
-
-    return it->second.empty() ? nullptr : it->second.c_str();
+    return path && *path ? path : nullptr;
 }
 
 void EnsureLoaded() {
@@ -171,7 +137,7 @@ const char* ResolveTexture(uint32_t fileDataId) {
         return nullptr;
     }
 
-    return Cached(T().m_texCache, fileDataId, LookupTexPath);
+    return LookupPath(T().m_tex, fileDataId);
 }
 
 const char* ResolveModel(uint32_t fileDataId) {
@@ -182,11 +148,13 @@ const char* ResolveModel(uint32_t fileDataId) {
     EnsureLoaded();
     EnsureModelTable();
 
-    if (!T().m_texReady && !T().m_modelReady) {
-        return nullptr;
+    const char* path = T().m_modelReady ? LookupPath(T().m_model, fileDataId) : nullptr;
+
+    if (!path && T().m_texReady) {
+        path = LookupPath(T().m_tex, fileDataId);
     }
 
-    return Cached(T().m_modelCache, fileDataId, LookupModelPath);
+    return path;
 }
 
 uint32_t ResolveModelId(const char* modelPath) {

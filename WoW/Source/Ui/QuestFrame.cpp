@@ -539,6 +539,10 @@ static void QuestItemStatsCallback(int32_t id, const WOWGUID& guid, void* param,
 // VERIFY: 0e16cb6e auto
 // OFFSET: 0x0058B990
 void CGQuestInfo::AddQuest(int32_t questId, const char* title, int32_t level, int32_t flags, int32_t turnIn, int32_t repeatable) {
+    if (static_cast<uint32_t>(CGQuestInfo::m_numQuests) >= 32) {
+        return;
+    }
+
     CGQuestInfo::m_availableQuests[CGQuestInfo::m_numQuests].m_questID = questId;
     CGQuestInfo::m_availableQuests[CGQuestInfo::m_numQuests].m_level = level;
     CGQuestInfo::m_availableQuests[CGQuestInfo::m_numQuests].m_flags = flags;
@@ -555,6 +559,10 @@ void CGQuestInfo::AddQuest(int32_t questId, const char* title, int32_t level, in
 // VERIFY: 199b28f6 auto
 // OFFSET: 0x0058BA00
 void CGQuestInfo::AddQuestInProgress(int32_t questId, const char* title, int32_t level, int32_t flags, int32_t repeatable) {
+    if (static_cast<uint32_t>(CGQuestInfo::m_numInProgress) >= 32) {
+        return;
+    }
+
     CGQuestInfo::m_inProgressQuests[CGQuestInfo::m_numInProgress].m_questID = questId;
     CGQuestInfo::m_inProgressQuests[CGQuestInfo::m_numInProgress].m_level = level;
     CGQuestInfo::m_inProgressQuests[CGQuestInfo::m_numInProgress].m_flags = flags;

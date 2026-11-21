@@ -99,19 +99,26 @@ HFACE FontFaceGetHandle(const char* fileName, FT_Library library) {
             return handle;
         }
 
-        FT_Face ftFace;
+        FT_Face ftFace = nullptr;
 
-        if (!FT_New_Memory_Face(library, static_cast<FT_Byte*>(data), size, 0, &ftFace) && ftFace && !FT_Select_Charmap(ftFace, ft_encoding_unicode)) {
-            FACEDATA* face = new ("HFACE", SLOG_OBJECT) FACEDATA;
-            face->m_data = data;
-            face->m_face = ftFace;
-            // HoT: give the face a distance field font when MSDF is on and the font passes validation.
-            face->m_msdf = HoT::MSDF::OpenFont(ftFace, data, size);
-            s_faceHash.Insert(face, fileName);
-            data = nullptr;
-            ftFace = nullptr;
-            face->m_selfReference = HandleCreate(face, "HFACE");
-            handle = reinterpret_cast<HFACE>(HandleDuplicate(face->m_selfReference));
+        if (!FT_New_Memory_Face(library, static_cast<FT_Byte*>(data), size, 0, &ftFace) && ftFace) {
+            if (!FT_Select_Charmap(ftFace, ft_encoding_unicode)) {
+                FACEDATA* face = new ("HFACE", SLOG_OBJECT) FACEDATA;
+                face->m_data = data;
+                face->m_face = ftFace;
+                // HoT: give the face a distance field font when MSDF is on and the font passes validation.
+                face->m_msdf = HoT::MSDF::OpenFont(ftFace, data, size);
+                s_faceHash.Insert(face, fileName);
+                data = nullptr;
+                ftFace = nullptr;
+                face->m_selfReference = HandleCreate(face, "HFACE");
+                handle = reinterpret_cast<HFACE>(HandleDuplicate(face->m_selfReference));
+            }
+
+            // The face reads from data, so it goes before the unload below
+            if (ftFace) {
+                FT_Done_Face(ftFace);
+            }
         }
     }
 

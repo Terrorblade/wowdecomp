@@ -224,7 +224,7 @@ class CParticleEmitter2 {
     /* 01DC */ float m_ivelTimer;
     /* 01E0 */ C3Vector m_parentVelocity;
     /* 01EC */ float m_xformScale;
-    /* 01F0 */ uint32_t unused_01F0;
+    /* 01F0 */ uint32_t m_prebuiltSlot;
     /* 01F4 */ C3Vector m_followOffset;
     /* 0200 */ C3Vector m_burstOffset;
     /* 020C */ C3Vector m_billboardAxis;

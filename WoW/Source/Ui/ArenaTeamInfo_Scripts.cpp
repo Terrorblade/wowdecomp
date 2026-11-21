@@ -101,7 +101,7 @@ static int32_t Script_GetArenaTeam(lua_State* L) {
     ArenaTeamCache* cache = nullptr;
 
     if (player && info && info[0] && team) {
-        cache = g_arenaTeamCache.GetRecord(info[0], player->m_obj->m_guid, ArenaTeamCacheCallback, nullptr, false);
+        cache = g_arenaTeamCache.GetRecord(info[0], player->m_obj->m_guid, ArenaTeamCacheCallback, nullptr, true);
     }
 
     if (!cache) {

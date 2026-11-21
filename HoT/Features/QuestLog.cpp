@@ -19,6 +19,7 @@ namespace HoT::QuestLog {
 
 static constexpr uint32_t PARTY_REQUEST_INTERVAL_MS = 3000;
 static constexpr uint32_t SLOT_FIELD_BASE = 0x28;
+static constexpr uint32_t SLOT_WIRE_SIZE = 21;
 
 static PlayerQuestLogEntry s_slots[NUM_SLOTS];
 static std::unordered_map<uint64_t, std::vector<uint32_t>> s_partyQuests;
@@ -129,7 +130,7 @@ static int32_t Packet_SMSG_QUEST_LOG_FULL(void* param, NETMESSAGE msgId, uint32_
     uint32_t count = packet.GetUInt8();
     memset(s_slots, 0, sizeof(s_slots));
 
-    for (uint32_t i = 0; i < count && packet.CanRead(1); i++) {
+    for (uint32_t i = 0; i < count && packet.CanRead(SLOT_WIRE_SIZE); i++) {
         PlayerQuestLogEntry slot;
         uint32_t index = ReadSlot(packet, slot);
 
@@ -146,7 +147,7 @@ static int32_t Packet_SMSG_QUEST_LOG_SLOTS(void* param, NETMESSAGE msgId, uint32
     Net::Packet packet(msg);
     uint32_t count = packet.GetUInt8();
 
-    for (uint32_t i = 0; i < count && packet.CanRead(1); i++) {
+    for (uint32_t i = 0; i < count && packet.CanRead(SLOT_WIRE_SIZE); i++) {
         PlayerQuestLogEntry slot;
         uint32_t index = ReadSlot(packet, slot);
         OnSlotReceived(index, slot);

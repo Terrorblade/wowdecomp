@@ -229,6 +229,8 @@ void CGCalendar::EnterWorld() {
 
     uint32_t counts[2] = { 0, 0 };
     int32_t numRecords = g_lfgDungeonsDB.m_numRecords;
+    FactionTemplateRec* faction = g_factionTemplateDB.GetRecord(player->m_unit->m_unitFieldFactiontemplate);
+    int32_t group = !faction ? -1 : (faction->m_factionGroup & 0x4) ? 0 : ((faction->m_factionGroup & 0x2) ? 1 : -1);
 
     for (int32_t i = 0; i < numRecords; i++) {
         LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecordByIndex(i);
@@ -237,13 +239,8 @@ void CGCalendar::EnterWorld() {
             continue;
         }
 
-        if (rec->m_faction >= 0) {
-            FactionTemplateRec* faction = g_factionTemplateDB.GetRecord(player->m_unit->m_unitFieldFactiontemplate);
-            int32_t group = (faction->m_factionGroup & 0x4) ? 0 : ((faction->m_factionGroup & 0x2) ? 1 : -1);
-
-            if (group != rec->m_faction) {
-                continue;
-            }
+        if (rec->m_faction >= 0 && group != rec->m_faction) {
+            continue;
         }
 
         if (rec->m_typeID == 1) {
@@ -267,13 +264,8 @@ void CGCalendar::EnterWorld() {
             continue;
         }
 
-        if (rec->m_faction >= 0) {
-            FactionTemplateRec* faction = g_factionTemplateDB.GetRecord(player->m_unit->m_unitFieldFactiontemplate);
-            int32_t group = (faction->m_factionGroup & 0x4) ? 0 : ((faction->m_factionGroup & 0x2) ? 1 : -1);
-
-            if (group != rec->m_faction) {
-                continue;
-            }
+        if (rec->m_faction >= 0 && group != rec->m_faction) {
+            continue;
         }
 
         if (rec->m_typeID == 1) {
@@ -444,6 +436,7 @@ void CalendarEventTables::Clear() {
 void CGCalendar::ShutdownGame() {
     if (CGCalendar::m_curEvent) {
         delete CGCalendar::m_curEvent;
+        CGCalendar::m_curEvent = nullptr;
     }
 
     memset(&s_eventClipboard, 0, sizeof(s_eventClipboard));
@@ -1083,6 +1076,16 @@ void CGCalendar::UpdateDisplayList(bool signal) {
         }
     }
 
+    if (!CGCalendar::m_contextEventInfo) {
+        int32_t monthOffset;
+        int32_t day;
+        int32_t index;
+
+        if (CGCalendar::ComputeEventIndex(&CGCalendar::m_contextEvent, &monthOffset, &day, &index)) {
+            CGCalendar::m_contextEventInfo = s_days[monthOffset + 1][day].m_data[index];
+        }
+    }
+
     if (signal) {
         FrameScript_SignalEvent(SCRIPT_EVENT_CALENDAR_UPDATE_EVENT_LIST, nullptr);
     }
@@ -1299,6 +1302,7 @@ void CGCalendar::InsertEvent(CalendarDayEvent* event, int32_t table) {
             if (mem) {
                 memcpy(mem, event, sizeof(CalendarDayEvent));
                 event = static_cast<CalendarDayEvent*>(mem);
+                event->m_alarmCallback = nullptr;
             } else {
                 event = nullptr;
             }
@@ -1585,6 +1589,11 @@ CalendarDayEvent::~CalendarDayEvent() {
     if (this->m_alarmCallback) {
         CGameTime::GameTimeUnregisterCallback(this->m_alarmCallback);
         this->m_alarmCallback = nullptr;
+    }
+
+    // UpdateDisplayList finds the context event again by id once the tables are rebuilt.
+    if (CGCalendar::m_contextEventInfo == this) {
+        CGCalendar::m_contextEventInfo = nullptr;
     }
 }
 
@@ -2025,15 +2034,19 @@ void CGCalendar::ProcessInviteNotes(CDataStore* msg, uint8_t* clearPending) {
 
     SmartGUID guid;
     *msg >> guid;
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
     char notes[128];
     msg->GetString(notes, sizeof(notes));
-    uint8_t clear;
+    uint8_t clear = 1;
     msg->Get(clear);
 
     if (!clear) {
         *clearPending = 0;
+    }
+
+    if (msg->m_read > msg->m_size) {
+        return;
     }
 
     if (CGCalendar::m_curEvent && eventID == CGCalendar::m_curEvent->m_eventID) {
@@ -2051,10 +2064,14 @@ void CGCalendar::ProcessInviteNotesAlert(CDataStore* msg) {
         return;
     }
 
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
     char notes[128];
     msg->GetString(notes, sizeof(notes));
+
+    if (msg->m_read > msg->m_size) {
+        return;
+    }
 
     if (CGCalendar::m_curEvent && eventID == CGCalendar::m_curEvent->m_eventID) {
         CGCalendar::m_curEvent->UpdateInviteNotes(player->m_obj->m_guid, notes);
@@ -2525,10 +2542,18 @@ void CGCalendar::InvalidatePlayer(WOWGUID guid) {
 // VERIFY: eded04a1 manual
 // OFFSET: 0x005BE590
 void CGCalendar::AddPendingInvite(CalendarDayEvent* event) {
-    CalendarPendingInvite* invite = s_pendingInvites.NewNode(2, 0, 0);
+    CalendarPendingInvite* invite = s_pendingInvites.Head();
+
+    while (invite && invite->m_eventID != event->m_eventID) {
+        invite = s_pendingInvites.Next(invite);
+    }
 
     if (!invite) {
-        return;
+        invite = s_pendingInvites.NewNode(2, 0, 0);
+
+        if (!invite) {
+            return;
+        }
     }
 
     event->m_flags |= 0x1;
@@ -2620,7 +2645,7 @@ void CGCalendar::ProcessGetEvent(CDataStore* msg) {
         return;
     }
 
-    uint8_t sendType;
+    uint8_t sendType = 0;
     msg->Get(sendType);
     int32_t status = -1;
 
@@ -2676,26 +2701,30 @@ void CGCalendar::ProcessInvite(CDataStore* msg, uint8_t* clearPending) {
     uint32_t responseTime = 0;
     SmartGUID guid;
     *msg >> guid;
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
-    uint64_t inviteID;
+    uint64_t inviteID = 0;
     msg->Get(inviteID);
-    uint8_t level;
+    uint8_t level = 0;
     msg->Get(level);
-    uint8_t status;
+    uint8_t status = 0;
     msg->Get(status);
-    uint8_t inviteType;
+    uint8_t inviteType = 0;
     msg->Get(inviteType);
 
     if (inviteType == 1) {
         msg->Get(responseTime);
     }
 
-    uint8_t clear;
+    uint8_t clear = 1;
     msg->Get(clear);
 
     if (!clear) {
         *clearPending = 0;
+    }
+
+    if (msg->m_read > msg->m_size) {
+        return;
     }
 
     if (inviteType == 1) {
@@ -2731,15 +2760,19 @@ void CGCalendar::ProcessInvite(CDataStore* msg, uint8_t* clearPending) {
 void CGCalendar::ProcessInviteRemoved(CDataStore* msg, uint8_t* clearPending) {
     SmartGUID guid;
     *msg >> guid;
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
-    uint32_t flags;
+    uint32_t flags = 0;
     msg->Get(flags);
-    uint8_t clear;
+    uint8_t clear = 1;
     msg->Get(clear);
 
     if (!clear) {
         *clearPending = 0;
+    }
+
+    if (msg->m_read > msg->m_size) {
+        return;
     }
 
     if (flags & 0x400) {
@@ -2783,21 +2816,25 @@ void CGCalendar::ProcessInviteStatus(CDataStore* msg, uint8_t* clearPending) {
 
     SmartGUID guid;
     *msg >> guid;
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
-    uint32_t date;
+    uint32_t date = 0;
     msg->Get(date);
-    uint32_t flags;
+    uint32_t flags = 0;
     msg->Get(flags);
-    uint8_t status;
+    uint8_t status = 0;
     msg->Get(status);
-    uint8_t clear;
+    uint8_t clear = 1;
     msg->Get(clear);
-    uint32_t responseTime;
+    uint32_t responseTime = 0;
     msg->Get(responseTime);
 
     if (!clear) {
         *clearPending = 0;
+    }
+
+    if (msg->m_read > msg->m_size) {
+        return;
     }
 
     CalendarDayEvent* event = s_eventTables.GetEvent((flags & 0x440) != 0, CGCalendar::GetDateKey(date), eventID);
@@ -2836,14 +2873,18 @@ void CGCalendar::ProcessInviteStatusAlert(CDataStore* msg) {
         return;
     }
 
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
-    uint32_t date;
+    uint32_t date = 0;
     msg->Get(date);
-    uint32_t flags;
+    uint32_t flags = 0;
     msg->Get(flags);
-    uint8_t status;
+    uint8_t status = 0;
     msg->Get(status);
+
+    if (msg->m_read > msg->m_size) {
+        return;
+    }
 
     CalendarDayEvent* event = s_eventTables.GetEvent((flags & 0x440) != 0, CGCalendar::GetDateKey(date), eventID);
 
@@ -2863,7 +2904,7 @@ void CGCalendar::ProcessInviteStatusAlert(CDataStore* msg) {
                 event->m_flags &= ~0x1;
                 FrameScript_SignalEvent(SCRIPT_EVENT_CALENDAR_UPDATE_PENDING_INVITES, nullptr);
             }
-        } else if (s_pendingInvites.NewNode(2, 0, 0)) {
+        } else {
             CGCalendar::AddPendingInvite(event);
         }
     }
@@ -2926,6 +2967,10 @@ void CGCalendar::ProcessLockoutRemoved(CDataStore* msg) {
     uint64_t instanceID = 0;
     msg->Get(reinterpret_cast<uint32_t&>(mapID));
 
+    if (msg->m_read > msg->m_size) {
+        return;
+    }
+
     if (mapID < 0) {
         for (CALENDAREVENTHASH* entry = s_eventTables.m_tables[2].m_fulllist.Head(); entry; entry = s_eventTables.m_tables[2].Next(entry)) {
             uint32_t count = entry->m_events.Count();
@@ -2959,6 +3004,11 @@ void CGCalendar::ProcessLockoutRemoved(CDataStore* msg) {
         msg->Get(reinterpret_cast<uint32_t&>(difficulty));
         msg->Get(reinterpret_cast<uint32_t&>(resetTime));
         msg->Get(instanceID);
+
+        if (msg->m_read > msg->m_size) {
+            return;
+        }
+
         WowTime reset = g_clientGameTime;
         reset.m_tzHours = g_clientGameTime.m_tzHours;
         reset.AddMinutes(resetTime / 60);
@@ -3004,14 +3054,18 @@ void CGCalendar::ProcessLockoutRemoved(CDataStore* msg) {
 // VERIFY: 5cf06944 manual
 // OFFSET: 0x005C0AE0
 void CGCalendar::ProcessInviteRemovedAlert(CDataStore* msg) {
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
-    uint32_t date;
+    uint32_t date = 0;
     msg->Get(date);
-    uint32_t flags;
+    uint32_t flags = 0;
     msg->Get(flags);
-    uint8_t status;
+    uint8_t status = 0;
     msg->Get(status);
+
+    if (msg->m_read > msg->m_size) {
+        return;
+    }
 
     bool remove = true;
     uint32_t key = CGCalendar::GetDateKey(date);
@@ -3071,17 +3125,21 @@ void CGCalendar::ProcessInviteRemovedAlert(CDataStore* msg) {
 // VERIFY: 6eb2e64f manual
 // OFFSET: 0x005C0CF0
 void CGCalendar::ProcessEventRemovedAlert(CDataStore* msg, uint8_t* clearPending) {
-    uint8_t clear;
+    uint8_t clear = 1;
     msg->Get(clear);
 
     if (!clear) {
         *clearPending = 0;
     }
 
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
-    uint32_t date;
+    uint32_t date = 0;
     msg->Get(date);
+
+    if (msg->m_read > msg->m_size) {
+        return;
+    }
 
     if (CGCalendar::m_selectedEvent.m_eventID == eventID) {
         CGCalendar::m_selectedEvent.m_eventID = 0;
@@ -3129,15 +3187,19 @@ void CGCalendar::ProcessEventRemovedAlert(CDataStore* msg, uint8_t* clearPending
 void CGCalendar::ProcessInviteModeratorStatusAlert(CDataStore* msg, uint8_t* clearPending) {
     SmartGUID guid;
     *msg >> guid;
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
-    uint8_t status;
+    uint8_t status = 0;
     msg->Get(status);
-    uint8_t clear;
+    uint8_t clear = 1;
     msg->Get(clear);
 
     if (!clear) {
         *clearPending = 0;
+    }
+
+    if (msg->m_read > msg->m_size) {
+        return;
     }
 
     if (CGCalendar::m_curEvent && eventID == CGCalendar::m_curEvent->m_eventID) {
@@ -3196,7 +3258,7 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
     CGCalendar::m_numInitialPending = 0;
     s_pendingInvites.Clear();
 
-    uint32_t numInvites;
+    uint32_t numInvites = 0;
     msg->Get(numInvites);
 
     for (uint32_t i = 0; i < numInvites; i++) {
@@ -3236,7 +3298,7 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
     s_eventTables.m_tables[1].InternalClear(0);
 
     WOWGUID activePlayer = ClntObjMgrGetActivePlayer();
-    uint32_t numEvents;
+    uint32_t numEvents = 0;
     msg->Get(numEvents);
 
     for (uint32_t i = 0; i < numEvents; i++) {
@@ -3352,14 +3414,14 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
     WowTime serverTime;
     uint32_t serverNow = 0;
     msg->Get(serverNow);
-    uint32_t serverDate;
+    uint32_t serverDate = 0;
     msg->Get(serverDate);
     WowTime::WowDecodeTime(serverDate, &serverTime);
 
     s_eventTables.m_counts[2] = 0;
     s_eventTables.m_tables[2].InternalClear(0);
 
-    uint32_t numLockouts;
+    uint32_t numLockouts = 0;
     msg->Get(numLockouts);
 
     for (uint32_t i = 0; i < numLockouts; i++) {
@@ -3387,7 +3449,7 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
     uint32_t baseTime = 0;
     msg->Get(baseTime);
     s_raidResets.Clear();
-    uint32_t numResets;
+    uint32_t numResets = 0;
     msg->Get(numResets);
 
     for (uint32_t i = 0; i < numResets; i++) {
@@ -3422,7 +3484,7 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
         }
     }
 
-    uint32_t numHolidays;
+    uint32_t numHolidays = 0;
     msg->Get(numHolidays);
 
     if (numHolidays) {
@@ -3506,17 +3568,22 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg) {
 // OFFSET: 0x005C37D0
 void CGCalendar::ProcessLockoutAdded(CDataStore* msg) {
     WowTime date;
-    uint32_t time;
+    uint32_t time = 0;
     msg->Get(time);
     WowTime::WowDecodeTime(time, &date);
-    int32_t mapID;
+    int32_t mapID = 0;
     msg->Get(reinterpret_cast<uint32_t&>(mapID));
-    int32_t difficulty;
+    int32_t difficulty = 0;
     msg->Get(reinterpret_cast<uint32_t&>(difficulty));
-    int32_t resetTime;
+    int32_t resetTime = 0;
     msg->Get(reinterpret_cast<uint32_t&>(resetTime));
-    uint64_t instanceID;
+    uint64_t instanceID = 0;
     msg->Get(instanceID);
+
+    if (msg->m_read > msg->m_size) {
+        return;
+    }
+
     date.AddMinutes(resetTime / 60);
     WowTime::WowEncodeTime(time, &date);
     CGCalendar::InsertLockoutEvent(mapID, difficulty, instanceID, time);
@@ -3531,7 +3598,7 @@ void CGCalendar::ProcessLockoutUpdated(CDataStore* msg) {
     int32_t oldReset = 0;
     int32_t newReset = 0;
     WowTime oldDate;
-    uint32_t time;
+    uint32_t time = 0;
     msg->Get(time);
     WowTime::WowDecodeTime(time, &oldDate);
     WowTime newDate = oldDate;
@@ -3540,6 +3607,11 @@ void CGCalendar::ProcessLockoutUpdated(CDataStore* msg) {
     msg->Get(reinterpret_cast<uint32_t&>(difficulty));
     msg->Get(reinterpret_cast<uint32_t&>(oldReset));
     msg->Get(reinterpret_cast<uint32_t&>(newReset));
+
+    if (msg->m_read > msg->m_size) {
+        return;
+    }
+
     oldDate.AddMinutes(oldReset / 60);
     newDate.AddMinutes(newReset / 60);
 
@@ -3604,12 +3676,18 @@ void CGCalendar::ProcessInviteAlert(CDataStore* msg) {
     msg->Get(reinterpret_cast<uint32_t&>(event->m_textureID));
     msg->Get(event->m_inviteID);
     msg->Get(event->m_inviteStatus);
-    uint8_t rank;
+    uint8_t rank = 0;
     msg->Get(rank);
     SmartGUID creator;
     *msg >> creator;
     SmartGUID inviter;
     *msg >> inviter;
+
+    if (msg->m_read > msg->m_size) {
+        delete event;
+        return;
+    }
+
     event->ScheduleAlarm();
 
     bool pending = false;
@@ -3655,28 +3733,32 @@ void CGCalendar::ProcessInviteAlert(CDataStore* msg) {
 // VERIFY: 00a05b2b manual
 // OFFSET: 0x005C3D30
 void CGCalendar::ProcessEventUpdatedAlert(CDataStore* msg, uint8_t* clearPending) {
-    uint8_t clear;
+    uint8_t clear = 1;
     msg->Get(clear);
 
     if (!clear) {
         *clearPending = 0;
     }
 
-    uint64_t eventID;
+    uint64_t eventID = 0;
     msg->Get(eventID);
-    uint32_t oldDate;
+    uint32_t oldDate = 0;
     msg->Get(oldDate);
     uint32_t read = msg->m_read;
-    uint32_t flags;
+    uint32_t flags = 0;
     msg->Get(flags);
-    uint32_t newDate;
+    uint32_t newDate = 0;
     msg->Get(newDate);
-    uint8_t eventType;
+    uint8_t eventType = 0;
     msg->Get(eventType);
-    uint32_t textureID;
+    uint32_t textureID = 0;
     msg->Get(textureID);
     char title[128];
     msg->GetString(title, sizeof(title));
+
+    if (msg->m_read > msg->m_size) {
+        return;
+    }
 
     int32_t table = (flags & 0x440) != 0;
     uint32_t key = CGCalendar::GetDateKey(oldDate);
@@ -3699,9 +3781,10 @@ void CGCalendar::ProcessEventUpdatedAlert(CDataStore* msg, uint8_t* clearPending
             moved->m_sequenceLength = event->m_sequenceLength;
             moved->ScheduleAlarm();
             CGCalendar::InsertEvent(moved, table);
+            bool wasContext = CGCalendar::m_contextEventInfo == event;
             s_eventTables.Delete(table, key, eventID);
 
-            if (CGCalendar::m_contextEventInfo == event) {
+            if (wasContext) {
                 CGCalendar::m_contextEventInfo = moved;
             }
 

@@ -105,6 +105,14 @@ void CGCorpse_C::PostInit(uint32_t time, const CClientObjCreate& create, bool a3
         }
     }
 
+    if (!model) {
+        if (!(this->m_corpse->m_corpseFieldFlags & 0x1) && this->m_corpse->m_corpseFieldOwner == ClntObjMgrGetActivePlayer()) {
+            CGGameUI::SetActiveCorpse(this->m_obj->m_guid);
+        }
+
+        return;
+    }
+
     if (!(this->m_corpse->m_corpseFieldFlags & 0x1)) {
         if (useComponent) {
             this->m_component = CCharacterComponent::AllocComponent();
@@ -275,6 +283,8 @@ int32_t CGCorpse_C::CanHighlight() const {
 // VERIFY: 5ae4217a auto
 // OFFSET: 0x007062C0
 void CGCorpse_C::Initialize() {
+    ClntObjMgrUnsetTypeMirrorHandler(ID_CORPSE, offsetof(CGCorpseData, m_corpseFieldFlags), CorpseFlagUpdateHandler, nullptr);
+    ClntObjMgrUnsetTypeMirrorHandler(ID_CORPSE, offsetof(CGCorpseData, m_corpseFieldDynamicFlags), CorpseDynamicFlagUpdateHandler, nullptr);
     ClntObjMgrSetTypeMirrorHandler(ID_CORPSE, offsetof(CGCorpseData, m_corpseFieldFlags), sizeof(uint32_t), CorpseFlagUpdateHandler, nullptr, HANDLER_PRIORITY_NORMAL, 0);
     ClntObjMgrSetTypeMirrorHandler(ID_CORPSE, offsetof(CGCorpseData, m_corpseFieldDynamicFlags), sizeof(uint32_t), CorpseDynamicFlagUpdateHandler, nullptr, HANDLER_PRIORITY_NORMAL, 0);
 }
@@ -282,7 +292,7 @@ void CGCorpse_C::Initialize() {
 // VERIFY: b1c4d0d1 auto
 // OFFSET: 0x00705900
 void CGCorpse_C::ShowLootEffect() {
-    if (this->m_lootEffect) {
+    if (this->m_lootEffect || !this->m_worldModel) {
         return;
     }
 
@@ -436,7 +446,7 @@ int32_t CGCorpse_C::GetModelFileName(const char** name) const {
     if (this->m_corpse->m_corpseFieldFlags & 0x1) {
         ChrRacesRec* race = g_chrRacesDB.GetRecord(this->m_corpse->m_corpseFieldBytes1[1]);
 
-        if (!race) {
+        if (!race || this->m_corpse->m_corpseFieldBytes1[2] >= sizeof(s_sexNames) / sizeof(s_sexNames[0])) {
             return 0;
         }
 

@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Os/TimeManager.h"
@@ -25,6 +26,17 @@ struct AuctionFindItemsParam {
     /* 0008 */ uint32_t m_wanted;
     /* 000C */ bool m_collect;
 };
+
+struct AuctionSortEntry {
+    const AuctionItemInfo* m_info;
+    ItemStats_C* m_stats;
+    NameCache* m_owner;
+};
+
+// Smallest wire size of one auction entry in the list, owner and bidder results.
+static const uint32_t s_auctionEntryWireSize = 148;
+
+static const AuctionSortCriteria* s_activeSortCriteria;
 
 // STATIC: 0x00A394BC
 static const uint32_t s_depositRunTimes[3] = { 720, 1440, 2880 };
@@ -704,16 +716,9 @@ int32_t CGAuctionHouse::GetSelectedBidIndex() {
     return -1;
 }
 
-// VERIFY: cad54c03 manual
-// OFFSET: 0x0059B460
-static int32_t CheckSortCriteria(int32_t column, const AuctionItemInfo* a, const AuctionItemInfo* b) {
+static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const AuctionItemInfo* b, ItemStats_C* statsA, ItemStats_C* statsB, NameCache* nameA, NameCache* nameB) {
     switch (column) {
         case 0: {
-            WOWGUID noneA = WOWGUID();
-            ItemStats_C* statsA = g_itemDBCache.GetRecord(a->m_itemID, noneA, nullptr, nullptr, false);
-            WOWGUID noneB = WOWGUID();
-            ItemStats_C* statsB = g_itemDBCache.GetRecord(b->m_itemID, noneB, nullptr, nullptr, false);
-
             if (!statsA || !statsB) {
                 return 0;
             }
@@ -738,11 +743,6 @@ static int32_t CheckSortCriteria(int32_t column, const AuctionItemInfo* a, const
         }
 
         case 1: {
-            WOWGUID noneA = WOWGUID();
-            ItemStats_C* statsA = g_itemDBCache.GetRecord(a->m_itemID, noneA, nullptr, nullptr, false);
-            WOWGUID noneB = WOWGUID();
-            ItemStats_C* statsB = g_itemDBCache.GetRecord(b->m_itemID, noneB, nullptr, nullptr, false);
-
             if (!statsA || !statsB || statsA->m_quality == statsB->m_quality) {
                 return 0;
             }
@@ -806,11 +806,6 @@ static int32_t CheckSortCriteria(int32_t column, const AuctionItemInfo* a, const
         }
 
         case 5: {
-            WOWGUID noneA = WOWGUID();
-            ItemStats_C* statsA = g_itemDBCache.GetRecord(a->m_itemID, noneA, nullptr, nullptr, false);
-            WOWGUID noneB = WOWGUID();
-            ItemStats_C* statsB = g_itemDBCache.GetRecord(b->m_itemID, noneB, nullptr, nullptr, false);
-
             if (!statsA || !statsB) {
                 return 0;
             }
@@ -832,11 +827,6 @@ static int32_t CheckSortCriteria(int32_t column, const AuctionItemInfo* a, const
         }
 
         case 7: {
-            WOWGUID noneA = WOWGUID();
-            NameCache* nameA = g_nameDBCache.GetRecord(a->m_owner.m_guid, noneA, nullptr, nullptr, false);
-            WOWGUID noneB = WOWGUID();
-            NameCache* nameB = g_nameDBCache.GetRecord(b->m_owner.m_guid, noneB, nullptr, nullptr, false);
-
             if (nameA && nameB) {
                 return SStrCmp(nameA->m_name, nameB->m_name, STORM_MAX_STR);
             }
@@ -878,6 +868,75 @@ static int32_t CheckSortCriteria(int32_t column, const AuctionItemInfo* a, const
         default:
             return 0;
     }
+}
+
+// VERIFY: cad54c03 manual
+// OFFSET: 0x0059B460
+static int32_t CheckSortCriteria(int32_t column, const AuctionItemInfo* a, const AuctionItemInfo* b) {
+    ItemStats_C* statsA = nullptr;
+    ItemStats_C* statsB = nullptr;
+    NameCache* nameA = nullptr;
+    NameCache* nameB = nullptr;
+
+    if (column == 0 || column == 1 || column == 5) {
+        WOWGUID noneA = WOWGUID();
+        statsA = g_itemDBCache.GetRecord(a->m_itemID, noneA, nullptr, nullptr, false);
+        WOWGUID noneB = WOWGUID();
+        statsB = g_itemDBCache.GetRecord(b->m_itemID, noneB, nullptr, nullptr, false);
+    } else if (column == 7) {
+        WOWGUID noneA = WOWGUID();
+        nameA = g_nameDBCache.GetRecord(a->m_owner.m_guid, noneA, nullptr, nullptr, false);
+        WOWGUID noneB = WOWGUID();
+        nameB = g_nameDBCache.GetRecord(b->m_owner.m_guid, noneB, nullptr, nullptr, false);
+    }
+
+    return CompareSortColumn(column, a, b, statsA, statsB, nameA, nameB);
+}
+
+static int32_t AuctionSortEntryComparer(const void* a, const void* b) {
+    const AuctionSortEntry* left = static_cast<const AuctionSortEntry*>(a);
+    const AuctionSortEntry* right = static_cast<const AuctionSortEntry*>(b);
+
+    for (uint32_t i = 0; i < 12; i++) {
+        int32_t result = CompareSortColumn(s_activeSortCriteria[i].m_column, left->m_info, right->m_info, left->m_stats, right->m_stats, left->m_owner, right->m_owner);
+
+        if (result) {
+            return s_activeSortCriteria[i].m_reverse ? -result : result;
+        }
+    }
+
+    return 0;
+}
+
+// Same order as qsort with the per-list comparers, but each cache lookup happens once per entry instead of per compare.
+void SortAuctionList(TSGrowableArray<AuctionItemInfo>& list, const AuctionSortCriteria* criteria) {
+    uint32_t count = list.Count();
+
+    if (count < 2) {
+        return;
+    }
+
+    std::vector<AuctionSortEntry> entries(count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        const AuctionItemInfo* info = &list.m_data[i];
+        WOWGUID noneItem = WOWGUID();
+        WOWGUID noneName = WOWGUID();
+        entries[i].m_info = info;
+        entries[i].m_stats = g_itemDBCache.GetRecord(info->m_itemID, noneItem, nullptr, nullptr, false);
+        entries[i].m_owner = g_nameDBCache.GetRecord(info->m_owner.m_guid, noneName, nullptr, nullptr, false);
+    }
+
+    s_activeSortCriteria = criteria;
+    qsort(entries.data(), count, sizeof(AuctionSortEntry), AuctionSortEntryComparer);
+
+    std::vector<AuctionItemInfo> sorted(count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        sorted[i] = *entries[i].m_info;
+    }
+
+    memcpy(list.m_data, sorted.data(), sizeof(AuctionItemInfo) * count);
 }
 
 // VERIFY: a6bde7a8 manual
@@ -925,14 +984,14 @@ int32_t AuctionBidderListComparer(const void* a, const void* b) {
 // VERIFY: 27279a9d auto
 // OFFSET: 0x0059B980
 void CGAuctionHouse::ApplyBrowseSort() {
-    qsort(CGAuctionHouse::m_browseList.m_data, CGAuctionHouse::m_browseList.Count(), sizeof(AuctionItemInfo), AuctionListComparer);
+    SortAuctionList(CGAuctionHouse::m_browseList, CGAuctionHouse::m_listSortCriteria);
     FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_ITEM_LIST_UPDATE, nullptr);
 }
 
 // VERIFY: bf9a3158 auto
 // OFFSET: 0x0059B9E0
 void CGAuctionHouse::ApplyBidderSort() {
-    qsort(CGAuctionHouse::m_bidderList.m_data, CGAuctionHouse::m_bidderList.Count(), sizeof(AuctionItemInfo), AuctionBidderListComparer);
+    SortAuctionList(CGAuctionHouse::m_bidderList, CGAuctionHouse::m_bidSortCriteria);
     FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_BIDDER_LIST_UPDATE, nullptr);
 }
 
@@ -1038,7 +1097,7 @@ void AuctionOwnedItemQueryCallback(int32_t id, const WOWGUID& guid, void* param,
     }
 
     if (!CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[2] <= 0) {
-        qsort(CGAuctionHouse::m_ownerList.m_data, CGAuctionHouse::m_ownerList.Count(), sizeof(AuctionItemInfo), CompareFunction);
+        SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     }
 }
@@ -1051,7 +1110,7 @@ void AuctionOwnedSoldItemQueryCallback(int32_t id, const WOWGUID& guid, void* pa
     }
 
     if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[2] <= 0) {
-        qsort(CGAuctionHouse::m_ownerList.m_data, CGAuctionHouse::m_ownerList.Count(), sizeof(AuctionItemInfo), CompareFunction);
+        SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     }
 }
@@ -1178,7 +1237,7 @@ void CGAuctionHouse::SortOwnedList(int32_t column) {
         CGAuctionHouse::SetOwnedSortCriteria(column, false);
     }
 
-    qsort(CGAuctionHouse::m_ownerList.m_data, CGAuctionHouse::m_ownerList.Count(), sizeof(AuctionItemInfo), CompareFunction);
+    SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
     FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
 }
 
@@ -1259,6 +1318,12 @@ int32_t Packet_SMSG_AUCTION_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t 
     msg->Get(count);
     CGAuctionHouse::m_browseList.SetCount(0);
 
+    uint32_t fits = msg->m_read <= msg->m_size ? (msg->m_size - msg->m_read) / s_auctionEntryWireSize : 0;
+
+    if ((count < fits ? count : fits) > CGAuctionHouse::m_browseList.m_alloc) {
+        CGAuctionHouse::m_browseList.ReallocData(count < fits ? count : fits);
+    }
+
     uint32_t now = OsGetAsyncTimeMs();
 
     for (uint32_t i = 0; i < count; i++) {
@@ -1299,7 +1364,7 @@ int32_t Packet_SMSG_AUCTION_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t 
 
         WOWGUID none = WOWGUID();
 
-        if (!g_itemDBCache.GetRecord(auction->m_itemID, none, AuctionListItemQueryCallback, nullptr, false)) {
+        if (auction->m_itemID && !g_itemDBCache.GetRecord(auction->m_itemID, none, AuctionListItemQueryCallback, nullptr, false)) {
             CGAuctionHouse::m_pendingBrowseItems++;
         }
     }
@@ -1347,7 +1412,7 @@ int32_t Packet_SMSG_AUCTION_OWNER_LIST_RESULT(void* param, NETMESSAGE msgId, uin
     uint32_t count = 0;
     msg->Get(count);
 
-    if (msg->m_read <= msg->m_size && count <= msg->m_size - msg->m_read && CGAuctionHouse::m_ownerList.Count() + count > CGAuctionHouse::m_ownerList.m_alloc) {
+    if (msg->m_read <= msg->m_size && count <= (msg->m_size - msg->m_read) / s_auctionEntryWireSize && CGAuctionHouse::m_ownerList.Count() + count > CGAuctionHouse::m_ownerList.m_alloc) {
         CGAuctionHouse::m_ownerList.ReallocData(CGAuctionHouse::m_ownerList.Count() + count);
     }
 
@@ -1393,7 +1458,7 @@ int32_t Packet_SMSG_AUCTION_OWNER_LIST_RESULT(void* param, NETMESSAGE msgId, uin
 
         WOWGUID none = WOWGUID();
 
-        if (!g_itemDBCache.GetRecord(auction->m_itemID, none, AuctionOwnedItemQueryCallback, nullptr, false)) {
+        if (auction->m_itemID && !g_itemDBCache.GetRecord(auction->m_itemID, none, AuctionOwnedItemQueryCallback, nullptr, false)) {
             CGAuctionHouse::m_pendingOwnedItems++;
         }
     }
@@ -1402,7 +1467,7 @@ int32_t Packet_SMSG_AUCTION_OWNER_LIST_RESULT(void* param, NETMESSAGE msgId, uin
     msg->Get(reinterpret_cast<uint32_t&>(CGAuctionHouse::m_desiredDelayTime));
 
     if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[2] <= 0) {
-        qsort(CGAuctionHouse::m_ownerList.m_data, CGAuctionHouse::m_ownerList.Count(), sizeof(AuctionItemInfo), CompareFunction);
+        SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     }
 
@@ -1442,7 +1507,7 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
     uint32_t count = 0;
     msg->Get(count);
 
-    if (msg->m_read <= msg->m_size && count <= msg->m_size - msg->m_read && CGAuctionHouse::m_ownerList.Count() + count > CGAuctionHouse::m_ownerList.m_alloc) {
+    if (msg->m_read <= msg->m_size && count <= (msg->m_size - msg->m_read) / 14 && CGAuctionHouse::m_ownerList.Count() + count > CGAuctionHouse::m_ownerList.m_alloc) {
         CGAuctionHouse::m_ownerList.ReallocData(CGAuctionHouse::m_ownerList.Count() + count);
     }
 
@@ -1510,7 +1575,7 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
 
         WOWGUID none = WOWGUID();
 
-        if (!g_itemDBCache.GetRecord(auction->m_itemID, none, AuctionOwnedSoldItemQueryCallback, nullptr, false)) {
+        if (auction->m_itemID && !g_itemDBCache.GetRecord(auction->m_itemID, none, AuctionOwnedSoldItemQueryCallback, nullptr, false)) {
             CGAuctionHouse::m_pendingSoldItems++;
         }
 
@@ -1518,7 +1583,7 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
     }
 
     if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[2] <= 0) {
-        qsort(CGAuctionHouse::m_ownerList.m_data, CGAuctionHouse::m_ownerList.Count(), sizeof(AuctionItemInfo), CompareFunction);
+        SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     }
 
@@ -1545,6 +1610,12 @@ int32_t Packet_SMSG_AUCTION_BIDDER_LIST_RESULT(void* param, NETMESSAGE msgId, ui
     uint32_t count = 0;
     msg->Get(count);
     CGAuctionHouse::m_bidderList.SetCount(0);
+
+    uint32_t fits = msg->m_read <= msg->m_size ? (msg->m_size - msg->m_read) / s_auctionEntryWireSize : 0;
+
+    if ((count < fits ? count : fits) > CGAuctionHouse::m_bidderList.m_alloc) {
+        CGAuctionHouse::m_bidderList.ReallocData(count < fits ? count : fits);
+    }
 
     uint32_t now = OsGetAsyncTimeMs();
 
@@ -1586,7 +1657,7 @@ int32_t Packet_SMSG_AUCTION_BIDDER_LIST_RESULT(void* param, NETMESSAGE msgId, ui
 
         WOWGUID none = WOWGUID();
 
-        if (!g_itemDBCache.GetRecord(auction->m_itemID, none, AuctionBidItemQueryCallback, nullptr, false)) {
+        if (auction->m_itemID && !g_itemDBCache.GetRecord(auction->m_itemID, none, AuctionBidItemQueryCallback, nullptr, false)) {
             CGAuctionHouse::m_pendingBidItems++;
         }
     }
@@ -1658,7 +1729,17 @@ void CGAuctionHouse::CloseAuctionHouse() {
 // VERIFY: 3f70f54a manual
 // OFFSET: 0x0059F240
 void CGAuctionHouse::AddOutbidID(int32_t auctionHouseID, int32_t auctionID) {
+    for (uint32_t i = 0; i < static_cast<uint32_t>(CGAuctionHouse::m_numOutbidItems); i++) {
+        if (CGAuctionHouse::m_outbidItems.m_data[i]->m_auctionHouseID == auctionHouseID && CGAuctionHouse::m_outbidItems.m_data[i]->m_auctionID == auctionID) {
+            return;
+        }
+    }
+
     uint32_t capacity = CGAuctionHouse::m_outbidItems.Count();
+
+    if (!capacity) {
+        return;
+    }
 
     if (static_cast<uint32_t>(CGAuctionHouse::m_numOutbidItems) >= capacity) {
         CGAuctionHouse::m_outbidItems.SetCount(2 * capacity);
@@ -1805,7 +1886,7 @@ int32_t FindSellableItems(int32_t itemId) {
 // OFFSET: 0x0059FF40
 int32_t Packet_MSG_AUCTION_HELLO(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID auctioneer;
-    uint32_t auctionHouseID;
+    uint32_t auctionHouseID = 0;
     msg->Get(auctioneer.m_guid);
     msg->Get(auctionHouseID);
 
@@ -1825,12 +1906,16 @@ int32_t Packet_MSG_AUCTION_HELLO(void* param, NETMESSAGE msgId, uint32_t time, C
 // OFFSET: 0x0059FFB0
 int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     uint32_t inventoryError = BAG_INTERNAL_BAG_ERROR;
-    uint32_t auctionID;
-    uint32_t action;
-    uint32_t result;
+    uint32_t auctionID = 0;
+    uint32_t action = 0;
+    uint32_t result = 0;
     msg->Get(auctionID);
     msg->Get(action);
     msg->Get(result);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (result == 1) {
         msg->Get(inventoryError);
@@ -1852,7 +1937,7 @@ int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32
                 CGAuctionHouse::m_canGetOwnerList = 1;
                 CGAuctionHouse::GetOwnerList();
             } else if (action == 2) {
-                uint32_t minIncrement;
+                uint32_t minIncrement = 0;
                 msg->Get(minIncrement);
                 CGGameUI::DisplayError(ERR_AUCTION_BID_PLACED);
                 CGAuctionHouse::ClearOutbidID(auctionID);
@@ -1906,8 +1991,8 @@ int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32
 
         case 5: {
             WOWGUID bidder;
-            uint32_t bid;
-            uint32_t minIncrement;
+            uint32_t bid = 0;
+            uint32_t minIncrement = 0;
             msg->Get(bidder.m_guid);
             msg->Get(bid);
             msg->Get(minIncrement);
@@ -1971,13 +2056,13 @@ int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32
 // VERIFY: ed9ac24c manual
 // OFFSET: 0x005A0480
 int32_t Packet_SMSG_AUCTION_BIDDER_NOTIFICATION(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t auctionHouseID;
-    uint32_t auctionID;
+    uint32_t auctionHouseID = 0;
+    uint32_t auctionID = 0;
     WOWGUID bidder;
-    uint32_t bid;
-    uint32_t minIncrement;
-    uint32_t itemID;
-    uint32_t randomPropertyID;
+    uint32_t bid = 0;
+    uint32_t minIncrement = 0;
+    uint32_t itemID = 0;
+    uint32_t randomPropertyID = 0;
     msg->Get(auctionHouseID);
     msg->Get(auctionID);
     msg->Get(bidder.m_guid);
@@ -1986,10 +2071,14 @@ int32_t Packet_SMSG_AUCTION_BIDDER_NOTIFICATION(void* param, NETMESSAGE msgId, u
     msg->Get(itemID);
     msg->Get(randomPropertyID);
 
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
+
     WOWGUID none = WOWGUID();
     ItemStats_C* stats = g_itemDBCache.GetRecord(itemID, none, nullptr, nullptr, false);
 
-    if (!stats) {
+    if (!stats && itemID) {
         AuctionNotifyInfo* info = static_cast<AuctionNotifyInfo*>(SMemAlloc(sizeof(AuctionNotifyInfo), __FILE__, __LINE__, 0));
         info->m_randomPropertyID = randomPropertyID;
         info->m_error = bid ? ERR_AUCTION_OUTBID_S : ERR_AUCTION_WON_S;
@@ -2059,13 +2148,13 @@ int32_t Packet_SMSG_AUCTION_BIDDER_NOTIFICATION(void* param, NETMESSAGE msgId, u
 // VERIFY: 664618d2 manual
 // OFFSET: 0x005A0790
 int32_t Packet_SMSG_AUCTION_OWNER_NOTIFICATION(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t auctionID;
-    uint32_t bid;
-    uint32_t minIncrement;
+    uint32_t auctionID = 0;
+    uint32_t bid = 0;
+    uint32_t minIncrement = 0;
     WOWGUID bidder;
-    uint32_t itemID;
-    uint32_t randomPropertyID;
-    float mailDelay;
+    uint32_t itemID = 0;
+    uint32_t randomPropertyID = 0;
+    float mailDelay = 0.0f;
     msg->Get(auctionID);
     msg->Get(bid);
     msg->Get(minIncrement);
@@ -2073,6 +2162,10 @@ int32_t Packet_SMSG_AUCTION_OWNER_NOTIFICATION(void* param, NETMESSAGE msgId, ui
     msg->Get(itemID);
     msg->Get(randomPropertyID);
     msg->Get(mailDelay);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (bidder) {
         if (!CGAuctionHouse::m_auctioneer) {
@@ -2129,7 +2222,7 @@ int32_t Packet_SMSG_AUCTION_OWNER_NOTIFICATION(void* param, NETMESSAGE msgId, ui
             CGGameUI::DisplayError(ERR_AUCTION_EXPIRED_S, name);
             CGLCD::AuctionExpired(name);
         }
-    } else {
+    } else if (itemID) {
         AuctionNotifyInfo* info = static_cast<AuctionNotifyInfo*>(SMemAlloc(sizeof(AuctionNotifyInfo), __FILE__, __LINE__, 0));
         info->m_randomPropertyID = randomPropertyID;
         info->m_error = bid ? ERR_AUCTION_SOLD_S : ERR_AUCTION_EXPIRED_S;
@@ -2145,12 +2238,16 @@ int32_t Packet_SMSG_AUCTION_OWNER_NOTIFICATION(void* param, NETMESSAGE msgId, ui
 // VERIFY: bb5f4e66 manual
 // OFFSET: 0x005A0AC0
 int32_t Packet_SMSG_AUCTION_REMOVED_NOTIFICATION(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t auctionID;
-    uint32_t itemID;
-    uint32_t randomPropertyID;
+    uint32_t auctionID = 0;
+    uint32_t itemID = 0;
+    uint32_t randomPropertyID = 0;
     msg->Get(auctionID);
     msg->Get(itemID);
     msg->Get(randomPropertyID);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     WOWGUID none = WOWGUID();
 
@@ -2158,7 +2255,7 @@ int32_t Packet_SMSG_AUCTION_REMOVED_NOTIFICATION(void* param, NETMESSAGE msgId, 
         char name[256];
         CGItem_C::BuildItemName(name, sizeof(name), itemID, randomPropertyID);
         CGGameUI::DisplayError(ERR_AUCTION_REMOVED_S, name);
-    } else {
+    } else if (itemID) {
         AuctionNotifyInfo* info = static_cast<AuctionNotifyInfo*>(SMemAlloc(sizeof(AuctionNotifyInfo), __FILE__, __LINE__, 0));
         info->m_randomPropertyID = randomPropertyID;
         info->m_error = ERR_AUCTION_REMOVED_S;

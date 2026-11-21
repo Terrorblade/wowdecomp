@@ -321,7 +321,7 @@ static void Backspace(CONSOLELINE* line) {
 // VERIFY: 4bfc942f auto
 // OFFSET: 0x00763B10
 static void Delete(CONSOLELINE* line) {
-    if (line->m_inputpos > line->m_chars) {
+    if (line->m_inputpos >= line->m_chars) {
         return;
     }
 
@@ -960,6 +960,9 @@ void ConsoleCommandExecute(const char* commandLine, int32_t addToHistory) {
             if (g_defaultCommand(command, arguments)) {
                 goto done;
             }
+
+            ConsoleWrite("Unknown command", DEFAULT_COLOR);
+            goto done;
         } else {
             entry = g_consoleCommandHash.Ptr("run");
 
@@ -1195,13 +1198,16 @@ static int32_t OnKeyDown(const void* data, void* param) {
             if (key->m_metaKeyState & 0xC) {
                 if (s_copyText[0]) {
                     char buffer[128];
-                    uint32_t length = s_highlightRightCharIndex - s_highlightLeftCharIndex;
+                    uint32_t copyLength = SStrLen(s_copyText);
+                    uint32_t left = s_highlightLeftCharIndex < copyLength ? s_highlightLeftCharIndex : copyLength;
+                    uint32_t right = s_highlightRightCharIndex < copyLength ? s_highlightRightCharIndex : copyLength;
+                    uint32_t length = right > left ? right - left : 0;
 
                     if (length >= sizeof(buffer) - 1) {
                         length = sizeof(buffer) - 1;
                     }
 
-                    memcpy(buffer, &s_copyText[s_highlightLeftCharIndex], length);
+                    memcpy(buffer, &s_copyText[left], length);
                     buffer[length] = 0;
                     OsClipboardPutString(buffer);
                 }
@@ -1296,10 +1302,27 @@ void ConsoleScreenInitialize(const char* title) {
 void ConsoleScreenDestroy() {
     EventSetConfirmCloseCallback(nullptr, nullptr);
     UnregisterHandlers();
-    HandleClose(reinterpret_cast<HOBJECT>(s_textFont));
-    HandleClose(reinterpret_cast<HOBJECT>(s_layerBackground));
-    HandleClose(reinterpret_cast<HOBJECT>(s_layerText));
+    s_critsect.Enter();
+
+    if (s_textFont) {
+        HandleClose(reinterpret_cast<HOBJECT>(s_textFont));
+        s_textFont = nullptr;
+    }
+
+    if (s_layerBackground) {
+        HandleClose(reinterpret_cast<HOBJECT>(s_layerBackground));
+        s_layerBackground = nullptr;
+    }
+
+    if (s_layerText) {
+        HandleClose(reinterpret_cast<HOBJECT>(s_layerText));
+        s_layerText = nullptr;
+    }
+
     s_linelist.Clear();
+    s_currlineptr = nullptr;
+    s_NumLines = 0;
+    s_critsect.Leave();
 
     if (s_batch) {
         GxuFontDestroyBatch(s_batch);

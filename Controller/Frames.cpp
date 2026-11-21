@@ -178,7 +178,9 @@ bool ButtonUp(int32_t button) {
 }
 
 bool DispatchSticks(const MappedState& state) {
-    std::vector<CSimpleFrame*> frames;
+    static std::vector<CSimpleFrame*> s_stickFrames;
+    std::vector<CSimpleFrame*>& frames = s_stickFrames;
+    frames.clear();
     Collect(frames, [](const FrameData& data) { return data.m_stickEnabled; });
 
     if (frames.empty()) {

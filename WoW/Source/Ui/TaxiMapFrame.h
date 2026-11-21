@@ -29,6 +29,8 @@ struct TaxiNodeInfo {
 struct TAXIPATHNODESCLIENT : public TSHashObject<TAXIPATHNODESCLIENT, HASHKEY_NONE> {
     /* 0018 */ TaxiPathNodeRec* m_firstNode;
     /* 001C */ int32_t m_numNodes;
+    float m_cachedDistance = 0.0f;
+    uint32_t m_distanceCached = 0;
 };
 
 struct TAXILINE {

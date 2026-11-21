@@ -37,7 +37,7 @@ TSGrowableArray<PetitionSignerInfo> CGPetitionInfo::m_signers;
 // VERIFY: 81bb7d5a auto
 // OFFSET: 0x005CEA00
 int32_t Packet_SMSG_OFFER_PETITION_ERROR(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
+    WOWGUID guid = WOWGUID();
     msg->Get(guid.m_guid);
     WOWGUID none = WOWGUID();
     NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, none, nullptr, nullptr, false);

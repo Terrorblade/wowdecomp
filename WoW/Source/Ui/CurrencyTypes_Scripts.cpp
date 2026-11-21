@@ -118,9 +118,16 @@ int32_t Script_GetCurrencyListInfo(lua_State* L) {
     }
 
     CurrencyListEntry* entry = &CGCurrencyTypes::m_list[index];
+    WOWGUID none = WOWGUID();
+    ItemStats_C* stats = g_itemDBCache.GetRecord(entry->m_itemID, none, nullptr, nullptr, false);
+    const char* name = entry->m_name;
 
-    if (entry->m_name) {
-        lua_pushstring(L, entry->m_name);
+    if (name && !entry->m_isHeader) {
+        name = stats ? stats->m_name[0] : nullptr;
+    }
+
+    if (name) {
+        lua_pushstring(L, name);
     } else {
         lua_pushnil(L);
     }
@@ -164,9 +171,6 @@ int32_t Script_GetCurrencyListInfo(lua_State* L) {
         lua_pushnumber(L, 0.0);
         lua_pushboolean(L, 0);
     }
-
-    WOWGUID none = WOWGUID();
-    ItemStats_C* stats = g_itemDBCache.GetRecord(entry->m_itemID, none, nullptr, nullptr, false);
 
     if (stats) {
         const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);

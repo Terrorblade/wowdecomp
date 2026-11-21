@@ -320,8 +320,10 @@ void CSimpleStatusBar::SetRotatesTexture(int32_t rotates) {
         texCoords[2].y = 0.0f;
         texCoords[3].x = 1.0f;
         texCoords[3].y = 0.0f;
-        this->m_barTexture->SetTexCoord(texCoords);
-    } else {
+        if (this->m_barTexture) {
+            this->m_barTexture->SetTexCoord(texCoords);
+        }
+    } else if (this->m_barTexture) {
         CRect texRect = { 0.0f, 0.0f, 1.0f, 1.0f };
         this->m_barTexture->SetTexCoord(texRect);
     }

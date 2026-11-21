@@ -14,7 +14,7 @@ uint32_t GetModuleFileNameUTF8(void* module, char* path, uint32_t size) {
     uint32_t wideSize = size * 3 * sizeof(uint16_t);
     uint16_t* wide = static_cast<uint16_t*>(_alloca(wideSize));
     wide[0] = 0;
-    GetModuleFileNameW(static_cast<HMODULE>(module), reinterpret_cast<LPWSTR>(wide), wideSize);
+    GetModuleFileNameW(static_cast<HMODULE>(module), reinterpret_cast<LPWSTR>(wide), static_cast<DWORD>(wideSize / sizeof(uint16_t)));
 
     uint32_t written;
     SUniConvertUTF16to8(path, size, wide, 0x7FFFFFFF, &written, nullptr);

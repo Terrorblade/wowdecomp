@@ -99,7 +99,8 @@ bool IGxuFontGlyphRenderGlyph(FT_Face face, uint32_t pixelSize, uint32_t code, u
         memset(data, 0, size);
     }
 
-    if (source) {
+    // The placeholder size can exceed what the FreeType bitmap holds
+    if (data && source && !placeholder) {
         memcpy(data, source, size);
     }
 

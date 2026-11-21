@@ -212,7 +212,7 @@ int32_t CMapEntity::QueryCameraFog(SMOFog* fog, CMapObjDef** mapObjDef, uint8_t*
     uint32_t params[2] = { 32, 32 };
     static FogQueue s_fogQueue(params);
 
-    CMapObjGroup* group = owner->GetGroup(CWorldScene::s_viewerMapObjGroups.m_data[0], 0);
+    CMapObjGroup* group = CWorldScene::s_viewerMapObjGroups.m_count ? owner->GetGroup(CWorldScene::s_viewerMapObjGroups.m_data[0], 0) : nullptr;
 
     if (group) {
         for (uint32_t i = 0; i < 4; i++) {

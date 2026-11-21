@@ -21,7 +21,7 @@ static int32_t Packet_SMSG_PLAYER_SETTINGS(void* param, NETMESSAGE msgId, uint32
     Net::Packet packet(msg);
     uint8_t count = packet.GetUInt8();
 
-    for (uint8_t i = 0; i < count; i++) {
+    for (uint8_t i = 0; i < count && packet.CanRead(5); i++) {
         uint8_t setting = packet.GetUInt8();
         uint32_t value = packet.GetUInt32();
 

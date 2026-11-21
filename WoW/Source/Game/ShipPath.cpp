@@ -141,31 +141,34 @@ void ShipPath::BuildLegs() {
             }
         }
 
-        if ((node->m_flags & 0x2) && points.m_count) {
-            ShipPathPause* pause = &pauses.m_data[pauses.m_count++];
+        // The scratch arrays above hold 1024 nodes per leg, longer legs drop the extra nodes.
+        if (points.m_count < 0x3000 / sizeof(C3Vector)) {
+            if ((node->m_flags & 0x2) && points.m_count) {
+                ShipPathPause* pause = &pauses.m_data[pauses.m_count++];
 
-            if (pause) {
-                pause->m_point = points.m_count;
-                pause->m_delay = node->m_delay * 1000;
+                if (pause) {
+                    pause->m_point = points.m_count;
+                    pause->m_delay = node->m_delay * 1000;
+                }
             }
-        }
 
-        if (node->m_arrivalEventID || node->m_departureEventID) {
-            ShipPathEvent* event = &events.m_data[events.m_count++];
+            if (node->m_arrivalEventID || node->m_departureEventID) {
+                ShipPathEvent* event = &events.m_data[events.m_count++];
 
-            if (event) {
-                event->m_point = points.m_count;
-                event->m_arrivalEvent = node->m_arrivalEventID;
-                event->m_departureEvent = node->m_departureEventID;
+                if (event) {
+                    event->m_point = points.m_count;
+                    event->m_arrivalEvent = node->m_arrivalEventID;
+                    event->m_departureEvent = node->m_departureEventID;
+                }
             }
-        }
 
-        C3Vector* point = &points.m_data[points.m_count++];
+            C3Vector* point = &points.m_data[points.m_count++];
 
-        if (point) {
-            point->x = node->m_loc[0];
-            point->y = node->m_loc[1];
-            point->z = node->m_loc[2];
+            if (point) {
+                point->x = node->m_loc[0];
+                point->y = node->m_loc[1];
+                point->z = node->m_loc[2];
+            }
         }
 
         teleport = node->m_flags & 0x1;

@@ -122,7 +122,7 @@ struct PENDINGCHAT {
     /* 00D0 */ ChatConversation* m_conversation;
     /* 00D4 */ uint32_t unused_00D4;
 
-    PENDINGCHAT() : m_text(nullptr), m_senderName(nullptr), m_conversation(nullptr) {
+    PENDINGCHAT() : m_text(nullptr), m_senderName(nullptr), m_targetName(nullptr), m_conversation(nullptr) {
     }
 
     ~PENDINGCHAT();
@@ -146,14 +146,18 @@ class CHATTHROTTLE : public TSHashObject<CHATTHROTTLE, HASHKEY_STR> {
 
 class SPAMCHECK : public TSHashObject<SPAMCHECK, HASHKEY_STR> {
     public:
-    /* 0018 */ bool m_filtered;
-    /* 001C */ char* m_filteredText;
+    /* 0018 */ bool m_filtered = false;
+    /* 001C */ char* m_filteredText = nullptr;
+
+    ~SPAMCHECK();
 };
 
 class PROFANITYCHECK : public TSHashObject<PROFANITYCHECK, HASHKEY_STR> {
     public:
-    /* 0018 */ bool m_filtered;
-    /* 001C */ char* m_filteredText;
+    /* 0018 */ bool m_filtered = false;
+    /* 001C */ char* m_filteredText = nullptr;
+
+    ~PROFANITYCHECK();
 };
 
 struct PENDINGUSERLIST : public TSLinkedNode<PENDINGUSERLIST> {

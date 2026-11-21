@@ -375,7 +375,7 @@ static void AutoCompleteNameQueryCallback(int32_t id, const WOWGUID& guid, void*
 // VERIFY: a0c16f63 auto
 // OFFSET: 0x0057B5E0
 void CGAutoCompleteName::RefreshName(const WOWGUID& guid) {
-    const char* name = reinterpret_cast<const char*>(g_nameDBCache.GetRecord(guid.m_guid, guid, AutoCompleteNameQueryCallback, nullptr, false));
+    const char* name = reinterpret_cast<const char*>(g_nameDBCache.GetRecord(guid.m_guid, guid, AutoCompleteNameQueryCallback, nullptr, true));
 
     if (!name) {
         return;

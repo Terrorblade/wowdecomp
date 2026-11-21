@@ -1145,7 +1145,7 @@ static int32_t Script_SetBaseMip(lua_State* L) {
 
     CVar* var = CVar::Lookup("baseMip");
     char value[16];
-    SStrPrintf(value, sizeof(value), "%d", 1.0 - lua_tonumber(L, 1));
+    SStrPrintf(value, sizeof(value), "%d", static_cast<int32_t>(1.0 - lua_tonumber(L, 1)));
     var->Set(value, true, false, false, true);
     return 0;
 }
@@ -2451,7 +2451,7 @@ static int32_t Script_GetXPExhaustion(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     ExhaustionRec* rested = g_exhaustionDB.GetRecord(1);
 
-    if (!player || player->m_player->m_playerBytes2[3] != 1) {
+    if (!player || !rested || player->m_player->m_playerBytes2[3] != 1) {
         lua_pushnil(L);
         return 1;
     }
@@ -2849,9 +2849,9 @@ static int32_t Script_GetCursorInfo(lua_State* L) {
         case UICURSOR_SPELL: {
             int32_t spellId = CGGameUI::m_cursorSpell;
             SpellRec spell;
-            g_spellDB.GetRecord(spellId, &spell);
+            bool found = g_spellDB.GetRecord(spellId, &spell) != 0;
 
-            if (SpellRec::WillSummonCritter(&spell)) {
+            if (found && SpellRec::WillSummonCritter(&spell)) {
                 int32_t type = CGSpellBook::GetCompanionType(&spell);
                 lua_pushstring(L, "companion");
                 lua_pushnumber(L, CGSpellBook::FindCompanionSlotByID(spellId, type) + 1);
@@ -3010,9 +3010,9 @@ static int32_t Script_GetTitleName(lua_State* L) {
     }
 
     if (gender == 1) {
-        strcpy(title, strcmp(rec->m_name1, "") ? rec->m_name1 : rec->m_name);
+        SStrCopy(title, *rec->m_name1 ? rec->m_name1 : rec->m_name, sizeof(title));
     } else {
-        strcpy(title, strcmp(rec->m_name, "") ? rec->m_name : rec->m_name1);
+        SStrCopy(title, *rec->m_name ? rec->m_name : rec->m_name1, sizeof(title));
     }
 
     char stripped[256];
@@ -5291,8 +5291,8 @@ static int32_t Script_EquipItemByName(lua_State* L) {
         return 0;
     }
 
-    WOWGUID container;
-    uint32_t slot;
+    WOWGUID container = WOWGUID();
+    uint32_t slot = 0;
     CGItem_C* item;
 
     if (!lua_isnumber(L, 2) && !lua_isstring(L, 2)) {

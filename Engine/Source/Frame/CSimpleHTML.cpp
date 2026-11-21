@@ -535,6 +535,11 @@ bool CSimpleHTML::SetText(const char* text, CStatus* status) {
         this->AddText(text, HTML_TEXT_NORMAL, 1);
     }
 
+    // Nobody reads the fallback status, so drop its warnings instead of letting them pile up.
+    if (status == &s_nullStatus) {
+        s_nullStatus.Clear();
+    }
+
     this->m_hyperlinksDirty = 1;
     return parsed;
 }

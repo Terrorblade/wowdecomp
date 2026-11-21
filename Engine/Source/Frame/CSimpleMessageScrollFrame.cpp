@@ -303,6 +303,7 @@ void CSimpleMessageScrollFrame::SetMaxLines(int32_t maxLines) {
     this->m_lines.SetCount(maxLines);
     this->m_currentLine = -1;
     this->m_currentScroll = 0;
+    this->m_hyperlinksDirty = 1;
 }
 
 // VERIFY: a3114978 manual

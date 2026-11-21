@@ -6,6 +6,21 @@
 #include "Engine/Source/Os/OsURLDownload.h"
 #include "Engine/Source/Storm/H/storm.h"
 
+static void CloseEvents(OsUrlDownload* download) {
+    HANDLE events[] = { download->m_connectEvent, download->m_requestEvent, download->m_completeEvent, download->m_dataEvent };
+
+    for (HANDLE event : events) {
+        if (event) {
+            CloseHandle(event);
+        }
+    }
+
+    download->m_connectEvent = nullptr;
+    download->m_requestEvent = nullptr;
+    download->m_completeEvent = nullptr;
+    download->m_dataEvent = nullptr;
+}
+
 // OFFSET: 0x0086F960
 static uint32_t STORMAPI OsUrlDownloadCallback(void* param) {
     OsUrlDownload* download = static_cast<OsUrlDownload*>(param);
@@ -57,7 +72,13 @@ static uint32_t STORMAPI OsUrlDownloadCallback(void* param) {
         }
     }
 
+    // Closing the connection deletes download in its HANDLE_CLOSING callback, and the session has a zero context so it gets no callback.
+    HINTERNET internet = static_cast<HINTERNET>(download->m_internet);
     InternetCloseHandle(download->m_connect);
+
+    if (internet) {
+        InternetCloseHandle(internet);
+    }
 
     return 0;
 }
@@ -108,6 +129,7 @@ static void CALLBACK fnInternetCallback(HINTERNET internet, DWORD_PTR context, D
                 SetEvent(download->m_dataEvent);
                 SetEvent(download->m_completeEvent);
 
+                CloseEvents(download);
                 delete download;
 
                 if (callback) {
@@ -125,7 +147,11 @@ static void CALLBACK fnInternetCallback(HINTERNET internet, DWORD_PTR context, D
                 download->m_error = static_cast<INTERNET_ASYNC_RESULT*>(statusInformation)->dwError;
 
                 uint32_t threadId;
-                SCreateThread(OsUrlDownloadCallback, download, &threadId, nullptr, const_cast<char*>("OsUrlDownloadCallback"), 0);
+                HANDLE thread = SCreateThread(OsUrlDownloadCallback, download, &threadId, nullptr, const_cast<char*>("OsUrlDownloadCallback"), 0);
+
+                if (thread) {
+                    CloseHandle(thread);
+                }
             }
 
             break;
@@ -208,6 +234,7 @@ bool OsUrlDownload::DownloadString(const char* url, OsURLDownloadCallback callba
         }
     }
 
+    CloseEvents(download);
     delete download;
 
     return false;

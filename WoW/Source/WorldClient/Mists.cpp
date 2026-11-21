@@ -211,10 +211,18 @@ void Mists::Render() {
             index1 = mist->m_heightCount - 1;
         }
 
-        float height0 = mist->m_heights[index0];
-        float height = height0 + (mist->m_heights[index1] - height0) * (mist->m_heightCount * prevT - index0) + this->m_size * 0.5f;
+        int32_t lastHeight = mist->m_heightCount < 64 ? mist->m_heightCount - 1 : 63;
+        bool hasHeights = lastHeight >= 0;
 
-        if (height > mist->m_position.z) {
+        if (hasHeights) {
+            index0 = index0 < 0 ? 0 : (index0 > lastHeight ? lastHeight : index0);
+            index1 = index1 < 0 ? 0 : (index1 > lastHeight ? lastHeight : index1);
+        }
+
+        float height0 = hasHeights ? mist->m_heights[index0] : 0.0f;
+        float height = height0 + (hasHeights ? mist->m_heights[index1] - height0 : 0.0f) * (mist->m_heightCount * prevT - index0) + this->m_size * 0.5f;
+
+        if (hasHeights && height > mist->m_position.z) {
             mist->m_acceleration = mist->m_acceleration + 1.6666666f;
             float rise = height - mist->m_position.z;
             float limit = this->m_size * 0.25f;

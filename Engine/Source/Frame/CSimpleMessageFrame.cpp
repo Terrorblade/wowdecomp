@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <new>
 #include <typeinfo>
 #include "Engine/Source/Frame/CSimpleMessageFrame.h"
@@ -253,6 +254,23 @@ void CSimpleMessageFrame::AddMessage(const char* text, const CImVector& color) {
     if (!text) {
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
         return;
+    }
+
+    // A frame that is never shown never flushes, and only the newest m_rows messages can survive a flush.
+    const uint32_t keepPending = 1024;
+
+    if (this->m_pendingMessages.Count() >= 2 * keepPending && this->m_rows <= keepPending) {
+        uint32_t count = this->m_pendingMessages.Count();
+        uint32_t drop = count - keepPending;
+
+        for (uint32_t i = 0; i < drop; i++) {
+            if (this->m_pendingMessages[i].m_text) {
+                SMemFree(this->m_pendingMessages[i].m_text, "delete", SLOG_FUNCTION, 0);
+            }
+        }
+
+        memmove(this->m_pendingMessages.Ptr(), this->m_pendingMessages.Ptr() + drop, keepPending * sizeof(MessageData));
+        this->m_pendingMessages.SetCount(keepPending);
     }
 
     MessageData* message = this->m_pendingMessages.New();

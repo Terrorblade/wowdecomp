@@ -25,7 +25,14 @@ char* IOsClipboardGetString(void* window) {
     }
 
     int32_t length = MultiByteToWideChar(GetACP(), MB_PRECOMPOSED, text, -1, nullptr, 0);
-    uint16_t* wide = static_cast<uint16_t*>(_alloca(length * sizeof(uint16_t)));
+    if (length <= 0) {
+        GlobalUnlock(data);
+        CloseClipboard();
+        return nullptr;
+    }
+
+    // Clipboard text can be megabytes, too large for the stack.
+    uint16_t* wide = static_cast<uint16_t*>(SMemAlloc(length * sizeof(uint16_t), __FILE__, __LINE__, 0));
     MultiByteToWideChar(GetACP(), MB_PRECOMPOSED, text, -1, reinterpret_cast<LPWSTR>(wide), length);
 
     uint32_t size = length * 3;
@@ -34,6 +41,7 @@ char* IOsClipboardGetString(void* window) {
     ConvertUTF16toUTF8(string, size, wide, length, &written, nullptr);
     string[written] = '\0';
 
+    SMemFree(wide, __FILE__, __LINE__, 0);
     GlobalUnlock(data);
     CloseClipboard();
     return string;
@@ -57,13 +65,14 @@ int32_t IOsClipboardPutString(const char* string, void* window) {
 
     char* data = static_cast<char*>(GlobalLock(memory));
     if (!data) {
-        CloseClipboard();
+        GlobalFree(memory);
         return 0;
     }
 
-    uint16_t* wide = static_cast<uint16_t*>(_alloca(size * sizeof(uint16_t)));
+    uint16_t* wide = static_cast<uint16_t*>(SMemAlloc(size * sizeof(uint16_t), __FILE__, __LINE__, 0));
     ConvertUTF8toUTF16(wide, size, string, 0x7FFFFFFF, nullptr, nullptr);
     WideCharToMultiByte(GetACP(), 0, reinterpret_cast<LPCWSTR>(wide), -1, data, size, nullptr, nullptr);
+    SMemFree(wide, __FILE__, __LINE__, 0);
     GlobalUnlock(memory);
 
     if (!OpenClipboard(static_cast<HWND>(window))) {

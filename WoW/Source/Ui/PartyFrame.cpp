@@ -250,9 +250,13 @@ int32_t CanSendPartyCommand() {
 // VERIFY: 8aac24a4 auto
 // OFFSET: 0x0052BB10
 int32_t Packet_SMSG_INSTANCE_SAVE_CREATED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t debug;
+    uint32_t debug = 0;
     char text[3000];
     msg->Get(debug);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     if (debug == 0) {
         SStrCopy(text, FrameScript_GetText("INSTANCE_SAVED", -1, GENDER_NOT_APPLICABLE), sizeof(text));
@@ -318,7 +322,7 @@ int32_t CGPartyInfo::SetLootMethod(LOOT_METHOD method, WOWGUID master, int32_t t
         CGPartyInfo::m_lootMaster = master;
 
         if (master && method == LOOT_METHOD_MASTERLOOTER) {
-            NameCache* name = g_nameDBCache.GetRecord(master.m_guid, master, LootMasterNameCallback, nullptr, false);
+            NameCache* name = g_nameDBCache.GetRecord(master.m_guid, master, LootMasterNameCallback, nullptr, true);
 
             if (name) {
                 CGGameUI::DisplayError(ERR_NEW_LOOT_MASTER_S, name->m_name);
@@ -767,7 +771,7 @@ void CGPartyInfo::AddMember(WOWGUID guid, int32_t online, const CGPartyMemberSta
         CGRaidInfo::m_partyReadyCheckReady[index] = 0;
     }
 
-    NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, guid, PartyMemberNameCallback, nullptr, false);
+    NameCache* name = g_nameDBCache.GetRecord(guid.m_guid, guid, PartyMemberNameCallback, nullptr, true);
 
     if (name) {
         char fullName[256];
@@ -962,12 +966,16 @@ void CGPartyInfo::ShutdownGame() {
 // VERIFY: 1c547e21 auto
 // OFFSET: 0x0052C460
 int32_t Packet_SMSG_PLAYER_DIFFICULTY_CHANGE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t result;
-    uint8_t difficulty;
-    uint32_t value;
+    uint32_t result = 0xFFFFFFFF;
+    uint8_t difficulty = 0;
+    uint32_t value = 0;
     char duration[1024];
     char token[64];
     msg->Get(result);
+
+    if (msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     switch (result) {
         case 0:

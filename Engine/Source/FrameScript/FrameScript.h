@@ -50,6 +50,7 @@ void FrameScript_Flush();
 int32_t FrameScript_GetColor(lua_State* L, int32_t index, CImVector& color);
 int32_t FrameScript_GetColorNoAlpha(lua_State* L, int32_t index, CImVector& color);
 lua_State* FrameScript_GetContext();
+uint32_t FrameScript_GetContextGeneration();
 const char* FrameScript_GetCurrentObject(lua_State* L, int32_t level);
 char* FrameScript_GetCurrentFunction(lua_State* L, char* buffer, uint32_t bufferLen);
 int32_t FrameScript_GetErrorHandlerReference();

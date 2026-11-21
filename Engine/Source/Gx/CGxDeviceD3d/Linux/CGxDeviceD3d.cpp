@@ -287,8 +287,8 @@ LRESULT CALLBACK CGxDeviceD3d::WindowProcD3d(HWND hwnd, UINT message, WPARAM wpa
 
     if (device && message == SDL_WINDOWEVENT && event) {
         switch (event->window.event) {
+            // SDL follows every RESIZED with a SIZE_CHANGED, so handling both reset the device twice
             case SDL_WINDOWEVENT_SIZE_CHANGED:
-            case SDL_WINDOWEVENT_RESIZED:
             case SDL_WINDOWEVENT_RESTORED:
             case SDL_WINDOWEVENT_MAXIMIZED: {
                 int width = 0;

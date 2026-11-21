@@ -450,7 +450,7 @@ static int32_t Script_GetInboxHeaderInfo(lua_State* L) {
 
         if (attachment && attachment->m_itemID) {
             WOWGUID none = WOWGUID();
-            stats = g_itemDBCache.GetRecord(attachment->m_itemID, none, &InboxItemQueryCallback, nullptr, false);
+            stats = g_itemDBCache.GetRecord(attachment->m_itemID, none, &InboxItemQueryCallback, nullptr, true);
         }
 
         if (stats) {
@@ -467,7 +467,7 @@ static int32_t Script_GetInboxHeaderInfo(lua_State* L) {
 
     if (stationery) {
         WOWGUID none = WOWGUID();
-        stationeryStats = g_itemDBCache.GetRecord(stationery->m_itemID, none, &InboxItemQueryCallback, nullptr, false);
+        stationeryStats = g_itemDBCache.GetRecord(stationery->m_itemID, none, &InboxItemQueryCallback, nullptr, true);
     }
 
     if (stationeryStats) {
@@ -596,7 +596,7 @@ static int32_t Script_GetInboxInvoiceInfo(lua_State* L) {
     }
 
     lua_pushstring(L, itemName);
-    NameCache* name = g_nameDBCache.GetRecord(player.m_guid, player, &InboxItemQueryCallback, nullptr, false);
+    NameCache* name = g_nameDBCache.GetRecord(player.m_guid, player, &InboxItemQueryCallback, nullptr, true);
     lua_pushstring(L, name ? name->m_name : "");
     lua_pushnumber(L, bid);
     lua_pushnumber(L, buyout);
@@ -636,7 +636,7 @@ static int32_t Script_GetInboxItemLink(lua_State* L) {
     }
 
     WOWGUID none = WOWGUID();
-    ItemStats_C* stats = g_itemDBCache.GetRecord(attachment->m_itemID, none, &InboxItemQueryCallback, nullptr, false);
+    ItemStats_C* stats = g_itemDBCache.GetRecord(attachment->m_itemID, none, &InboxItemQueryCallback, nullptr, true);
 
     if (!stats) {
         return 0;
@@ -899,7 +899,7 @@ static int32_t Script_GetSendMailItem(lua_State* L) {
 
     if (item) {
         WOWGUID none = WOWGUID();
-        stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, none, &SendItemQueryCallback, nullptr, false);
+        stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, none, &SendItemQueryCallback, nullptr, true);
     }
 
     if (!stats) {
@@ -1138,7 +1138,7 @@ static int32_t Script_GetInboxItem(lua_State* L) {
     }
 
     WOWGUID none = WOWGUID();
-    ItemStats_C* stats = g_itemDBCache.GetRecord(attachment->m_itemID, none, &InboxItemQueryCallback, nullptr, false);
+    ItemStats_C* stats = g_itemDBCache.GetRecord(attachment->m_itemID, none, &InboxItemQueryCallback, nullptr, true);
     char texture[260];
 
     if (!stats) {

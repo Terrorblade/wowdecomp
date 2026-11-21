@@ -331,7 +331,13 @@ CGChatBubbleFrame::CGChatBubbleFrame(CSimpleFrame* parent) : CSimpleFrame(parent
 // VERIFY: 4a39f013 auto
 // OFFSET: 0x0056CDC0
 void CGChatBubbleFrame::ShutdownGame() {
-    s_freeChatBubbles.Clear();
+    CGChatBubbleFrame* bubble;
+
+    // Bubbles live in s_chatBubbleHeap blocks, so TSList::Clear would SMemFree interior pointers.
+    while ((bubble = s_freeChatBubbles.Head()) != nullptr) {
+        delete bubble;
+    }
+
     s_cameraPositionValid = 0;
 }
 

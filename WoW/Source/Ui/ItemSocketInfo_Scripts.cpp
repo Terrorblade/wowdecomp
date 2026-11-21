@@ -220,7 +220,7 @@ static int32_t Script_GetExistingSocketInfo(lua_State* L) {
     }
 
     WOWGUID none = WOWGUID();
-    stats = g_itemDBCache.GetRecord(enchant->m_srcItemID, none, &EnchantItemCacheCallback, nullptr, false);
+    stats = g_itemDBCache.GetRecord(enchant->m_srcItemID, none, &EnchantItemCacheCallback, nullptr, true);
 
     if (!stats) {
         lua_pushnil(L);
@@ -268,7 +268,7 @@ static int32_t Script_GetExistingSocketLink(lua_State* L) {
     }
 
     WOWGUID none = WOWGUID();
-    ItemStats_C* stats = g_itemDBCache.GetRecord(enchant->m_srcItemID, none, &EnchantItemCacheCallback, nullptr, false);
+    ItemStats_C* stats = g_itemDBCache.GetRecord(enchant->m_srcItemID, none, &EnchantItemCacheCallback, nullptr, true);
 
     if (!stats) {
         return 0;

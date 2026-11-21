@@ -378,6 +378,7 @@ CGCamera::~CGCamera() {
         this->m_model = nullptr;
     }
 
+    this->m_cameraShakeList.Clear();
     ConsoleCommandUnregister("pitchLimit");
 }
 
@@ -1484,6 +1485,10 @@ float CGCamera::GetDefaultZoomMaxDistance() {
 // VERIFY: cfc63e8a manual
 // OFFSET: 0x00606330
 void CGCamera::AddShake(const C3Vector& position, int32_t type, CGCameraDir dir, float amplitude, float frequency, float duration, float timeOffset, float damping) {
+    if (static_cast<uint32_t>(dir) >= NUM_CAMERA_DIRECTIONS) {
+        return;
+    }
+
     CameraShake* shake = this->m_cameraShakeList.NewNode(2, 0, 0);
 
     if (shake) {
@@ -2569,6 +2574,7 @@ void CGCamera::CalcTargetCamera(CGObject_C* target, uint32_t time) {
     }
 
     CGUnit_C* fadeUnit = unit;
+    uint32_t hops = 0;
 
     while (true) {
         float fadeStart = 1.8315002f;
@@ -2627,7 +2633,8 @@ void CGCamera::CalcTargetCamera(CGObject_C* target, uint32_t time) {
         if (fadeUnit && fadeUnit->HasVehicleTransport() && !sharedVehicle) {
             fadeUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ fadeUnit->GetTransportGUID() }, TYPE_UNIT, __FILE__, __LINE__));
 
-            if (fadeUnit) {
+            // A transport loop from the server would otherwise spin here forever.
+            if (fadeUnit && ++hops < 32) {
                 continue;
             }
         }
@@ -4063,13 +4070,6 @@ void CGCamera::RunShakes(const C3Vector& position, C3Vector& offset) {
     }
 
     uint32_t now = OsGetAsyncTimeMs();
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetGUID, TYPE_UNIT, __FILE__, __LINE__));
-
-    if (!unit) {
-        return;
-    }
-
-    float facing = unit->GetSmoothFacing();
     float amplitudes[NUM_CAMERA_DIRECTIONS] = { 0.0f, 0.0f, 0.0f };
     float times[NUM_CAMERA_DIRECTIONS] = { 0.0f, 0.0f, 0.0f };
     CameraShake* shakes[NUM_CAMERA_DIRECTIONS] = { nullptr, nullptr, nullptr };
@@ -4091,6 +4091,14 @@ void CGCamera::RunShakes(const C3Vector& position, C3Vector& offset) {
             this->m_cameraShakeList.DeleteNode(shake);
         }
     }
+
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetGUID, TYPE_UNIT, __FILE__, __LINE__));
+
+    if (!unit) {
+        return;
+    }
+
+    float facing = unit->GetSmoothFacing();
 
     for (uint32_t i = 0; i < NUM_CAMERA_DIRECTIONS; i++) {
         CameraShake* shake = shakes[i];

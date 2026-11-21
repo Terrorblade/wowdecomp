@@ -225,23 +225,23 @@ void CGCalendarEvent::SetSignalType(uint32_t signalType) {
 // OFFSET: 0x005F14B0
 bool CGCalendarEvent::ProcessUpdateEvent(CDataStore* msg) {
     msg->Get(this->m_flags);
-    uint32_t date;
+    uint32_t date = 0;
     msg->Get(date);
-    uint8_t type;
+    uint8_t type = 0;
     msg->Get(type);
     this->m_type = type;
     msg->Get(reinterpret_cast<uint32_t&>(this->m_textureID));
     msg->GetString(this->m_title, sizeof(this->m_title));
     msg->GetString(this->m_description, sizeof(this->m_description));
-    uint8_t repeatOption;
+    uint8_t repeatOption = 0;
     msg->Get(repeatOption);
     this->m_repeatOption = repeatOption;
     msg->Get(this->m_maxSize);
-    uint32_t lockoutDate;
+    uint32_t lockoutDate = 0;
     msg->Get(lockoutDate);
     WowTime::WowDecodeTime(date, &this->m_date);
     WowTime::WowDecodeTime(lockoutDate, &this->m_lockoutDate);
-    return true;
+    return msg->m_read <= msg->m_size;
 }
 
 // VERIFY: 614ecd10 manual
@@ -955,10 +955,11 @@ CGCalendarEvent::CGCalendarEvent(WOWGUID guid, uint8_t level, int32_t calendarTy
 // VERIFY: c5c54e9d manual
 // OFFSET: 0x005F2B70
 CGCalendarEvent::~CGCalendarEvent() {
+    // Invite slots get reused for other guids, so a per-slot cancel missed callbacks still pointing at this event.
+    g_nameDBCache.CancelCallbacksForParam(InviteNameCacheCallback, this);
     uint32_t count = this->m_invites.Count();
 
     for (uint32_t i = 0; i < count; i++) {
-        g_nameDBCache.CancelCallback(this->m_invites.m_data[i]->m_guid.m_guid, InviteNameCacheCallback, this);
         delete this->m_invites.m_data[i];
     }
 
@@ -977,18 +978,18 @@ bool CGCalendarEvent::ProcessGetEvent(CDataStore* msg, int32_t* status) {
     msg->Get(this->m_eventID);
     msg->GetString(this->m_title, sizeof(this->m_title));
     msg->GetString(this->m_description, sizeof(this->m_description));
-    uint8_t type;
+    uint8_t type = 0;
     msg->Get(type);
     this->m_type = type;
-    uint8_t repeatOption;
+    uint8_t repeatOption = 0;
     msg->Get(repeatOption);
     this->m_repeatOption = repeatOption;
     msg->Get(this->m_maxSize);
     msg->Get(reinterpret_cast<uint32_t&>(this->m_textureID));
     msg->Get(this->m_flags);
-    uint32_t date;
+    uint32_t date = 0;
     msg->Get(date);
-    uint32_t lockoutDate;
+    uint32_t lockoutDate = 0;
     msg->Get(lockoutDate);
     WowTime::WowDecodeTime(date, &this->m_date);
     WowTime::WowDecodeTime(lockoutDate, &this->m_lockoutDate);

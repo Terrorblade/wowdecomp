@@ -673,6 +673,9 @@ void CGClassTrainer::ShutdownGame() {
     }
 
     CGClassTrainer::m_skillLines.m_count = 0;
+    CGClassTrainer::m_numServices = 0;
+    CGClassTrainer::m_numSkillLines = 0;
+    CGClassTrainer::m_filteredServices = 0;
 }
 
 // VERIFY: 2d160ac6 manual
@@ -766,7 +769,7 @@ void CGClassTrainer::AddServices(uint32_t count, const int32_t* spellIds, const 
         info->m_abilityReq[0] = abilityReqs[0][source];
         info->m_abilityReq[1] = abilityReqs[1][source];
         info->m_abilityReq[2] = abilityReqs[2][source];
-        info->m_state = states[source];
+        info->m_state = states[source] < NUM_TRAINER_SERVICE_TYPES ? states[source] : static_cast<uint8_t>(TRAINER_SERVICE_UNAVAILABLE);
         int32_t skillLine;
 
         if (CGClassTrainer::m_trainerType != TRAINER_TYPE_TRADESKILLS) {

@@ -433,6 +433,11 @@ static void MovementInit() {
 
     uint32_t processId = SGetCurrentProcessId();
     char* extension = SStrChrR(logFile, '.');
+
+    if (!extension) {
+        extension = logFile + SStrLen(logFile);
+    }
+
     SStrPrintf(extension, logFile + sizeof(logFile) - extension, "%04d.txt", processId);
     MovementInitialize(logFile);
     EventRegisterEx(EVENT_ID_IDLE, MovementIdleMoveUnits, nullptr, 2.0f);
@@ -940,15 +945,20 @@ static int32_t Packet_SMSG_NEW_WORLD(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: 1eb347a4 auto
 // OFFSET: 0x00403DE0
 static int32_t Packet_SMSG_LOGIN_VERIFY_WORLD(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t zoneID;
+    uint32_t zoneID = 0;
     C3Vector position = { 0.0f, 0.0f, 0.0f };
-    float rotation;
+    float rotation = 0.0f;
 
     msg->Get(zoneID);
     msg->Get(position.x);
     msg->Get(position.y);
     msg->Get(position.z);
     msg->Get(rotation);
+
+    if (msg->m_read > msg->m_size) {
+        ConsoleWrite("Bad SMSG_LOGIN_VERIFY_WORLD\n", DEFAULT_COLOR);
+        return 1;
+    }
 
     if (zoneID == ClntObjMgrGetMapID()) {
         return 1;
@@ -1880,11 +1890,11 @@ int32_t Packet_SMSG_TRANSFER_PENDING(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: 78f957a4 auto
 // OFFSET: 0x00403910
 int32_t Packet_SMSG_TRANSFER_ABORTED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t mapID;
-    uint8_t reason;
+    uint32_t mapID = 0;
+    uint8_t reason = 0;
     msg->Get(mapID);
     msg->Get(reason);
-    MapRec* map = g_mapDB.GetRecord(mapID);
+    MapRec* map = msg->m_read > msg->m_size ? nullptr : g_mapDB.GetRecord(mapID);
 
     if (map) {
         const char* text = nullptr;
@@ -1910,14 +1920,14 @@ int32_t Packet_SMSG_TRANSFER_ABORTED(void* param, NETMESSAGE msgId, uint32_t tim
                 text = FrameScript_GetText("TRANSFER_ABORT_ZONE_IN_COMBAT", -1, GENDER_NOT_APPLICABLE);
                 break;
             case 7: {
-                uint8_t expansion;
+                uint8_t expansion = 0;
                 msg->Get(expansion);
                 SStrPrintf(token, sizeof(token), "TRANSFER_ABORT_INSUF_EXPAN_LVL%d", expansion);
                 text = FrameScript_GetText(token, -1, GENDER_NOT_APPLICABLE);
                 break;
             }
             case 8: {
-                uint8_t difficulty;
+                uint8_t difficulty = 0;
                 msg->Get(difficulty);
                 MapDifficultyRec* entry = GetMapDifficultyEntryByMapIdAndDifficulty(map->m_id, difficulty, nullptr);
 
@@ -1930,7 +1940,7 @@ int32_t Packet_SMSG_TRANSFER_ABORTED(void* param, NETMESSAGE msgId, uint32_t tim
                 break;
             }
             case 9: {
-                uint8_t message;
+                uint8_t message = 0;
                 msg->Get(message);
                 char messageToken[64];
                 SStrPrintf(messageToken, sizeof(messageToken), "TRANSFER_ABORT_UNIQUE_MESSAGE%d", message);
@@ -2130,8 +2140,8 @@ void CheckAndSendBotDetected() {
 // VERIFY: b337a4a2 manual
 // OFFSET: 0x00401390
 int32_t Packet_SMSG_PLAYED_TIME(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    int32_t total;
-    int32_t level;
+    int32_t total = 0;
+    int32_t level = 0;
     uint8_t show = 0;
     msg->Get(reinterpret_cast<uint32_t&>(total));
     msg->Get(reinterpret_cast<uint32_t&>(level));

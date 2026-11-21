@@ -314,6 +314,20 @@ static void PortraitCachePurge(PORTRAITCACHE** head, uint32_t maxEntries, int32_
     }
 }
 
+template <class T, class TKey>
+static void PortraitTablePrune(TSHashTable<T, TKey>& table, PORTRAITCACHE* head) {
+    T* next;
+
+    for (T* portrait = table.Head(); portrait; portrait = next) {
+        next = table.Next(portrait);
+        PORTRAITCACHE* cache = &portrait->m_cache;
+
+        if (!cache->m_texture && !cache->m_prev && !cache->m_next && cache != head) {
+            table.Delete(portrait);
+        }
+    }
+}
+
 // VERIFY: b77b6e91 manual
 // OFFSET: 0x00617100
 static int32_t QueuePortraitUpdate(CGUnit_C* unit, uint32_t flags) {
@@ -813,14 +827,15 @@ void RenderPortraitTexture(CSimpleTexture* texture, CGUnit_C* unit) {
     model->Release();
     scene->Release();
 
+    cache->m_dirty = 0;
+
+    // Purged entries hold no texture, so they are dropped instead of piling up per guid or display id.
     if (unit->m_obj->m_type & TYPE_PLAYER) {
         PortraitCachePurge(&s_playerPortraitCache, 40, 0);
+        PortraitTablePrune(s_playerPortraits, s_playerPortraitCache);
     } else {
         PortraitCachePurge(&s_unitPortraitCache, 8, 0);
-    }
-
-    if (cache) {
-        cache->m_dirty = 0;
+        PortraitTablePrune(s_unitPortraits, s_unitPortraitCache);
     }
 }
 

@@ -306,6 +306,21 @@ void CBarrier::Destroy() {
 // OFFSET: 0x00794B50
 void CBarrier::Render(const C3Vector& viewerPos, float elapsedSec) {
     if (!this->m_mode || !this->m_verts.Count()) {
+        this->m_verts.SetCount(0);
+        this->m_contacts.SetCount(0);
+        this->m_chunks.m_count = 0;
+        this->m_groups.m_count = 0;
+        return;
+    }
+
+    CGxTex* maskTex = TextureGetGxTex(CBarrier::s_mask, 1, nullptr);
+    CGxTex* patternTex = maskTex ? TextureGetGxTex(CBarrier::s_pattern, 1, nullptr) : nullptr;
+
+    if (!maskTex || !patternTex) {
+        this->m_verts.SetCount(0);
+        this->m_contacts.SetCount(0);
+        this->m_chunks.m_count = 0;
+        this->m_groups.m_count = 0;
         return;
     }
 
@@ -385,18 +400,6 @@ void CBarrier::Render(const C3Vector& viewerPos, float elapsedSec) {
     GxRsSet(GxRs_Culling, 0);
     GxRsSet(GxRs_Lighting, 0);
     GxRsSet(GxRs_Fog, 0);
-    CGxTex* maskTex = TextureGetGxTex(CBarrier::s_mask, 1, nullptr);
-
-    if (!maskTex) {
-        return;
-    }
-
-    CGxTex* patternTex = TextureGetGxTex(CBarrier::s_pattern, 1, nullptr);
-
-    if (!patternTex) {
-        return;
-    }
-
     g_theGxDevicePtr->RsSet(GxRs_Texture0, maskTex);
     GxRsSet(GxRs_TextureCoord0, 0);
     g_theGxDevicePtr->RsSet(GxRs_Texture1, patternTex);
@@ -423,6 +426,7 @@ void CBarrier::Render(const C3Vector& viewerPos, float elapsedSec) {
     }
 
     if (vertices && indices) {
+        float scroll = static_cast<float>(fmod(s_patternPhase, 3.1415927410125732)) * 1.5915494f;
         int32_t passCount = 2 * triangleCount;
 
         for (int32_t t = 0; t < passCount; t++) {
@@ -458,10 +462,10 @@ void CBarrier::Render(const C3Vector& viewerPos, float elapsedSec) {
 
                 if (odd) {
                     vertices->m_t1x = source->m_t1x * 0.050000001f + 0.5f;
-                    vertices->m_t1y = 0.050000001f * source->m_t1y - static_cast<float>(fmod(s_patternPhase, 3.1415927410125732)) * 1.5915494f;
+                    vertices->m_t1y = 0.050000001f * source->m_t1y - scroll;
                 } else {
                     vertices->m_t1x = source->m_t1x * 0.1f;
-                    vertices->m_t1y = 0.1f * source->m_t1y - static_cast<float>(fmod(s_patternPhase, 3.1415927410125732)) * 1.5915494f;
+                    vertices->m_t1y = 0.1f * source->m_t1y - scroll;
                 }
 
                 vertices++;

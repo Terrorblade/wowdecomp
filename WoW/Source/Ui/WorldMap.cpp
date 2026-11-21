@@ -2,6 +2,7 @@
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
@@ -190,6 +191,8 @@ void CGWorldMap::InitializeGame() {
         SStrPrintf(fileName, sizeof(fileName), "Interface\\WorldMap\\%s.zmp", area->m_areaName);
 
         SFileImpl* file;
+        // The array is never constructed, so a continent without a .zmp file would keep heap garbage as zone ids.
+        memset(continent->m_zoneMap, 0, sizeof(continent->m_zoneMap));
 
         if (SFileOpenFile(fileName, &file)) {
             SFileReadFile(file, continent->m_zoneMap, sizeof(continent->m_zoneMap), nullptr, nullptr, 0);
@@ -635,7 +638,7 @@ void CGWorldMap::SetMap(uint32_t continent, uint32_t zone, int32_t dungeonMap) {
         }
 
         if (CGWorldMap::m_landmarks.Count() <= CGWorldMap::m_numLandmarks) {
-            CGWorldMap::m_landmarks.SetCount(2 * CGWorldMap::m_landmarks.Count());
+            CGWorldMap::m_landmarks.SetCount(CGWorldMap::m_landmarks.Count() ? 2 * CGWorldMap::m_landmarks.Count() : 16);
         }
 
         WorldMapLandmarkInfo& landmark = CGWorldMap::m_landmarks.m_data[CGWorldMap::m_numLandmarks++];
@@ -657,7 +660,7 @@ void CGWorldMap::SetMap(uint32_t continent, uint32_t zone, int32_t dungeonMap) {
 
         if (!outland && (fabs(x) >= 0.00000023841858f || fabs(y) >= 0.00000023841858f)) {
             if (CGWorldMap::m_landmarks.Count() <= CGWorldMap::m_numLandmarks) {
-                CGWorldMap::m_landmarks.SetCount(2 * CGWorldMap::m_landmarks.Count());
+                CGWorldMap::m_landmarks.SetCount(CGWorldMap::m_landmarks.Count() ? 2 * CGWorldMap::m_landmarks.Count() : 16);
             }
 
             WorldMapLandmarkInfo& landmark = CGWorldMap::m_landmarks.m_data[CGWorldMap::m_numLandmarks++];
@@ -695,7 +698,7 @@ void CGWorldMap::SetMap(uint32_t continent, uint32_t zone, int32_t dungeonMap) {
                 }
 
                 if (CGWorldMap::m_overlays.Count() <= CGWorldMap::m_numOverlays) {
-                    CGWorldMap::m_overlays.SetCount(2 * CGWorldMap::m_overlays.Count());
+                    CGWorldMap::m_overlays.SetCount(CGWorldMap::m_overlays.Count() ? 2 * CGWorldMap::m_overlays.Count() : 32);
                 }
 
                 CGWorldMap::m_overlays.m_data[CGWorldMap::m_numOverlays++] = overlay->m_id;
@@ -1352,6 +1355,14 @@ void CGWorldMap::ShutdownGame() {
     CGWorldMap::m_landmarks.Clear();
     CGWorldMap::m_overlays.Clear();
     CGWorldMap::m_orphanZones.Clear();
+
+    // The current indexes point into the arrays freed above, and the next login may load fewer continents.
+    CGWorldMap::m_currentContinent = -1;
+    CGWorldMap::m_currentZone = -1;
+    CGWorldMap::m_currentDungeonMap = -1;
+    CGWorldMap::m_currentOrphanZone = -1;
+    CGWorldMap::m_numLandmarks = 0;
+    CGWorldMap::m_numOverlays = 0;
 }
 
 // VERIFY: 51645fdc manual

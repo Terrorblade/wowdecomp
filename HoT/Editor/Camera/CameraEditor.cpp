@@ -639,10 +639,10 @@ static void SubmitLines(const std::vector<C3Vector>& verts, const std::vector<CI
             break;
         }
 
-        std::vector<uint16_t> indices(count);
+        static std::vector<uint16_t> indices;
 
-        for (uint32_t i = 0; i < count; i++) {
-            indices[i] = static_cast<uint16_t>(i);
+        for (uint32_t i = static_cast<uint32_t>(indices.size()); i < count; i++) {
+            indices.push_back(static_cast<uint16_t>(i));
         }
 
         GxPrimVertexPtr(count, verts.data() + first, sizeof(C3Vector), nullptr, 0, colors.data() + first, sizeof(CImVector), nullptr, 0, nullptr, 0);
@@ -679,13 +679,18 @@ static void DrawPath(int32_t track, const C3Vector& camera, CImVector color, boo
 
     uint32_t steps = std::clamp<uint32_t>(doc.m_length / 10, 64, 3000);
     float stepTime = static_cast<float>(doc.m_length) / static_cast<float>(steps);
-    std::vector<C3Vector> points(steps + 1);
+    // Drawn every frame, the scratch buffers keep their capacity between frames.
+    static std::vector<C3Vector> points;
+    static std::vector<float> speeds;
+    static std::vector<C3Vector> verts;
+    static std::vector<CImVector> colors;
+    points.resize(steps + 1);
 
     for (uint32_t i = 0; i <= steps; i++) {
         points[i] = EvaluateWorld(doc, track, stepTime * i);
     }
 
-    std::vector<float> speeds(steps, 0.0f);
+    speeds.assign(steps, 0.0f);
     float maxSpeed = 0.0f;
 
     for (uint32_t i = 0; i < steps; i++) {
@@ -693,8 +698,8 @@ static void DrawPath(int32_t track, const C3Vector& camera, CImVector color, boo
         maxSpeed = std::max(maxSpeed, speeds[i]);
     }
 
-    std::vector<C3Vector> verts;
-    std::vector<CImVector> colors;
+    verts.clear();
+    colors.clear();
     verts.reserve(steps * 2);
     colors.reserve(steps * 2);
 

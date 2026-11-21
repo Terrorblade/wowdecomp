@@ -1885,15 +1885,15 @@ static int32_t Script_CalendarGetEventInfo(lua_State* L) {
     }
 
     char title[128];
-    SStrCopy(title, event->m_title, STORM_MAX_STR);
+    SStrCopy(title, event->m_title, sizeof(title));
     ProfanityFilter(title, false, false);
     lua_pushstring(L, title);
     char description[1024];
-    SStrCopy(description, event->m_description, STORM_MAX_STR);
+    SStrCopy(description, event->m_description, sizeof(description));
     ProfanityFilter(description, false, false);
     lua_pushstring(L, description);
     WOWGUID key = WOWGUID();
-    NameCache* creator = g_nameDBCache.GetRecord(event->m_creatorGUID.m_guid, key, NameCacheCallback, nullptr, false);
+    NameCache* creator = g_nameDBCache.GetRecord(event->m_creatorGUID.m_guid, key, NameCacheCallback, nullptr, true);
     lua_pushstring(L, creator ? creator->m_name : "");
     lua_pushnumber(L, static_cast<int32_t>(event->m_type + 1));
     lua_pushnumber(L, static_cast<int32_t>(event->m_repeatOption + 1));
@@ -2038,7 +2038,7 @@ static int32_t Script_CalendarGetDayEvent(lua_State* L) {
         }
     } else {
         char title[128];
-        SStrCopy(title, event->m_title, STORM_MAX_STR);
+        SStrCopy(title, event->m_title, sizeof(title));
         ProfanityFilter(title, false, false);
         lua_pushstring(L, title);
     }
@@ -2052,7 +2052,7 @@ static int32_t Script_CalendarGetDayEvent(lua_State* L) {
     lua_pushstring(L, GetInviteRoleLabel(event->m_flags));
     lua_pushnumber(L, event->m_inviteStatus + 1);
     WOWGUID key = WOWGUID();
-    NameCache* creator = g_nameDBCache.GetRecord(event->m_creatorGUID.m_guid, key, NameCacheCallback, nullptr, false);
+    NameCache* creator = g_nameDBCache.GetRecord(event->m_creatorGUID.m_guid, key, NameCacheCallback, nullptr, true);
     lua_pushstring(L, creator ? creator->m_name : "");
     lua_pushnumber(L, (event->m_type & 0x280) ? static_cast<int32_t>(event->m_endTime + 1) : 0.0);
     lua_pushnumber(L, IsSignUpInvite(event) + 1);

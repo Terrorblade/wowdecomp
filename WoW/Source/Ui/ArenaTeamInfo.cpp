@@ -172,9 +172,13 @@ static int32_t QSortRoster(const void* a, const void* b) {
 // VERIFY: 6e5ba8e8 auto
 // OFFSET: 0x005A2D50
 int32_t Packet_SMSG_ARENA_TEAM_STATS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t teamId;
+    uint32_t teamId = 0;
     msg->Get(teamId);
     uint32_t index = 0;
+
+    if (!teamId || msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     while (CGArenaTeamInfo::m_arenaTeams[index].m_teamId != teamId) {
         if (++index >= 3) {
@@ -218,11 +222,15 @@ void ArenaTeam::FreeMemberArray() {
 // VERIFY: 8e8debc9 manual
 // OFFSET: 0x005A3E10
 int32_t Packet_SMSG_ARENA_TEAM_ROSTER(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t teamId;
+    uint32_t teamId = 0;
     msg->Get(teamId);
     uint8_t hasRatings = 0;
     msg->Get(hasRatings);
     uint32_t index = 0;
+
+    if (!teamId || msg->m_read > msg->m_size) {
+        return 1;
+    }
 
     while (CGArenaTeamInfo::m_arenaTeams[index].m_teamId != teamId) {
         if (++index >= 3) {

@@ -68,7 +68,7 @@ char* CStringMemory::New(const char* str) {
 // VERIFY: b5fb4508 manual
 // OFFSET: 0x0047CE90
 const char* CStringManager::Add(const char* str) {
-    uint32_t index = SStrHashHT(str) % 521;
+    uint32_t index = SStrHashHT(str) % BUCKET_COUNT;
 
     for (char* entry = this->m_buckets[index]; entry; entry = *reinterpret_cast<char**>(entry)) {
         if (!SStrCmp(str, entry + sizeof(char*), STORM_MAX_STR)) {

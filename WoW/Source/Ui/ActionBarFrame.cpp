@@ -318,9 +318,13 @@ int32_t CGActionBar::UpdateUsableAction(uint32_t slot, int32_t& noMana) {
         }
     }
 
+    int32_t petSpell;
+    int32_t spellId = CGActionBar::GetSpell(slot, petSpell);
+    SpellRec spell;
+    int32_t haveSpell = g_spellDB.GetRecord(spellId, &spell);
     int32_t attack;
 
-    if (CGActionBar::IsAttackAction(slot) || CGActionBar::IsRangedAttackAction(slot)) {
+    if (haveSpell && (spell.m_effect[0] == SPELL_EFFECT_ATTACK || ((spell.m_attributes & 0x2) && (spell.m_attributesExB & 0x20)))) {
         attack = 1;
 
         if (overrideRec && !(overrideRec->m_flags & 0x2)) {
@@ -348,9 +352,6 @@ int32_t CGActionBar::UpdateUsableAction(uint32_t slot, int32_t& noMana) {
         }
     }
 
-    int32_t petSpell;
-    int32_t spellId = CGActionBar::GetSpell(slot, petSpell);
-
     if (spellId) {
         if (!itemId && !attack && overrideRec && !(overrideRec->m_flags & 0x4) && !Spell_C_IsOverride(spellId, overrideRec)) {
             return 0;
@@ -364,13 +365,7 @@ int32_t CGActionBar::UpdateUsableAction(uint32_t slot, int32_t& noMana) {
             caster = player;
         }
 
-        if (!caster) {
-            return 0;
-        }
-
-        SpellRec spell;
-
-        if (!g_spellDB.GetRecord(spellId, &spell)) {
+        if (!caster || !haveSpell) {
             return 0;
         }
 
@@ -1663,8 +1658,10 @@ void CGActionBar::RemoveMacro(int32_t spellId) {
 
         uint32_t action = CGActionBar::m_slotActions[i];
 
-        if (action && (action & 0xF0000000) == 0x40000000) {
-            CGUIMacros::GetMacroByID(action & 0xBFFFFFFF)->FindSpellID();
+        MACRONODE* macro = action && (action & 0xF0000000) == 0x40000000 ? CGUIMacros::GetMacroByID(action & 0xBFFFFFFF) : nullptr;
+
+        if (macro) {
+            macro->FindSpellID();
         }
 
         CGActionBar::RemoveAction(i);

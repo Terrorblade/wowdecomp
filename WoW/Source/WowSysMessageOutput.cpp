@@ -107,6 +107,7 @@ void WowSysMessageOutput::Paint(void* param, const RECTF* rect, const RECTF* vis
     }
 
     uint32_t now = OsGetAsyncTimeMs();
+    bool batched = false;
 
     for (uint32_t i = 0; i < sizeof(s_messages) / sizeof(s_messages[0]); i++) {
         SYSMESSAGE& message = s_messages[(s_first + i) % (sizeof(s_messages) / sizeof(s_messages[0]))];
@@ -148,10 +149,14 @@ void WowSysMessageOutput::Paint(void* param, const RECTF* rect, const RECTF* vis
         }
 
         GxuFontAddToBatch(s_batch, message.m_string);
+        batched = true;
     }
 
-    GxuFontRenderBatch(s_batch);
-    GxuFontClearBatch(s_batch);
+    if (batched) {
+        GxuFontRenderBatch(s_batch);
+        GxuFontClearBatch(s_batch);
+    }
+
     s_moved = false;
 }
 

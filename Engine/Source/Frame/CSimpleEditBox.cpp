@@ -707,8 +707,8 @@ void CSimpleEditBox::DeleteSubstring(int32_t left, int32_t right, int32_t script
     }
 
     this->m_textLength = length;
-    memcpy(text, &text[count], length - left);
-    memcpy(textInfo, &textInfo[count], sizeof(uint32_t) * (this->m_textLength - this->m_cursorPos));
+    memmove(text, &text[count], length - left);
+    memmove(textInfo, &textInfo[count], sizeof(uint32_t) * (this->m_textLength - this->m_cursorPos));
     this->m_text[this->m_textLength] = 0;
     this->m_textInfo[this->m_textLength] = 0;
 

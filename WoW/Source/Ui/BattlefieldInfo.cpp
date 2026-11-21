@@ -410,7 +410,7 @@ void CGBattlefieldInfo::OnArenaUnitDestroyed(const WOWGUID& guid) {
 // VERIFY: 82317c99 manual
 // OFFSET: 0x0054AE40
 int32_t Packet_SMSG_BATTLEFIELD_STATUS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t index;
+    uint32_t index = 2;
     msg->Get(index);
 
     if (index >= 2) {
@@ -450,17 +450,17 @@ int32_t Packet_SMSG_BATTLEFIELD_STATUS(void* param, NETMESSAGE msgId, uint32_t t
     uint8_t queueType = static_cast<uint8_t>(status->m_queueData);
     status->m_bgTypeID = static_cast<uint32_t>(status->m_queueData) >> 16;
     status->m_teamSize = queueType & 0x7F;
-    uint8_t minLevel;
-    uint8_t maxLevel;
+    uint8_t minLevel = 0;
+    uint8_t maxLevel = 0;
     msg->Get(minLevel);
     msg->Get(maxLevel);
     status->m_maxLevel = maxLevel;
     status->m_minLevel = minLevel;
     msg->Get(status->m_instanceID);
-    uint8_t rated;
+    uint8_t rated = 0;
     msg->Get(rated);
     status->m_rated = rated != 0;
-    uint32_t state;
+    uint32_t state = 0;
     msg->Get(state);
     status->m_status = state;
 
@@ -468,7 +468,7 @@ int32_t Packet_SMSG_BATTLEFIELD_STATUS(void* param, NETMESSAGE msgId, uint32_t t
         msg->Get(status->m_mapID);
         msg->Get(status->m_joinedQueueData);
         CGTutorial::TriggerTutorial(48);
-        uint32_t expiration;
+        uint32_t expiration = 0;
         msg->Get(expiration);
         status->m_portExpiration = expiration ? expiration + OsGetAsyncTimeMs() : 0;
         CGLCD::OnBattlefieldReady(status);
@@ -485,7 +485,7 @@ int32_t Packet_SMSG_BATTLEFIELD_STATUS(void* param, NETMESSAGE msgId, uint32_t t
             CGBattlefieldInfo::m_instanceType = map->m_instanceType;
         }
 
-        uint32_t value;
+        uint32_t value = 0;
         msg->Get(value);
         CGBattlefieldInfo::m_instanceExpiration = value ? value + OsGetAsyncTimeMs() : 0;
         msg->Get(value);
@@ -535,7 +535,7 @@ int32_t Packet_SMSG_BATTLEFIELD_STATUS(void* param, NETMESSAGE msgId, uint32_t t
     if (status->m_status == 1) {
         CGTutorial::TriggerTutorial(47);
         msg->Get(status->m_estimatedWaitTime);
-        uint32_t waited;
+        uint32_t waited = 0;
         msg->Get(waited);
         status->m_queueStartTime = OsGetAsyncTimeMs() - waited;
     } else {
@@ -550,7 +550,7 @@ int32_t Packet_SMSG_BATTLEFIELD_STATUS(void* param, NETMESSAGE msgId, uint32_t t
 // VERIFY: 3df55eba manual
 // OFFSET: 0x0054B1C0
 int32_t Packet_SMSG_GROUP_JOINED_BATTLEGROUND(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    int32_t result;
+    int32_t result = -1;
     msg->Get(reinterpret_cast<uint32_t&>(result));
 
     switch (result) {
@@ -1109,8 +1109,8 @@ int32_t Packet_SMSG_ARENA_OPPONENT_UPDATE(void* param, NETMESSAGE msgId, uint32_
 // VERIFY: 83a65000 auto
 // OFFSET: 0x0054B610
 int32_t Packet_SMSG_BATTLEFIELD_MGR_ENTRY_INVITE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t queueID;
-    uint32_t areaID;
+    uint32_t queueID = 0;
+    uint32_t areaID = 0;
     msg->Get(queueID);
     msg->Get(areaID);
     uint32_t expireTime = 0;
@@ -1123,11 +1123,11 @@ int32_t Packet_SMSG_BATTLEFIELD_MGR_ENTRY_INVITE(void* param, NETMESSAGE msgId, 
 // VERIFY: 4f806aaa auto
 // OFFSET: 0x0054B680
 int32_t Packet_SMSG_BATTLEFIELD_MGR_QUEUE_REQUEST_RESPONSE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t queueID;
-    int32_t areaID;
-    uint8_t accepted;
-    uint8_t loggingIn;
-    uint8_t warmup;
+    uint32_t queueID = 0;
+    int32_t areaID = 0;
+    uint8_t accepted = 0;
+    uint8_t loggingIn = 0;
+    uint8_t warmup = 0;
     msg->Get(queueID);
     msg->Get(reinterpret_cast<uint32_t&>(areaID));
     msg->Get(accepted);
@@ -1148,8 +1148,8 @@ int32_t Packet_SMSG_BATTLEFIELD_MGR_QUEUE_REQUEST_RESPONSE(void* param, NETMESSA
 // VERIFY: ab0a4ac5 auto
 // OFFSET: 0x0054B750
 int32_t Packet_SMSG_BATTLEFIELD_MGR_EJECT_PENDING(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t queueID;
-    uint8_t remove;
+    uint32_t queueID = 0;
+    uint8_t remove = 0;
     msg->Get(queueID);
     msg->Get(remove);
     FrameScript_SignalEvent(SCRIPT_EVENT_BATTLEFIELD_MGR_EJECT_PENDING, "%d%b", queueID, remove != 0);
@@ -1159,8 +1159,8 @@ int32_t Packet_SMSG_BATTLEFIELD_MGR_EJECT_PENDING(void* param, NETMESSAGE msgId,
 // VERIFY: a96abd0d auto
 // OFFSET: 0x0054B7A0
 int32_t Packet_SMSG_BATTLEFIELD_MGR_QUEUE_INVITE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t queueID;
-    uint8_t warmup;
+    uint32_t queueID = 0;
+    uint8_t warmup = 0;
     msg->Get(queueID);
     msg->Get(warmup);
     FrameScript_SignalEvent(SCRIPT_EVENT_BATTLEFIELD_MGR_QUEUE_INVITE, "%d%b", queueID, warmup == 1);
@@ -1170,8 +1170,8 @@ int32_t Packet_SMSG_BATTLEFIELD_MGR_QUEUE_INVITE(void* param, NETMESSAGE msgId, 
 // VERIFY: a644b830 auto
 // OFFSET: 0x0054B7F0
 int32_t Packet_SMSG_BATTLEFIELD_MGR_STATE_CHANGE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t oldState;
-    uint32_t newState;
+    uint32_t oldState = 0;
+    uint32_t newState = 0;
     msg->Get(oldState);
     msg->Get(newState);
     FrameScript_SignalEvent(SCRIPT_EVENT_BATTLEFIELD_MGR_STATE_CHANGE, "%d%d", oldState, newState);
@@ -1244,10 +1244,10 @@ CGPartyMemberState* CGBattlefieldInfo::GetRemoteStatsFromPet(const WOWGUID& petG
 // VERIFY: 609c1249 manual
 // OFFSET: 0x005498C0
 int32_t Packet_SMSG_BATTLEFIELD_MGR_ENTERED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t queueID;
-    uint8_t invited;
-    uint8_t onOffense;
-    uint8_t clearedAFK;
+    uint32_t queueID = 0;
+    uint8_t invited = 0;
+    uint8_t onOffense = 0;
+    uint8_t clearedAFK = 0;
     msg->Get(queueID);
     msg->Get(invited);
     msg->Get(onOffense);
@@ -1271,10 +1271,10 @@ int32_t Packet_SMSG_BATTLEFIELD_MGR_ENTERED(void* param, NETMESSAGE msgId, uint3
 // VERIFY: 545d7746 manual
 // OFFSET: 0x005499C0
 int32_t Packet_SMSG_BATTLEFIELD_MGR_EJECTED(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t queueID;
-    uint8_t reason;
-    uint8_t battleStatus;
-    uint8_t relocated;
+    uint32_t queueID = 0;
+    uint8_t reason = 0;
+    uint8_t battleStatus = 0;
+    uint8_t relocated = 0;
     msg->Get(queueID);
     msg->Get(reason);
     msg->Get(battleStatus);
@@ -1652,7 +1652,7 @@ int32_t Packet_MSG_PVP_LOG_DATA(void* param, NETMESSAGE msgId, uint32_t time, CD
         }
     }
 
-    uint8_t arena;
+    uint8_t arena = 0;
     msg->Get(arena);
 
     if (arena) {
@@ -1667,12 +1667,12 @@ int32_t Packet_MSG_PVP_LOG_DATA(void* param, NETMESSAGE msgId, uint32_t time, CD
         }
     }
 
-    uint8_t done;
+    uint8_t done = 0;
     msg->Get(done);
     CGBattlefieldInfo::m_mapDone = done != 0;
 
     if (done) {
-        uint8_t winner;
+        uint8_t winner = 0;
         msg->Get(winner);
         CGBattlefieldInfo::m_winner = winner;
     }
@@ -1695,7 +1695,7 @@ int32_t Packet_MSG_PVP_LOG_DATA(void* param, NETMESSAGE msgId, uint32_t time, CD
         msg->Get(score->m_killingBlows);
 
         if (arena) {
-            uint8_t team;
+            uint8_t team = 0;
             msg->Get(team);
             score->m_faction = team;
             score->m_honorableKills = 0;
@@ -1709,11 +1709,11 @@ int32_t Packet_MSG_PVP_LOG_DATA(void* param, NETMESSAGE msgId, uint32_t time, CD
 
         msg->Get(score->m_damageDone);
         msg->Get(score->m_healingDone);
-        uint32_t count;
+        uint32_t count = 0;
         msg->Get(count);
 
         for (uint32_t j = 0; j < count && msg->m_read <= msg->m_size; j++) {
-            uint32_t value;
+            uint32_t value = 0;
             msg->Get(value);
 
             if (j < 8) {
@@ -1726,7 +1726,7 @@ int32_t Packet_MSG_PVP_LOG_DATA(void* param, NETMESSAGE msgId, uint32_t time, CD
             break;
         }
 
-        if (!g_nameDBCache.GetRecord(score->m_guid.m_guid, score->m_guid, &ReleaseBattlefieldNameCacheRef, nullptr, false)) {
+        if (score->m_guid && !g_nameDBCache.GetRecord(score->m_guid.m_guid, score->m_guid, &ReleaseBattlefieldNameCacheRef, nullptr, false)) {
             CGBattlefieldInfo::m_nameCachePending++;
         }
     }
@@ -1826,8 +1826,19 @@ void CGBattlefieldInfo::ShutdownGame() {
     ClientServices::ClearMessageHandler(SMSG_BATTLEFIELD_MGR_QUEUE_INVITE);
     ClientServices::ClearMessageHandler(SMSG_BATTLEFIELD_MGR_STATE_CHANGE);
 
+    if (CGBattlefieldInfo::m_nameCachePending) {
+        for (uint32_t i = 0; i < CGBattlefieldInfo::m_numScoreEntries; i++) {
+            g_nameDBCache.CancelCallback(CGBattlefieldInfo::m_scores[i]->m_guid.m_guid, &ReleaseBattlefieldNameCacheRef, nullptr);
+        }
+    }
+
+    CGBattlefieldInfo::m_nameCachePending = 0;
+    CGBattlefieldInfo::m_numScoreEntries = 0;
+    CGBattlefieldInfo::m_numScores = 0;
+
     for (uint32_t i = 0; i < 80; i++) {
         delete CGBattlefieldInfo::m_scores[i];
+        CGBattlefieldInfo::m_scores[i] = nullptr;
     }
 
     CGBattlefieldInfo::m_battlegroundTypes.Clear();

@@ -242,7 +242,9 @@ void CSimpleColorSelect::RepositionValueThumb() {
         return;
     }
 
-    float offsetY = this->m_wheelTexture->GetHeight() * this->m_hsv.z;
+    // The original read the wheel height unchecked, a value texture without a wheel crashed.
+    CSimpleTexture* sizeTexture = this->m_wheelTexture ? this->m_wheelTexture : this->m_valueTexture;
+    float offsetY = sizeTexture->GetHeight() * this->m_hsv.z;
     this->m_valueThumbTexture->SetPoint(FRAMEPOINT_CENTER, this->m_valueTexture, FRAMEPOINT_BOTTOM, 0.0f, offsetY, 1);
 }
 
@@ -354,6 +356,14 @@ void CSimpleColorSelect::UpdateColor() {
 // VERIFY: 9302786b manual
 // OFFSET: 0x0096E3F0
 int32_t CSimpleColorSelect::OnLayerTrackUpdate(const CMouseEvent& evt) {
+    if (!this->m_wheelTexture) {
+        this->m_wheelTracking = false;
+    }
+
+    if (!this->m_valueTexture) {
+        this->m_valueTracking = false;
+    }
+
     if (this->m_wheelTracking || this->m_valueTracking) {
         if (this->m_wheelTracking) {
             C2Vector point = evt.m_data.m_mousePosition;

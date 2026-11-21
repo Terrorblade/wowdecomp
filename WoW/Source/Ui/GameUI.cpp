@@ -3034,7 +3034,7 @@ npc:
 // VERIFY: 26c1a885 manual
 // OFFSET: 0x005216F0
 void CGGameUI::DisplayError(UIErrors error, ...) {
-    if (error >= ERR_MAX_VALUE) {
+    if (static_cast<uint32_t>(error) >= ERR_MAX_VALUE) {
         return;
     }
 
@@ -3546,7 +3546,7 @@ void OnItemPushResult(WOWGUID guid, uint8_t bag, uint32_t slot, uint32_t itemId,
             }
         }
 
-        uint32_t slots = s_inventoryTypeSlots[stats->m_inventoryType];
+        uint32_t slots = stats->m_inventoryType < 29 ? s_inventoryTypeSlots[stats->m_inventoryType] : 0;
 
         for (uint32_t i = 0; i < 23; i++) {
             if (((1 << i) & slots) && IsTutorialFlagged(55)) {
@@ -4115,7 +4115,16 @@ void CCapturePointUIManager::AddCapturePoint(CGGameObject_C* object, uint32_t wo
     }
 
     WOWGUID guid = object->m_obj->m_guid;
-    CapturePointUIManagerNode* node = this->m_nodes.NewNode(2, 0, 0);
+    CapturePointUIManagerNode* node = this->m_nodes.Head();
+
+    while (node && node->m_guid != guid) {
+        node = this->m_nodes.Next(node);
+    }
+
+    if (!node) {
+        node = this->m_nodes.NewNode(2, 0, 0);
+    }
+
     node->m_guid = guid;
     node->m_radiusSquared = radius * radius;
     node->m_worldState = worldState;
@@ -4397,18 +4406,22 @@ void CGGameUI::ClearInteractTarget(const WOWGUID& guid, int32_t a2) {
 // OFFSET: 0x00519A50
 int32_t CGGameUI::OnMirrorTimerEvent(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     if (msgId == SMSG_START_MIRROR_TIMER) {
-        uint32_t type;
-        uint32_t value;
-        uint32_t maxValue;
-        uint32_t scale;
-        uint8_t paused;
-        uint32_t spellId;
+        uint32_t type = 0;
+        uint32_t value = 0;
+        uint32_t maxValue = 0;
+        uint32_t scale = 0;
+        uint8_t paused = 0;
+        uint32_t spellId = 0;
         msg->Get(type);
         msg->Get(value);
         msg->Get(maxValue);
         msg->Get(scale);
         msg->Get(paused);
         msg->Get(spellId);
+
+        if (msg->m_read > msg->m_size) {
+            return 1;
+        }
 
         FrameScript_SignalEvent(SCRIPT_EVENT_MIRROR_TIMER_START, "%s%d%d%d%d%s", MirrorTimerTypeToken(static_cast<UNIT_MIRROR_TIMER>(type)), value, maxValue, scale, paused, GetMirrorTimerLabel(static_cast<UNIT_MIRROR_TIMER>(type), spellId));
 
@@ -4433,17 +4446,27 @@ int32_t CGGameUI::OnMirrorTimerEvent(void* param, NETMESSAGE msgId, uint32_t tim
     }
 
     if (msgId == SMSG_PAUSE_MIRROR_TIMER) {
-        uint32_t type;
-        uint8_t paused;
+        uint32_t type = 0;
+        uint8_t paused = 0;
         msg->Get(type);
         msg->Get(paused);
+
+        if (msg->m_read > msg->m_size) {
+            return 1;
+        }
+
         FrameScript_SignalEvent(SCRIPT_EVENT_MIRROR_TIMER_PAUSE, "%s%d", MirrorTimerTypeToken(static_cast<UNIT_MIRROR_TIMER>(type)), paused);
         return 1;
     }
 
     if (msgId == SMSG_STOP_MIRROR_TIMER) {
-        uint32_t type;
+        uint32_t type = 0;
         msg->Get(type);
+
+        if (msg->m_read > msg->m_size) {
+            return 1;
+        }
+
         FrameScript_SignalEvent(SCRIPT_EVENT_MIRROR_TIMER_STOP, "%s", MirrorTimerTypeToken(static_cast<UNIT_MIRROR_TIMER>(type)));
 
         if (type <= UNIT_MIRROR_TIMER_FEIGNDEATH) {
@@ -5293,8 +5316,12 @@ static const char* s_victimStateTokens[NUM_VICTIMSTATES] = { "MISS", "WOUND", "D
 // VERIFY: e98c251d manual
 // OFFSET: 0x005133B0
 void CGGameUI::ShowCombatFeedbackAttackRoundInfo(const ATTACKROUNDINFO* info) {
-    if (!info || info->m_victimState >= NUM_VICTIMSTATES) {
+    if (!info) {
         SErrDisplayAppFatalMessage("", "", 0);
+    }
+
+    if (static_cast<uint32_t>(info->m_victimState) >= NUM_VICTIMSTATES) {
+        return;
     }
 
     CGGameUI::SignalUnitCombat(info->m_target, s_victimStateTokens[info->m_victimState], info->m_damage, info->m_schoolMask[0], info->m_hitInfo);
@@ -5425,9 +5452,19 @@ uint8_t CGUnit_C::GetThreatSituation(const WOWGUID& guid) {
 void CGGameUI::ThreatMapRemove(const WOWGUID& unit, const WOWGUID& target) {
     CGGameUI::THREATMAP* map = CGGameUI::s_threatMap.Ptr(static_cast<uint32_t>(target.m_guid), CHashKeyGUID(target.m_guid));
 
-    if (map) {
-        map->RemoveUnit(unit);
+    if (!map) {
+        return;
     }
+
+    map->RemoveUnit(unit);
+
+    for (uint32_t i = 0; i < map->m_units.Count(); i++) {
+        if (map->m_units[i]) {
+            return;
+        }
+    }
+
+    CGGameUI::s_threatMap.Delete(map);
 }
 
 // VERIFY: c9bac8e5 manual
@@ -5446,7 +5483,8 @@ void CGGameUI::ThreatMapAdd(const WOWGUID& unit, const WOWGUID& target) {
     if (CGGameUI::m_threatWarningEnabled && target == ClntObjMgrGetActivePlayer()) {
         CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-        if (player->m_unit->m_unitFieldLevel >= 14) {
+        if (player && player->m_unit->m_unitFieldLevel >= 14) {
+
             CGTutorial::TriggerTutorial(53);
         }
     }
@@ -5978,7 +6016,7 @@ void CGGameUI::GetSelectionHighlightColor(const WOWGUID& guid, CImVector* color,
                 return;
             }
 
-            if (FriendList::s_friendList->GetFriend(guid)) {
+            if (FriendList::s_friendList && FriendList::s_friendList->GetFriend(guid)) {
                 *color = s_friendColor;
                 return;
             }
@@ -6033,7 +6071,7 @@ void CGGameUI::GetSelectionHighlightColor(const WOWGUID& guid, CImVector* color,
                 return;
             }
 
-            if (FriendList::s_friendList->GetFriend(guid)) {
+            if (FriendList::s_friendList && FriendList::s_friendList->GetFriend(guid)) {
                 *color = s_friendColor;
                 return;
             }
@@ -6113,8 +6151,8 @@ void LoadPlacedFrames(HOSFILE localFile, HOSFILE cacheFile, void* param) {
     }
 
     uint32_t size = static_cast<uint32_t>(OsGetFileSize(localFile));
-    char* buffer = static_cast<char*>(alloca(size + 1));
-    uint32_t bytesRead;
+    char* buffer = static_cast<char*>(SMemAlloc(size + 1, __FILE__, __LINE__, 0));
+    uint32_t bytesRead = 0;
     OsReadFile(localFile, buffer, size, &bytesRead);
 
     if (bytesRead != size) {
@@ -6162,7 +6200,9 @@ void LoadPlacedFrames(HOSFILE localFile, HOSFILE cacheFile, void* param) {
     } while (line[0] && *cursor);
 
     PlaceFrame(frame, level, point, x, y, width, height);
+    SMemFree(buffer, __FILE__, __LINE__, 0);
 }
+
 
 // VERIFY: 9402e34c manual
 // OFFSET: 0x00518870
@@ -6445,8 +6485,13 @@ void CGGameUI::UpdateAreaSpiritHealerTime(WOWGUID guid, int32_t time) {
 int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     switch (msgId) {
         case SMSG_REFER_A_FRIEND_EXPIRED: {
-            WOWGUID guid;
+            WOWGUID guid = WOWGUID();
             msg->Get(guid.m_guid);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGPartyInfo::ClearRecruitAFriend(guid);
             CGRaidInfo::ClearRecruitAFriend(guid);
 
@@ -6461,6 +6506,11 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         case SMSG_BREAK_TARGET: {
             SmartGUID guid;
             *msg >> guid;
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
             WOWGUID target = guid;
 
@@ -6485,18 +6535,26 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
 
         case MSG_CORPSE_QUERY: {
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-            uint8_t found;
+            uint8_t found = 0;
             msg->Get(found);
             C3Vector position = { 0.0f, 0.0f, 0.0f };
 
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             if (found) {
-                int32_t mapId;
-                int32_t actualMapId;
-                int32_t transport;
+                int32_t mapId = -1;
+                int32_t actualMapId = -1;
+                int32_t transport = 0;
                 msg->Get(reinterpret_cast<uint32_t&>(mapId));
                 *msg >> position;
                 msg->Get(reinterpret_cast<uint32_t&>(actualMapId));
                 msg->Get(reinterpret_cast<uint32_t&>(transport));
+
+                if (msg->m_read > msg->m_size) {
+                    return 1;
+                }
 
                 if (player && (player->m_player->m_playerFlags & 0x10)) {
                     CGGameUI::SetCorpseLocation(mapId, position, actualMapId, transport);
@@ -6522,24 +6580,39 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case SMSG_CORPSE_RECLAIM_DELAY: {
-            uint32_t delay;
+            uint32_t delay = 0;
             msg->Get(delay);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGGameUI::SetCorpseReclaimDelay(delay);
             return 1;
         }
 
         case SMSG_PLAY_MUSIC: {
-            uint32_t soundKitId;
+            uint32_t soundKitId = 0;
             msg->Get(soundKitId);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             SI2::PlayAIMusic(soundKitId);
             return 1;
         }
 
         case SMSG_PLAY_OBJECT_SOUND: {
-            uint32_t soundKitId;
-            WOWGUID guid;
+            uint32_t soundKitId = 0;
+            WOWGUID guid = WOWGUID();
             msg->Get(soundKitId);
             msg->Get(guid.m_guid);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__);
 
             if (!object) {
@@ -6557,12 +6630,17 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case SMSG_PVP_CREDIT: {
-            uint32_t honor;
-            WOWGUID victim;
-            uint32_t rank;
+            uint32_t honor = 0;
+            WOWGUID victim = WOWGUID();
+            uint32_t rank = 0;
             msg->Get(honor);
             msg->Get(victim.m_guid);
             msg->Get(rank);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
             if (player) {
@@ -6586,19 +6664,24 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case SMSG_INIT_WORLD_STATES: {
-            uint32_t mapId;
-            uint32_t zoneId;
-            uint32_t areaId;
+            uint32_t mapId = 0;
+            uint32_t zoneId = 0;
+            uint32_t areaId = 0;
             msg->Get(mapId);
             msg->Get(zoneId);
             msg->Get(areaId);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             bool changed = CGWorldStateInfo::InitWorldStates(mapId, zoneId, areaId);
             uint16_t count = 0;
             msg->Get(count);
 
             for (uint16_t i = 0; i < count; i++) {
-                uint32_t state;
-                uint32_t value;
+                uint32_t state = 0;
+                uint32_t value = 0;
                 msg->Get(state);
                 msg->Get(value);
 
@@ -6620,10 +6703,15 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case SMSG_UPDATE_WORLD_STATE: {
-            uint32_t state;
-            uint32_t value;
+            uint32_t state = 0;
+            uint32_t value = 0;
             msg->Get(state);
             msg->Get(value);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGWorldStateInfo::SetWorldState(state, value);
             CGWorldMap::RefreshCurrentMap();
             FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_WORLD_STATES, nullptr);
@@ -6632,17 +6720,27 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case SMSG_PLAY_SOUND: {
-            uint32_t soundKitId;
+            uint32_t soundKitId = 0;
             msg->Get(soundKitId);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             SI2::PlaySoundKit(soundKitId, nullptr, nullptr, nullptr, 0, nullptr, 1, 0);
             return 1;
         }
 
         case SMSG_AREA_SPIRIT_HEALER_TIME: {
-            WOWGUID guid;
-            uint32_t healTime;
+            WOWGUID guid = WOWGUID();
+            uint32_t healTime = 0;
             msg->Get(guid.m_guid);
             msg->Get(healTime);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGGameUI::UpdateAreaSpiritHealerTime(guid, healTime);
             return 1;
         }
@@ -6651,12 +6749,17 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
             float transition = 1.0f;
             uint32_t type = 0;
             int32_t soundKitId = 0;
-            uint32_t weatherId;
-            float intensity;
-            uint8_t abrupt;
+            uint32_t weatherId = 0;
+            float intensity = 0.0f;
+            uint8_t abrupt = 0;
             msg->Get(weatherId);
             msg->Get(intensity);
             msg->Get(abrupt);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             WeatherRec* rec = g_weatherDB.GetRecord(weatherId);
 
             if (rec) {
@@ -6677,21 +6780,31 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case MSG_SET_DUNGEON_DIFFICULTY: {
-            uint32_t difficulty;
-            uint32_t unk;
-            uint32_t inGroup;
+            uint32_t difficulty = 0;
+            uint32_t unk = 0;
+            uint32_t inGroup = 0;
             msg->Get(difficulty);
             msg->Get(unk);
             msg->Get(inGroup);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGGameUI::SetDungeonDifficulty(difficulty, unk, inGroup);
             return 1;
         }
 
         case SMSG_INSTANCE_DIFFICULTY: {
-            uint32_t difficulty;
-            uint32_t unk;
+            uint32_t difficulty = 0;
+            uint32_t unk = 0;
             msg->Get(difficulty);
             msg->Get(unk);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGPartyInfo::m_dynamicDifficulty = unk;
             CGGameUI::m_instanceDifficulty = difficulty;
             return 1;
@@ -6700,20 +6813,29 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         case SMSG_UPDATE_COMBO_POINTS: {
             SmartGUID guid;
             *msg >> guid;
-            uint8_t points;
+            uint8_t points = 0;
             msg->Get(points);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             WOWGUID target = guid;
             CGGameUI::UpdateComboPoints(target, points);
             return 1;
         }
 
         case SMSG_OVERRIDE_LIGHT: {
-            uint32_t lightId;
-            uint32_t overrideId;
-            uint32_t transition;
+            uint32_t lightId = 0;
+            uint32_t overrideId = 0;
+            uint32_t transition = 0;
             msg->Get(lightId);
             msg->Get(overrideId);
             msg->Get(transition);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
 
             if (overrideId) {
                 DayNight::RemoveLightOverride(lightId, transition);
@@ -6726,17 +6848,17 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case SMSG_TOTEM_CREATED: {
-            uint8_t slot;
-            WOWGUID guid;
-            uint32_t duration;
-            uint32_t spellId;
+            uint8_t slot = 0xFF;
+            WOWGUID guid = WOWGUID();
+            uint32_t duration = 0;
+            uint32_t spellId = 0;
             msg->Get(slot);
             msg->Get(guid.m_guid);
             msg->Get(duration);
             msg->Get(spellId);
             TotemInfo* totem = CGGameUI::GetTotemInfo(static_cast<uint32_t>(slot));
 
-            if (!totem || !guid) {
+            if (!totem || !guid || msg->m_read > msg->m_size) {
                 return 1;
             }
 
@@ -6760,6 +6882,11 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         case SMSG_PROPOSE_LEVEL_GRANT: {
             SmartGUID guid;
             *msg >> guid;
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGGameUI::ProposeLevelGrant(guid);
             return 1;
         }
@@ -6779,35 +6906,55 @@ int32_t CGGameUI::MessageHandler(void* param, NETMESSAGE msgId, uint32_t time, C
         }
 
         case SMSG_TRIGGER_MOVIE: {
-            uint32_t movieId;
+            uint32_t movieId = 0;
             msg->Get(movieId);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGGameUI::StartMovie(movieId);
             return 1;
         }
 
         case SMSG_PHASE_SHIFT_CHANGE: {
-            uint32_t phase;
+            uint32_t phase = 0;
             msg->Get(phase);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGGameUI::SetPhaseShift(phase);
             return 1;
         }
 
         case SMSG_CORPSE_MAP_POSITION_QUERY_RESPONSE: {
             C3Vector position = { 0.0f, 0.0f, 0.0f };
-            float facing;
+            float facing = 0.0f;
             msg->GetArray(reinterpret_cast<uint32_t*>(&position), 3);
             msg->Get(facing);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGGameUI::SetCorpseMapPosition(position, facing);
             return 1;
         }
 
         case MSG_SET_RAID_DIFFICULTY: {
-            uint32_t difficulty;
-            uint32_t unk;
-            uint32_t inGroup;
+            uint32_t difficulty = 0;
+            uint32_t unk = 0;
+            uint32_t inGroup = 0;
             msg->Get(difficulty);
             msg->Get(unk);
             msg->Get(inGroup);
+
+            if (msg->m_read > msg->m_size) {
+                return 1;
+            }
+
             CGGameUI::SetRaidDifficulty(difficulty, unk, inGroup);
             return 1;
         }
@@ -7299,6 +7446,11 @@ void CGGameUI::ShutdownGame() {
 // VERIFY: d2a102de manual
 // OFFSET: 0x00528AF0
 void CGGameUI::StartCinematic(int32_t cinematic) {
+    if (CGGameUI::m_inCinematic) {
+        SI2::StopSound(&CGGameUI::m_cinematic.m_cameraMusic, 1, -1.0f, 1);
+        SI2::StopSound(&CGGameUI::m_cinematic.m_music, 1, -1.0f, 1);
+    }
+
     memset(&CGGameUI::m_cinematic, 0, sizeof(CGGameUI::m_cinematic));
     CGGameUI::m_cinematic.m_sequence = g_cinematicSequencesDB.GetRecord(cinematic);
     CVar* music = CVar::Lookup("Sound_EnableMusic");
@@ -7332,34 +7484,34 @@ void CGGameUI::StartCinematic(int32_t cinematic) {
 // OFFSET: 0x005125E0
 static void GetTaintContext(TaintStackFrame* frame, char* buffer, uint32_t size) {
     char name[1024];
+    const char* funcName = frame->m_debug.name;
+    const char* source = frame->m_debug.source;
 
     if (frame->m_objectName) {
-        if (frame->m_debug.name) {
-            SStrPrintf(name, sizeof(name), "%s:%s", frame->m_objectName, frame->m_debug.name);
-        } else if (*frame->m_debug.source == '*') {
-            SStrPrintf(name, sizeof(name), "%s:%s", frame->m_objectName, frame->m_debug.source + 2);
-            frame->m_debug.source = "";
+        if (funcName) {
+            SStrPrintf(name, sizeof(name), "%s:%s", frame->m_objectName, funcName);
+        } else if (*source == '*') {
+            SStrPrintf(name, sizeof(name), "%s:%s", frame->m_objectName, source + 2);
+            source = "";
         } else {
             name[0] = '\0';
         }
 
-        frame->m_debug.name = name;
+        funcName = name;
     }
 
-    if (*frame->m_debug.source == '@') {
-        frame->m_debug.source++;
+    if (*source == '@') {
+        source++;
     }
-
-    const char* source = frame->m_debug.source;
 
     if (*source && *source != '=') {
-        if (frame->m_debug.name && *frame->m_debug.name) {
-            SStrPrintf(buffer, size, "%s:%d %s()", source, frame->m_debug.currentline, frame->m_debug.name);
+        if (funcName && *funcName) {
+            SStrPrintf(buffer, size, "%s:%d %s()", source, frame->m_debug.currentline, funcName);
         } else {
             SStrPrintf(buffer, size, "%s:%d", source, frame->m_debug.currentline);
         }
-    } else if (frame->m_debug.name && *frame->m_debug.name) {
-        SStrPrintf(buffer, size, "%s()", frame->m_debug.name);
+    } else if (funcName && *funcName) {
+        SStrPrintf(buffer, size, "%s()", funcName);
     } else {
         *buffer = '\0';
     }
@@ -7627,7 +7779,7 @@ void CGGameUI::SaveSavedVariables() {
         HOSFILE file = OsCreateFile(path, OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
 
         if (file == OS_INVALID_FILE) {
-            return;
+            continue;
         }
 
         for (SAVEDVARIABLE* variable = CGGameUI::s_savedVariables[i].m_fulllist.Head(); variable; variable = CGGameUI::s_savedVariables[i].Next(variable)) {
@@ -7809,7 +7961,7 @@ void CGGameUI::SetCorpseReclaimDelay(uint32_t delay) {
 // VERIFY: 4a848115 manual
 // OFFSET: 0x00513DD0
 const char* CGGameUI::GetErrorToken(int32_t error) {
-    if (error >= ERR_MAX_VALUE) {
+    if (static_cast<uint32_t>(error) >= ERR_MAX_VALUE) {
         return "";
     }
 

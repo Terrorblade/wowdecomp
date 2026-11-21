@@ -2722,7 +2722,7 @@ void CWorldScene::PrepareLiquidInstances() {
                 Liquid::CClientEnvironment* environment = Liquid::CClientEnvironment::Create(exterior == 0);
                 Liquid::CMeshGeomFactory* geomFactory = Liquid::CMeshGeomFactory::Create(mapObj, mapObjGroup);
                 const LiquidMaterialRec* materialRec = g_liquidMaterialDB.GetRecord(typeRec->m_materialID);
-                geomFactory->SetMagma(materialRec->m_lvf == 1);
+                geomFactory->SetMagma(materialRec && materialRec->m_lvf == 1);
 
                 float texCoord1ValueX = 0.0f;
                 CImVector color;
@@ -3828,7 +3828,7 @@ void CWorldScene::AddMapObjDefGroupToSortTable(uint32_t groupIndex, void* param)
         CWorldScene::GetNearestCornerToCamera(&mapObjDefGroup->m_bbox, &nearest);
         mapObjDefGroup->m_distanceToCamera = CWorldScene::camPlane.n.z * nearest.z + CWorldScene::camPlane.n.y * nearest.y + CWorldScene::camPlane.n.x * nearest.x + CWorldScene::camPlane.d;
 
-        if (group->m_flags & 0x40) {
+        if (group && (group->m_flags & 0x40)) {
             CWorldScene::s_hasPendingExteriorGroups = 1;
         }
 
@@ -4485,6 +4485,13 @@ bool World::GetFacets(CAaBox* box, FacetData* facets, uint32_t flags, uint32_t* 
 // OFFSET: 0x00782740
 uint32_t World::TriDataToFacetData(void* unused, FacetData* facets, WOWGUID guid) {
     uint32_t first = facets->facets.Count();
+    uint32_t totalFaces = 0;
+
+    for (uint32_t b = 0; b < World::TriData::nBatches; b++) {
+        totalFaces += World::TriData::batches[b].m_faceCount;
+    }
+
+    facets->facets.Reserve(totalFaces, 1);
 
     for (uint32_t b = 0; b < World::TriData::nBatches; b++) {
         World::TriData::Batch& batch = World::TriData::batches[b];

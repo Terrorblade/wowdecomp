@@ -364,12 +364,25 @@ void CEzLcd::ShowSubscreen(int32_t subscreen) {
     } else {
         page = this->m_currentColorPage;
     }
-    page->ShowSubscreen(subscreen);
+
+    if (page) {
+        page->ShowSubscreen(subscreen);
+    }
 }
 
 // VERIFY: 6e0acd1e manual
 // OFFSET: 0x009594A0
 int32_t CEzLcd::AddNewPage(int32_t page) {
+    TSGrowableArray<CEzLcdPage*>* pages = &this->m_monoPages;
+
+    if (this->m_output != this->m_connection.MonoOutput()) {
+        pages = &this->m_colorPages;
+    }
+
+    if (page < 0 || page >= static_cast<int32_t>(pages->Count())) {
+        return pages->Count();
+    }
+
     CEzLcdPage* newPage = new CEzLcdPage(this);
     newPage->Initialize();
     newPage->SetExpiration(INFINITE);
@@ -378,11 +391,6 @@ int32_t CEzLcd::AddNewPage(int32_t page) {
         newPage->SetSizeWH(LGLCD_QVGA_BMP_WIDTH, LGLCD_QVGA_BMP_HEIGHT);
     }
 
-    TSGrowableArray<CEzLcdPage*>* pages = &this->m_monoPages;
-
-    if (this->m_output != this->m_connection.MonoOutput()) {
-        pages = &this->m_colorPages;
-    }
     (*pages)[page] = newPage;
     return pages->Count();
 }
@@ -396,7 +404,7 @@ int32_t CEzLcd::ShowPage(int32_t page) {
         pages = &this->m_colorPages;
     }
 
-    if (page > static_cast<int32_t>(pages->Count()) || page < -1) {
+    if (page >= static_cast<int32_t>(pages->Count()) || page < 0) {
         return E_FAIL;
     }
 
@@ -569,7 +577,7 @@ HRESULT CEzLcd::ModifyControlsOnPage(int32_t page) {
         pages = &this->m_colorPages;
     }
 
-    if (page > static_cast<int32_t>(pages->Count()) || page < -1) {
+    if (page >= static_cast<int32_t>(pages->Count()) || page < 0) {
         return E_FAIL;
     }
 

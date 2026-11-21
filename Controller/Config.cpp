@@ -155,7 +155,15 @@ ResolvedConfig Resolve(uint16_t vendorID, uint16_t productID, bool stickAxisButt
 
     if (device) {
         ApplyConfig(resolved, *device);
-        resolved.m_device = device;
+        resolved.m_rawMapped = !device->m_rawButtonMappings.empty() || !device->m_rawAxisMappings.empty();
+
+        for (const RawButtonMapping& mapping : device->m_rawButtonMappings) {
+            resolved.m_rawButtons.push_back({ mapping.m_rawIndex, ButtonFromName(mapping.m_button.c_str()), AxisFromName(mapping.m_axis.c_str()), mapping.m_axisValue.value_or(1.0f) });
+        }
+
+        for (const RawAxisMapping& mapping : device->m_rawAxisMappings) {
+            resolved.m_rawAxes.push_back({ mapping.m_rawIndex, AxisFromName(mapping.m_axis.c_str()) });
+        }
     }
 
     return resolved;

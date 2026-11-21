@@ -184,10 +184,10 @@ void CMap::RenderWaterRipples() {
         CGxVertexPCT* vertices = reinterpret_cast<CGxVertexPCT*>(g_theGxDevicePtr->BufLock(vertexBuf));
         CGxBuf* indexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Index, sizeof(uint16_t), count);
         uint16_t* indices = reinterpret_cast<uint16_t*>(g_theGxDevicePtr->BufLock(indexBuf));
-        uint16_t index = 0;
+        uint32_t index = 0;
 
         for (CWaterRipple* bucketRipple = buckets[type].Head(); bucketRipple; bucketRipple = buckets[type].Next(bucketRipple)) {
-            if (!bucketRipple->m_verts.Count()) {
+            if (!bucketRipple->m_verts.Count() || index + bucketRipple->m_verts.Count() > 0xFFFF) {
                 continue;
             }
 
@@ -219,7 +219,7 @@ void CMap::RenderWaterRipples() {
                 vertices->p = vert;
                 vertices->c = color;
                 vertices->tc = C2Vector(vert * texMatrix);
-                *indices++ = index++;
+                *indices++ = static_cast<uint16_t>(index++);
                 vertices++;
             }
         }

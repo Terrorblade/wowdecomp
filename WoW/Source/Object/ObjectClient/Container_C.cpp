@@ -4,7 +4,9 @@
 // VERIFY: 5c3fa743 manual
 // OFFSET: 0x00706A20
 CGContainer_C::CGContainer_C(uint32_t time, const CClientObjCreate& create) : CGItem_C(time, create) {
-    this->m_bag.m_numSlots = this->m_container->m_containerFieldNumSlots;
+    uint32_t numSlots = this->m_container->m_containerFieldNumSlots;
+    uint32_t maxSlots = sizeof(this->m_container->m_containerFieldSlot1) / sizeof(this->m_container->m_containerFieldSlot1[0]);
+    this->m_bag.m_numSlots = static_cast<int32_t>(numSlots > maxSlots ? maxSlots : numSlots);
     this->m_bag.m_slots = reinterpret_cast<WOWGUID*>(this->m_container->m_containerFieldSlot1);
     this->m_bag.m_guid = this->m_obj->m_guid;
     this->m_bag.m_hasBank = 0;

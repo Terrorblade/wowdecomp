@@ -19,8 +19,9 @@ uint32_t CGGameObject_C_Type_Chair::GetNumSlots() const {
     uint32_t slotsIndex = CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, 11);
     GameObjectStats* slotsStats = this->m_owner->m_stats;
     uint32_t slots = (slotsStats && slotsIndex < 24) ? slotsStats->m_propValue[slotsIndex] : 0;
+    uint32_t maxSlots = sizeof(this->m_slots) / sizeof(this->m_slots[0]);
 
-    return slots;
+    return slots > maxSlots ? maxSlots : slots;
 }
 
 // VERIFY: 9df5628b auto

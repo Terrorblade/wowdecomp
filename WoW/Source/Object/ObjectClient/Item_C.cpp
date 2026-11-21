@@ -1338,7 +1338,9 @@ int32_t CGItem_C::IsLocked(const LockRec* lock, int32_t itemLevel, int32_t* spel
             locked = 1;
 
             for (uint32_t j = 0; j < s_openLockSpells.m_count; j++) {
-                g_spellDB.GetRecord(s_openLockSpells.m_data[j], &spell);
+                if (!g_spellDB.GetRecord(s_openLockSpells.m_data[j], &spell)) {
+                    continue;
+                }
 
                 for (uint32_t effect = 0; effect < 3; effect++) {
                     if (spell.m_effect[effect] != SPELL_EFFECT_OPEN_LOCK || spell.m_effectMiscValue[effect] != lock->m_index[i]) {
@@ -1378,7 +1380,9 @@ int32_t CGItem_C::IsLocked(const LockRec* lock, int32_t itemLevel, int32_t* spel
         } else if (type == 3) {
             locked = 1;
 
-            g_spellDB.GetRecord(lock->m_index[i], &spell);
+            if (!g_spellDB.GetRecord(lock->m_index[i], &spell)) {
+                continue;
+            }
 
             for (uint32_t effect = 0; effect < 3; effect++) {
                 if (spell.m_effect[effect] == SPELL_EFFECT_OPEN_LOCK) {
@@ -1778,7 +1782,7 @@ void CGItem_C::PostInitWithStats() {
         ItemStats_C* stats = g_itemDBCache.GetRecord(this->m_obj->m_entryID, none, nullptr, nullptr, false);
         CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-        if (stats->m_stackable <= 1) {
+        if (!stats || stats->m_stackable <= 1) {
             CGGameUI::UnlockItem(this->m_obj->m_guid);
         } else if (player) {
             player->m_bag.UnlockItemsOfType(this->m_obj->m_entryID, 0);
@@ -1800,11 +1804,11 @@ void CGItem_C::PostInitWithStats() {
         CGQuestLog::UpdateQuestItem(this->m_obj->m_entryID);
         CGContainerInfo::UpdateItem(this->m_obj->m_guid);
 
-        if ((stats->m_flags[0] & ITEM_FLAG_ITEM_PURCHASE_RECORD) && !this->m_itemPurchaseData && !(this->m_itemFlags & 4)) {
+        if (stats && (stats->m_flags[0] & ITEM_FLAG_ITEM_PURCHASE_RECORD) && !this->m_itemPurchaseData && !(this->m_itemFlags & 4)) {
             this->RequestItemPurchaseData();
         }
 
-        if (CGActionBar::GetMultiCastSlotMaskForTotemCategory(stats->m_totemCategory)) {
+        if (stats && CGActionBar::GetMultiCastSlotMaskForTotemCategory(stats->m_totemCategory)) {
             CGActionBar::UpdateMultiCastBar();
         }
     }

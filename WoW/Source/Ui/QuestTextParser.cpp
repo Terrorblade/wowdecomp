@@ -330,7 +330,7 @@ static bool SpellParserGetCondition(const char** cursor) {
     }
 
     char digits[11];
-    SStrCopy(digits, *cursor, count + 1);
+    SStrCopy(digits, *cursor, count + 1 < static_cast<int32_t>(sizeof(digits)) ? count + 1 : sizeof(digits));
     *cursor += count;
     int32_t spellId = SStrToInt(digits);
 
@@ -433,7 +433,10 @@ static int32_t SpellParserExpression(const SpellRec* spell, char* buffer, uint32
     char format[5] = "%.0f";
 
     SStrCopy(expression, *cursor + 1, sizeof(expression));
-    expression[end - *cursor - 1] = '\0';
+
+    if (end - *cursor - 1 < static_cast<ptrdiff_t>(sizeof(expression))) {
+        expression[end - *cursor - 1] = '\0';
+    }
     *cursor = end + 1;
 
     if (**cursor == '.') {
@@ -531,6 +534,11 @@ static int32_t SpellParserConditional(const SpellRec* spell, char* buffer, uint3
     }
 
     int32_t length = stop - start + 1;
+
+    if (length >= static_cast<int32_t>(sizeof(text))) {
+        length = sizeof(text) - 1;
+    }
+
     SStrCopy(text, start, length);
     text[length] = '\0';
     const char* dollar = SStrChr(text, '$');
@@ -629,7 +637,10 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
         if (semicolon) {
             char number[8];
             SStrCopy(number, *cursor + 1, sizeof(number));
-            number[semicolon - *cursor - 1] = '\0';
+
+            if (semicolon - *cursor - 1 < static_cast<ptrdiff_t>(sizeof(number))) {
+                number[semicolon - *cursor - 1] = '\0';
+            }
             int32_t factor = SStrToInt(number);
 
             if (factor) {
@@ -654,7 +665,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
 
     if (count) {
         char digits[8];
-        SStrCopy(digits, *cursor, count + 1);
+        SStrCopy(digits, *cursor, count + 1 < static_cast<int32_t>(sizeof(digits)) ? count + 1 : sizeof(digits));
         *cursor += count;
 
         if (!g_spellDB.GetRecord(QuestTextParser::Spell_C_SpellGetSpellIDForDifficulty(SStrToInt(digits)), &loaded)) {
@@ -1190,7 +1201,7 @@ void ParseCountDownTimerText(char* buffer, uint32_t size, int32_t time) {
 // VERIFY: 5dfbac31 manual
 // OFFSET: 0x00578F20
 bool QuestParserParseToken(char* buffer, uint32_t size, const NameCache* record, const char* name, int32_t achievement, WOWGUID guid, const CGUnit_C* unit, const char** cursor) {
-    char number[8];
+    char number[8] = {};
     uint32_t digits = 0;
 
     if (**cursor) {
@@ -1205,7 +1216,7 @@ bool QuestParserParseToken(char* buffer, uint32_t size, const NameCache* record,
         } while ((*cursor)[digits]);
 
         if (digits) {
-            SStrCopy(number, *cursor, digits + 1);
+            SStrCopy(number, *cursor, digits + 1 < sizeof(number) ? digits + 1 : sizeof(number));
             *cursor += digits;
         }
     }

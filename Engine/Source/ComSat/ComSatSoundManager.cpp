@@ -369,7 +369,7 @@ void ComSat::Sound::Manager::SubmitIncomingFrameTimeData(uint64_t talker, uint16
 // VERIFY: 35250d18 manual
 // OFFSET: 0x00882440
 void ComSat::Sound::Manager::SubmitIncomingVoicePacket(uint64_t session, uint64_t talker, uint8_t* data, uint32_t size, bool reliable) {
-    if (size > static_cast<uint32_t>(ComSat::Sound::CODECIPMR6000::s_maxEncodedFrameLength + 4)) {
+    if (size > static_cast<uint32_t>(ComSat::Sound::CODECIPMR6000::s_maxEncodedFrameLength + 4) || size > offsetof(VoicePacket, m_data) + sizeof(VoicePacket::m_data)) {
         return;
     }
     RemoteTalker* remote;
@@ -1114,8 +1114,11 @@ bool ComSat::Sound::Manager::SessionDestroy(uint64_t session) {
         uint32_t iterator = 0;
         ComSat::MapKey<uint64_t> key(0);
         uint8_t priority;
+        // Removal can move entries behind the iterator, so drop each key and restart.
         while (info->m_talkerPriorities.Next(iterator, key, priority)) {
+            info->m_talkerPriorities.Remove(key, priority);
             this->UnregisterRemoteTalkerFromSession(session, key.m_value);
+            iterator = 0;
         }
         if (this->m_sessions.Remove(ComSat::MapKey<uint64_t>(session), info)) {
             ComSat::Delete(*this->m_allocator, info);
@@ -1162,7 +1165,12 @@ bool ComSat::Sound::Manager::DestroyLocalPlayer(uint8_t player) {
     ComSat::MapKey<uint64_t> key;
     Session* info;
     while (this->m_sessions.Next(iterator, key, info)) {
+        uint32_t used = this->m_sessions.m_used;
         this->UnregisterLocalTalkerFromSession(key.m_value, player);
+        // A destroyed session can move entries behind the iterator, and revisiting a session is harmless.
+        if (this->m_sessions.m_used != used) {
+            iterator = 0;
+        }
     }
     LocalPlayer* localPlayer;
     if (this->m_localPlayers.Remove(ComSat::MapKey<uint8_t>(player), localPlayer)) {

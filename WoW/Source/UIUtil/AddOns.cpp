@@ -658,12 +658,12 @@ void SetAddOnInfoRequest(CDataStore* msg) {
             continue;
         }
 
-        uint8_t state;
+        uint8_t state = 1;
         msg->Get(state);
         msg->Get(reinterpret_cast<uint8_t&>(addon->m_hasPublicKey));
 
         if (addon->m_hasPublicKey) {
-            uint8_t hasKeyData;
+            uint8_t hasKeyData = 0;
             msg->Get(hasKeyData);
 
             if (hasKeyData) {
@@ -671,7 +671,7 @@ void SetAddOnInfoRequest(CDataStore* msg) {
                 addon->SavePublicKey();
             }
 
-            uint32_t revision;
+            uint32_t revision = 0;
             msg->Get(revision);
 
             if (revision > addon->m_revision) {
@@ -679,11 +679,12 @@ void SetAddOnInfoRequest(CDataStore* msg) {
             }
         }
 
-        uint8_t hasUrl;
+        uint8_t hasUrl = 0;
         msg->Get(hasUrl);
 
         if (hasUrl) {
             char url[256];
+            url[0] = '\0';
             msg->GetString(url, sizeof(url));
 
             if (addon->m_url) {

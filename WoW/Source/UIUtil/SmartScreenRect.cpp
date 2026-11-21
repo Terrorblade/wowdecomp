@@ -149,6 +149,11 @@ static uint32_t SmartScreenRectGridPos(const CRect& rect) {
     float screenWidth = NDCToDDCWidth(1.0f);
     float screenHeight = NDCToDDCHeight(1.0f);
 
+    // A degenerate rect would divide by zero and turn into a search of billions of steps.
+    if (!(rect.maxX - rect.minX > 0.0f) || !(rect.minY - rect.maxY > 0.0f)) {
+        return 1;
+    }
+
     uint32_t columns = static_cast<uint32_t>(static_cast<int64_t>(screenWidth / (rect.maxX - rect.minX))) + 1;
     int32_t rows = static_cast<int32_t>(screenHeight / (rect.minY - rect.maxY)) + 1;
 

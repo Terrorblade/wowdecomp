@@ -102,17 +102,17 @@ static void SetThreadName(uint32_t threadId, const char* threadName) {
 int32_t CInitCritSect::Enter() {
     int32_t result = 0;
 
-    if (!this->m_critsect) {
+    if (!__atomic_load_n(&this->m_critsect, __ATOMIC_ACQUIRE)) {
         while (InterlockedExchange(&this->m_spinLock, 1)) {
         }
 
         if (!this->m_critsect) {
-            this->m_critsect = reinterpret_cast<CCritSect*>(this->m_critsectData);
             new (this->m_critsectData) CCritSect();
+            __atomic_store_n(&this->m_critsect, reinterpret_cast<CCritSect*>(this->m_critsectData), __ATOMIC_RELEASE);
             result = 1;
         }
 
-        this->m_spinLock = 0;
+        InterlockedExchange(&this->m_spinLock, 0);
     }
 
     this->m_critsect->Enter();
@@ -256,17 +256,20 @@ HANDLE SCreateThread(uint32_t dwStackSize, uint32_t (STORMAPI* lpStartAddress)(v
         *lpThreadId = threadId;
     }
 
-    S_Thread::SThreadTrack* track = &S_Thread::s_threads[S_Thread::s_numthreads];
-    track->threadId = threadId;
-    track->threadH = hThread;
-    track->live = 1;
-    track->suspended = 0;
+    if (S_Thread::s_numthreads < S_Thread::s_maxthreads) {
+        S_Thread::SThreadTrack* track = &S_Thread::s_threads[S_Thread::s_numthreads];
+        track->threadId = threadId;
+        track->threadH = hThread;
+        track->live = 1;
+        track->suspended = 0;
 
-    if (threadName) {
-        SStrCopy(track->name, threadName, sizeof(track->name));
+        if (threadName) {
+            SStrCopy(track->name, threadName, sizeof(track->name));
+        }
+
+        S_Thread::s_numthreads++;
     }
 
-    S_Thread::s_numthreads++;
     S_Thread::s_threadCrit.Leave();
 
     return hThread;

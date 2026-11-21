@@ -50,6 +50,9 @@ STYLEREC* CGBarberShop::m_currentSkinColor;
 // STATIC: 0x00BD19C4
 TSHashTable<USEABLESTYLE, HASHKEY_NONE> CGBarberShop::m_useableStyles;
 
+static int32_t s_useableStylesRace = -1;
+static int32_t s_useableStylesSex = -1;
+
 // VERIFY: 28b6e499 auto
 // OFFSET: 0x0052E480
 float CGBarberShop::GetMinCameraDistance() {
@@ -340,15 +343,21 @@ STYLEREC* CGBarberShop::GetStyle(int32_t type, int32_t race, int32_t sex, int32_
 // VERIFY: fdac6219 manual
 // OFFSET: 0x0052FE90
 void CGBarberShop::EnterWorld() {
-    if (CGBarberShop::m_initialized) {
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
+
+    if (!player) {
         return;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t race = player->m_unit->m_unitFieldBytes0[0];
     int32_t sex = player->m_player->m_playerBytes3[0];
 
-    for (int32_t i = 0; i < g_barberShopStyleDB.m_numRecords; i++) {
+    if (CGBarberShop::m_initialized && (race != s_useableStylesRace || sex != s_useableStylesSex)) {
+        CGBarberShop::m_useableStyles.InternalClear(0);
+        CGBarberShop::m_initialized = 0;
+    }
+
+    for (int32_t i = 0; !CGBarberShop::m_initialized && i < g_barberShopStyleDB.m_numRecords; i++) {
         BarberShopStyleRec* rec = g_barberShopStyleDB.GetRecordByIndex(i);
 
         if (!rec || rec->m_race != race || (rec->m_sex != sex && rec->m_sex != -1)) {
@@ -365,6 +374,10 @@ void CGBarberShop::EnterWorld() {
         STYLEREC* style = useable->m_styles.NewNode(2, 0, 0);
         style->m_rec = rec;
     }
+
+    CGBarberShop::m_initialized = 1;
+    s_useableStylesRace = race;
+    s_useableStylesSex = sex;
 
     CGBarberShop::m_currentHairStyle = CGBarberShop::GetStyle(0, player->m_unit->m_unitFieldBytes0[0], player->m_player->m_playerBytes3[0], player->m_player->m_playerBytes[2]);
     CGBarberShop::m_currentFacialHair = CGBarberShop::GetStyle(2, player->m_unit->m_unitFieldBytes0[0], player->m_player->m_playerBytes3[0], player->m_player->m_playerBytes2[0]);

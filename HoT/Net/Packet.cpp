@@ -161,6 +161,11 @@ uint32 Packet::Remaining() const {
     return this->m_ds->m_read <= this->m_ds->m_size ? this->m_ds->m_size - this->m_ds->m_read : 0;
 }
 
+uint32 Packet::ClampCount(uint32 count, uint32 wireSize) const {
+    uint32 fit = wireSize ? this->Remaining() / wireSize : this->Remaining();
+    return count < fit ? count : fit;
+}
+
 void Packet::Send() {
     this->m_ds->Finalize();
     ClientServices::Send2(this->m_ds);

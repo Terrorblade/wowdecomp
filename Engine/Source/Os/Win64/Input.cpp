@@ -253,6 +253,8 @@ static BOOL (WINAPI* s_setPhysicalCursorPos)(int32_t x, int32_t y);
 // STATIC: 0x00D41598
 static void (WINAPI* s_logicalToPhysicalPoint)(HWND hwnd, POINT* point);
 
+static int32_t s_polledThisPass;
+
 // OFFSET: 0x00868C10
 static BOOL OsGetPhysicalCursorPos(POINT* point) {
     if (!s_getPhysicalCursorPos) {
@@ -1202,19 +1204,25 @@ int32_t OsInputGet(OSINPUT* id, int32_t* param0, int32_t* param1, int32_t* param
     }
 
     if (s_queueHead == s_queueTail) {
-        OsPollJoysticks(s_appActive);
-        // Controller: gamepads post their buttons into the queue here.
-        Controller::Poll(s_appActive);
+        // Devices are polled once per pass of the caller's loop, not again after every message that queued input.
+        if (!s_polledThisPass) {
+            s_polledThisPass = 1;
+            OsPollJoysticks(s_appActive);
+            // Controller: gamepads post their buttons into the queue here.
+            Controller::Poll(s_appActive);
+        }
 
         MSG msg;
         BOOL available = PeekMessageA(&msg, nullptr, 0, 0, PM_NOREMOVE);
 
         while (s_queueHead == s_queueTail) {
             if (!available) {
+                s_polledThisPass = 0;
                 return 0;
             }
 
             if (!GetMessageA(&msg, nullptr, 0, 0)) {
+                s_polledThisPass = 0;
                 *id = OS_INPUT_SHUTDOWN;
                 return 1;
             }

@@ -588,11 +588,8 @@ int32_t CTgaFile::ReadRleImage(uint32_t flags) {
         return 0;
     }
 
-    if (SFile::SetFilePointer(this->m_file, this->PreImageBytes(), nullptr, 0) == -1) {
-        return 0;
-    }
-
-    if (!SFileReadFile(this->m_file, rleData, bytes, nullptr, nullptr, 0)) {
+    if (SFile::SetFilePointer(this->m_file, this->PreImageBytes(), nullptr, 0) == -1 || !SFileReadFile(this->m_file, rleData, bytes, nullptr, nullptr, 0)) {
+        SMemFree(rleData, __FILE__, __LINE__, 0);
         return 0;
     }
 

@@ -136,16 +136,23 @@ int32_t Packet_MSG_GUILD_EVENT_LOG_QUERY(void* param, NETMESSAGE msgId, uint32_t
     }
 
     CGGuildInfo::m_pendingEventLogNames = 0;
-    uint8_t count;
+    uint8_t count = 0;
     msg->Get(count);
     CGGuildInfo::m_numEventLogEntries = count <= 100 ? count : 100;
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(CGGuildInfo::m_numEventLogEntries); i++) {
         GuildEventLogEntry& entry = CGGuildInfo::m_eventLog[i];
-        uint8_t type;
+        uint8_t type = 0;
         msg->Get(type);
         entry.m_type = type;
+        entry.m_player1 = WOWGUID();
         msg->Get(entry.m_player1.m_guid);
+
+        if (msg->m_read > msg->m_size) {
+            CGGuildInfo::m_numEventLogEntries = static_cast<int32_t>(i);
+            break;
+        }
+
         WOWGUID none = WOWGUID();
 
         if (!g_nameDBCache.GetRecord(entry.m_player1.m_guid, none, &GuildEventLogNameCallback, nullptr, false)) {
@@ -174,7 +181,7 @@ int32_t Packet_MSG_GUILD_EVENT_LOG_QUERY(void* param, NETMESSAGE msgId, uint32_t
             entry.m_rank = 0;
         }
 
-        uint32_t age;
+        uint32_t age = 0;
         msg->Get(age);
         entry.m_time = now - age;
     }
@@ -598,13 +605,18 @@ void GuildInfoCacheCallback(int32_t id, const WOWGUID& guid, void* param, bool s
 void CGGuildInfo::SaveToFile() {
     OsCreateDirectory("Logs", 0);
     HOSFILE file = OsCreateFile(s_guildRosterFile, OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
-    CGPlayer_C* player;
+    CGPlayer_C* player = nullptr;
 
-    if (file != OS_INVALID_FILE && (player = ClntObjMgrGetActivePlayerObj()) != nullptr) {
+    if (file != OS_INVALID_FILE && (player = ClntObjMgrGetActivePlayerObj()) == nullptr) {
+        OsCloseFile(file);
+    }
+
+    if (file != OS_INVALID_FILE && player) {
         WOWGUID guid = player->m_obj->m_guid;
-        GuildStats_C* stats = g_guildInfoCache.GetRecord(player->m_player->m_playerGuildid, guid, GuildInfoCacheCallback, nullptr, false);
+        GuildStats_C* stats = g_guildInfoCache.GetRecord(player->m_player->m_playerGuildid, guid, GuildInfoCacheCallback, nullptr, true);
 
         if (!stats) {
+            OsCloseFile(file);
             return;
         }
 

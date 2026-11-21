@@ -12,7 +12,11 @@
 static int32_t Script_SetTaxiMap(lua_State* L) {
     if (CGTaxiMap::m_mapTexture) {
         CTexture* texture = CGTaxiMap::m_mapTexture;
-        static_cast<CSimpleTexture*>(FrameScript_GetObjectThis(L, CSimpleTexture::GetObjectType()))->SetTexture(texture);
+        CSimpleTexture* object = static_cast<CSimpleTexture*>(FrameScript_GetObjectThis(L, CSimpleTexture::GetObjectType()));
+
+        if (object) {
+            object->SetTexture(texture);
+        }
     }
 
     return 0;

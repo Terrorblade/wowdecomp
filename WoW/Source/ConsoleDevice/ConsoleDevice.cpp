@@ -298,10 +298,12 @@ void AddConsoleDeviceDefaultCallback(void (*callback)(OPTION_PAGE page)) {
 void RemoveConsoleDeviceDefaultCallback(void (*callback)(OPTION_PAGE page)) {
     uint32_t count = s_defaultCallbacks.Count();
 
-    for (uint32_t i = 0; i < count; i++) {
+    for (uint32_t i = 0; i < count;) {
         if (s_defaultCallbacks[i] == callback) {
             s_defaultCallbacks[i] = s_defaultCallbacks[--count];
             s_defaultCallbacks.SetCount(count);
+        } else {
+            i++;
         }
     }
 }

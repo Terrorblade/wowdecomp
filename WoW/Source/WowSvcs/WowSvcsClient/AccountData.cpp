@@ -372,10 +372,10 @@ static int32_t Packet_SMSG_ACCOUNT_DATA_TIMES(void* param, NETMESSAGE msgId, uin
     msg->Get(serverTime);
     s_accountDataTime = serverTime;
 
-    uint8_t unk;
+    uint8_t unk = 0;
     msg->Get(unk);
 
-    uint32_t mask;
+    uint32_t mask = 0;
     msg->Get(mask);
 
     uint32_t count = 0;
@@ -476,7 +476,8 @@ static int32_t Packet_SMSG_UPDATE_ACCOUNT_DATA(void* param, NETMESSAGE msgId, ui
                 msg->GetDataInSitu(compressed, compressedSize);
             }
 
-            if (size && compressed) {
+            // Deflate cannot expand past about 1032:1, so a larger claimed size is corrupt.
+            if (size && compressed && size / 1032 <= compressedSize) {
                 uint8_t* buffer;
                 bool stackBuffer;
 

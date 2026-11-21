@@ -1228,10 +1228,15 @@ CSimpleTop::~CSimpleTop() {
         this->m_destroyed.UnlinkNode(frame);
     }
 
+    // Deferred regions must go while this Lua state still owns their refs and global names.
+    CSimpleRegion::FlushDeferredDeletes();
+
     while ((frame = this->m_frames.Head()) != nullptr) {
         this->m_frames.UnlinkNode(frame);
         delete frame;
     }
+
+    CSimpleRegion::FlushDeferredDeletes();
 
     for (int32_t strata = 0; strata < FRAME_STRATA_TOOLTIP + 1; strata++) {
         delete this->m_strata[strata];

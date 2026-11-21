@@ -293,10 +293,10 @@ void CGDynamicObject_C::ModelLoaded(CM2Model* model) {
     CGObject_C::ModelLoaded(model);
     this->m_stateFlags ^= (this->GetObjectModel()->HasSequence(158) ^ this->m_stateFlags) & 0x1;
     SpellRec spell;
-    g_spellDB.GetRecord(this->m_dynamicObject->m_spellID, &spell);
-    SpellVisualEffectNameRec* effect = this->GetVisualEffectNameRec(&spell);
+    bool hasSpell = g_spellDB.GetRecord(this->m_dynamicObject->m_spellID, &spell);
+    SpellVisualEffectNameRec* effect = this->GetVisualEffectNameRec(hasSpell ? &spell : nullptr);
 
-    if (spell.m_id && (spell.m_attributesExE & 0x40000000)) {
+    if (hasSpell && spell.m_id && (spell.m_attributesExE & 0x40000000)) {
         model->m_fFlags |= 0x4;
     }
 
@@ -356,6 +356,11 @@ void CGDynamicObject_C::ObjectVisKitProc() {
         if (kit->m_charProc[i] == 9) {
             uint8_t density = static_cast<uint8_t>(static_cast<int32_t>(kit->m_charParamZero[i]));
             C3Vector position = this->GetRawPosition();
+
+            if (this->m_blizzardVisual) {
+                SpellVisualsBlizzardStop(&this->m_blizzardVisual);
+            }
+
             this->m_blizzardVisual = SpellVisualsBlizzardCreate(&position, this->m_dynamicObject->m_radius, this->m_dynamicObject->m_spellID, density, kit->m_charParamOne[i]);
             break;
         }

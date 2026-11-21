@@ -76,8 +76,21 @@ void CShadowQuery::FreeBuffers() {
             SMemFree(buffers->m_groupData, nullptr, 0, 0);
         }
 
-        delete[] buffers->m_untextured.m_batches;
-        delete[] buffers->m_textured.m_batches;
+        if (buffers->m_untextured.m_batches) {
+            SMemFree(buffers->m_untextured.m_batches, nullptr, 0, 0);
+        }
+
+        if (buffers->m_textured.m_batches) {
+            SMemFree(buffers->m_textured.m_batches, nullptr, 0, 0);
+        }
+
+        buffers->m_groups = nullptr;
+        buffers->m_groupData = nullptr;
+        buffers->m_untextured.m_batches = nullptr;
+        buffers->m_textured.m_batches = nullptr;
+        buffers->m_groupCount = 0;
+        buffers->m_untextured.m_count = 0;
+        buffers->m_textured.m_count = 0;
     }
 }
 

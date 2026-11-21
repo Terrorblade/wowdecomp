@@ -612,17 +612,9 @@ static int32_t Script_GetRewardTitle(lua_State* L) {
     format[0] = 0;
 
     if (gender == 1) {
-        if (strcmp(title->m_name1, "")) {
-            strcpy(format, title->m_name1);
-        } else {
-            strcpy(format, title->m_name);
-        }
+        SStrCopy(format, *title->m_name1 ? title->m_name1 : title->m_name, sizeof(format));
     } else {
-        if (strcmp(title->m_name, "")) {
-            strcpy(format, title->m_name);
-        } else {
-            strcpy(format, title->m_name1);
-        }
+        SStrCopy(format, *title->m_name ? title->m_name : title->m_name1, sizeof(format));
     }
 
     char text[256];

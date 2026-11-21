@@ -227,7 +227,7 @@ bool HidDevice::WriteEx(const void* data, uint32_t size, HANDLE event) {
     this->m_writeOverlapped.Offset = 0;
     this->m_writeOverlapped.OffsetHigh = 0;
     this->m_writeOverlapped.hEvent = this;
-    return WriteFileEx(this->m_file, data, size, &this->m_readOverlapped, WriteCompletion) != 0;
+    return WriteFileEx(this->m_file, data, size, &this->m_writeOverlapped, WriteCompletion) != 0;
 }
 
 // OFFSET: 0x008C3830

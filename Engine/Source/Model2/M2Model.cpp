@@ -1011,7 +1011,9 @@ CAaBox CM2Model::GetCurrentBoundingBox() {
         return CAaBox::Transform(this->m_shared->m_data->m_bounds.m_extent, *world);
     }
 
-    const CAaBox& extent = data->m_sequences[this->m_bones->m_sequence.m_sequenceIndex].m_bounds.m_extent;
+    // The root bone has no sequence index while its stand animation streams in, the model bounds stand in until then.
+    uint16_t sequenceIndex = this->m_bones->m_sequence.m_sequenceIndex;
+    const CAaBox& extent = sequenceIndex < data->m_sequences.m_count ? data->m_sequences[sequenceIndex].m_bounds.m_extent : data->m_bounds.m_extent;
     CAaBox box;
 
     if (extent.IsInverted()) {
@@ -1078,7 +1080,7 @@ CAaBox CM2Model::GetSplitBodyBoundingBox(uint32_t boneId) {
 
     uint16_t boneIndex = data->m_boneIndicesById[boneId];
 
-    if (!boneIndex || boneIndex == 0xFFFF || this->m_bones[boneIndex].m_sequence.m_sequenceIndex >= count) {
+    if (!boneIndex || boneIndex == 0xFFFF || this->m_bones[boneIndex].m_sequence.m_sequenceIndex >= count || this->m_bones->m_sequence.m_sequenceIndex >= count) {
         return this->GetCurrentBoundingBox();
     }
 
@@ -2025,6 +2027,11 @@ C3Vector CM2Model::GetAttachmentPivot(uint32_t id) {
     M2Data* data = this->m_shared->m_data;
     uint32_t index = id < data->m_attachmentIndicesById.m_count ? data->m_attachmentIndicesById[id] : 0xFFFFFFFF;
 
+    // A missing attachment read 0xFFFF or 0xFFFFFFFF entries past the array.
+    if (index >= data->m_attachments.m_count) {
+        return C3Vector(0.0f, 0.0f, 0.0f);
+    }
+
     return data->m_attachments[index].m_position;
 }
 
@@ -2480,6 +2487,11 @@ void CM2Model::FindKey(M2ModelBoneSeq* sequence, const M2TrackBase& track, uint3
                 uint32_t mid = (high + key) >> 1;
 
                 if (time < keys[mid]) {
+                    // A time before the first key used to wrap high to 0xFFFFFFFF and read far past the keys.
+                    if (!mid) {
+                        break;
+                    }
+
                     high = mid - 1;
                 } else {
                     key = mid + 1;
@@ -4096,7 +4108,8 @@ CAaSphere CM2Model::GetCurrentBoundingSphere() {
         return result;
     }
 
-    M2Bounds* bounds = &data->m_sequences[this->m_bones->m_sequence.m_sequenceIndex].m_bounds;
+    uint16_t sequenceIndex = this->m_bones->m_sequence.m_sequenceIndex;
+    M2Bounds* bounds = sequenceIndex < data->m_sequences.m_count ? &data->m_sequences[sequenceIndex].m_bounds : &data->m_bounds;
     CAaSphere spheres[2];
     spheres[0].r = 0.0f;
     spheres[1].r = 0.0f;
@@ -6214,6 +6227,12 @@ C3Vector CM2Model::GetAttachmentPosition(uint32_t id) {
 
     this->Animate();
 
+    // A missing attachment indexed 0xFFFF past both arrays, the model root stands in for it.
+    if (index >= data->m_attachments.m_count) {
+        const C44Matrix& root = data->m_bones.m_count ? *this->m_boneMatrices : this->m_matrixF4;
+        return C3Vector(0.0f, 0.0f, 0.0f) * root * this->m_scene->m_viewInv;
+    }
+
     return data->m_attachments[index].m_position * this->m_boneMatrices[bone] * this->m_scene->m_viewInv;
 }
 
@@ -7448,11 +7467,21 @@ int32_t CM2Model::InitializeLoaded() {
 
             if (!(cameraData->m_fieldOfView > 0.0f) || cameraData->m_fieldOfView >= 3.1415927f) {
                 DebugLog("\"%s\", %s = %g", "shared->fieldOfView > 0.0f && shared->fieldOfView < PI", "shared->fieldOfView", static_cast<double>(cameraData->m_fieldOfView));
+
+                if (camera) {
+                    HandleClose(reinterpret_cast<HOBJECT>(camera));
+                }
+
                 break;
             }
 
             if (cameraData->m_farClip <= cameraData->m_nearClip) {
                 DebugLog("\"%s\", %s = %g, %s = %g", "shared->nearClip < shared->farClip", "shared->nearClip", static_cast<double>(cameraData->m_nearClip), "shared->farClip", static_cast<double>(cameraData->m_farClip));
+
+                if (camera) {
+                    HandleClose(reinterpret_cast<HOBJECT>(camera));
+                }
+
                 break;
             }
 

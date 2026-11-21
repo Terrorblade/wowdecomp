@@ -106,7 +106,7 @@ int32_t Packet_SMSG_RAID_READY_CHECK_ERROR(void* param, NETMESSAGE msgId, uint32
 // VERIFY: 495286f8 manual
 // OFFSET: 0x005725C0
 int32_t Packet_MSG_NOTIFY_PARTY_SQUELCH(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t squelched;
+    uint32_t squelched = 0;
     msg->Get(squelched);
 
     if (squelched) {
@@ -121,8 +121,8 @@ int32_t Packet_MSG_NOTIFY_PARTY_SQUELCH(void* param, NETMESSAGE msgId, uint32_t 
 // VERIFY: 03dd0fd2 auto
 // OFFSET: 0x00572610
 int32_t Packet_SMSG_ECHO_PARTY_SQUELCH(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID guid;
-    uint32_t squelched;
+    WOWGUID guid = WOWGUID();
+    uint32_t squelched = 0;
     msg->Get(guid.m_guid);
     msg->Get(squelched);
     WOWGUID none = WOWGUID();
@@ -385,7 +385,7 @@ int32_t CGRaidInfo::IsPetInRaid(const WOWGUID& guid, int32_t* index) {
 // OFFSET: 0x005743B0
 int32_t Packet_MSG_RAID_TARGET_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     WOWGUID setter = WOWGUID();
-    uint8_t full;
+    uint8_t full = 0;
     msg->Get(full);
 
     if (full) {
@@ -574,7 +574,7 @@ static void ReadyCheckNameCallback(int32_t id, const WOWGUID& guid, void* param,
 // VERIFY: a30fa835 auto
 // OFFSET: 0x00574D50
 int32_t Packet_MSG_RAID_READY_CHECK(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    WOWGUID initiator;
+    WOWGUID initiator = WOWGUID();
     msg->Get(initiator.m_guid);
     CGRaidInfo::m_readyCheckInitiator = initiator;
     CGRaidInfo::m_readyCheckTime = OsGetAsyncTimeMs() + 30000;

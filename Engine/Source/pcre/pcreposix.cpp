@@ -147,6 +147,13 @@ int32_t regcomp(regex_t* preg, const char* pattern, int32_t cflags) {
     return 0;
 }
 
+void regfree(regex_t* preg) {
+    if (preg && preg->re_pcre) {
+        pcre_free(preg->re_pcre);
+        preg->re_pcre = nullptr;
+    }
+}
+
 // VERIFY: 50a3d188 manual
 // OFFSET: 0x0083DFA0
 int32_t regexec(const regex_t* preg, const char* string, size_t nmatch, regmatch_t pmatch[], int32_t eflags) {

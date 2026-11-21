@@ -47,7 +47,7 @@ static void ReadLearntTalents(Net::Packet& packet, std::vector<uint32_t>& out) {
     uint32_t count = packet.GetUInt32();
     out.clear();
 
-    for (uint32_t i = 0; i < count && packet.CanRead(1); i++) {
+    for (uint32_t i = 0; i < count && packet.CanRead(4); i++) {
         out.push_back(packet.GetUInt32());
     }
 }
@@ -82,7 +82,7 @@ static int32_t Packet_SMSG_CUSTOM_TALENT_CACHE(void* param, NETMESSAGE msgId, ui
 
         uint32_t linkCount = packet.GetUInt32();
 
-        for (uint32_t j = 0; j < linkCount && packet.CanRead(1); j++) {
+        for (uint32_t j = 0; j < linkCount && packet.CanRead(4); j++) {
             info.m_childLinks.push_back(packet.GetUInt32());
         }
 

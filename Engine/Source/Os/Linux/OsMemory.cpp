@@ -1,5 +1,6 @@
 #if defined(WOWDECOMP_PLATFORM_POSIX)
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <mutex>
@@ -18,6 +19,9 @@ static const uintptr_t s_granularity = 0x10000;
 
 static std::mutex s_blockLock;
 static std::set<uintptr_t> s_blocks;
+
+// HoT: the next block is tried right after the last one before the mappings are walked again, as on Windows.
+static std::atomic<uintptr_t> s_nearHint;
 
 // Free gaps between consecutive mappings that intersect [minimum, maximum).
 struct Gap {
@@ -55,6 +59,7 @@ static void* MapAt(uintptr_t address, uintptr_t bytes, uintptr_t header) {
     }
 
     *static_cast<uintptr_t*>(ptr) = bytes;
+    s_nearHint.store(address + bytes, std::memory_order_relaxed);
 
     uint8_t* block = static_cast<uint8_t*>(ptr) + header;
 
@@ -88,6 +93,14 @@ void* OsAllocNear(const void* anchor, size_t size) {
 
     if (center + s_nearRange < maximum) {
         maximum = center + s_nearRange;
+    }
+
+    uintptr_t hint = s_nearHint.load(std::memory_order_relaxed);
+
+    if (hint > center && hint < maximum && maximum - hint >= bytes) {
+        if (void* ptr = MapAt(hint, bytes, header)) {
+            return ptr;
+        }
     }
 
     GapSearch search;

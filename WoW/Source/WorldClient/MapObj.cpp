@@ -4130,13 +4130,17 @@ void CMapObj::ProcessAsyncLoadQueue() {
         AsyncFile::LeaveQueueLock();
     }
 
-    count = 0;
+    s_pending.SetCount(0);
 
     for (CMapObj* mapObj = CMapObj::s_asyncLoadQueue.Head(); mapObj; mapObj = CMapObj::s_asyncLoadQueue.Next(mapObj)) {
         if (mapObj->m_asyncObject) {
-            pending[count++] = mapObj;
+            s_pending.SetCount(s_pending.Count() + 1);
+            s_pending.m_data[s_pending.Count() - 1] = mapObj;
         }
     }
+
+    pending = s_pending.m_data;
+    count = s_pending.Count();
 
     if (count) {
         qsort(pending, count, sizeof(void*), CompareMapObjDistance);

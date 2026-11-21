@@ -45,8 +45,23 @@ void FVBBList::Destroy() {
         block = next;
     }
 
+    block = this->m_usedBlocks.Head();
+
+    while (!this->m_usedBlocks.IsEnd(block)) {
+        Block* next = this->m_usedBlocks.RawNext(block);
+        CGxBuf* buf = block->m_buf;
+
+        if (buf && buf != g_theGxDevicePtr->BufStream(buf->m_pool->m_target, 0, 0)) {
+            g_theGxDevicePtr->BufDestroy(buf);
+        }
+
+        this->m_usedBlocks.DeleteNode(block);
+        block = next;
+    }
+
     if (this->m_pool) {
         g_theGxDevicePtr->PoolDestroy(this->m_pool);
+        this->m_pool = nullptr;
     }
 }
 

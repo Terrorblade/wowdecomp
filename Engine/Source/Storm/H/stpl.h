@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
+#include <type_traits>
 #include <typeinfo>
 #include "Engine/Source/Storm/H/storm.h"
 
@@ -142,6 +143,7 @@ class TSGrowableArray : public TSFixedArray<T> {
     uint32_t Add(uint32_t count, uint32_t incr, const T* data);
     uint32_t CalcChunkSize(uint32_t count);
     void GrowToFit(uint32_t index, int32_t zero);
+    uint32_t GrowAlloc(uint32_t alloc);
     T* New();
     T* New(const T& source);
     void Reserve(uint32_t count, int32_t round);
@@ -747,6 +749,14 @@ void TSFixedArray<T>::ReallocData(uint32_t count) {
     }
 
     this->m_alloc = count;
+
+    if constexpr (std::is_trivially_copyable<T>::value) {
+        if (olddata && count) {
+            this->m_data = static_cast<T*>(SMemReAlloc(olddata, sizeof(T) * count, this->MemFileName(), this->MemLineNo(), 0));
+            return;
+        }
+    }
+
     this->m_data = static_cast<T*>(SMemReAlloc(olddata, sizeof(T) * count, this->MemFileName(), this->MemLineNo(), SMEM_FLAG_NOREALLOC));
 
     if (!this->m_data) {
@@ -826,6 +836,8 @@ uint32_t TSGrowableArray<T>::Add(uint32_t count, const T* data) {
             newcount += chunk - newcount % chunk;
         }
 
+        newcount = this->GrowAlloc(newcount);
+
         this->ReallocData(newcount);
     }
 
@@ -853,6 +865,8 @@ uint32_t TSGrowableArray<T>::Add(uint32_t count, uint32_t incr, const T* data) {
         if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
             newcount += chunk - newcount % chunk;
         }
+
+        newcount = this->GrowAlloc(newcount);
 
         this->ReallocData(newcount);
     }
@@ -890,6 +904,18 @@ uint32_t TSGrowableArray<T>::CalcChunkSize(uint32_t count) {
     return result ? result : 1;
 }
 
+// INLINED
+template <class T>
+uint32_t TSGrowableArray<T>::GrowAlloc(uint32_t alloc) {
+    uint64_t grown = static_cast<uint64_t>(this->m_alloc) + this->m_alloc / 2;
+
+    if (static_cast<uint64_t>(this->m_alloc) * sizeof(T) >= 4096 && grown > alloc && grown <= UINT32_MAX) {
+        return static_cast<uint32_t>(grown);
+    }
+
+    return alloc;
+}
+
 // VERIFY: c55e1baf auto
 // OFFSET: [0x00481080<EvtTimer*>, 0x008A1B30<Liquid::CMaterialSettings*>, 0x008A1BB0<Liquid::IMaterial*>]
 template <class T>
@@ -904,6 +930,8 @@ void TSGrowableArray<T>::GrowToFit(uint32_t index, int32_t zero) {
             if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
                 alloc = newcount + chunk - newcount % chunk;
             }
+
+            alloc = this->GrowAlloc(alloc);
 
             this->ReallocData(alloc);
         }
@@ -929,6 +957,8 @@ T* TSGrowableArray<T>::New() {
             newcount += chunk - newcount % chunk;
         }
 
+        newcount = this->GrowAlloc(newcount);
+
         this->ReallocData(newcount);
     }
 
@@ -949,6 +979,8 @@ T* TSGrowableArray<T>::New(const T& source) {
         if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
             newcount += chunk - newcount % chunk;
         }
+
+        newcount = this->GrowAlloc(newcount);
 
         this->ReallocData(newcount);
     }
@@ -973,6 +1005,8 @@ void TSGrowableArray<T>::Reserve(uint32_t count, int32_t round) {
         if (newcount % chunk && newcount <= UINT32_MAX - chunk) {
             newcount += chunk - newcount % chunk;
         }
+
+        newcount = this->GrowAlloc(newcount);
     }
 
     this->ReallocData(newcount);
@@ -990,6 +1024,8 @@ void TSGrowableArray<T>::SetCount(uint32_t count) {
             if (count % chunk && count <= UINT32_MAX - chunk) {
                 alloc = count + chunk - count % chunk;
             }
+
+            alloc = this->GrowAlloc(alloc);
 
             this->ReallocData(alloc);
         }

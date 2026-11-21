@@ -50,7 +50,7 @@ OsTimeManager::TimingMethod OsTimeManager::Calibrate() {
         GetProcessAffinityMask(process, &processAffinity, &systemAffinity);
 
         for (uint32_t i = 0; i < 512; i++) {
-            SetThreadAffinityMask(thread, 1 << (i % processors));
+            SetThreadAffinityMask(thread, static_cast<DWORD_PTR>(1) << (i % processors));
             OsSleep(0);
 
             LARGE_INTEGER count;

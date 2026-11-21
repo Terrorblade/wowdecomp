@@ -30,7 +30,7 @@ int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStor
         this->m_realmResponse->GameServerResult(this, "SMSG_CHAR_ENUM", nullptr, nullptr);
     }
 
-    uint8_t count;
+    uint8_t count = 0;
     msg->Get(count);
 
     int32_t invalid = 0;
@@ -257,7 +257,7 @@ int32_t RealmConnection::HandleAddonInfo(uint32_t msgId, uint32_t time, CDataSto
 // VERIFY: b88b6288 auto
 // OFFSET: 0x00464460
 int32_t RealmConnection::HandleCharacterLoginFailed(uint32_t msgId, uint32_t time, CDataStore* msg) {
-    uint8_t result;
+    uint8_t result = 0;
     msg->Get(result);
     this->HandleCharacterLoginFailed(result);
 
@@ -279,7 +279,7 @@ int32_t RealmConnection::HandleAuthResponse(uint32_t msgId, uint32_t time, CData
         this->m_realmResponse->GameServerResult(this, "SMSG_AUTH_RESPONSE", nullptr, nullptr);
     }
 
-    uint8_t result;
+    uint8_t result = 13;
     msg->Get(result);
 
     if (result == 12 || result == 27) {
@@ -315,9 +315,12 @@ int32_t RealmConnection::HandleClientCacheVersion(uint32_t msgId, uint32_t time,
         this->m_realmResponse->GameServerResult(this, "SMSG_CLIENTCACHE_VERSION", nullptr, nullptr);
     }
 
-    uint32_t version;
+    uint32_t version = 0;
     msg->Get(version);
-    SetClientCacheVersion(version);
+
+    if (msg->m_read <= msg->m_size) {
+        SetClientCacheVersion(version);
+    }
 
     return 1;
 }
@@ -325,7 +328,7 @@ int32_t RealmConnection::HandleClientCacheVersion(uint32_t msgId, uint32_t time,
 // VERIFY: f89adfdd auto
 // OFFSET: 0x00464780
 int32_t RealmConnection::HandleCharacterCreate(uint32_t msgId, uint32_t time, CDataStore* msg) {
-    uint8_t result;
+    uint8_t result = 0;
     msg->Get(result);
     this->HandleCharacterCreate(result);
 
@@ -335,7 +338,7 @@ int32_t RealmConnection::HandleCharacterCreate(uint32_t msgId, uint32_t time, CD
 // VERIFY: 58fb7628 auto
 // OFFSET: 0x004647B0
 int32_t RealmConnection::HandleCharacterDelete(uint32_t msgId, uint32_t time, CDataStore* msg) {
-    uint8_t result;
+    uint8_t result = 0;
     msg->Get(result);
     this->HandleCharacterDelete(result);
 

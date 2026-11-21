@@ -694,7 +694,7 @@ static int32_t Script_SortAuctionApplySort(lua_State* L) {
     const char* type = lua_tolstring(L, 1, nullptr);
 
     if (!SStrCmpI(type, "owner", STORM_MAX_STR)) {
-        qsort(CGAuctionHouse::m_ownerList.m_data, CGAuctionHouse::m_ownerList.Count(), sizeof(AuctionItemInfo), CompareFunction);
+        SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     } else if (!SStrCmpI(type, "bidder", STORM_MAX_STR)) {
         CGAuctionHouse::ApplyBidderSort();
@@ -718,7 +718,7 @@ static int32_t Script_CalculateAuctionDeposit(lua_State* L) {
     CGItem_C* item;
     ItemStats_C* stats;
 
-    if (!rec || !(sellItem = CGAuctionHouse::m_sellItem) || !(item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPE_ITEM, __FILE__, __LINE__))) || !(stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, sellItem, AuctionSellItemQueryCallback, nullptr, false))) {
+    if (!rec || !(sellItem = CGAuctionHouse::m_sellItem) || !(item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPE_ITEM, __FILE__, __LINE__))) || !(stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, sellItem, AuctionSellItemQueryCallback, nullptr, true))) {
         lua_pushnumber(L, 0.0);
         return 1;
     }
@@ -1030,7 +1030,7 @@ static int32_t Script_GetAuctionSellItemInfo(lua_State* L) {
     CGItem_C* item;
     ItemStats_C* stats;
 
-    if (!sellItem || !(item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPE_ITEM, __FILE__, __LINE__))) || !(stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, sellItem, AuctionSellItemQueryCallback, nullptr, false))) {
+    if (!sellItem || !(item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPE_ITEM, __FILE__, __LINE__))) || !(stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, sellItem, AuctionSellItemQueryCallback, nullptr, true))) {
         lua_pushnil(L);
         lua_pushnil(L);
         lua_pushnumber(L, 1.0);

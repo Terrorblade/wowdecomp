@@ -49,8 +49,6 @@ void* STORMAPI SMemAlloc(size_t bytes, const char* filename, int32_t linenumber,
         return nullptr;
     }
 
-    _msize(ptr);
-
     return ptr;
 }
 
@@ -58,7 +56,6 @@ void* STORMAPI SMemAlloc(size_t bytes, const char* filename, int32_t linenumber,
 // OFFSET: 0x0076E5A0
 int32_t STORMAPI SMemFree(void* ptr, const char* filename, int32_t linenumber, uint32_t flags) {
     if (ptr) {
-        _msize(ptr);
         free(ptr);
     }
 
@@ -82,11 +79,11 @@ void* STORMAPI SMemReAlloc(void* ptr, size_t bytes, const char* filename, int32_
         return SMemAlloc(bytes, filename, linenumber, flags);
     }
 
-    size_t oldsize = _msize(ptr);
-
     if (flags & SMEM_FLAG_NOREALLOC) {
         return nullptr;
     }
+
+    size_t oldsize = _msize(ptr);
 
     size_t size = (bytes + 7) & ~static_cast<size_t>(7);
     void* newptr = realloc(ptr, size);
@@ -99,11 +96,12 @@ void* STORMAPI SMemReAlloc(void* ptr, size_t bytes, const char* filename, int32_
         return nullptr;
     }
 
-    size_t newsize = _msize(newptr);
-
+#ifndef NDEBUG
     if (s_heaptracking && newptr != ptr) {
+        size_t newsize = _msize(newptr);
         DebugLog(-1, "[%08lx] REALLOC %10d bytes <-- [%08lx]/%d, requested=%d (%s: %d)\n", newptr, newsize, ptr, oldsize, bytes, filename, linenumber);
     }
+#endif
 
     if (oldsize < bytes && (flags & SMEM_FLAG_ZEROMEMORY)) {
         memset(static_cast<uint8_t*>(newptr) + oldsize, 0, bytes - oldsize);

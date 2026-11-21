@@ -226,6 +226,36 @@ CSimpleFrame* Create_SimpleFrame(CSimpleFrame* parent) {
     return data ? new (data) CSimpleFrame(parent) : nullptr;
 }
 
+// Script refs compiled into a closed Lua state are dropped instead of unref'd into the state that replaced it.
+static void FrameXML_ForgetStaleScripts(XMLNode* node) {
+    for (; node; node = node->m_next) {
+        FrameScriptFunctionRef* ref = dynamic_cast<FrameScriptFunctionRef*>(node->m_userData);
+
+        if (ref) {
+            ref->m_function = 0;
+        }
+
+        FrameXML_ForgetStaleScripts(node->m_child);
+    }
+}
+
+static void FrameXML_DeleteHashedTree(XMLNode* node, uint32_t generation) {
+    if (!node) {
+        return;
+    }
+
+    if (generation != FrameScript_GetContextGeneration() || !FrameScript_GetContext()) {
+        FrameXML_ForgetStaleScripts(node);
+    }
+
+    delete node;
+}
+
+HashedNode::~HashedNode() {
+    FrameXML_DeleteHashedTree(this->m_node, this->m_generation);
+    this->m_node = nullptr;
+}
+
 // VERIFY: f5a4d98a auto
 // OFFSET: 0x00812B90
 void FrameXML_FreeHashNodes() {
@@ -411,14 +441,13 @@ void FrameXML_StoreHashNode(XMLNode* node, const char* name, const char* taint, 
             return;
         }
 
-        if (hashed->m_node) {
-            delete hashed->m_node;
-        }
+        FrameXML_DeleteHashedTree(hashed->m_node, hashed->m_generation);
     } else {
         hashed = s_virtualNodes.New(name, 0, 0);
     }
 
     hashed->m_node = node;
+    hashed->m_generation = FrameScript_GetContextGeneration();
     hashed->m_taint = taint;
     node->Detach();
 

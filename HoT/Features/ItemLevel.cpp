@@ -26,7 +26,7 @@ static int32_t Packet_SMSG_ITEM_LEVEL_BREAKDOWN(void* param, NETMESSAGE msgId, u
     uint8_t count = packet.GetUInt8();
     s_slotLevels.clear();
 
-    for (uint8_t i = 0; i < count; i++) {
+    for (uint8_t i = 0; i < count && packet.CanRead(5); i++) {
         uint8_t slot = packet.GetUInt8();
         s_slotLevels[slot] = packet.GetUInt32();
     }

@@ -35,7 +35,7 @@ static const MathFunction s_mathFunctions[12] = {
 
 // HoT: appends its own variables, their ops follow MATHOP_BONUS_COEFFICIENT_3_UPPER.
 // STATIC: 0x00ACE8F8
-static const char* s_mathVariables[168] = {
+static const char* s_mathVariables[174] = {
     "STR", "AGI", "STA", "INT", "SPI", "str", "agi", "sta", "int", "spi",
     "m1", "m2", "m3", "M1", "M2", "M3", "a1", "a2", "a3", "A1", "A2", "A3",
     "d", "D", "c", "C", "p", "P", "x1", "x2", "x3", "X1", "X2", "X3",
@@ -51,6 +51,7 @@ static const char* s_mathVariables[168] = {
     "hp", "HP", "mp", "MP", "fp", "FP", "ilvl", "ILVL", "dodge", "DODGE", "parry", "PARRY",
     "aura1", "aura2", "aura3", "AURA1", "AURA2", "AURA3", "absorb", "ABSORB", "stacks", "STACKS",
     "tick1", "tick2", "tick3", "TICK1", "TICK2", "TICK3",
+    "mhaste", "MHASTE", "rhaste", "RHASTE", "shaste", "SHASTE",
 };
 
 // STATIC: 0x00ACEB2C

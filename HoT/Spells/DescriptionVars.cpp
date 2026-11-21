@@ -9,6 +9,9 @@ namespace HoT::Spells {
 
 static const uint32_t POWER_MANA = 0;
 static const uint32_t POWER_FOCUS = 2;
+static const int32_t RATING_HASTE_MELEE = 17;
+static const int32_t RATING_HASTE_RANGED = 18;
+static const int32_t RATING_HASTE_SPELL = 19;
 
 // What $s<n> would have shown, for when no aura is in scope or the server sent nothing yet.
 static float BaseEffectPoints(const SpellRec* spell, uint32_t effectIndex) {
@@ -127,6 +130,21 @@ bool GetDescriptionVariable(uint32_t op, CGPlayer_C* player, const SpellRec* spe
         case MATHOP_HOT_TICK_2_UPPER:
         case MATHOP_HOT_TICK_3_UPPER:
             value = AuraTickSeconds(spell, op - MATHOP_HOT_TICK_1_UPPER + 1);
+            return true;
+
+        case MATHOP_HOT_MELEE_HASTE:
+        case MATHOP_HOT_MELEE_HASTE_UPPER:
+            value = player->GetCombatRatingPct(RATING_HASTE_MELEE);
+            return true;
+
+        case MATHOP_HOT_RANGED_HASTE:
+        case MATHOP_HOT_RANGED_HASTE_UPPER:
+            value = player->GetCombatRatingPct(RATING_HASTE_RANGED);
+            return true;
+
+        case MATHOP_HOT_SPELL_HASTE:
+        case MATHOP_HOT_SPELL_HASTE_UPPER:
+            value = player->GetCombatRatingPct(RATING_HASTE_SPELL);
             return true;
 
         // The stock $rw and $RW round down and up and clamp to 1, HoT hands back the raw field so formulas work on the real value.

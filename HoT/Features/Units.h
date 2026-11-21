@@ -24,12 +24,15 @@ struct Values {
     int32_t m_amounts[NUM_AURA_EFFECTS];
     uint8_t m_effectMask;
     uint8_t m_stacks;
+    uint8_t m_periodMask;
+    uint32_t m_periodsMs[NUM_AURA_EFFECTS];
 };
 
 // effectIndex is 1 based to match $s1, false means fall back to base points.
 bool GetActiveAmount(uint32_t spellId, uint32_t effectIndex, int32_t& out);
 bool GetActiveAbsorb(uint32_t spellId, const SpellRec* spell, int32_t& out);
 bool GetActiveStacks(uint32_t spellId, int32_t& out);
+bool GetActivePeriod(uint32_t spellId, uint32_t effectIndex, uint32_t& outMs);
 bool GetSlotValues(WOWGUID guid, uint8_t slot, uint32_t spellId, Values& out);
 
 // Called right before SetTooltipUnitAura shows a unit aura.

@@ -32,6 +32,21 @@ static float AuraAmount(const SpellRec* spell, uint32_t effectIndex) {
     return BaseEffectPoints(spell, effectIndex);
 }
 
+static float AuraTickSeconds(const SpellRec* spell, uint32_t effectIndex) {
+    if (!spell || effectIndex < 1 || effectIndex > AuraValues::NUM_AURA_EFFECTS) {
+        return 0.0f;
+    }
+
+    uint32_t periodMs = 0;
+
+    if (!AuraValues::GetActivePeriod(spell->m_id, effectIndex, periodMs)) {
+        int32_t basePeriod = spell->m_effectAuraPeriod[effectIndex - 1];
+        periodMs = basePeriod > 0 ? static_cast<uint32_t>(basePeriod) : 0;
+    }
+
+    return static_cast<float>(periodMs) / 1000.0f;
+}
+
 bool GetDescriptionVariable(uint32_t op, CGPlayer_C* player, const SpellRec* spell, float& value) {
     CGUnitData* unit = player->m_unit;
 
@@ -101,6 +116,18 @@ bool GetDescriptionVariable(uint32_t op, CGPlayer_C* player, const SpellRec* spe
             value = spell && AuraValues::GetActiveStacks(spell->m_id, stacks) ? static_cast<float>(stacks) : 1.0f;
             return true;
         }
+
+        case MATHOP_HOT_TICK_1:
+        case MATHOP_HOT_TICK_2:
+        case MATHOP_HOT_TICK_3:
+            value = AuraTickSeconds(spell, op - MATHOP_HOT_TICK_1 + 1);
+            return true;
+
+        case MATHOP_HOT_TICK_1_UPPER:
+        case MATHOP_HOT_TICK_2_UPPER:
+        case MATHOP_HOT_TICK_3_UPPER:
+            value = AuraTickSeconds(spell, op - MATHOP_HOT_TICK_1_UPPER + 1);
+            return true;
 
         // The stock $rw and $RW round down and up and clamp to 1, HoT hands back the raw field so formulas work on the real value.
         case MATHOP_RANGED_DAMAGE_MIN:

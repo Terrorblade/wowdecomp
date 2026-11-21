@@ -225,6 +225,22 @@ bool GetActiveStacks(uint32_t spellId, int32_t& out) {
     return true;
 }
 
+bool GetActivePeriod(uint32_t spellId, uint32_t effectIndex, uint32_t& outMs) {
+    if (effectIndex < 1 || effectIndex > NUM_AURA_EFFECTS) {
+        return false;
+    }
+
+    const Values* values = ResolveActive(spellId);
+    uint32_t index = effectIndex - 1;
+
+    if (!values || !(values->m_periodMask & (1u << index))) {
+        return false;
+    }
+
+    outMs = values->m_periodsMs[index];
+    return true;
+}
+
 bool GetSlotValues(WOWGUID guid, uint8_t slot, uint32_t spellId, Values& out) {
     if (!guid || slot >= NUM_AURA_SLOTS) {
         return false;
@@ -270,6 +286,18 @@ static int32_t Packet_SMSG_AURA_VALUES(void* param, NETMESSAGE msgId, uint32_t t
     for (uint32_t i = 0; i < NUM_AURA_EFFECTS; i++) {
         if (values.m_effectMask & (1u << i)) {
             values.m_amounts[i] = packet.GetInt32();
+        }
+    }
+
+    if (packet.Remaining() >= sizeof(uint8_t)) {
+        values.m_periodMask = packet.GetUInt8();
+
+        for (uint32_t i = 0; i < NUM_AURA_EFFECTS; i++) {
+            if ((values.m_periodMask & (1u << i)) && packet.Remaining() >= sizeof(uint32_t)) {
+                values.m_periodsMs[i] = packet.GetUInt32();
+            } else {
+                values.m_periodMask &= static_cast<uint8_t>(~(1u << i));
+            }
         }
     }
 

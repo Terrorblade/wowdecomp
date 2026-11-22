@@ -1031,6 +1031,12 @@ void CMapChunk::Create(SIffChunk* headerChunk, bool a3) {
     this->ProcessIffChunks(a3);
 
     this->m_areaId = this->m_header->m_areaid;
+
+    // HoT: remap areas from the map whose ADTs this one reuses.
+    if (int32_t areaId = ForeignAreaOverride(this->m_areaId)) {
+        this->m_areaId = areaId;
+    }
+
     this->m_topLeftCoords.x = 17066.666f - this->m_cOffset.y * 33.333332f;
     this->m_topLeftCoords.y = 17066.666f - this->m_cOffset.x * 33.333332f;
     this->m_topLeftCoords.z = 0.0f;

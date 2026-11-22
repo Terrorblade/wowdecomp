@@ -417,6 +417,7 @@ extern WOWGUID s_lastCollisionGUID;
 const LiquidTypeRec* GetLiquidTypeRecForArea(uint32_t areaId, uint16_t liquidType);
 class WMOAreaTableRec;
 WMOAreaTableRec* GetWMOAreaRec(int32_t wmoId, int32_t nameSet, int32_t groupId);
+int32_t ForeignAreaOverride(int32_t areaId);
 
 CGxTex* ProjectTex2dGetModFadeTex();
 

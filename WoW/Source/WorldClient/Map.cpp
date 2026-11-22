@@ -11,6 +11,7 @@
 #endif
 #include <cstring>
 #include <vector>
+#include <unordered_map>
 #include <cmath>
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
@@ -5357,7 +5358,43 @@ WMOAreaTableRec* GetWMOAreaRec(int32_t wmoId, int32_t nameSet, int32_t groupId) 
     key.m_nameSetID = nameSet;
     key.m_wmoid = wmoId;
     key.m_wmogroupID = groupId;
-    return static_cast<WMOAreaTableRec*>(bsearch(&key, g_wmoAreaTableDB.m_numRecords <= 0 ? nullptr : g_wmoAreaTableDB.m_records, g_wmoAreaTableDB.m_numRecords, sizeof(WMOAreaTableRec), CompareWMOAreaRec));
+    WMOAreaTableRec* rec = static_cast<WMOAreaTableRec*>(bsearch(&key, g_wmoAreaTableDB.m_numRecords <= 0 ? nullptr : g_wmoAreaTableDB.m_records, g_wmoAreaTableDB.m_numRecords, sizeof(WMOAreaTableRec), CompareWMOAreaRec));
+
+    // HoT: callers read the record, so a foreign area comes back as a patched copy.
+    int32_t areaId = rec && rec->m_areaTableID ? ForeignAreaOverride(rec->m_areaTableID) : 0;
+    if (!areaId) {
+        return rec;
+    }
+
+    static std::unordered_map<const WMOAreaTableRec*, WMOAreaTableRec> s_overrides;
+    WMOAreaTableRec& copy = s_overrides[rec];
+    copy = *rec;
+    copy.m_areaTableID = areaId;
+    return &copy;
+}
+
+// HoT: a map reusing another map's ADTs (same Map.dbc directory) inherits its area ids. When the
+// current map has a Map.dbc AreaTableID, areas belonging to the other map resolve to it instead.
+int32_t ForeignAreaOverride(int32_t areaId) {
+    MapRec* map = g_mapDB.GetRecord(s_mapId);
+
+    if (!map || !map->m_areaTableID || !areaId) {
+        return 0;
+    }
+
+    AreaTableRec* area = g_areaTableDB.GetRecord(areaId);
+
+    if (!area || area->m_continentID == map->m_id) {
+        return 0;
+    }
+
+    MapRec* owner = g_mapDB.GetRecord(area->m_continentID);
+
+    if (!owner || !owner->m_directory || !map->m_directory || SStrCmpI(owner->m_directory, map->m_directory, STORM_MAX_STR) != 0) {
+        return 0;
+    }
+
+    return map->m_areaTableID;
 }
 
 // VERIFY: ff49ec1c manual

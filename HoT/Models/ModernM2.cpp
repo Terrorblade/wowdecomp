@@ -109,6 +109,8 @@ void* ModernModel::Alloc(const void* anchor, size_t size) {
 
     if (ptr) {
         this->m_allocations.push_back(ptr);
+    } else {
+        LOG_WARN << "modern-assets: '" << this->m_name << "' near allocation of " << size << " bytes failed";
     }
 
     return ptr;

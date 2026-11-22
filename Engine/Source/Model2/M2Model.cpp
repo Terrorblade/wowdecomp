@@ -1491,6 +1491,10 @@ void CM2Model::SetBoneFlags(uint32_t boneId, uint32_t flags, uint32_t mask) {
 int32_t CM2Model::GetBoneSequenceInfo(uint32_t boneId, M2BoneSequenceInfo& info) {
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return 0;
+        }
     }
 
     M2Data* data = this->m_shared->m_data;
@@ -1533,6 +1537,10 @@ int32_t CM2Model::GetBoneSequenceInfo(uint32_t boneId, M2BoneSequenceInfo& info)
 uint32_t CM2Model::GetBoneSequenceId(uint32_t boneId) {
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return 0;
+        }
     }
 
     M2Data* data = this->m_shared->m_data;
@@ -1562,6 +1570,10 @@ uint32_t CM2Model::GetBoneSequenceAnimId(uint32_t boneId, uint32_t* variation) {
 
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return 0xFFFFFFFF;
+        }
     }
 
     M2Data* data = this->m_shared->m_data;
@@ -1597,6 +1609,10 @@ uint32_t CM2Model::GetBoneSequenceAnimId(uint32_t boneId, uint32_t* variation) {
 float CM2Model::GetBoneSequenceSpeed(uint32_t boneId) {
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return 1.0f;
+        }
     }
 
     M2Data* data = this->m_shared->m_data;
@@ -6215,6 +6231,10 @@ uint32_t CM2Model::ProcessEventCallbacks(uint32_t boneIndex, uint32_t sequenceIn
 C3Vector CM2Model::GetAttachmentPosition(uint32_t id) {
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return C3Vector(0.0f, 0.0f, 0.0f);
+        }
     }
 
     M2Data* data = this->m_shared->m_data;
@@ -6241,6 +6261,10 @@ C3Vector CM2Model::GetAttachmentPosition(uint32_t id) {
 C44Matrix CM2Model::GetAttachmentWorldTransform(uint32_t id) {
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return C44Matrix();
+        }
     }
 
     M2Data* data = this->m_shared->m_data;
@@ -6272,6 +6296,10 @@ C44Matrix CM2Model::GetAttachmentWorldTransform(uint32_t id) {
 float CM2Model::GetAttachmentWorldScale(uint32_t id) {
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return 1.0f;
+        }
     }
 
     M2Data* data = this->m_shared->m_data;
@@ -6376,6 +6404,10 @@ void CM2Model::AttachToParent(CM2Model* parent, uint32_t id, const C3Vector* pos
 C3Vector CM2Model::GetEventPosition(uint32_t id) {
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return C3Vector(0.0f, 0.0f, 0.0f);
+        }
     }
 
     C3Vector* position;
@@ -6394,6 +6426,10 @@ C3Vector CM2Model::GetEventPosition(uint32_t id) {
 C44Matrix CM2Model::GetEventWorldTransform(uint32_t id) {
     if (!(this->m_fFlags & 1)) {
         this->WaitForLoad(nullptr);
+
+        if (!(this->m_fFlags & 1)) {
+            return C44Matrix();
+        }
     }
 
     C3Vector* position;

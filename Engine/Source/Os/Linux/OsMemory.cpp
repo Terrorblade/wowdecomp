@@ -3,8 +3,11 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <map>
 #include <mutex>
 #include <set>
+#include <utility>
 #include <sys/mman.h>
 #include <unistd.h>
 #include "Engine/Source/Os/Linux/OsPosix.h"
@@ -69,18 +72,143 @@ static void* MapAt(uintptr_t address, uintptr_t bytes, uintptr_t header) {
     return block;
 }
 
-// No shared model region here yet, so model data takes the caller's A16 heap fallback as before HoT added it.
+// Model data and its near blocks share one 2GB region as on Windows, since macOS does not honor mmap hints next to the heap.
+static const uintptr_t s_modelRegionSize = 0x7FFF0000;
+static const size_t s_blockAlign = 16;
+static const size_t s_blockHeader = 16;
+static const size_t s_minSplit = 64;
+static const size_t s_discardMin = 0x10000;
+
+struct ModelRegion {
+    uintptr_t m_base;
+    uintptr_t m_end;
+    std::map<uintptr_t, size_t> m_freeByAddr;
+    std::set<std::pair<size_t, uintptr_t>> m_freeBySize;
+};
+
+static ModelRegion* s_modelRegion;
+static bool s_modelRegionTried;
+
+static void InsertFree(ModelRegion* region, uintptr_t address, size_t size) {
+    region->m_freeByAddr[address] = size;
+    region->m_freeBySize.emplace(size, address);
+}
+
+static void EraseFree(ModelRegion* region, uintptr_t address, size_t size) {
+    region->m_freeByAddr.erase(address);
+    region->m_freeBySize.erase(std::make_pair(size, address));
+}
+
+// Pages are only backed once touched.
+static ModelRegion* GetModelRegion() {
+    if (!s_modelRegionTried) {
+        s_modelRegionTried = true;
+
+        void* base = mmap(nullptr, s_modelRegionSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
+
+        if (base != MAP_FAILED) {
+            s_modelRegion = new ModelRegion();
+            s_modelRegion->m_base = reinterpret_cast<uintptr_t>(base);
+            s_modelRegion->m_end = s_modelRegion->m_base + s_modelRegionSize;
+            InsertFree(s_modelRegion, s_modelRegion->m_base, s_modelRegionSize);
+        }
+    }
+
+    return s_modelRegion;
+}
+
+static bool InModelRegion(uintptr_t address) {
+    return s_modelRegion && address >= s_modelRegion->m_base && address < s_modelRegion->m_end;
+}
+
+static size_t BlockNeed(size_t size) {
+    return ((size + s_blockAlign - 1) & ~(s_blockAlign - 1)) + s_blockHeader;
+}
+
+static void* RegionAlloc(ModelRegion* region, size_t need, bool zero) {
+    auto fit = region->m_freeBySize.lower_bound(std::make_pair(need, static_cast<uintptr_t>(0)));
+
+    if (fit == region->m_freeBySize.end()) {
+        return nullptr;
+    }
+
+    uintptr_t address = fit->second;
+    size_t size = fit->first;
+    EraseFree(region, address, size);
+
+    if (size - need >= s_minSplit) {
+        InsertFree(region, address + need, size - need);
+        size = need;
+    }
+
+    *reinterpret_cast<size_t*>(address) = size;
+    void* ptr = reinterpret_cast<void*>(address + s_blockHeader);
+
+    if (zero) {
+        memset(ptr, 0, size - s_blockHeader);
+    }
+
+    return ptr;
+}
+
+// Mapping fresh pages over freed space returns it to the system and keeps the reservation.
+static void RegionFree(ModelRegion* region, uintptr_t address) {
+    size_t size = *reinterpret_cast<size_t*>(address);
+    uintptr_t start = address;
+    uintptr_t end = address + size;
+
+    auto next = region->m_freeByAddr.find(end);
+
+    if (next != region->m_freeByAddr.end()) {
+        end += next->second;
+        EraseFree(region, next->first, next->second);
+    }
+
+    auto prev = region->m_freeByAddr.lower_bound(start);
+
+    if (prev != region->m_freeByAddr.begin()) {
+        --prev;
+
+        if (prev->first + prev->second == start) {
+            start = prev->first;
+            EraseFree(region, prev->first, prev->second);
+        }
+    }
+
+    InsertFree(region, start, end - start);
+
+    uintptr_t page = static_cast<uintptr_t>(sysconf(_SC_PAGESIZE));
+    uintptr_t pageStart = (start + page - 1) & ~(page - 1);
+    uintptr_t pageEnd = end & ~(page - 1);
+
+    if (pageEnd > pageStart && pageEnd - pageStart >= s_discardMin) {
+        mmap(reinterpret_cast<void*>(pageStart), pageEnd - pageStart, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_NORESERVE | MAP_FIXED, -1, 0);
+    }
+}
+
 void* OsAllocModel(size_t size) {
-    (void)size;
-    return nullptr;
+    std::lock_guard<std::mutex> lock(s_blockLock);
+    ModelRegion* region = GetModelRegion();
+    return region ? RegionAlloc(region, BlockNeed(size), false) : nullptr;
 }
 
 bool OsIsNear(const void* ptr) {
     std::lock_guard<std::mutex> lock(s_blockLock);
-    return s_blocks.count(reinterpret_cast<uintptr_t>(ptr)) != 0;
+    uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
+    return InModelRegion(address) || s_blocks.count(address) != 0;
 }
 
 void* OsAllocNear(const void* anchor, size_t size) {
+    {
+        std::lock_guard<std::mutex> lock(s_blockLock);
+
+        if (InModelRegion(reinterpret_cast<uintptr_t>(anchor))) {
+            if (void* ptr = RegionAlloc(s_modelRegion, BlockNeed(size), true)) {
+                return ptr;
+            }
+        }
+    }
+
     uintptr_t header = static_cast<uintptr_t>(sysconf(_SC_PAGESIZE));
     uintptr_t bytes = (size + header + s_granularity - 1) & ~(s_granularity - 1);
     uintptr_t center = reinterpret_cast<uintptr_t>(anchor);
@@ -169,7 +297,14 @@ void OsFreeNear(void* ptr) {
     if (ptr) {
         {
             std::lock_guard<std::mutex> lock(s_blockLock);
-            s_blocks.erase(reinterpret_cast<uintptr_t>(ptr));
+            uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
+
+            if (InModelRegion(address)) {
+                RegionFree(s_modelRegion, address - s_blockHeader);
+                return;
+            }
+
+            s_blocks.erase(address);
         }
 
         uintptr_t header = static_cast<uintptr_t>(sysconf(_SC_PAGESIZE));

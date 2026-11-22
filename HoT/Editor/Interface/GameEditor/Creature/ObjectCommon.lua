@@ -57,10 +57,26 @@ function Common.Button(parent, text, width, onClick, tooltip)
 end
 
 function Common.SetEnabled(widget, enabled)
-	if ( enabled ) then
-		widget:Enable();
+	enabled = enabled and true or false;
+
+	if ( widget.SetEnabledState ) then
+		widget:SetEnabledState(enabled);
+	elseif ( widget.Enable ) then
+		if ( enabled ) then
+			widget:Enable();
+		else
+			widget:Disable();
+		end
 	else
-		widget:Disable();
+		widget:EnableMouse(enabled);
+
+		if ( widget.SetTextColor ) then
+			widget:SetTextColor(unpack(enabled and NOGGIT_COLOR_TEXT or NOGGIT_COLOR_DISABLED));
+		end
+
+		if ( not enabled and widget.ClearFocus ) then
+			widget:ClearFocus();
+		end
 	end
 end
 

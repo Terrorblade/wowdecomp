@@ -97,7 +97,8 @@ static std::atomic<long long> s_totalBytes{ 0 };
 static std::atomic<int32_t> s_filesDone{ 0 };
 static std::atomic<int32_t> s_filesTotal{ 0 };
 static std::atomic<bool> s_restartNeeded{ false };
-static std::atomic<bool> s_uiRefreshNeeded{ false };
+static std::atomic<bool> s_gameUiRefreshNeeded{ false };
+static std::atomic<bool> s_glueUiRefreshNeeded{ false };
 static std::mutex s_statusMutex;
 static std::string s_currentFile;
 
@@ -1395,7 +1396,8 @@ struct RefreshResult {
     bool m_achievementDataChanged = false;
     bool m_visualKitDataChanged = false;
     bool m_soundDataChanged = false;
-    bool m_interfaceFiles = false;
+    bool m_gameInterfaceFiles = false;
+    bool m_glueInterfaceFiles = false;
     bool m_artFiles = false;
 };
 
@@ -1409,18 +1411,30 @@ static bool EqualNoCase(const char* a, const char* b, size_t n) {
     return true;
 }
 
-static bool ContainsNoCase(const char* hay, size_t hayLen, const char* needle, size_t needleLen) {
-    if (needleLen == 0 || hayLen < needleLen) {
-        return false;
+static bool StartsWith(const std::string& s, const char* prefix) {
+    return s.compare(0, std::strlen(prefix), prefix) == 0;
+}
+
+static void FlagInterfaceName(const std::string& name, RefreshResult& result) {
+    std::string n = Text::LowerAscii(name);
+    std::replace(n.begin(), n.end(), '/', '\\');
+    static const char s_root[] = "interface\\";
+
+    if (!StartsWith(n, s_root)) {
+        return;
     }
 
-    for (size_t i = 0; i + needleLen <= hayLen; i++) {
-        if (EqualNoCase(hay + i, needle, needleLen)) {
-            return true;
-        }
+    const std::string rest = n.substr(sizeof(s_root) - 1);
+    const bool glueOnly = StartsWith(rest, "gluexml\\") || StartsWith(rest, "glues\\");
+    const bool glueShared = StartsWith(rest, "sharedxml\\") || rest.find('\\') == std::string::npos;
+
+    if (!glueOnly) {
+        result.m_gameInterfaceFiles = true;
     }
 
-    return false;
+    if (glueOnly || glueShared) {
+        result.m_glueInterfaceFiles = true;
+    }
 }
 
 // Flags interface and world art names, and reloads a DBFilesClient table so whichever archive now wins lands in memory.
@@ -1435,9 +1449,7 @@ static void RefreshName(const std::string& name, RefreshResult& result) {
     const char* p = name.data();
     const size_t len = name.size();
 
-    if (!result.m_interfaceFiles && ContainsNoCase(p, len, s_interface, ifaceLen)) {
-        result.m_interfaceFiles = true;
-    }
+    FlagInterfaceName(name, result);
 
     // UI art rides on the reload prompt, so only world art counts here.
     if (!result.m_artFiles && !(len >= ifaceLen && EqualNoCase(p, s_interface, ifaceLen))) {
@@ -1627,8 +1639,14 @@ static void FinishBatch(BatchProgress& bp) {
         SI2::CreateSoundGroups();
     }
 
-    if (r.m_interfaceFiles) {
-        s_uiRefreshNeeded = true;
+    if (r.m_gameInterfaceFiles && ClntObjMgrGetActivePlayerObj()) {
+        s_gameUiRefreshNeeded = true;
+        StreamLog("stream: game UI files changed, a reload is pending");
+    }
+
+    if (r.m_glueInterfaceFiles) {
+        s_glueUiRefreshNeeded = true;
+        StreamLog("stream: glue UI files changed, a glue reload is pending");
     }
 
     if (r.m_artFiles) {
@@ -2858,8 +2876,12 @@ void PumpMainThread() {
         CGlueMgr::m_reload = 1;
     }
 
-    if (s_uiRefreshNeeded.load() && IsOnCharacterSelect() && !IsHdOfferOutstanding()) {
-        s_uiRefreshNeeded = false;
+    if (!ClntObjMgrGetActivePlayerObj()) {
+        s_gameUiRefreshNeeded = false;
+    }
+
+    if (s_glueUiRefreshNeeded.load() && IsOnCharacterSelect() && !IsHdOfferOutstanding()) {
+        s_glueUiRefreshNeeded = false;
         StreamLog("stream: reloading the glue UI on character select for new interface files");
         CGlueMgr::m_reload = 1;
     }
@@ -2938,16 +2960,20 @@ static int32_t Script_IsStreamingRestartPending(lua_State* L) {
 }
 
 static int32_t Script_IsStreamingUIRefreshPending(lua_State* L) {
-    lua_pushboolean(L, s_uiRefreshNeeded.load());
+    lua_pushboolean(L, ClntObjMgrGetActivePlayerObj() ? s_gameUiRefreshNeeded.load() : s_glueUiRefreshNeeded.load());
     return 1;
 }
 
 static int32_t Script_StreamingRefreshUI(lua_State* L) {
-    s_uiRefreshNeeded = false;
-
     if (ClntObjMgrGetActivePlayerObj()) {
+        s_gameUiRefreshNeeded = false;
         CGGameUI::m_reloadUIRequested = 1;
-    } else if (IsLoginInFlight()) {
+        return 0;
+    }
+
+    s_glueUiRefreshNeeded = false;
+
+    if (IsLoginInFlight()) {
         s_glueReloadDeferred = true;
     } else {
         CGlueMgr::m_reload = 1;

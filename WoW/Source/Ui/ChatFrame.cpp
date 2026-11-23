@@ -1506,6 +1506,19 @@ static const char* InSituString(const void* data, uint32_t length) {
     return data && length && !static_cast<const char*>(data)[length - 1] ? static_cast<const char*>(data) : nullptr;
 }
 
+static const char* InSituStringOrNextTerminator(CDataStore* msg, const void* data, uint32_t length) {
+    const char* string = InSituString(data, length);
+
+    if (string || !data) {
+        return string;
+    }
+
+    void* terminator;
+    msg->GetDataInSitu(terminator, 1);
+
+    return terminator && !*static_cast<const char*>(terminator) ? static_cast<const char*>(data) : nullptr;
+}
+
 // VERIFY: 71191980 manual
 // OFFSET: 0x0050BE70
 int32_t CGChat::ChatMessageReceived(CDataStore* msg, bool isGM) {
@@ -2334,7 +2347,7 @@ int32_t CGChat::OnDefenseMessage(void* param, NETMESSAGE msgId, uint32_t time, C
     msg->Get(reinterpret_cast<uint32_t&>(areaId));
     msg->Get(length);
     msg->GetDataInSitu(data, length);
-    const char* text = InSituString(data, length);
+    const char* text = InSituStringOrNextTerminator(msg, data, length);
 
     if (!text) {
         return 1;
@@ -3383,7 +3396,7 @@ int32_t CGChat::OnTextEmote(void* param, NETMESSAGE msgId, uint32_t time, CDataS
     msg->Get(emoteNum);
     msg->Get(length);
     msg->GetDataInSitu(data, length);
-    const char* target = InSituString(data, length);
+    const char* target = InSituStringOrNextTerminator(msg, data, length);
 
     if (!target) {
         return 1;

@@ -6,6 +6,12 @@
 
 class SFileImpl;
 
+enum OVERRIDE_SPELL_DATA_FLAGS : int32_t {
+    OVERRIDE_SPELL_DATA_FLAG_ALLOW_ITEMS = 0x1,
+    OVERRIDE_SPELL_DATA_FLAG_ALLOW_ATTACKS = 0x2,
+    OVERRIDE_SPELL_DATA_FLAG_ALLOW_NON_OVERRIDE_SPELLS = 0x4,
+};
+
 class OverrideSpellDataRec {
     public:
     static const int32_t s_numColumns = 12;

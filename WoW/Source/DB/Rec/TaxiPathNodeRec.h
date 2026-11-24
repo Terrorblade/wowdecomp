@@ -6,6 +6,12 @@
 
 class SFileImpl;
 
+enum TAXI_PATH_NODE_FLAGS : int32_t {
+    TAXI_PATH_NODE_FLAG_NONE     = 0x00000000,
+    TAXI_PATH_NODE_FLAG_TELEPORT = 0x00000001,
+    TAXI_PATH_NODE_FLAG_STOP     = 0x00000002,
+};
+
 class TaxiPathNodeRec {
     public:
     static const int32_t s_numColumns = 11;

@@ -18,6 +18,19 @@ struct SIMPLEANIMNODE : public TSLinkedNode<SIMPLEANIMNODE> {
 
 class CSimpleAnimGroup : public CScriptObject {
     public:
+
+    enum GROUP_FLAGS : int32_t {
+        FLAG_NONE = 0,
+        SIMPLEANIMGROUP_FLAG_IS_LOADING = 1,
+        FLAG_FINISH_REQUESTED = 0x2,
+        FLAG_PAUSED = 0x4,
+        FLAG_LOOP_INVERSE_PENDING = 0x8,
+        FLAG_FINISHED_CALLBACKS = 0x10,
+        FLAG_STOPPING = 0x20,
+        FLAG_PAUSE_TRANSITION_MASK = 0xC,
+        FLAG_STOP_TRANSITION_MASK = 0x28,
+    };
+
     static int32_t s_metatable;
     static int32_t s_objectType;
     static const char* s_objectTypeName;

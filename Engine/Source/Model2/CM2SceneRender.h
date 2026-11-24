@@ -21,6 +21,16 @@ struct CGxBuf;
 
 class CM2SceneRender {
     public:
+
+    enum FOG_MODE : uint32_t {
+        FOG_DISABLED = 0,
+        FOG_LIGHTING_COLOR = 1,
+        FOG_BLACK = 2,
+        FOG_WHITE = 3,
+        FOG_GRAY = 4,
+        FOG_UNSET = 0xFFFFFFFF,
+    };
+
     /* 0000 */ C44Matrix m_matrix;
     /* 0040 */ CM2Scene* m_scene;
     /* 0044 */ CM2Cache* m_cache;

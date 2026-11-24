@@ -17,7 +17,7 @@
 uint32_t s_clientStateIndex;
 
 // STATIC: 0x00CA0B80
-static TRADE_ITEM s_tradeItems[2][7];
+static TRADE_ITEM s_tradeItems[2][NUM_TRADE_SLOTS];
 
 // STATIC: 0x00CA0FE0
 static int32_t s_tradeRequested;
@@ -309,7 +309,7 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
             break;
 
         case TRADE_STATUS_CANCELLED:
-        case TRADE_STATUS_UNKNOWN_13:
+        case TRADE_STATUS_RESET_ONLY:
             reset = 1;
             memset(s_tradeItems, 0, sizeof(s_tradeItems));
             CGTradeInfo::m_playerTrade.m_money[0] = 0;
@@ -380,7 +380,7 @@ int32_t Packet_SMSG_TRADE_STATUS_EXTENDED(void* param, NETMESSAGE msgId, uint32_
 
     msg->Get(CGTradeInfo::m_playerTrade.m_stateIndex[side]);
     msg->Get(CGTradeInfo::m_playerTrade.m_money[side]);
-    bool received[7] = {};
+    bool received[NUM_TRADE_SLOTS] = {};
     msg->Get(reinterpret_cast<uint32_t&>(s_tradeEnchantSpell[side]));
 
     while (msg->m_read < msg->m_size) {
@@ -422,7 +422,7 @@ int32_t Packet_SMSG_TRADE_STATUS_EXTENDED(void* param, NETMESSAGE msgId, uint32_
         received[slot] = true;
     }
 
-    for (uint32_t i = 0; i < 7; i++) {
+    for (uint32_t i = 0; i < NUM_TRADE_SLOTS; i++) {
         if (!received[i]) {
             if (!side && s_tradeItems[0][i].m_itemID) {
                 CGTradeInfo::DenyPlayerItem(i);

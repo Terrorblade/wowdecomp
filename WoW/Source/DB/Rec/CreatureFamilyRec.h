@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_CREATURE_FAMILY_SKILL_LINES = 2;
 
 class CreatureFamilyRec {
     public:
@@ -17,7 +18,7 @@ class CreatureFamilyRec {
     /* 0008 */ int32_t m_minScaleLevel;
     /* 000C */ float m_maxScale;
     /* 0010 */ int32_t m_maxScaleLevel;
-    /* 0014 */ int32_t m_skillLine [2];
+    /* 0014 */ int32_t m_skillLine [NUM_CREATURE_FAMILY_SKILL_LINES];
     /* 001C */ int32_t m_petFoodMask;
     /* 0020 */ int32_t m_petTalentType;
     /* 0024 */ int32_t m_categoryEnumID;

@@ -164,7 +164,7 @@ FLAC__OggDecoderAspectReadStatus FLAC__ogg_decoder_aspect_read_callback_wrapper(
 					*bytes += n;
 					buffer += n;
 					aspect->working_packet.packet += n;
-					aspect->working_packet.bytes -= n;
+					aspect->working_packet.bytes -= (ogg_int32_t)(n);
 				}
 			}
 			else {
@@ -223,7 +223,7 @@ FLAC__OggDecoderAspectReadStatus FLAC__ogg_decoder_aspect_read_callback_wrapper(
 			else if (ret == 0) {
 				/* need more data */
 				const size_t ogg_bytes_to_read = max(bytes_requested - *bytes, OGG_BYTES_CHUNK);
-				char *oggbuf = FMOD_ogg_sync_buffer(&aspect->sync_state, ogg_bytes_to_read);
+				char *oggbuf = FMOD_ogg_sync_buffer(&aspect->sync_state, (ogg_int32_t)(ogg_bytes_to_read));
 
 				if(0 == oggbuf) {
 					return FLAC__OGG_DECODER_ASPECT_READ_STATUS_MEMORY_ALLOCATION_ERROR;
@@ -243,7 +243,7 @@ FLAC__OggDecoderAspectReadStatus FLAC__ogg_decoder_aspect_read_callback_wrapper(
 							FLAC__ASSERT(0);
 					}
 
-					if(FMOD_ogg_sync_wrote(&aspect->sync_state, ogg_bytes_read) < 0) {
+					if(FMOD_ogg_sync_wrote(&aspect->sync_state, (ogg_int32_t)(ogg_bytes_read)) < 0) {
 						/* double protection; this will happen if the read callback returns more bytes than the max requested, which would overflow Ogg's internal buffer */
 						FLAC__ASSERT(0);
 						return FLAC__OGG_DECODER_ASPECT_READ_STATUS_ERROR;

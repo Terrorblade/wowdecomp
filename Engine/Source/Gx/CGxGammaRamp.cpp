@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdint>
 #include "Engine/Source/Gx/CGxGammaRamp.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // VERIFY: aa5b02d7 manual
 // OFFSET: 0x00684070

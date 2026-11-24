@@ -38,7 +38,7 @@ static int32_t Script_GetNumWhoResults(lua_State* L) {
 static int32_t Script_ShowFriends(lua_State* L) {
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_CONTACT_LIST));
-    msg.Put(static_cast<uint32_t>(1));
+    msg.Put(static_cast<uint32_t>(CONTACT_LIST_FRIEND));
     msg.Finalize();
     ClientServices::Send2(&msg);
     return 0;
@@ -229,9 +229,9 @@ static int32_t Script_GetFriendInfo(lua_State* L) {
         lua_pushnil(L);
     }
 
-    if (info->m_connected && (info->m_flags & 0x4)) {
+    if (info->m_connected && (info->m_flags & FRIEND_STATUS_DND)) {
         lua_pushstring(L, FrameScript_GetText("CHAT_FLAG_DND", -1, GENDER_NOT_APPLICABLE));
-    } else if (info->m_connected && (info->m_flags & 0x2)) {
+    } else if (info->m_connected && (info->m_flags & FRIEND_STATUS_AFK)) {
         lua_pushstring(L, FrameScript_GetText("CHAT_FLAG_AFK", -1, GENDER_NOT_APPLICABLE));
     } else {
         lua_pushstring(L, "");
@@ -243,7 +243,7 @@ static int32_t Script_GetFriendInfo(lua_State* L) {
         lua_pushnil(L);
     }
 
-    if (info->m_flags & 0x8) {
+    if (info->m_flags & FRIEND_STATUS_REFER_A_FRIEND) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);

@@ -11,6 +11,13 @@ class CLCDOutput;
 
 class CLCDConnection {
     public:
+
+    enum CB_EVENT_TYPE : int32_t {
+        CB_EVENT_SOFTBUTTON = 0,
+        CB_EVENT_CONFIGURE = 1,
+        CB_EVENT_NOTIFICATION = 2,
+    };
+
     struct CB_EVENT {
         /* 0000 */ int32_t m_type;
         /* 0004 */ DWORD m_code;

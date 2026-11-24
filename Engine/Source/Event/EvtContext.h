@@ -10,6 +10,8 @@
 #include "Engine/Source/Event/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Storm/Source/SLock.h"
+#include "Engine/Source/Event/Event.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 struct EvtHandler {
     /* 0000 */ TSLink<EvtHandler> m_link;
@@ -70,6 +72,18 @@ class TSingletonInstanceId : public TInstanceId<T> {
 
 class EvtContext : public TSingletonInstanceId<EvtContext, 8> {
     public:
+    enum : uint32_t {
+        DEBUG_CALL_CONTEXT = 1,
+        DEBUG_START_WATCHDOG = 2,
+    };
+
+    enum : uint32_t {
+        SCHED_NONE = 0,
+        SCHED_INITIALIZED = 1,
+        SCHED_INTERACTIVE = 2,
+        SCHED_PAINT_PENDING = 4,
+    };
+
     /* 0010 */ SCritSect m_critsect;
     /* 0038 */ uint32_t m_currTime;
     /* 003C */ SCHEDSTATE m_schedState;

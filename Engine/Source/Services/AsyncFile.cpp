@@ -260,7 +260,7 @@ int32_t NetQueuePromoteLocalFiles(const void* data, void* param) {
             while (!s_asyncQueues[i]->m_readList.IsEnd(object)) {
                 CAsyncObject* next = s_asyncQueues[i]->m_readList.RawNext(object);
 
-                if (SFile::FileIsLocal(object->m_file, 6) == 1) {
+                if (SFile::FileIsLocal(object->m_file, 6) == SFILE_LOCAL_YES) {
                     s_asyncQueues[0]->m_readList.LinkToTail(object);
                     object->m_queue = s_asyncQueues[0];
                 }
@@ -344,7 +344,7 @@ CAsyncObject* AsyncFileReadAllocObject() {
     CAsyncObject* object = AsyncFileRead::s_asyncFileReadFreeList.Head();
 
     if (!object) {
-        object = AsyncFileRead::s_asyncFileReadFreeList.NewNode(1, 0, 0);
+        object = AsyncFileRead::s_asyncFileReadFreeList.NewNode(TSLIST_LINK_AFTER, 0, 0);
     }
 
     object->m_link.Unlink();
@@ -384,7 +384,7 @@ void AsyncFileReadLinkObject(CAsyncObject* object, int32_t urgent) {
 
     for (CAsyncObject* other = object->m_queue->m_readList.Head(); !object->m_queue->m_readList.IsEnd(other); other = object->m_queue->m_readList.RawNext(other)) {
         if (object->m_priority <= other->m_priority && (urgent || object->m_priority != other->m_priority)) {
-            object->m_queue->m_readList.LinkNode(object, 2, other);
+            object->m_queue->m_readList.LinkNode(object, TSLIST_LINK_BEFORE, other);
             object->m_char25 = 0;
             return;
         }
@@ -401,7 +401,7 @@ void AsyncFileReadLinkStaleObject(CAsyncObject* object, int32_t urgent) {
 
     for (CAsyncObject* other = object->m_queue->m_staleList.Head(); !object->m_queue->m_staleList.IsEnd(other); other = object->m_queue->m_staleList.RawNext(other)) {
         if (object->m_priority <= other->m_priority && (urgent || object->m_priority != other->m_priority)) {
-            object->m_queue->m_staleList.LinkNode(object, 2, other);
+            object->m_queue->m_staleList.LinkNode(object, TSLIST_LINK_BEFORE, other);
             object->m_char25 = 1;
             return;
         }
@@ -488,13 +488,13 @@ uint32_t STORMAPI AsyncFileReadThread(void* param) {
 // VERIFY: 1d3b9267 manual
 // OFFSET: 0x004BA8E0
 CAsyncQueue* AsyncFileReadCreateQueue() {
-    return s_asyncQueueList.NewNode(2, 0, 0);
+    return s_asyncQueueList.NewNode(TSLIST_LINK_BEFORE, 0, 0);
 }
 
 // VERIFY: 3de6d82d auto
 // OFFSET: 0x004BA980
 void AsyncFileReadCreateThread(CAsyncQueue* queue, const char* name) {
-    CAsyncThread* thread = s_asyncThreadList.NewNode(2, 0, 0);
+    CAsyncThread* thread = s_asyncThreadList.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     thread->m_queue = queue;
     thread->m_currentObject = nullptr;
     SThread::Create(AsyncFileReadThread, thread, thread->m_thread, const_cast<char*>(name), 0);
@@ -550,7 +550,7 @@ void AsyncFileReadObject(CAsyncObject* object, int32_t urgent) {
     if (SFile::IsStreamingMode()) {
         int32_t local = SFile::FileIsLocal(object->m_file, 6);
 
-        if (!local || local == 2) {
+        if (!local || local == SFILE_LOCAL_PARTIAL) {
             object->m_char24 = 1;
             queue = object->m_priority > 127 ? s_asyncQueues[2] : s_asyncQueues[1];
         }

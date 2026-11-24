@@ -5,6 +5,7 @@
 #include "WoW/Source/Net/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/Object/Player.h"
 
 struct lua_State;
 
@@ -32,7 +33,7 @@ class CGCharacterInfo {
     static uint16_t m_inspectYesterdayHonorableKills;
     static uint8_t m_inspectLifetimeHighestRank;
     static uint16_t m_inspectTodayHonorableKills;
-    static InspectArenaTeam m_inspectArenaTeams[3];
+    static InspectArenaTeam m_inspectArenaTeams[MAX_ARENA_TEAMS];
     static int32_t CalculateInventoryAlertStatus(CGPlayer_C* player, uint32_t slot);
     static void RegisterMirrorHandlers(WOWGUID guid);
     static WOWGUID m_inspectTarget;

@@ -13,7 +13,7 @@
 TSHashTable<MacroConditions, HASHKEY_STR> s_macroConditions;
 
 // STATIC: 0x00AD14D8
-static const char* s_conditionNames[33] = { "", "combat", "exists", "help", "harm", "party", "raid", "dead", "flyable", "indoors", "outdoors", "swimming", "flying", "mounted", "stealth", "group", "stance", "form", "pet", "modifier", "mod", "button", "btn", "actionbar", "bar", "bonusbar", "equipped", "worn", "channeling", "spec", "vehicleui", "unithasvehicleui", "cursor" };
+static const char* s_conditionNames[MacroCondition::TYPE_COUNT] = { "", "combat", "exists", "help", "harm", "party", "raid", "dead", "flyable", "indoors", "outdoors", "swimming", "flying", "mounted", "stealth", "group", "stance", "form", "pet", "modifier", "mod", "button", "btn", "actionbar", "bar", "bonusbar", "equipped", "worn", "channeling", "spec", "vehicleui", "unithasvehicleui", "cursor" };
 
 // VERIFY: 92beef98 auto
 // OFFSET: 0x008C8DE0
@@ -22,7 +22,7 @@ static int32_t EvaluateNone(const WOWGUID* unit, const TSGrowableArray<MacroSubs
 }
 
 // STATIC: 0x00AD1560
-static MACROCONDITIONFUNC s_conditionFuncs[33] = { EvaluateNone, EvaluateCombat, EvaluateExists, EvaluateHelp, EvaluateHarm, EvaluateParty, EvaluateRaid, EvaluateDead, EvaluateFlyable, EvaluateIndoors, EvaluateOutdoors, EvaluateSwimming, EvaluateFlying, EvaluateMounted, EvaluateStealth, EvaluateGroup, EvaluateStance, EvaluateStance, EvaluatePet, EvaluateModifier, EvaluateModifier, EvaluateButton, EvaluateButton, EvaluateActionBar, EvaluateActionBar, EvaluateBonusBar, EvaluateEquipped, EvaluateEquipped, EvaluateChanneling, EvaluateSpec, EvaluateVehicleUI, EvaluateUnitHasVehicleUI, EvaluateCursor };
+static MACROCONDITIONFUNC s_conditionFuncs[MacroCondition::TYPE_COUNT] = { EvaluateNone, EvaluateCombat, EvaluateExists, EvaluateHelp, EvaluateHarm, EvaluateParty, EvaluateRaid, EvaluateDead, EvaluateFlyable, EvaluateIndoors, EvaluateOutdoors, EvaluateSwimming, EvaluateFlying, EvaluateMounted, EvaluateStealth, EvaluateGroup, EvaluateStance, EvaluateStance, EvaluatePet, EvaluateModifier, EvaluateModifier, EvaluateButton, EvaluateButton, EvaluateActionBar, EvaluateActionBar, EvaluateBonusBar, EvaluateEquipped, EvaluateEquipped, EvaluateChanneling, EvaluateSpec, EvaluateVehicleUI, EvaluateUnitHasVehicleUI, EvaluateCursor };
 
 // VERIFY: 7d0b0703 manual
 // OFFSET: 0x005F0DF0
@@ -64,7 +64,7 @@ int32_t EvaluateMacroOptions(const char* start, const char* end, MacroSubstring*
             }
 
             if (!matched) {
-                uint32_t length = last - conditions;
+                uint32_t length = static_cast<uint32_t>(last - conditions);
 
                 if (length > 1023) {
                     length = 1023;
@@ -199,7 +199,7 @@ int32_t MacroConditions::Evaluate(MacroSubstring* target) {
     if (count) {
         WOWGUID unit;
         char token[32];
-        uint32_t length = this->m_target.m_end - this->m_target.m_start;
+        uint32_t length = static_cast<uint32_t>(this->m_target.m_end - this->m_target.m_start);
 
         if (length > 31) {
             length = 31;
@@ -245,16 +245,16 @@ void MacroCondition::Parse(const char* start, const char* end) {
     option.SetText(cursor, end, ':', &cursor);
     int32_t type = 0;
 
-    for (; type < 33; type++) {
+    for (; type < MacroCondition::TYPE_COUNT; type++) {
         if (option == s_conditionNames[type]) {
             this->m_type = type;
             break;
         }
     }
 
-    if (type == 33) {
+    if (type == MacroCondition::TYPE_COUNT) {
         char text[1024];
-        uint32_t length = option.m_end - option.m_start;
+        uint32_t length = static_cast<uint32_t>(option.m_end - option.m_start);
 
         if (length > 1023) {
             length = 1023;
@@ -339,7 +339,7 @@ int32_t EvaluateModifier(const WOWGUID* unit, const TSGrowableArray<MacroSubstri
     for (uint32_t i = args->m_count; i; i--) {
         const MacroSubstring& arg = args->m_data[i - 1];
         char action[1024];
-        uint32_t length = arg.m_end - arg.m_start;
+        uint32_t length = static_cast<uint32_t>(arg.m_end - arg.m_start);
 
         if (length > 1023) {
             length = 1023;

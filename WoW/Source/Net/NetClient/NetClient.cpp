@@ -349,8 +349,8 @@ void NetClient::GetNetStats(float& bytesIn, float& bytesOut, uint32_t& latency) 
     this->m_pingLock.Enter();
 
     double elapsed = (OsGetAsyncTimeMs() - this->m_connectedTimestamp) * 0.001;
-    bytesIn = this->m_bytesReceived * 0.0009765625 / elapsed;
-    bytesOut = 0.0009765625 * this->m_bytesSent / elapsed;
+    bytesIn = static_cast<float>(this->m_bytesReceived * 0.0009765625 / elapsed);
+    bytesOut = static_cast<float>(0.0009765625 * this->m_bytesSent / elapsed);
 
     uint32_t count = 0;
     uint32_t total = 0;
@@ -396,7 +396,7 @@ int32_t NetClient::Connect(const char* address) {
 
     if (separator) {
         *separator = '\0';
-        port = atol(separator + 1);
+        port = static_cast<uint16_t>(atol(separator + 1));
     }
 
     this->m_serverConnection->SetEncryption(false);
@@ -549,7 +549,7 @@ void NetClient::HandleAuthChallenge(WowConnection* connection, CDataStore* msg) 
 
     SHA1_CONTEXT context;
     SHA1_Init(&context);
-    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(this->m_loginData.m_account), SStrLen(this->m_loginData.m_account));
+    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(this->m_loginData.m_account), static_cast<uint32_t>(SStrLen(this->m_loginData.m_account)));
 
     for (int32_t i = 0; i < 8; i++) {
         SHA1_Update(&context, reinterpret_cast<const uint8_t*>(&seeds[i]), sizeof(seeds[i]));
@@ -566,7 +566,7 @@ void NetClient::HandleAuthChallenge(WowConnection* connection, CDataStore* msg) 
         reply.Put(challenge->m_proof);
 
         SHA1_Init(&context);
-        SHA1_Update(&context, reinterpret_cast<const uint8_t*>(this->m_loginData.m_account), SStrLen(this->m_loginData.m_account));
+        SHA1_Update(&context, reinterpret_cast<const uint8_t*>(this->m_loginData.m_account), static_cast<uint32_t>(SStrLen(this->m_loginData.m_account)));
         SHA1_Update(&context, this->m_loginData.m_sessionKey, sizeof(this->m_loginData.m_sessionKey));
         SHA1_Update(&context, reinterpret_cast<const uint8_t*>(&challenge->m_serverSeed), sizeof(challenge->m_serverSeed));
 
@@ -608,7 +608,7 @@ NetClient::NetClient() {
     this->m_connectedTimestamp = 0;
     this->m_objMgr = nullptr;
 
-    NETCLIENTNODE* node = s_clientList.NewNode(2, 0, 0);
+    NETCLIENTNODE* node = s_clientList.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_client = this;
 }
 
@@ -626,7 +626,7 @@ void NetClient::Send(CDataStore* msg) {
     }
 
     if (this->m_suspended) {
-        NetClient::HELDMESSAGE* held = this->m_heldMessages.NewNode(2, 0, 0);
+        NetClient::HELDMESSAGE* held = this->m_heldMessages.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         uint32_t bytes = msg->m_size - msg->m_read;
         void* data;
         msg->GetDataInSitu(data, bytes);
@@ -782,7 +782,7 @@ void NETEVENTQUEUE::Clear() {
 void NETEVENTQUEUE::AddEvent(EVENTID eventId, void* connection, NetClient* client, const void* data, uint32_t size) {
     this->m_critSect.Enter();
 
-    NETEVENTQUEUENODE* node = this->m_eventQueue.NewNode(2, 0, 8);
+    NETEVENTQUEUENODE* node = this->m_eventQueue.NewNode(TSLIST_LINK_BEFORE, 0, 8);
     node->m_eventId = eventId;
 
     if (size) {

@@ -203,14 +203,14 @@ void CChunkLiquid::BuildIndices(uint16_t* indices, uint16_t baseVertex, CGxBatch
         vertex++;
     }
 
-    batch->m_count += out - indices;
+    batch->m_count += static_cast<uint32_t>(out - indices);
 }
 
 // VERIFY: a801c800 manual
 // OFFSET: 0x007CE390
 void CChunkLiquid::BuildVertices(const C44Matrix* transform, uint32_t stride, C3Vector** position, C3Vector** normal, uint32_t** color, C2Vector** texCoord1, C2Vector** texCoord0) const {
     DepthCoordTable* depthCoords = CMap::GetDepthCoordTable(this->m_type);
-    bool customTexCoords = this->m_vertexFormat == 1;
+    bool customTexCoords = this->m_vertexFormat == LIQUID_VERTEX_HEIGHT_TEXCOORD;
     uint32_t index = 0;
     int32_t rows = this->m_tileEnd.x - this->m_tileBegin.x + 1;
     const C3Vector* vert = this->m_verts;
@@ -288,7 +288,7 @@ CAaSphere* CChunkLiquid::GetSphere() {
 
 // INLINED
 CMapChunkLiquidBuf::CMapChunkLiquidBuf() {
-    this->m_flags = 0;
+    this->m_flags = CMapChunkLiquidBuf::NONE;
     this->m_flushTimer = 0.0f;
     this->m_vertexDataSize = 0;
     this->m_indexDataSize = 0;
@@ -546,7 +546,7 @@ void CMapChunkLiquidBuf::Update(float elapsed) {
         while (buf) {
             CMapChunkLiquidBuf* next = list->m_liquids.Next(buf);
 
-            if (!(buf->m_flags & 0x1)) {
+            if (!(buf->m_flags & CMapChunkLiquidBuf::UNKNOWN_1)) {
                 buf->m_flushTimer += elapsed;
 
                 if (buf->m_flushTimer > 5.0f) {
@@ -649,8 +649,8 @@ bool CChunkLiquid::GetTris(World::TriData* triData, uint8_t* codes, const C2iVec
                         batch->m_def = reinterpret_cast<CMapObjDef*>(this->m_owner);
                         C44Matrix* matrix;
 
-                        if (World::TriData::matrixPoolCount + 1 >= 32) {
-                            World::TriData::statusFlags |= 1;
+                        if (World::TriData::matrixPoolCount + 1 >= TRI_QUERY_MATRIX_CAPACITY) {
+                            World::TriData::statusFlags |= TRI_QUERY_STATUS_OVERFLOW;
                             return false;
                         } else {
                             matrix = &World::TriData::matrixPool[World::TriData::matrixPoolCount++];

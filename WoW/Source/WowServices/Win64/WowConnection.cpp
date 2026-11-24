@@ -1,5 +1,6 @@
 
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <cerrno>
 #include <malloc.h>
@@ -668,7 +669,7 @@ void WowConnection::StartConnect() {
 
     this->m_lock.Enter();
 
-    int32_t sock = socket(AF_INET, SOCK_STREAM, 0);
+    int32_t sock = static_cast<int32_t>(socket(AF_INET, SOCK_STREAM, 0));
 
     if (sock < 0) {
         SErrDisplayErrorFmt(0x85100000, __FILE__, __LINE__, 0, 1, "socket() returned %d, reason: %s", sock, "can't create socket (No network connection available?)");
@@ -711,14 +712,17 @@ void WowConnection::StartConnect() {
 
 // OFFSET: 0x00468D20
 bool WowConnection::Connect(const char* host, uint16_t port, int32_t timeout) {
-    uint32_t address = inet_addr(host);
+    in_addr parsed;
+    uint32_t address = inet_pton(AF_INET, host, &parsed) == 1 ? parsed.s_addr : INADDR_NONE;
 
     if (address == INADDR_NONE || !address) {
-        hostent* entry = gethostbyname(host);
+        addrinfo hints = {};
+        hints.ai_family = AF_INET;
+        addrinfo* entry = nullptr;
 
-        if (entry) {
-            const uint8_t* bytes = reinterpret_cast<const uint8_t*>(entry->h_addr_list[0]);
-            this->m_connectAddress = bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
+        if (getaddrinfo(host, nullptr, &hints, &entry) == 0 && entry) {
+            this->m_connectAddress = reinterpret_cast<const sockaddr_in*>(entry->ai_addr)->sin_addr.s_addr;
+            freeaddrinfo(entry);
         } else {
             this->m_connectAddress = 0;
         }

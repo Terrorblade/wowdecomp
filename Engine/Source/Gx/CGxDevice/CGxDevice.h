@@ -247,8 +247,8 @@ class CGxDevice {
 
     static HSLOG m_log;
     static C2iVector s_clientAdjust;
-    static const char* s_pixelShaderTargetNames[14];
-    static const char* s_vertexShaderTargetNames[12];
+    static const char* s_pixelShaderTargetNames[GxShPS_Last];
+    static const char* s_vertexShaderTargetNames[GxShVS_Last];
     static C3Vector s_pointScaleAttenuation;
     static CGxShader* s_uiPixelShader;
     static CGxShader* s_uiVertexShader[2];

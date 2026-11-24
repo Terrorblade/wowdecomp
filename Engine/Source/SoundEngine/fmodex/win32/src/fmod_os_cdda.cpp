@@ -7,6 +7,7 @@
 #include "fmod_debug.h"
 
 #include <windows.h>
+#include <VersionHelpers.h>
 #include <stdio.h>
 #include <stddef.h>
 
@@ -348,7 +349,7 @@ FMOD_CDDA_StringList FMOD_CDDA_Aspi_Strings[] =
     { SS_INSUFFICIENT_RESOURCES, "Couldn't allocate resources needed to init" },
     { SS_ASPI_IS_SHUTDOWN,       "Call came to ASPI after PROCESS_DETACH" },
     { SS_BAD_INSTALL,            "The DLL or other components are installed wrong" },
-    { -1, (char *)-1 }
+    { static_cast<unsigned int>(-1), (char *)-1 }
 };
 
 
@@ -2278,22 +2279,17 @@ HANDLE FMOD_CDDA_NTSCSI_GetFileHandle(int i)
 {
     char            buf[12];
     DWORD           dwFlags;
-    OSVERSIONINFO   ver;
     HANDLE          handle = 0;
 
     /*
         NT 4.0 wants just the GENERIC_READ flag, and Win2K wants both GENERIC_READ and GENERIC_WRITE. Try both...
     */
-    FMOD_memset(&ver, 0, sizeof(ver));
-    ver.dwOSVersionInfoSize = sizeof(ver);
-    GetVersionEx(&ver);
-
     /*
         If Win2K or greater, add GENERIC_WRITE
     */
     dwFlags = GENERIC_READ;
 
-    if ((ver.dwPlatformId == VER_PLATFORM_WIN32_NT) && (ver.dwMajorVersion > 4))
+    if (IsWindowsVersionOrGreater(5, 0, 0))
     {
         dwFlags |= GENERIC_WRITE;
     }

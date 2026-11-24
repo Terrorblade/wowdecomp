@@ -99,7 +99,7 @@ char* ProfileInternal::STRINGBLOCK::AllocString(TSList<STRINGBLOCK, TSGetLink<ST
         }
     }
 
-    uint32_t length = SStrLen(str) + 1;
+    uint32_t length = static_cast<uint32_t>(SStrLen(str) + 1);
     STRINGBLOCK* block = list.Head();
 
     if (!block || length > block->m_size - block->m_used) {

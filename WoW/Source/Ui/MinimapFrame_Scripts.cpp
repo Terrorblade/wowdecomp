@@ -97,7 +97,7 @@ static int32_t Script_SetPlayerTextureHeight(lua_State* L) {
         return 0;
     }
 
-    float height = lua_tonumber(L, 2);
+    float height = static_cast<float>(lua_tonumber(L, 2));
     height = NDCToDDCWidth(height / (CoordinateGetAspectCompensation() * 1024.0f));
 
     if (minimap->m_playerTexture) {
@@ -118,7 +118,7 @@ static int32_t Script_SetPlayerTextureWidth(lua_State* L) {
         return 0;
     }
 
-    float width = lua_tonumber(L, 2);
+    float width = static_cast<float>(lua_tonumber(L, 2));
     width = NDCToDDCWidth(width / (CoordinateGetAspectCompensation() * 1024.0f));
 
     if (minimap->m_playerTexture) {
@@ -245,9 +245,9 @@ static int32_t Script_PingLocation(lua_State* L) {
 
     if (lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
         CGMinimapFrame* minimap = static_cast<CGMinimapFrame*>(FrameScript_GetObjectThis(L, CGMinimapFrame::GetObjectType()));
-        y = lua_tonumber(L, 2);
+        y = static_cast<float>(lua_tonumber(L, 2));
         y = -NDCToDDCWidth(y / (CoordinateGetAspectCompensation() * 1024.0f));
-        x = lua_tonumber(L, 3);
+        x = static_cast<float>(lua_tonumber(L, 3));
         x = NDCToDDCWidth(x / (CoordinateGetAspectCompensation() * 1024.0f));
         x = x / minimap->GetWidth() * diameter;
         y = y / minimap->GetHeight() * diameter;
@@ -307,7 +307,7 @@ static int32_t Script_GetPingPosition(lua_State* L) {
     }
 
     double scale = 1.0 / diameter;
-    x = x * scale;
+    x = static_cast<float>(x * scale);
     lua_pushnumber(L, -(scale * y));
     lua_pushnumber(L, x);
     return 2;

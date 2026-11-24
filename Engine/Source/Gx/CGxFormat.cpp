@@ -9,7 +9,7 @@ CGxFormat::CGxFormat() {
     this->m_pos.x = 0;
     this->m_pos.y = 0;
     this->m_multisampleQuality = 0.0f;
-    this->m_maximize = 0;
+    this->m_maximize = CGxFormat::Maximize_None;
     this->m_stereoEnabled = false;
     this->m_multisampleCount = 1;
     this->m_aspect = true;

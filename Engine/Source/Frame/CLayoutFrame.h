@@ -14,6 +14,39 @@ class XMLNode;
 
 class CLayoutFrame {
     public:
+
+    enum PackedLayoutValues : uint32_t {
+        LAYOUT_VALUE_SHIFT = 8,
+        LAYOUT_COUNTER_MASK = 0xFFu,
+        LAYOUT_CTOR_PRESERVE_MASK = 0xFF0000FF,
+        PROTECTION_SOURCE_MASK = 0xF7FFu,
+        PROTECTION_RECURSION_VALUE = 0x800,
+        PROTECTION_DEPENDENCY_VALUE = 0x200,
+        PROTECTION_DIRTY_VALUE = 0x400,
+    };
+
+    enum ResizeLimits : uint32_t {
+        RESIZE_RETRY_BUDGET = 6,
+        RESIZE_PASS_LIMIT = 32,
+    };
+
+    enum LayoutFlags : uint32_t {
+        LAYOUT_RECT_VALID = 0x100,
+        LAYOUT_DEFERRED_RESIZE = 0x200,
+        LAYOUT_RESIZE_PENDING = 0x400,
+        LAYOUT_RECT_UNRESOLVED = 0x800,
+        LAYOUT_CLAMPED_TO_SCREEN = 0x1000,
+        LAYOUT_EXPLICITLY_PROTECTED = 0x10000,
+        LAYOUT_DEPENDENCY_PROTECTED = 0x20000,
+        LAYOUT_PROTECTION_DIRTY = 0x40000,
+        LAYOUT_PROTECTION_RECURSION = 0x80000,
+        LAYOUT_RECT_STATE_MASK = 0x900,
+        LAYOUT_RESIZE_STATE_MASK = 0xc00,
+        LAYOUT_PROTECTED_MASK = 0x30000,
+        LAYOUT_PROTECTION_STATE_MASK = 0x70000,
+        LAYOUT_PROTECTION_BLOCK_MASK = 0x90000,
+    };
+
     enum GuardFlags : uint32_t {
         GUARD_NONE = 0,
         GUARD_LEFT = 0x01,

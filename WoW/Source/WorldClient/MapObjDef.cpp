@@ -13,6 +13,7 @@
 #include "Engine/Source/Model2/M2Model.h"
 #include "WoW/Source/WorldClient/MapLoad.h"
 #include "Engine/Source/Services/ParticleSystem2.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 18be6c93 auto
 // OFFSET: 0x007B3990
@@ -60,7 +61,7 @@ void CMapObjDefGroup::SelectLights(CM2Lighting* lighting) {
 
     DayNight::DNInfo* dayNight = DayNight::GetInfo();
 
-    if (this->m_flags & 0x8000) {
+    if (this->m_flags & MAPOBJ_FLAG_INT_FOG) {
         lighting->SetFog(C3Vector(dayNight->m_fogInterior.m_color), dayNight->m_fogInterior.m_start, dayNight->m_fogInterior.m_end, dayNight->m_fogInterior.m_density);
     } else {
         lighting->SetFog(C3Vector(dayNight->m_fog.m_color), dayNight->m_fog.m_start, dayNight->m_fog.m_end, dayNight->m_fog.m_density);
@@ -181,7 +182,7 @@ bool CMapObjDefGroup::IsAllLoaded() {
     for (CMapBaseObjLink* link = this->m_doodadDefLinkList.Head(); link; link = this->m_doodadDefLinkList.Next(link)) {
         CMapStaticEntity* doodadDef = static_cast<CMapStaticEntity*>(link->m_owner);
 
-        if (doodadDef->m_model && !(doodadDef->m_flags & 0x80)) {
+        if (doodadDef->m_model && !(doodadDef->m_flags & MAPOBJ_FLAG_PREPARED)) {
             if (SFile::IsStreamingMode()) {
                 doodadDef->m_model->LinkToAsyncHead(1);
             }
@@ -208,14 +209,14 @@ bool CMapObjDef::IsAllLoaded() {
         return false;
     }
 
-    if (!(this->m_flags & 0x4000)) {
+    if (!(this->m_flags & MAPOBJ_FLAG_ALL_LOADED)) {
         for (CMapBaseObjLink* link = this->m_mapObjDefGroupLinkList.Head(); link; link = this->m_mapObjDefGroupLinkList.Next(link)) {
             if (!static_cast<CMapObjDefGroup*>(link->m_owner)->IsAllLoaded()) {
                 return false;
             }
         }
 
-        this->m_flags = static_cast<MapObjFlag>(this->m_flags | 0x4000);
+        this->m_flags = static_cast<MapObjFlag>(this->m_flags | MAPOBJ_FLAG_ALL_LOADED);
     }
 
     return true;
@@ -320,7 +321,7 @@ void CMapObjDef::LinkDoodadDef(CMapDoodadDef* doodadDef, CMapObjDef* mapObjDef, 
     for (CMapBaseObjLink* link = mapObjDef->m_mapObjDefGroupLinkList.Head(); link; link = mapObjDef->m_mapObjDefGroupLinkList.Next(link)) {
         CMapObjDefGroup* group = static_cast<CMapObjDefGroup*>(link->m_owner);
 
-        if (mapObj->GetGroupFlags(group->m_groupNum) & 0x410080) {
+        if (mapObj->GetGroupFlags(group->m_groupNum) & (CMapObjGroup::F_ALWAYS_DRAW | CMapObjGroup::F_UNKNOWN_0x400000 | CMapObjGroup::F_UNREACHABLE)) {
             continue;
         }
 
@@ -410,9 +411,9 @@ void CMapObjDef::SetDoodadEmittersIgnoresDistance(CMapObjDef* mapObjDef, int32_t
                 CParticleEmitter2* emitter = model->m_particleEmitters[i];
 
                 if (ignore) {
-                    emitter->m_flags |= 0x400000;
+                    emitter->m_flags |= CParticleEmitter2::IGNORE_DISTANCE;
                 } else {
-                    emitter->m_flags &= ~0x400000u;
+                    emitter->m_flags &= ~CParticleEmitter2::IGNORE_DISTANCE;
                 }
             }
         }
@@ -454,7 +455,7 @@ void CMapObjDef::SetDoodadsEnabled(CMapObjDef* mapObjDef, int32_t enable, uint16
 
             if (enable) {
                 doodadDef->m_flags = static_cast<MapObjFlag>(doodadDef->m_flags & ~(MAPOBJ_FLAG_DISABLED | MAPOBJ_FLAG_NO_HITTEST));
-                doodadDef->m_staticFlags &= ~0xE0u;
+                doodadDef->m_staticFlags &= ~MAP_STATIC_FLAG_LIQUID_CACHE_MASK;
                 CMap::LinkDoodadDefToMapObjDefs(doodadDef, mapObjDef);
                 continue;
             }

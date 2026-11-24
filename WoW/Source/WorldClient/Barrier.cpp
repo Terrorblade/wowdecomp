@@ -19,6 +19,7 @@
 #include "Engine/Source/Model2/M2Data.h"
 #include "Engine/Source/Services/ParticleSystem2.h"
 #include "Engine/Source/ShaderEffect/Types.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00CD85F8
 CM2Model* CBarrier::s_sparkles[4];
@@ -48,8 +49,10 @@ void CBarrier::AddBarrierConvexPoly(C3Vector* verts, uint32_t count, float radiu
         return;
     }
 
-    static CGxVertexPCT0T1 s_polyVerts[12];
-    static C3Vector s_polyPoints[12];
+    constexpr uint32_t BARRIER_VERT_CACHE = 12;
+
+    static CGxVertexPCT0T1 s_polyVerts[BARRIER_VERT_CACHE];
+    static C3Vector s_polyPoints[BARRIER_VERT_CACHE];
 
     C3Vector* points = verts;
 
@@ -352,15 +355,15 @@ void CBarrier::Render(const C3Vector& viewerPos, float elapsedSec) {
         CM2Model* model = CBarrier::s_sparkles[i];
 
         if (model->m_attachParent) {
-            model->m_fFlags |= 0x80;
+            model->m_fFlags |= M2_ATTACHED_DRAW_ENABLED;
         } else {
-            model->m_fFlags |= 0x8;
+            model->m_fFlags |= M2_DRAW_ENABLED;
         }
 
         if (model->m_attachParent) {
-            model->m_fFlags |= 0x20000;
+            model->m_fFlags |= M2_ATTACHED_PARTICLES_ENABLED;
         } else {
-            model->m_fFlags |= 0x10000;
+            model->m_fFlags |= M2_PARTICLES_ENABLED;
         }
 
         CBarrier::s_sparkles[i]->m_fFlags |= 0x8000;
@@ -396,7 +399,7 @@ void CBarrier::Render(const C3Vector& viewerPos, float elapsedSec) {
     g_theGxDevicePtr->RsPush();
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_DepthTest, 1);
-    GxRsSet(GxRs_BlendingMode, 3);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Add);
     GxRsSet(GxRs_Culling, 0);
     GxRsSet(GxRs_Lighting, 0);
     GxRsSet(GxRs_Fog, 0);

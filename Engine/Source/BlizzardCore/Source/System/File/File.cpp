@@ -1119,7 +1119,7 @@ bool Blizzard::File::RemoveDirectoryAndContents_Internal::Callback(const Process
     Blizzard::String::Format(path, sizeof(path), "%s%s", parms.m_pathRoot, parms.m_filename);
 
     if (state->m_removeReadOnly) {
-        Blizzard::File::SetAttributes(path, 0x20);
+        Blizzard::File::SetAttributes(path, ATTRIBUTE_NORMAL);
     }
 
     if (Blizzard::Streaming::IsStreamedFile(path)) {

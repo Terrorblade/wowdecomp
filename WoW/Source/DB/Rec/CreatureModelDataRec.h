@@ -8,6 +8,20 @@ class SFileImpl;
 
 class CreatureModelDataRec {
     public:
+
+    enum MODEL_FLAGS : int32_t {
+        NO_FOOTPRINT_PARTICLES = 0x1,
+        NO_BREATH_PARTICLES = 2,
+        IS_PLAYER_MODEL = 0x4,
+        NO_TORSO_SPLIT = 0x8,
+        NO_ATTACHED_WEAPONS = 0x10,
+        NO_FOOTPRINT_TRAIL_TEXTURES = 0x20,
+        DISABLE_HIGHLIGHT = 0x40,
+        CAN_MOUNT_WHILE_TRANSFORMED = 0x80,
+        FORCE_PROJECTED_TEXTURES = 0x200,
+        CAN_JUMP_IN_PLACE_AS_MOUNT = 0x400,
+    };
+
     static const int32_t s_numColumns = 28;
     static const int32_t s_rowSize = 112;
     static const bool s_generatedID = false;

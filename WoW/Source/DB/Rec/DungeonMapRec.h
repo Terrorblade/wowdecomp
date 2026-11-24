@@ -1,6 +1,8 @@
 #ifndef WOW_SOURCE_DB_REC_DUNGEONMAPREC_H
 #define WOW_SOURCE_DB_REC_DUNGEONMAPREC_H
 
+#include "Engine/Source/Tempest/CRange.h"
+
 #include <cstddef>
 #include <cstdint>
 

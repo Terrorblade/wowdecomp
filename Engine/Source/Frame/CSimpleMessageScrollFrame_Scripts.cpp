@@ -261,7 +261,7 @@ static int32_t Script_GetMessageInfo(lua_State* L) {
     }
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
-    int32_t accessID = lua_tointeger(L, 3);
+    int32_t accessID = static_cast<int32_t>(lua_tointeger(L, 3));
     CSimpleMessageScrollFrameLine* line = frame->GetMessageInfoByAccessID(index, accessID);
 
     if (!line) {
@@ -287,7 +287,7 @@ static int32_t Script_RemoveMessagesByAccessID(lua_State* L) {
         return 0;
     }
 
-    frame->RemoveLinesByAccessID(lua_tointeger(L, 2));
+    frame->RemoveLinesByAccessID(static_cast<int32_t>(lua_tointeger(L, 2)));
     return 0;
 }
 
@@ -397,7 +397,7 @@ static int32_t Script_UpdateColorByID(lua_State* L) {
 // OFFSET: 0x00973640
 static int32_t Script_GetNumMessages(lua_State* L) {
     CSimpleMessageScrollFrame* frame = static_cast<CSimpleMessageScrollFrame*>(FrameScript_GetObjectThis(L, CSimpleMessageScrollFrame::GetObjectType()));
-    int32_t accessID = lua_tointeger(L, 2);
+    int32_t accessID = static_cast<int32_t>(lua_tointeger(L, 2));
     lua_pushnumber(L, frame->GetNumMessages(accessID));
     return 1;
 }

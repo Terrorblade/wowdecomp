@@ -8,6 +8,7 @@
 #include "WoW/Source/Object/Player.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 1e40863f auto
 // OFFSET: 0x005D1FC0
@@ -130,7 +131,7 @@ static int32_t Script_GetWatchedFactionInfo(lua_State* L) {
 
     if (player) {
         uint32_t index = player->m_player->m_playerFieldWatchedFactionIndex;
-        faction = index > 127 ? 0 : CGReputationInfo::m_factionStandings[index].m_factionId;
+        faction = index >= MAX_REPUTATION_FACTIONS ? 0 : CGReputationInfo::m_factionStandings[index].m_factionId;
         rec = g_factionDB.GetRecord(faction);
     }
 

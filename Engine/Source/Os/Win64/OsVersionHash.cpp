@@ -111,7 +111,7 @@ static int32_t AddRelocationEntries(OsVersionHash& hash, const uint8_t* image, u
             OsVersionHashEntry entry;
             entry.m_offset = relocation->VirtualAddress + (*fixup & 0xFFF);
             entry.m_size = size;
-            entry.m_type = 2;
+            entry.m_type = OsVersionHashEntry::RELOCATION;
             entry.m_param = type;
 
             if (!hash.AddEntry(entry)) {
@@ -134,7 +134,7 @@ static int32_t AddHeaderEntries(OsVersionHash& hash, const uint8_t* image, uint6
     OsVersionHashEntry entry;
     entry.m_offset = offsetof(IMAGE_DOS_HEADER, e_csum);
     entry.m_size = sizeof(WORD);
-    entry.m_type = 3;
+    entry.m_type = OsVersionHashEntry::ZEROES;
     entry.m_param = 0;
     hash.AddEntry(entry);
 
@@ -146,7 +146,7 @@ static int32_t HashEntry(IOsVersionHashCallback& callback, const OsVersionHashEn
     uint64_t delta = reinterpret_cast<intptr_t>(image) - imageBase;
 
     switch (entry.m_type) {
-        case 0: {
+        case OsVersionHashEntry::IMPORT_THUNKS: {
             if (entry.m_param) {
                 callback.Process(image + entry.m_param, entry.m_size);
             } else {
@@ -156,7 +156,7 @@ static int32_t HashEntry(IOsVersionHashCallback& callback, const OsVersionHashEn
             return 1;
         }
 
-        case 1: {
+        case OsVersionHashEntry::IMPORT_DESCRIPTOR: {
             IMAGE_IMPORT_DESCRIPTOR descriptor = *reinterpret_cast<const IMAGE_IMPORT_DESCRIPTOR*>(data);
             descriptor.TimeDateStamp = 0;
             descriptor.ForwarderChain = 0;
@@ -165,7 +165,7 @@ static int32_t HashEntry(IOsVersionHashCallback& callback, const OsVersionHashEn
             return 1;
         }
 
-        case 2: {
+        case OsVersionHashEntry::RELOCATION: {
             if (!delta || !unrelocate) {
                 callback.Process(data, entry.m_size);
                 return 1;
@@ -201,7 +201,7 @@ static int32_t HashEntry(IOsVersionHashCallback& callback, const OsVersionHashEn
             }
         }
 
-        case 3: {
+        case OsVersionHashEntry::ZEROES: {
             HashZeroes(callback, entry.m_size);
             return 1;
         }
@@ -358,7 +358,7 @@ static int32_t AddImportEntries(OsVersionHash& hash, const uint8_t* image, const
         OsVersionHashEntry thunks;
         thunks.m_offset = descriptor->FirstThunk;
         thunks.m_size = thunkSize;
-        thunks.m_type = 0;
+        thunks.m_type = OsVersionHashEntry::IMPORT_THUNKS;
         thunks.m_param = descriptor->OriginalFirstThunk;
 
         if (!hash.AddEntry(thunks)) {
@@ -368,7 +368,7 @@ static int32_t AddImportEntries(OsVersionHash& hash, const uint8_t* image, const
         OsVersionHashEntry entry;
         entry.m_offset = importAddress;
         entry.m_size = sizeof(IMAGE_IMPORT_DESCRIPTOR);
-        entry.m_type = 1;
+        entry.m_type = OsVersionHashEntry::IMPORT_DESCRIPTOR;
         entry.m_param = 0;
 
         if (!hash.AddEntry(entry)) {

@@ -8,6 +8,8 @@
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "WoW/Source/Ui/BarberShop.h"
 #include "WoW/Source/Ui/WorldFrame.h"
+#include "WoW/Source/UIUtil/InputControl.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // VERIFY: 60071b01 auto
 // OFFSET: 0x006017E0
@@ -224,7 +226,7 @@ static int32_t Script_SetView(lua_State* L) {
     int32_t view = static_cast<int32_t>(lua_tonumber(L, 1));
 
     if (static_cast<uint32_t>(view - 1) <= 4 && CGWorldFrame::GetActiveCamera()) {
-        CGWorldFrame::GetActiveCamera()->SetView(view, s_cvCameraViewBlendStyle->m_intValue, 0);
+        CGWorldFrame::GetActiveCamera()->SetView(view, s_cvCameraViewBlendStyle->m_intValue, CGCamera::VIEW_TRANSITION_NONE);
     }
 
     return 0;
@@ -274,8 +276,8 @@ static int32_t Script_NextView(lua_State* L) {
     }
     int32_t view = camera->m_viewIndex;
 
-    if (view < 5) {
-        camera->SetView(view + 1, s_cvCameraViewBlendStyle->m_intValue, 0);
+    if (view < CGCamera::VIEW_THIRD_PERSON_E) {
+        camera->SetView(view + 1, s_cvCameraViewBlendStyle->m_intValue, CGCamera::VIEW_TRANSITION_NONE);
     }
 
     return 0;
@@ -291,8 +293,8 @@ static int32_t Script_PrevView(lua_State* L) {
     }
     int32_t view = camera->m_viewIndex;
 
-    if (view > 1) {
-        camera->SetView(view - 1, s_cvCameraViewBlendStyle->m_intValue, 0);
+    if (view > CGCamera::VIEW_THIRD_PERSON_A) {
+        camera->SetView(view - 1, s_cvCameraViewBlendStyle->m_intValue, CGCamera::VIEW_TRANSITION_NONE);
     }
 
     return 0;

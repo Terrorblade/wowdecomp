@@ -174,7 +174,7 @@ Blizzard::Thread::ThreadRecord* System_Thread::NewThread(uint32_t (*function)(vo
     memset(thread, 0, sizeof(Blizzard::Thread::ThreadRecord));
     thread->m_param = param;
     thread->m_function = function;
-    thread->m_state = 0;
+    thread->m_state = THREAD_STATE_SUSPENDED;
     thread->m_refCount.m_value = 2;
     Blizzard::String::Copy(thread->m_name, name, length + 1);
     AddToRegistry(thread);
@@ -197,7 +197,7 @@ void System_Thread::RemoveFromRegistry(Blizzard::Thread::ThreadRecord* thread) {
 void System_Thread::InitMainThread() {
     s_mainThread = NewThread(nullptr, nullptr, nullptr);
     InternalSetLocalStorage(&s_threadRecordTLS, s_mainThread);
-    s_mainThread->m_state = 1;
+    s_mainThread->m_state = THREAD_STATE_RUNNING;
     s_mainThread->m_refCount.m_value = 1;
 }
 
@@ -284,7 +284,7 @@ uint32_t __stdcall System_Thread::ThreadStarter(void* param) {
     uint32_t result = thread->m_function(thread->m_param);
     thread->m_result = result;
     RunTLSDestructors();
-    thread->m_state = -1;
+    thread->m_state = THREAD_STATE_FINISHED;
     Blizzard::Thread::Close(thread);
 
     return result;

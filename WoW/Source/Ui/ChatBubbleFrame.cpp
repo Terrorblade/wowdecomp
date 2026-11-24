@@ -54,32 +54,32 @@ void CGChatBubbleFrame::InitializeGame() {
 // VERIFY: 8d8d616f manual
 // OFFSET: 0x0056C240
 void CGChatBubbleFrame::FadeIn() {
-    if (this->m_bubbleFlags & 0x5) {
+    if (this->m_bubbleFlags & FLAG_FADE_IN_BLOCK_MASK) {
         return;
     }
 
     uint8_t alpha = this->m_alpha;
-    this->m_bubbleFlags = (this->m_bubbleFlags & ~0x3) | 0x1;
+    this->m_bubbleFlags = (this->m_bubbleFlags & ~FLAG_FADE_MASK) | 0x1;
     this->m_fadeStart = OsGetAsyncTimeMs() - static_cast<int32_t>(alpha * (1.0f / 255.0f) * 250.0f);
 }
 
 // VERIFY: 2c21f0ea manual
 // OFFSET: 0x0056C2B0
 void CGChatBubbleFrame::FadeOut(bool remove) {
-    if (this->m_bubbleFlags & 0x4) {
+    if (this->m_bubbleFlags & FLAG_REMOVE_AFTER_FADE) {
         return;
     }
 
     if (remove) {
-        this->m_bubbleFlags |= 0x4;
+        this->m_bubbleFlags |= FLAG_REMOVE_AFTER_FADE;
     }
 
-    if (this->m_bubbleFlags & 0x2) {
+    if (this->m_bubbleFlags & FLAG_FADING_OUT) {
         return;
     }
 
     uint8_t alpha = this->m_alpha;
-    this->m_bubbleFlags = (this->m_bubbleFlags & ~0x3) | 0x2;
+    this->m_bubbleFlags = (this->m_bubbleFlags & ~FLAG_FADE_MASK) | 0x2;
     this->m_fadeStart = OsGetAsyncTimeMs() - static_cast<int32_t>((255.0f - alpha) * (1.0f / 255.0f) * 250.0f);
 }
 
@@ -163,7 +163,7 @@ bool CGChatBubbleFrame::Update(CGUnit_C* player, CGUnit_C* unit) {
         return false;
     }
 
-    if (!model->IsLoaded(0, 0) || !(model->m_fFlags & 0x8000)) {
+    if (!model->IsLoaded(0, 0) || !(model->m_fFlags & M2_WORLD_TRANSFORM_VALID)) {
         return true;
     }
 
@@ -186,29 +186,29 @@ bool CGChatBubbleFrame::Update(CGUnit_C* player, CGUnit_C* unit) {
 
     uint32_t now = OsGetAsyncTimeMs();
 
-    if (!(this->m_bubbleFlags & 0x2) && static_cast<int32_t>(now - this->m_showTime) > this->m_duration + 250) {
+    if (!(this->m_bubbleFlags & FLAG_FADING_OUT) && static_cast<int32_t>(now - this->m_showTime) > this->m_duration + 250) {
         this->FadeOut(true);
     }
 
-    if (this->m_bubbleFlags & 0x1) {
+    if (this->m_bubbleFlags & FLAG_FADING_IN) {
         uint32_t elapsed = now - this->m_fadeStart;
 
         if (elapsed >= 250) {
             this->SetFrameAlpha(255);
-            this->m_bubbleFlags &= ~0x1;
+            this->m_bubbleFlags &= ~FLAG_FADING_IN;
         } else {
             uint32_t alpha = 255 * elapsed / 250;
             this->SetFrameAlpha(static_cast<uint8_t>(alpha > 255 ? 255 : alpha));
         }
-    } else if (this->m_bubbleFlags & 0x2) {
+    } else if (this->m_bubbleFlags & FLAG_FADING_OUT) {
         uint32_t elapsed = now - this->m_fadeStart;
 
         if (elapsed >= 250) {
-            if (this->m_bubbleFlags & 0x4) {
+            if (this->m_bubbleFlags & FLAG_REMOVE_AFTER_FADE) {
                 return false;
             }
 
-            this->m_bubbleFlags &= ~0x2;
+            this->m_bubbleFlags &= ~FLAG_FADING_OUT;
             this->SetFrameAlpha(0);
         } else {
             uint32_t alpha = 255 * elapsed / 250;
@@ -224,9 +224,9 @@ bool CGChatBubbleFrame::Update(CGUnit_C* player, CGUnit_C* unit) {
     C3Vector attachment;
 
     if (unit->IsMounted()) {
-        attachment = unit->GetAttachmentPosition(29, nullptr);
+        attachment = unit->GetAttachmentPosition(ATTACH_PLAYERNAMEMOUNTED, nullptr);
     } else {
-        attachment = unit->GetAttachmentPosition(18, nullptr);
+        attachment = unit->GetAttachmentPosition(ATTACH_PLAYERNAME, nullptr);
     }
 
     this->m_height = attachment.z - unit->GetModelPosition().z;
@@ -247,7 +247,7 @@ void CGChatBubbleFrame::Initialize(const WOWGUID& unit, const char* text, const 
     this->m_fontString->SetWidth(0.0f);
     this->m_fontString->SetHeight(0.0f);
 
-    if (s_locale == 1) {
+    if (s_locale == LOCALE_ko_KR) {
         this->m_fontString->SetJustifyH(1);
     }
 
@@ -267,7 +267,7 @@ void CGChatBubbleFrame::Initialize(const WOWGUID& unit, const char* text, const 
     this->m_worldPosition = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_showTime = OsGetAsyncTimeMs();
     this->m_duration = ComputeDuration(buffer, unit == ClntObjMgrGetActivePlayer());
-    this->m_bubbleFlags = 0x8;
+    this->m_bubbleFlags = FLAG_NEEDS_SORT;
     this->m_unit = unit;
     this->SetFrameAlpha(0);
     this->FadeIn();
@@ -295,12 +295,12 @@ CGChatBubbleFrame::CGChatBubbleFrame(CSimpleFrame* parent) : CSimpleFrame(parent
     this->m_worldPosition.x = 0.0f;
     this->m_worldPosition.y = 0.0f;
     this->m_worldPosition.z = 0.0f;
-    this->SetFrameFlag(0x40000, 1);
+    this->SetFrameFlag(CSimpleFrame::FRAME_HIDE_SCRIPT_DEPTH, 1);
 
     void* data = SMemAlloc(sizeof(CBackdropGenerator), __FILE__, __LINE__, 0);
     CBackdropGenerator* backdrop = data ? new (data) CBackdropGenerator() : nullptr;
     backdrop->m_bgFile.Copy("Interface\\Tooltips\\ChatBubble-Background");
-    backdrop->m_pieces = 0xFF;
+    backdrop->m_pieces = CBackdropGenerator::THEWORKS;
     backdrop->m_tile = 1;
     backdrop->m_edgeFile.Copy("Interface\\Tooltips\\ChatBubble-Backdrop");
     backdrop->m_alphaMode = GxBlend_Alpha;
@@ -346,7 +346,7 @@ void CGChatBubbleFrame::ShutdownGame() {
 static void InsertSorted(CGChatBubbleFrame* bubble) {
     for (CGChatBubbleFrame* node = s_chatBubbles.Head(); node; node = s_chatBubbles.Next(node)) {
         if (static_cast<int32_t>(node->m_showTime - bubble->m_showTime) >= 0) {
-            s_chatBubbles.LinkNode(bubble, 2, node);
+            s_chatBubbles.LinkNode(bubble, TSLIST_LINK_BEFORE, node);
             return;
         }
     }
@@ -426,9 +426,9 @@ void CGChatBubbleFrame::OnWorldLayerUpdate() {
             continue;
         }
 
-        if ((bubble->m_bubbleFlags & 0x8) || cameraMoved) {
+        if ((bubble->m_bubbleFlags & FLAG_NEEDS_SORT) || cameraMoved) {
             moved.LinkToTail(bubble);
-            bubble->m_bubbleFlags &= ~0x8;
+            bubble->m_bubbleFlags &= ~FLAG_NEEDS_SORT;
         }
     }
 

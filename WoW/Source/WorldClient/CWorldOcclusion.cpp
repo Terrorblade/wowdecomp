@@ -462,7 +462,7 @@ void CWorldOcclusion::UpdateBuffer(const C3Vector* points, int32_t count, uint32
             x1 = 383;
         }
 
-        if (flags & 1) {
+        if (flags & UPDATE_FLAG_MARK_MASK) {
             if (x0 <= x1) {
                 memset(&CWorldScene::s_clipBufferMask[x0], 1, x1 - x0 + 1);
 
@@ -492,7 +492,7 @@ uint32_t CWorldOcclusion::QueryBuffer(const C3Vector& center, float radius, uint
     C3Vector view = center * CWorldScene::s_clipBufferMatrix;
     C3Vector extent = C3Vector(radius, radius, 0.0f) * CWorldScene::projMatrix;
 
-    if (!(flags & 0x8) && view.z < 50.0f) {
+    if (!(flags & QUERY_FLAG_TEST_NEAR) && view.z < 50.0f) {
         return 0;
     }
 
@@ -542,7 +542,7 @@ uint32_t CWorldOcclusion::QueryBuffer(CAaBox* box, uint8_t flags) {
         C3Vector corner(corners[aabbCornerSelectX[i]]->x, corners[aabbCornerSelectY[i]]->y, corners[aabbCornerSelectZ[i]]->z);
         corner = corner * CWorldScene::s_clipBufferMatrix;
 
-        if (!(flags & 0x8) && corner.z < 50.0f) {
+        if (!(flags & QUERY_FLAG_TEST_NEAR) && corner.z < 50.0f) {
             return 0;
         }
 
@@ -606,7 +606,7 @@ void CWorldScene::AddWorldOccluders() {
 // VERIFY: be6bb79d auto
 // OFFSET: 0x007CC880
 void CWorldOccluder::ClipBufferUpdate() {
-    CWorldOcclusion::UpdateBuffer(this->m_points, 2, 1);
+    CWorldOcclusion::UpdateBuffer(this->m_points, 2, CWorldOcclusion::UPDATE_FLAG_MARK_MASK);
 }
 
 // VERIFY: 7e61d360 manual
@@ -655,7 +655,7 @@ CWorldOccluder* CWorldOccluder::Alloc() {
     CWorldOccluder* occluder = s_occluderFreeList.Head();
 
     if (!occluder) {
-        occluder = s_occluderFreeList.NewNode(2, 0, 0);
+        occluder = s_occluderFreeList.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     }
 
     occluder->m_link.Unlink();
@@ -867,12 +867,12 @@ void CWorldScene::CreateOcclusionVolumes(const C3Vector* eye, const C3Vector* co
     for (uint32_t i = 0; i < 62; i++) {
         OcclusionVolume& volume = s_occlusionVolumes[i];
 
-        if (s_mapId != volume.m_mapID || (onlyFlagged && !(volume.m_flags & 2))) {
+        if (s_mapId != volume.m_mapID || (onlyFlagged && !(volume.m_flags & OcclusionVolume::UNKNOWN_2))) {
             continue;
         }
 
         if (frustum.Cull(volume.m_data.m_bounds)) {
-            CWorldOcclusion::AddVolume(eye, volume.m_data.m_positions, volume.m_data.m_positionCount, !(volume.m_flags & 1));
+            CWorldOcclusion::AddVolume(eye, volume.m_data.m_positions, volume.m_data.m_positionCount, !(volume.m_flags & OcclusionVolume::NO_VIEW_CLIP));
         }
     }
 }
@@ -917,7 +917,7 @@ void CWorldScene::RenderOcclusionVolumes() {
     g_theGxDevicePtr->XformPushAndSet(GxXform_World, world);
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 2);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Lighting, 0);

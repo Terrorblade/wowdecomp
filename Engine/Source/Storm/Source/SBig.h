@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include "Engine/Source/Storm/H/stpl.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 class BigBuffer {
     public:
@@ -25,7 +26,11 @@ class BigBuffer {
 
 class BigStack {
     public:
-    /* 0000 */ BigBuffer m_buffer[16];
+    enum {
+        SIZE = 16,
+    };
+
+    /* 0000 */ BigBuffer m_buffer[SIZE];
     /* 0140 */ uint32_t m_used;
 
     BigStack();

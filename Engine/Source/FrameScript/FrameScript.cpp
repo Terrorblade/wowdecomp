@@ -421,7 +421,7 @@ char* FrameScript_Sprintf(lua_State* L, int32_t index, char* buffer, uint32_t bu
 
             case 'd':
             case 'i':
-                written = SStrPrintf(dest, space, spec, static_cast<int32_t>(luaL_checknumber(L, arg)));
+                written = static_cast<int32_t>(SStrPrintf(dest, space, spec, static_cast<int32_t>(luaL_checknumber(L, arg))));
 
                 if (written > 0) {
                     lua_convertdecimal(dest);
@@ -435,7 +435,7 @@ char* FrameScript_Sprintf(lua_State* L, int32_t index, char* buffer, uint32_t bu
             case 'u':
             case 'x':
             case 'X':
-                written = SStrPrintf(dest, space, spec, static_cast<int64_t>(luaL_checknumber(L, arg)));
+                written = static_cast<int32_t>(SStrPrintf(dest, space, spec, static_cast<int64_t>(luaL_checknumber(L, arg))));
 
                 if (written > 0) {
                     dest += written;
@@ -449,7 +449,7 @@ char* FrameScript_Sprintf(lua_State* L, int32_t index, char* buffer, uint32_t bu
             case 'f':
             case 'g':
             case 'G':
-                written = SStrPrintf(dest, space, spec, luaL_checknumber(L, arg));
+                written = static_cast<int32_t>(SStrPrintf(dest, space, spec, luaL_checknumber(L, arg)));
 
                 if (written > 0) {
                     dest += written;
@@ -465,7 +465,7 @@ char* FrameScript_Sprintf(lua_State* L, int32_t index, char* buffer, uint32_t bu
                     }
                 }
 
-                written = SStrPrintf(dest, space, spec, luaL_checknumber(L, arg));
+                written = static_cast<int32_t>(SStrPrintf(dest, space, spec, luaL_checknumber(L, arg)));
 
                 if (written > 0) {
                     lua_convertdecimal(dest);
@@ -477,7 +477,7 @@ char* FrameScript_Sprintf(lua_State* L, int32_t index, char* buffer, uint32_t bu
 
             case 's': {
                 size_t stringLength;
-                written = SStrPrintf(dest, space, spec, luaL_checklstring(L, arg, &stringLength));
+                written = static_cast<int32_t>(SStrPrintf(dest, space, spec, luaL_checklstring(L, arg, &stringLength)));
 
                 if (written > 0) {
                     dest += written;
@@ -591,7 +591,7 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
             if (lua_type(L, -1) != LUA_TNIL) {
                 lua_pop(L, 2);
                 SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "nil --[[ skipped recursive table ]]");
-                OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
 
                 return;
             }
@@ -603,7 +603,7 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
             lua_pop(L, 1);
 
             SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "{\r\n");
-            OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+            OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
 
             if (depth < sizeof(s_printIndent)) {
                 if (depth > 0) {
@@ -613,15 +613,15 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
                 s_printIndent[depth] = '\0';
             }
 
-            int32_t count = lua_objlen(L, index);
+            int32_t count = static_cast<int32_t>(lua_objlen(L, index));
 
             for (int32_t i = 1; i <= count; i++) {
                 lua_rawgeti(L, index, i);
                 SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "%s", s_printIndent);
-                OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
                 PrintVariable(file, L, -1, depth + 1);
                 SStrPrintf(s_printBuffer, sizeof(s_printBuffer), ", -- [%d]\r\n", i);
-                OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
                 lua_pop(L, 1);
             }
 
@@ -634,14 +634,14 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
 
                         if (std::isnan(key)) {
                             SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "%s--[[ skipped entry with nan key ]]\r\n", s_printIndent);
-                            OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                            OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
                             lua_pop(L, 1);
                             continue;
                         }
 
                         if (!std::isfinite(key)) {
                             SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "%s--[[ skipped entry with inf key ]]\r\n", s_printIndent);
-                            OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                            OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
                             lua_pop(L, 1);
                             continue;
                         }
@@ -660,19 +660,19 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
                     case LUA_TBOOLEAN:
                     case LUA_TSTRING:
                         SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "%s[", s_printIndent);
-                        OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                        OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
                         PrintVariable(file, L, -2, depth + 1);
                         SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "] = ");
-                        OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                        OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
                         PrintVariable(file, L, -1, depth + 1);
                         SStrPrintf(s_printBuffer, sizeof(s_printBuffer), ",\r\n");
-                        OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                        OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
                         lua_pop(L, 1);
                         break;
 
                     default:
                         SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "%s--[[ skipped entry with %s key ]]\r\n", s_printIndent, lua_typename(L, lua_type(L, -2)));
-                        OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+                        OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
                         lua_pop(L, 1);
                         break;
                 }
@@ -683,7 +683,7 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
             }
 
             SStrPrintf(s_printBuffer, sizeof(s_printBuffer), "%s}", s_printIndent);
-            OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+            OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, s_recursiveTableHash);
             lua_pushvalue(L, tableIndex);
@@ -714,7 +714,7 @@ static void PrintVariable(HOSFILE file, lua_State* L, int32_t index, int32_t dep
             break;
     }
 
-    OsWriteFile(file, s_printBuffer, SStrLen(s_printBuffer), &written);
+    OsWriteFile(file, s_printBuffer, static_cast<uint32_t>(SStrLen(s_printBuffer)), &written);
 }
 
 // VERIFY: b1d469c4 auto
@@ -739,7 +739,7 @@ int32_t FrameScript_PrintVariable(HOSFILE file, const char* name) {
 
     uint32_t written;
     OsWriteFile(file, "\r\n", 2, &written);
-    OsWriteFile(file, name, SStrLen(name), &written);
+    OsWriteFile(file, name, static_cast<uint32_t>(SStrLen(name)), &written);
     OsWriteFile(file, " = ", 3, &written);
     PrintVariable(file, L, -1, 1);
     lua_pop(L, 1);
@@ -1588,10 +1588,10 @@ void FrameScript_RegisterScriptEvent(FrameScript_Object* object, FrameScript_Eve
             }
         }
 
-        EVENTLISTENERNODE* node = event->m_registerListeners.NewNode(2, 0, 0);
+        EVENTLISTENERNODE* node = event->m_registerListeners.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         node->m_listener = object;
     } else {
-        EVENTLISTENERNODE* node = event->m_listeners.NewNode(2, 0, 0);
+        EVENTLISTENERNODE* node = event->m_listeners.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         node->m_listener = object;
     }
 }
@@ -1606,7 +1606,7 @@ void FrameScript_UnregisterScriptEvent(FrameScript_Object* object, FrameScript_E
             }
         }
 
-        EVENTLISTENERNODE* node = event->m_unregisterListeners.NewNode(2, 0, 0);
+        EVENTLISTENERNODE* node = event->m_unregisterListeners.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         node->m_listener = object;
     } else {
         for (EVENTLISTENERNODE* node = event->m_listeners.Head(); !event->m_listeners.IsEnd(node); node = event->m_listeners.RawNext(node)) {

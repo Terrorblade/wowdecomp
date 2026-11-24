@@ -15,6 +15,13 @@ class CM2Model;
 
 class CGCorpse_C : public CGObject_C, public CGCorpse {
     public:
+
+    enum RUNTIME_FLAGS : uint32_t {
+        NONE = 0,
+        GROUND_NORMAL_CACHED = 0x1,
+        DROWNED_POSE = 0x2,
+    };
+
     static void Initialize();
     /* 00D8 */ CPassenger m_passenger;
     /* 0108 */ TSList<void> m_corpseMirrorLists [30];

@@ -8,6 +8,7 @@
 #include "WoW/Source/WorldClient/MapChunkLiquid.h"
 #include "WoW/Source/WorldClient/MapObj.h"
 #include "WoW/Source/WorldClient/MapObjGroup.h"
+#include "Engine/Source/Base/CDataAllocator.h"
 
 // STATIC: 0x00D31960
 CDataAllocator Liquid::s_meshGeomFactoryAllocator(sizeof(Liquid::CMeshGeomFactory), 4);
@@ -176,7 +177,7 @@ void Liquid::CMeshGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf**
         CGxBatch* meshBatch = this->m_batch;
         meshBatch->m_primType = GxPrim_TriangleStrip;
         meshBatch->m_start = 0;
-        meshBatch->m_count = indices - indexStart;
+        meshBatch->m_count = static_cast<uint32_t>(indices - indexStart);
         meshBatch->m_minIndex = 0;
         meshBatch->m_maxIndex = count - 1;
     }
@@ -278,7 +279,7 @@ void Liquid::CChunkGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf*
     }
 
     if (!this->m_buf) {
-        this->m_buf = CMapChunkLiquidBuf::Alloc(vertexCount, indexCount, 0, format);
+        this->m_buf = CMapChunkLiquidBuf::Alloc(vertexCount, indexCount, CMapChunkLiquidBuf::NONE, format);
     }
 
     *vertexBuf = this->m_buf->m_vertexBuf;

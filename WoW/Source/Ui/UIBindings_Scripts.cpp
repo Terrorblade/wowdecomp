@@ -689,7 +689,7 @@ static int32_t Script_GetClickFrame(lua_State* L) {
     }
 
     const char* name = lua_tolstring(L, 1, nullptr);
-    CSimpleFrame* frame = GetClickFrame(L, name, SStrLen(name));
+    CSimpleFrame* frame = GetClickFrame(L, name, static_cast<uint32_t>(SStrLen(name)));
 
     if (!frame) {
         lua_pushnil(L);

@@ -6,6 +6,10 @@
 
 class SFileImpl;
 
+enum SPELL_ICON_ID : int32_t {
+    SPELL_ICON_ID_SACRIFICIAL_SHIELD = 693,
+};
+
 class SpellIconRec {
     public:
     static const int32_t s_numColumns = 2;

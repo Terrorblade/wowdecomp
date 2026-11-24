@@ -22,6 +22,7 @@
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
+#include "Engine/Source/Tempest/Color.h"
 
 // STATIC: 0x00D38140
 static uint32_t* s_seedTexels;
@@ -59,20 +60,20 @@ PassFogCombine::~PassFogCombine() {
 // VERIFY: 874a5f41 manual
 // OFFSET: 0x007E86A0
 PassDeath::PassDeath(FFX::Tex** inputs, uint32_t count, FFX::Tex* output, EGxBlend blend, bool unk) : FFX::Pass(inputs, count, output, blend, unk) {
-    this->m_useRect = 0;
-    this->m_shaders[0] = nullptr;
-    this->m_shaders[1] = nullptr;
+    this->m_useRect = PassDeath::PRIMARY_VARIANT;
+    this->m_shaders[PassDeath::PRIMARY_VARIANT] = nullptr;
+    this->m_shaders[PassDeath::RECTANGLE_PERMUTATION] = nullptr;
 
-    if (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == 8 || g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == 9 || g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == 10) {
+    if (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == GxShPS_nvts || g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == GxShPS_nvts2 || g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == GxShPS_nvts3) {
         g_theGxDevicePtr->ShaderCreate(this->m_shaders, GxSh_Pixel, "Shaders\\Pixel", FFX::s_useRECT ? "FFXDeath_nvts_rect" : "FFXDeath_nvts_2d", 1);
         return;
     }
 
     if (FFX::s_useRECT) {
-        this->m_useRect = 1;
+        this->m_useRect = PassDeath::RECTANGLE_PERMUTATION;
     }
 
-    g_theGxDevicePtr->ShaderCreate(this->m_shaders, GxSh_Pixel, "Shaders\\Pixel", "FFXDeath", 2);
+    g_theGxDevicePtr->ShaderCreate(this->m_shaders, GxSh_Pixel, "Shaders\\Pixel", "FFXDeath", PassDeath::VARIANT_CAPACITY);
 }
 
 // VERIFY: 5970ea32 manual
@@ -131,16 +132,16 @@ void PassDeathNVRC::Execute() {
 // VERIFY: 22ef7cce manual
 // OFFSET: 0x007EA260
 EffectDeath::EffectDeath() {
-    this->m_cvar = CVar::Register("ffxDeath", "full screen death effect", 1, this->m_defaultEnabled ? "1" : "0", FFX::CVarCallback, 1, false, nullptr, false);
+    this->m_cvar = CVar::Register("ffxDeath", "full screen death effect", CVAR_ARCHIVE, this->m_defaultEnabled ? "1" : "0", FFX::CVarCallback, 1, false, nullptr, false);
 
-    if (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == 7) {
+    if (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == GxShPS_nvrc) {
         FFX::Tex* inputs[] = { &FFX::s_full[0] };
         FFX::Pass* pass = new (__FILE__, __LINE__) PassDeathNVRC(inputs, 1, &FFX::s_screen, GxBlend_Opaque, true);
         this->m_passes.New(pass);
         return;
     }
 
-    if (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] <= 0) {
+    if (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] <= GxShPS_none) {
         return;
     }
 
@@ -170,9 +171,9 @@ EffectDeath::~EffectDeath() {
 // VERIFY: c9c9b096 manual
 // OFFSET: 0x007EA470
 EffectNetherWorld::EffectNetherWorld() {
-    this->m_cvar = CVar::Register("ffxNetherWorld", "full screen nether world effect (for invisibility)", 1, "1", FFX::CVarCallback, 1, false, nullptr, false);
+    this->m_cvar = CVar::Register("ffxNetherWorld", "full screen nether world effect (for invisibility)", CVAR_ARCHIVE, "1", FFX::CVarCallback, 1, false, nullptr, false);
 
-    if (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == 7 || g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] <= 0) {
+    if (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] == GxShPS_nvrc || g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel] <= GxShPS_none) {
         return;
     }
 
@@ -233,17 +234,17 @@ PassNetherBlur::PassNetherBlur(FFX::Tex** inputs, uint32_t count, FFX::Tex* outp
     g_theGxDevicePtr->ShaderCreate(&this->m_vertexShader, GxSh_Vertex, "Shaders\\Vertex", "FFXNetherBlur", 1);
     this->m_seed.SetSeed(0xABCDEF01);
 
-    for (uint32_t table = 0; table < 3; table++) {
+    for (uint32_t table = 0; table < ROLE_COUNT; table++) {
         for (uint32_t i = 0; i < 36; i++) {
             float value = CRandom::ufloat_(this->m_seed);
             this->m_noise[table][i] = fmodf(value + value - 1.0f, 1.0f);
         }
     }
 
-    this->m_noiseTables[0] = this->m_noise[0];
+    this->m_noiseTables[BLEND_FROM] = this->m_noise[0];
     this->m_noiseBlend = 0.0f;
-    this->m_noiseTables[1] = this->m_noise[1];
-    this->m_noiseTables[2] = this->m_noise[2];
+    this->m_noiseTables[BLEND_TO] = this->m_noise[1];
+    this->m_noiseTables[REGENERATE] = this->m_noise[2];
 }
 
 // VERIFY: 32e95e2f auto
@@ -359,7 +360,7 @@ EffectSwirlingFog::EffectSwirlingFog() {
     rect.maxX = 0;
     GxTexUpdate(TextureGetGxTex(this->m_seedTex.m_texture, 1, nullptr), rect, 1);
 
-    this->m_cvar = CVar::Register("ffxSpecial", "full screen test effect", 1, this->m_defaultEnabled ? "1" : "0", FFX::CVarCallback, 1, false, nullptr, false);
+    this->m_cvar = CVar::Register("ffxSpecial", "full screen test effect", CVAR_ARCHIVE, this->m_defaultEnabled ? "1" : "0", FFX::CVarCallback, 1, false, nullptr, false);
 
     static C2Vector s_propagateParams[4] = {
         C2Vector(-1.0f, 1.0f),
@@ -460,20 +461,20 @@ void PassNetherBlur::Execute() {
 
     if (this->m_noiseBlend > 1.0f) {
         this->m_noiseBlend = static_cast<float>(fmod(this->m_noiseBlend, 1.0));
-        float* oldest = this->m_noiseTables[0];
-        this->m_noiseTables[0] = this->m_noiseTables[1];
-        this->m_noiseTables[1] = this->m_noiseTables[2];
-        this->m_noiseTables[2] = oldest;
+        float* oldest = this->m_noiseTables[BLEND_FROM];
+        this->m_noiseTables[BLEND_FROM] = this->m_noiseTables[BLEND_TO];
+        this->m_noiseTables[BLEND_TO] = this->m_noiseTables[REGENERATE];
+        this->m_noiseTables[REGENERATE] = oldest;
 
         for (uint32_t i = 0; i < 36; i++) {
             uint32_t bits = (CRandom::uint32_(this->m_seed) & 0x7FFFFF) | 0x3F800000;
             float random = *reinterpret_cast<float*>(&bits) - 1.0f;
-            this->m_noiseTables[2][i] = static_cast<float>(fmod(random + random - 1.0f, 1.0));
+            this->m_noiseTables[REGENERATE][i] = static_cast<float>(fmod(random + random - 1.0f, 1.0));
         }
     }
 
     for (uint32_t i = 0; i < 36; i++) {
-        this->m_blendedNoise[i] = (1.0f - this->m_noiseBlend) * this->m_noiseTables[0][i] + this->m_noiseTables[1][i] * this->m_noiseBlend;
+        this->m_blendedNoise[i] = (1.0f - this->m_noiseBlend) * this->m_noiseTables[BLEND_FROM][i] + this->m_noiseTables[BLEND_TO][i] * this->m_noiseBlend;
     }
 
     this->m_noiseBlend = elapsed * 1.5f + this->m_noiseBlend;
@@ -517,7 +518,7 @@ void PassNetherBlur::Execute() {
     GxRsSet(GxRs_ScissorTest, 0);
     g_theGxDevicePtr->DeviceSetRenderTarget(GxBuffers_Color, target, 0);
     GxXformSetViewport(0.0f, static_cast<float>(FFX::s_quart[1].m_size.x) / FFX::s_quart[1].m_texSize.x, 0.0f, static_cast<float>(FFX::s_quart[1].m_size.y) / FFX::s_quart[1].m_texSize.y, 0.0f, 1.0f);
-    GxSceneClear(GxBufferBit_Color, CImVector(0xFF, 0xFF, 0xFF, 0xFF));
+    GxSceneClear(GxBufferBit_Color, CImVector(COLOR_WHITE_BGRA));
 
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(this->m_inputs[0]->m_texture, 1, nullptr));
     g_theGxDevicePtr->RsSet(GxRs_Texture1, TextureGetGxTex(this->m_inputs[0]->m_texture, 1, nullptr));
@@ -535,7 +536,7 @@ void PassNetherBlur::Execute() {
     GxRsSet(GxRs_ScissorTest, 0);
     g_theGxDevicePtr->DeviceSetRenderTarget(GxBuffers_Color, target, 0);
     GxXformSetViewport(0.0f, static_cast<float>(this->m_output->m_size.x) / this->m_output->m_texSize.x, 0.0f, static_cast<float>(this->m_output->m_size.y) / this->m_output->m_texSize.y, 0.0f, 1.0f);
-    GxSceneClear(GxBufferBit_Color, CImVector(0xFF, 0xFF, 0xFF, 0xFF));
+    GxSceneClear(GxBufferBit_Color, CImVector(COLOR_WHITE_BGRA));
 
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(FFX::s_quart[1].m_texture, 1, nullptr));
     g_theGxDevicePtr->RsSet(GxRs_Texture1, TextureGetGxTex(FFX::s_quart[1].m_texture, 1, nullptr));
@@ -602,9 +603,9 @@ void PassPropagateFog::Execute() {
 // VERIFY: 7f8524f4 auto
 // OFFSET: 0x007E9010
 void EffectSwirlingFog::SetParameters(int32_t count, const int32_t* params) {
-    static_cast<PassFogSeed*>(this->m_passes[0])->m_color = params[0];
-    static_cast<PassPropagateFog*>(this->m_passes[1])->unk_005C = params[1] * 0.0039215689f;
-    PassFogCombine* combine = static_cast<PassFogCombine*>(this->m_passes[2]);
+    static_cast<PassFogSeed*>(this->m_passes[SEED_PASS])->m_color = params[0];
+    static_cast<PassPropagateFog*>(this->m_passes[PROPAGATION_PASS])->unk_005C = params[1] * 0.0039215689f;
+    PassFogCombine* combine = static_cast<PassFogCombine*>(this->m_passes[COMBINE_PASS]);
     combine->m_density = params[2] * 0.0099999998f;
     combine->m_fadeTime = 3.0f;
 }
@@ -612,8 +613,8 @@ void EffectSwirlingFog::SetParameters(int32_t count, const int32_t* params) {
 // VERIFY: d2fd534c auto
 // OFFSET: 0x007E8E20
 void EffectNetherWorld::End() {
-    if (this->m_passes.Count() >= 2) {
-        static_cast<PassNetherCombine*>(this->m_passes[1])->m_fade = 0.0f;
+    if (this->m_passes.Count() >= PASS_COUNT) {
+        static_cast<PassNetherCombine*>(this->m_passes[COMBINE_PASS])->m_fade = 0.0f;
     }
 }
 
@@ -641,7 +642,7 @@ static C2Vector PolarCoord(float u, float v) {
 // OFFSET: 0x007E8410
 void PassFogCombine::BuildVertices(const C2iVector& size, FFX::Tex* tex0, FFX::Tex* tex1) {
     CImVector color;
-    *reinterpret_cast<uint32_t*>(&color) = 0xFFFFFFFF;
+    *reinterpret_cast<uint32_t*>(&color) = COLOR_WHITE_ARGB;
 
     float halfU0 = 0.5f / tex0->m_size.x;
     float halfV0 = 0.5f / tex0->m_size.y;
@@ -774,7 +775,7 @@ void PassNetherCombine::Execute() {
     g_theGxDevicePtr->RsSet(GxRs_PixelShader, this->m_pixelShaders[this->m_useRect]);
 
     CImVector color;
-    *reinterpret_cast<uint32_t*>(&color) = 0xFFFFFFFF;
+    *reinterpret_cast<uint32_t*>(&color) = COLOR_WHITE_ARGB;
 
     if (this->m_fade < 0.75f) {
         float fade = this->m_fade + FrameTime::s_tickTimeSec;

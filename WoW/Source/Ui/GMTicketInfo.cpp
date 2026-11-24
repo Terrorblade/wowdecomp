@@ -210,20 +210,20 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
             msg->Get(result);
 
             switch (result) {
-                case 1:
+                case GM_TICKET_RESPONSE_ALREADY_EXISTS:
                     CGGameUI::DisplayError(ERR_TICKET_ALREADY_EXISTS);
                     break;
 
-                case 2:
-                case 4:
+                case GM_TICKET_RESPONSE_CREATED:
+                case GM_TICKET_RESPONSE_UPDATED:
                     SendGetTicketOpcode();
                     break;
 
-                case 3:
+                case GM_TICKET_RESPONSE_CREATE_ERROR:
                     CGGameUI::DisplayError(ERR_TICKET_CREATE_ERROR);
                     break;
 
-                case 5:
+                case GM_TICKET_RESPONSE_UPDATE_ERROR:
                     CGGameUI::DisplayError(ERR_TICKET_UPDATE_ERROR);
                     break;
             }
@@ -239,7 +239,7 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
                 break;
             }
 
-            if (status != 6) {
+            if (status != GM_TICKET_RESPONSE_HAS_TICKET) {
                 if (!status) {
                     CGGameUI::DisplayError(ERR_TICKET_DB_ERROR);
                 }
@@ -281,7 +281,7 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
                 break;
             }
 
-            if (result == 9) {
+            if (result == GM_TICKET_RESPONSE_DELETED) {
                 CGGMTicketInfo::m_ticketID = 0;
                 CGGMTicketInfo::m_responseID = 0;
                 FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_TICKET, nullptr);
@@ -297,18 +297,18 @@ int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore*
             msg->Get(status);
 
             switch (status) {
-                case 1:
-                case 4:
+                case GM_TICKET_STATUS_UNKNOWN_1:
+                case GM_TICKET_STATUS_UNKNOWN_4:
                     SendGetTicketOpcode();
                     break;
 
-                case 2:
+                case GM_TICKET_STATUS_CLOSED:
                     CGGMTicketInfo::m_ticketID = 0;
                     CGGMTicketInfo::m_responseID = 0;
                     FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_TICKET, nullptr);
                     break;
 
-                case 3:
+                case GM_TICKET_STATUS_SURVEY:
                     CGGMTicketInfo::m_ticketID = 0;
                     CGGMTicketInfo::m_responseID = 0;
                     FrameScript_SignalEvent(SCRIPT_EVENT_GMSURVEY_DISPLAY, nullptr);

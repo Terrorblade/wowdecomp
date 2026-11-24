@@ -62,6 +62,8 @@
 #include <new>
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/Gx/CGxMatrixStack.h"
+#include "Engine/Source/Tempest/Color.h"
+#include "WoW/Source/DB/Rec/WMOAreaTableRec.h"
 
 // STATIC: 0x00AEE008
 uint32_t CMapObj::s_maxLiquidQueryDepth = 2;
@@ -73,10 +75,10 @@ static int32_t s_portalExtCount = 2048;
 static TSGrowableArray<C3Vector> s_portalVerts;
 
 // STATIC: 0x00D1C3D4
-CShaderEffect* CMapObj::s_unifiedShaders[7];
+CShaderEffect* CMapObj::s_unifiedShaders[CMapObj::SHADER_COUNT];
 
 // STATIC: 0x00D1C3F0
-CShaderEffect* CMapObj::s_classicShaders[7];
+CShaderEffect* CMapObj::s_classicShaders[CMapObj::SHADER_COUNT];
 
 // STATIC: 0x00D1C40C
 uint32_t* CMapObj::occluderHeap;
@@ -103,7 +105,7 @@ RENDER_CALLBACK CMapObj::gRenderCallback;
 void* CMapObj::gRenderUserParam;
 
 // STATIC: 0x00ADFE44
-int32_t CMapObj::s_renderMode = 5;
+int32_t CMapObj::s_renderMode = CMapObj::DEFAULT_RENDER;
 
 // STATIC: 0x00CFBEC4
 void (CMapObj::*CMapObj::s_renderGroupExterior)(CMapObjGroup* group, uint32_t index);
@@ -167,15 +169,16 @@ int32_t CMapObj::s_lightingMode;
 
 // STATIC: 0x00D1BEE0
 static uint32_t s_smolVertCacheSize;
+static constexpr uint32_t MAX_SMOLVERTCACHE_SIZE = 64;
 
 // STATIC: 0x00D1BF00
-static SMOLiquidVert s_smolVertCache[64];
+static SMOLiquidVert s_smolVertCache[MAX_SMOLVERTCACHE_SIZE];
 
 // VERIFY: 7a37847b auto
 // OFFSET: 0x007A6140
 World::TriData::Batch* World::TriData::AllocBatch() {
-    if (World::TriData::nBatches + 1 >= 32) {
-        World::TriData::statusFlags |= 1;
+    if (World::TriData::nBatches + 1 >= TRI_QUERY_BATCH_CAPACITY) {
+        World::TriData::statusFlags |= TRI_QUERY_STATUS_OVERFLOW;
         return nullptr;
     }
 
@@ -201,8 +204,8 @@ World::TriData::Batch* World::TriData::AllocBatch() {
 uint16_t* __stdcall World::TriData::AllocIndices(uint32_t count) {
     uint32_t cursor = World::TriData::indexCursor;
 
-    if (cursor + count >= 0xC000) {
-        World::TriData::statusFlags |= 1;
+    if (cursor + count >= TRI_QUERY_INDEX_CAPACITY) {
+        World::TriData::statusFlags |= TRI_QUERY_STATUS_OVERFLOW;
         return nullptr;
     }
 
@@ -263,7 +266,7 @@ void CMapObj::SetupMapObjDefCull(C44Matrix& mat, C44Matrix& invMat, C3Vector& wo
 
     if (this->m_interiorGroupCount == 0xFFFF) {
         for (uint32_t i = 0; i < static_cast<uint32_t>(this->m_groupInfoCount); i++) {
-            if (!(this->m_groupInfo[i].m_flags & 0x10008)) {
+            if (!(this->m_groupInfo[i].m_flags & (CMapObjGroup::F_ALWAYS_DRAW | CMapObjGroup::F_EXTERIOR))) {
                 this->m_interiorGroupCount++;
             }
         }
@@ -295,7 +298,7 @@ void CMapObj::ClassifyPortalPlane(SMOPortal* portal, SPortalExt* portalExt) {
     float dist = portal->m_plane.n.y * s_camPosLocal.y + portal->m_plane.n.z * s_camPosLocal.z + portal->m_plane.n.x * s_camPosLocal.x + portal->m_plane.d;
 
     if (dist > -0.01f && dist < 0.01f && NTempest::Intersect(s_camPosLocal, &this->m_portalVertexList[portal->m_startVertex], portal->m_count, portal->m_plane.n.MajorAxis())) {
-        portalExt->m_flags |= 0x2;
+        portalExt->m_flags |= SPortalExt::F_INTERSECT_NEAR;
     }
 }
 
@@ -325,11 +328,11 @@ void __stdcall CWorldScene::ClipVerts(C3Vector* verts, uint32_t count, C3Vector*
             s_dists[i] = dist;
 
             if (dist > 0.0001f) {
-                s_sides[i] = 1;
+                s_sides[i] = CWorldScene::SIDE_POS;
             } else if (dist >= -0.0001f) {
-                s_sides[i] = 0;
+                s_sides[i] = CWorldScene::SIDE_ON;
             } else {
-                s_sides[i] = 2;
+                s_sides[i] = CWorldScene::SIDE_NEG;
             }
         }
 
@@ -344,12 +347,12 @@ void __stdcall CWorldScene::ClipVerts(C3Vector* verts, uint32_t count, C3Vector*
         uint32_t outCount2 = 0;
 
         for (uint32_t i = 0; i < inCount; i++) {
-            if (s_sides[i] == 0) {
+            if (s_sides[i] == CWorldScene::SIDE_ON) {
                 out[outCount2++] = in[i];
                 continue;
             }
 
-            if (s_sides[i] == 1) {
+            if (s_sides[i] == CWorldScene::SIDE_POS) {
                 out[outCount2++] = in[i];
             }
 
@@ -491,7 +494,7 @@ uint16_t CMapObj::ClipGroupGeometry(CMapObjGroup* group, const C44Matrix& matrix
 
     for (int32_t y = 0; y < group->m_liquidTiles.y; y++) {
         for (int32_t x = 0; x < group->m_liquidTiles.x; x++, tile++) {
-            if ((tile->m_flags & 0xF) == 0xF || !(tile->m_flags & 0x80)) {
+            if ((tile->m_flags & SMOLTile::LIQUID_TYPE_MASK) == SMOLTile::LIQUID_TYPE_NONE || !(tile->m_flags & SMOLTile::SHARED_MASK)) {
                 continue;
             }
 
@@ -573,10 +576,10 @@ static void SetShaderFogFromDayNight(int32_t mode) {
     }
 
     DayNight::DNInfo* info = DayNight::GetInfo();
-    DNFogInfo* fog = (mode & 0x2) ? &info->m_fog : &info->m_fogInterior;
+    DNFogInfo* fog = (mode & CMapObj::EXTERIOR_COLOR) ? &info->m_fog : &info->m_fogInterior;
     CImVector black;
     *reinterpret_cast<uint32_t*>(&black) = 0xFF000000;
-    CImVector color = (mode & 0x4) ? black : fog->m_color;
+    CImVector color = (mode & CMapObj::BLACK_COLOR) ? black : fog->m_color;
     CShaderEffect::SetFogParams(fog->m_start, fog->m_end, fog->m_density, color);
     CShaderEffect::SetFogEnabled(1);
 }
@@ -594,7 +597,7 @@ void CMapObj::SelectWorldShaders() {
         shadow = 2;
     }
 
-    uint32_t vertexPermute = (CMapObj::s_lightingMode != 0) + 2 * (CWorldScene::s_fogPermute + 15 * shadow);
+    uint32_t vertexPermute = (CMapObj::s_lightingMode != CMapObj::UNLIT) + 2 * (CWorldScene::s_fogPermute + 15 * shadow);
     CShaderEffect::SetShaders(vertexPermute, CShaderEffect::SelectShadowShader());
 }
 
@@ -604,7 +607,7 @@ void CMapObj::UpdateMaterials() {
     DayNight::DNInfo* info = DayNight::GetInfo();
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(this->m_materialsCount); i++) {
-        if (this->m_materialList[i].m_flags & 0x10) {
+        if (this->m_materialList[i].m_flags & SMOMaterial::F_SIDN) {
             this->m_materialList[i].m_frameSidnColor = this->m_materialList[i].m_sidnColor;
 
             int32_t scale = CMath::fint_(info->m_curve0 * 255.0f - 0.5f);
@@ -718,17 +721,17 @@ void CMapObjGroup::SetLighting(CMapObjGroup* group, uint32_t mode) {
     C3Vector diffuse(0.0f, 0.0f, 0.0f);
 
     switch (mode) {
-        case 1:
+        case CMapObj::DAY_NIGHT:
             diffuse = C3Vector(info->m_light1.m_diffuse.r * 0.0039215689f, info->m_light1.m_diffuse.g * 0.0039215689f, info->m_light1.m_diffuse.b * 0.0039215689f);
             ambient = C3Vector(info->m_light1.m_ambient.r * 0.0039215689f, info->m_light1.m_ambient.g * 0.0039215689f, 0.0039215689f * info->m_light1.m_ambient.b);
             break;
 
-        case 2:
+        case CMapObj::DAY_NIGHT_MID:
             diffuse = C3Vector(info->m_light1.m_mid0.r * 0.0039215689f, info->m_light1.m_mid0.g * 0.0039215689f, info->m_light1.m_mid0.b * 0.0039215689f);
             ambient = C3Vector(info->m_light1.m_mid1.r * 0.0039215689f, info->m_light1.m_mid1.g * 0.0039215689f, 0.0039215689f * info->m_light1.m_mid1.b);
             break;
 
-        case 3: {
+        case CMapObj::PARENT_COLOR: {
             CImVector& color = group->m_parent->m_argbColor;
             ambient = C3Vector(color.r * 0.0039215689f, color.g * 0.0039215689f, 0.0039215689f * color.b);
             break;
@@ -794,11 +797,11 @@ void CMapObjGroup::SetLighting(CMapObjGroup* group, uint32_t mode) {
 void CMapObj::AddExteriorPortalView(SMOPortal* portal, SMOPortalRef* ref, SPortalExt* ext, uint32_t destIsExterior) {
     uint16_t flags = ext->m_flags;
 
-    if (flags & 0x4) {
+    if (flags & SPortalExt::F_EXTERIOR_VIEW_HANDLED) {
         return;
     }
 
-    flags |= 0x4;
+    flags |= SPortalExt::F_EXTERIOR_VIEW_HANDLED;
     ext->m_flags = flags;
 
     C3Vector offset(portal->m_plane.n.x * 0.01f, portal->m_plane.n.y * 0.01f, 0.01f * portal->m_plane.n.z);
@@ -837,17 +840,17 @@ void CMapObj::TransformPortal(SMOPortal* portal, SPortalExt* portalExt) {
     uint32_t clippedCount = 0;
     uint16_t flags = portalExt->m_flags;
 
-    if (!(flags & 0x2)) {
+    if (!(flags & SPortalExt::F_INTERSECT_NEAR)) {
         C3Vector offset(0.0f, 0.0f, 0.0f);
         portalExt->m_flags |= this->TransformAndClipVerts((flags >> 4) & 1, &this->m_portalVertexList[portal->m_startVertex], portal->m_count, offset, clipped, clippedCount);
     }
 
-    if (portalExt->m_flags & 0x2) {
+    if (portalExt->m_flags & SPortalExt::F_INTERSECT_NEAR) {
         portalExt->m_rect.minX = -1.0f;
         portalExt->m_rect.maxX = 1.0f;
         portalExt->m_rect.maxY = 1.0f;
         portalExt->m_rect.minY = -1.0f;
-    } else if (portalExt->m_flags & 0x1) {
+    } else if (portalExt->m_flags & SPortalExt::F_SCREEN_CULLED) {
         portalExt->m_rect.minX = 3.4028235e38f;
         portalExt->m_rect.maxX = -3.4028235e38f;
         portalExt->m_rect.maxY = -3.4028235e38f;
@@ -880,7 +883,7 @@ void CWorldScene::SetupLighting(CM2Lighting* lighting, C3Vector* view) {
 void CMapObj::AddInteriorPortalView(SMOPortal* portal, SMOPortalRef* ref, SPortalExt* ext, TSGrowableArray<CPortalView>* views) {
     uint16_t flags = ext->m_flags;
 
-    if (flags & 0xC) {
+    if (flags & (SPortalExt::F_EXTERIOR_VIEW_HANDLED | SPortalExt::F_INTERIOR_VIEW_HANDLED)) {
         return;
     }
 
@@ -909,7 +912,7 @@ void CMapObj::AddInteriorPortalView(SMOPortal* portal, SMOPortalRef* ref, SPorta
         views->Add(1, &view);
     }
 
-    ext->m_flags |= 0x8;
+    ext->m_flags |= SPortalExt::F_INTERIOR_VIEW_HANDLED;
 }
 
 // VERIFY: 8052ccf3 manual
@@ -921,10 +924,10 @@ void CMapObj::UnifiedRender(CMapObjGroup* group, uint32_t index) {
     group->SetVertexVB();
     g_theGxDevicePtr->RsPush();
 
-    s_fogMode = -1;
-    CMapObj::s_lightingMode = -1;
+    s_fogMode = CMapObj::CACHE_RESET;
+    CMapObj::s_lightingMode = CMapObj::CACHE_INVALID;
     s_lastSidnColor = 0xFFFFFFFF;
-    s_shadowInterior = -1;
+    s_shadowInterior = CMapObj::INVALID;
 
     if (!CShaderEffect::s_enableShaders) {
         GxRsSet(GxRs_ColorMaterial, static_cast<int32_t>(2));
@@ -993,32 +996,32 @@ void CMapObj::UnifiedRender(CMapObjGroup* group, uint32_t index) {
         emissive.r >>= 1;
         CMapObj::SetEmissiveColor(emissive);
 
-        GxTexSetWrap(gxTex0, static_cast<EGxTexWrapMode>((material.m_flags & 0x40) == 0), static_cast<EGxTexWrapMode>((material.m_flags & 0x80) == 0));
+        GxTexSetWrap(gxTex0, static_cast<EGxTexWrapMode>((material.m_flags & SMOMaterial::F_CLAMP_S) == 0), static_cast<EGxTexWrapMode>((material.m_flags & SMOMaterial::F_CLAMP_T) == 0));
         CShaderEffect* effect = CMapObj::s_unifiedShaders[shader];
         g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex0);
         g_theGxDevicePtr->RsSet(GxRs_Texture1, gxTex1);
         effect->SetCurrent();
 
         if (i >= group->m_transparencyBatchesCount) {
-            if (group->m_flags & 0x48) {
-                CMapObjGroup::SetLighting(group, (material.m_flags & 0x1) == 0);
+            if (group->m_flags & CMapObjGroup::F_EXTERIOR_CLASSIFICATION_MASK) {
+                CMapObjGroup::SetLighting(group, (material.m_flags & SMOMaterial::F_UNLIT) == 0);
                 if (s_shadowInterior) {
-                    s_shadowInterior = 0;
-                    CShadowCache::SetShadowMapGenericInterior(0);
+                    s_shadowInterior = CMapObj::EXTERIOR;
+                    CShadowCache::SetShadowMapGenericInterior(CMapObj::EXTERIOR);
                     CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue();
                 }
 
-                SetShaderFogFromDayNight(2);
+                SetShaderFogFromDayNight(CMapObj::EXTERIOR_COLOR);
             } else {
-                if (material.m_flags & 0x20) {
-                    CMapObjGroup::SetLighting(group, 2);
+                if (material.m_flags & SMOMaterial::F_WINDOW) {
+                    CMapObjGroup::SetLighting(group, CMapObj::DAY_NIGHT_MID);
                 } else {
-                    CMapObjGroup::SetLighting(group, 3);
+                    CMapObjGroup::SetLighting(group, CMapObj::PARENT_COLOR);
                 }
 
-                if (s_shadowInterior != 1) {
-                    s_shadowInterior = 1;
-                    CShadowCache::SetShadowMapGenericInterior(1);
+                if (s_shadowInterior != CMapObj::INTERIOR) {
+                    s_shadowInterior = CMapObj::INTERIOR;
+                    CShadowCache::SetShadowMapGenericInterior(CMapObj::INTERIOR);
                     CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue() != 0;
                 }
 
@@ -1038,16 +1041,16 @@ void CMapObj::UnifiedRender(CMapObjGroup* group, uint32_t index) {
             continue;
         }
 
-        SetShaderFogFromDayNight((material.m_flags & 0x2) == 0 ? fogMode : 0);
+        SetShaderFogFromDayNight((material.m_flags & SMOMaterial::F_UNFOGGED) == 0 ? fogMode : CMapObj::DISABLED);
         if (s_shadowInterior) {
-            s_shadowInterior = 0;
-            CShadowCache::SetShadowMapGenericInterior(0);
+            s_shadowInterior = CMapObj::EXTERIOR;
+            CShadowCache::SetShadowMapGenericInterior(CMapObj::EXTERIOR);
             CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue();
         }
 
         if (CShaderEffect::s_enableShaders) {
-            CMapObjGroup::SetLighting(group, (material.m_flags & 0x1) ? 0 : ((material.m_flags & 0x20) != 0) + 1);
-            SetShaderFogFromDayNight(~material.m_flags & 0x2);
+            CMapObjGroup::SetLighting(group, (material.m_flags & SMOMaterial::F_UNLIT) ? CMapObj::UNLIT : ((material.m_flags & SMOMaterial::F_WINDOW) != 0) + 1);
+            SetShaderFogFromDayNight(~material.m_flags & SMOMaterial::F_UNFOGGED);
             GxRsSet(GxRs_BlendingMode, static_cast<int32_t>(9));
             CShaderEffect::SetAlphaRefDefault();
             CMapObj::SelectWorldShaders();
@@ -1059,11 +1062,11 @@ void CMapObj::UnifiedRender(CMapObjGroup* group, uint32_t index) {
             draw.m_maxIndex = batch.m_vertexEnd;
             g_theGxDevicePtr->Draw(&draw, 1);
 
-            CMapObjGroup::SetLighting(group, 3);
-            SetShaderFogFromDayNight((material.m_flags & 0x2) == 0 ? fogMode : 0);
-            if (s_shadowInterior != 1) {
-                s_shadowInterior = 1;
-                CShadowCache::SetShadowMapGenericInterior(1);
+            CMapObjGroup::SetLighting(group, CMapObj::PARENT_COLOR);
+            SetShaderFogFromDayNight((material.m_flags & SMOMaterial::F_UNFOGGED) == 0 ? fogMode : CMapObj::DISABLED);
+            if (s_shadowInterior != CMapObj::INTERIOR) {
+                s_shadowInterior = CMapObj::INTERIOR;
+                CShadowCache::SetShadowMapGenericInterior(CMapObj::INTERIOR);
                 CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue() != 0;
             }
 
@@ -1082,8 +1085,8 @@ void CMapObj::UnifiedRender(CMapObjGroup* group, uint32_t index) {
 
         GxRsSet(GxRs_ColorMaterial, static_cast<int32_t>(0));
         group->SetTransparencyVB();
-        CMapObjGroup::SetLighting(group, (material.m_flags & 0x1) ? 0 : ((material.m_flags & 0x20) != 0) + 1);
-        SetShaderFogFromDayNight((material.m_flags & 0x2) ? 0 : 6);
+        CMapObjGroup::SetLighting(group, (material.m_flags & SMOMaterial::F_UNLIT) ? CMapObj::UNLIT : ((material.m_flags & SMOMaterial::F_WINDOW) != 0) + 1);
+        SetShaderFogFromDayNight((material.m_flags & SMOMaterial::F_UNFOGGED) ? CMapObj::DISABLED : CMapObj::EXTERIOR_BLACK);
         GxRsSet(GxRs_BlendingMode, static_cast<int32_t>(9));
         CShaderEffect::SetAlphaRefDefault();
         CGxBatch draw;
@@ -1094,8 +1097,8 @@ void CMapObj::UnifiedRender(CMapObjGroup* group, uint32_t index) {
         draw.m_maxIndex = batch.m_vertexEnd;
         g_theGxDevicePtr->Draw(&draw, 1);
 
-        CMapObjGroup::SetLighting(group, 3);
-        SetShaderFogFromDayNight((material.m_flags & 0x2) ? 0 : (fogMode | 4));
+        CMapObjGroup::SetLighting(group, CMapObj::PARENT_COLOR);
+        SetShaderFogFromDayNight((material.m_flags & SMOMaterial::F_UNFOGGED) ? CMapObj::DISABLED : (fogMode | CMapObj::BLACK_COLOR));
         GxRsSet(GxRs_BlendingMode, static_cast<int32_t>(7));
         CShaderEffect::SetAlphaRefDefault();
         CGxBatch draw2;
@@ -1107,8 +1110,8 @@ void CMapObj::UnifiedRender(CMapObjGroup* group, uint32_t index) {
         g_theGxDevicePtr->Draw(&draw2, 1);
 
         group->SetVertexVB();
-        CMapObjGroup::SetLighting(group, 0);
-        SetShaderFogFromDayNight((material.m_flags & 0x2) == 0 ? fogMode : 0);
+        CMapObjGroup::SetLighting(group, CMapObj::UNLIT);
+        SetShaderFogFromDayNight((material.m_flags & SMOMaterial::F_UNFOGGED) == 0 ? fogMode : CMapObj::DISABLED);
         GxRsSet(GxRs_BlendingMode, static_cast<int32_t>(10));
         CShaderEffect::SetAlphaRefDefault();
         CGxBatch draw3;
@@ -1131,7 +1134,7 @@ void CMapObj::RenderGroup(int32_t groupIndex, C44Matrix& matrix, TSExplicitList<
     CMapObjGroup* group = this->GetGroup(groupIndex, 0);
     DebugLog("%s %s", this->m_wmoName, group->m_groupName);
 
-    if (!(group->m_unkLoadedFlag & 0x2)) {
+    if (!(group->m_unkLoadedFlag & CMapObjGroup::TRANS_VERTEX_ATTENUATION_HANDLED)) {
         this->AttenTransVerts(group);
     }
 
@@ -1171,17 +1174,17 @@ void CMapObj::RenderThruPortals(uint32_t groupNum, uint32_t fromGroup, CRect& nd
 
     CMapObjGroup* group = this->GetGroup(groupNum, 0);
 
-    if (!group || (group->m_flags & 0x10000)) {
+    if (!group || (group->m_flags & CMapObjGroup::F_ALWAYS_DRAW)) {
         return;
     }
 
-    if (interior && (group->m_flags & 0x48)) {
+    if (interior && (group->m_flags & CMapObjGroup::F_EXTERIOR_CLASSIFICATION_MASK)) {
         interior = 0;
     }
 
     s_curGroupIsInterior = interior;
 
-    if (s_interiorPass && (group->m_flags & 0x40000)) {
+    if (s_interiorPass && (group->m_flags & CMapObjGroup::F_USE_SKYBOX)) {
         CWorldScene::s_interiorSkybox = this->m_skybox;
     }
 
@@ -1203,7 +1206,7 @@ void CMapObj::RenderThruPortals(uint32_t groupNum, uint32_t fromGroup, CRect& nd
 
     SMOPortalRef* ref = &this->m_portalRefList[group->m_portalStart];
 
-    for (uint32_t i = 0; i < group->m_portalCount; i++, ref++) {
+    for (uint32_t i = 0; i < static_cast<uint32_t>(group->m_portalCount); i++, ref++) {
         uint32_t destGroup = ref->m_groupIndex;
 
         if (destGroup == 0xFFFF) {
@@ -1223,8 +1226,8 @@ void CMapObj::RenderThruPortals(uint32_t groupNum, uint32_t fromGroup, CRect& nd
             ext->m_stamp = s_portalStamp;
             ext->m_flags = 0;
 
-            if (!(destFlags & 0x8) && !(group->m_flags & 0x8)) {
-                ext->m_flags = 0x10;
+            if (!(destFlags & CMapObjGroup::F_EXTERIOR) && !(group->m_flags & CMapObjGroup::F_EXTERIOR)) {
+                ext->m_flags = SPortalExt::F_NO_OCCLUSION;
             }
 
             this->TransformPortal(portal, ext);
@@ -1249,7 +1252,7 @@ void CMapObj::RenderThruPortals(uint32_t groupNum, uint32_t fromGroup, CRect& nd
             continue;
         }
 
-        if ((!(ext->m_flags & 0x2) && (ext->m_flags & 0x1)) || ndcRect.maxX < ext->m_rect.minX || ndcRect.minX > ext->m_rect.maxX || ndcRect.maxY < ext->m_rect.minY || ndcRect.minY > ext->m_rect.maxY) {
+        if ((!(ext->m_flags & SPortalExt::F_INTERSECT_NEAR) && (ext->m_flags & SPortalExt::F_SCREEN_CULLED)) || ndcRect.maxX < ext->m_rect.minX || ndcRect.minX > ext->m_rect.maxX || ndcRect.maxY < ext->m_rect.minY || ndcRect.minY > ext->m_rect.maxY) {
             continue;
         }
 
@@ -1276,19 +1279,19 @@ void CMapObj::RenderThruPortals(uint32_t groupNum, uint32_t fromGroup, CRect& nd
         }
 
         if (s_interiorPass) {
-            if (destFlags & 0x50148) {
-                this->AddExteriorPortalView(portal, ref, ext, destFlags & 0x10008);
+            if (destFlags & (CMapObjGroup::F_USE_SKYBOX | CMapObjGroup::F_ALWAYS_DRAW | CMapObjGroup::F_EXTERIOR | CMapObjGroup::F_SHOW_EXTERIOR_SKY | CMapObjGroup::F_EXTERIOR_LIT)) {
+                this->AddExteriorPortalView(portal, ref, ext, destFlags & (CMapObjGroup::F_ALWAYS_DRAW | CMapObjGroup::F_EXTERIOR));
 
-                if (destFlags & 0x10008) {
+                if (destFlags & (CMapObjGroup::F_ALWAYS_DRAW | CMapObjGroup::F_EXTERIOR)) {
                     continue;
                 }
             }
         } else {
-            if (destFlags & 0x10008) {
+            if (destFlags & (CMapObjGroup::F_ALWAYS_DRAW | CMapObjGroup::F_EXTERIOR)) {
                 continue;
             }
 
-            if (!depth && s_cullStateValid && !(destFlags & 0x140)) {
+            if (!depth && s_cullStateValid && !(destFlags & (CMapObjGroup::F_SHOW_EXTERIOR_SKY | CMapObjGroup::F_EXTERIOR_LIT))) {
                 this->AddInteriorPortalView(portal, ref, ext, &s_pendingPortalViews);
             }
         }
@@ -1339,7 +1342,7 @@ void CMapObj::RenderThruPortals(uint32_t groupNum, uint32_t fromGroup, CRect& nd
 // VERIFY: 687366c6 manual
 // OFFSET: 0x007AC6A0
 void CMapObj::ExteriorRender(CMapObjGroup* group, uint32_t index) {
-    if (group->m_parent->m_header->m_flags & 0x2) {
+    if (group->m_parent->m_header->m_flags & SMOHeader::UNIFIED_RENDER) {
         this->UnifiedRender(group, index);
         return;
     }
@@ -1350,10 +1353,10 @@ void CMapObj::ExteriorRender(CMapObjGroup* group, uint32_t index) {
     group->SetVertexVB();
     g_theGxDevicePtr->RsPush();
 
-    s_fogMode = -1;
-    CMapObj::s_lightingMode = -1;
+    s_fogMode = CMapObj::CACHE_RESET;
+    CMapObj::s_lightingMode = CMapObj::CACHE_INVALID;
     s_lastSidnColor = 0xFFFFFFFF;
-    s_shadowInterior = -1;
+    s_shadowInterior = CMapObj::INVALID;
 
     CGxTex* defaultTex = nullptr;
 
@@ -1387,8 +1390,8 @@ void CMapObj::ExteriorRender(CMapObjGroup* group, uint32_t index) {
 
         CGxTex* gxTex1 = defaultTex;
 
-        if (material.Textures()[1]) {
-            gxTex1 = TextureGetGxTex(material.Textures()[1], 0, nullptr);
+        if (material.Textures()[SMOMaterial::MAPID_ENV]) {
+            gxTex1 = TextureGetGxTex(material.Textures()[SMOMaterial::MAPID_ENV], 0, nullptr);
 
             if (!gxTex1) {
                 if (!defaultTex) {
@@ -1402,29 +1405,29 @@ void CMapObj::ExteriorRender(CMapObjGroup* group, uint32_t index) {
         uint32_t shader = material.m_shader;
 
         if (!shader && !material.m_blendMode && !TextureIsOpaque(texture)) {
-            shader = 4;
+            shader = CMapObj::OPAQUE_EFFECT;
         }
 
-        SetShaderFogFromDayNight(~material.m_flags & 0x2);
-        CMapObjGroup::SetLighting(group, (material.m_flags & 0x1) == 0);
+        SetShaderFogFromDayNight(~material.m_flags & SMOMaterial::F_UNFOGGED);
+        CMapObjGroup::SetLighting(group, (material.m_flags & SMOMaterial::F_UNLIT) == 0);
 
-        if (group->m_flags & 0x48) {
+        if (group->m_flags & CMapObjGroup::F_EXTERIOR_CLASSIFICATION_MASK) {
             if (s_shadowInterior) {
-                s_shadowInterior = 0;
-                CShadowCache::SetShadowMapGenericInterior(0);
+                s_shadowInterior = CMapObj::EXTERIOR;
+                CShadowCache::SetShadowMapGenericInterior(CMapObj::EXTERIOR);
                 CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue();
             }
         } else {
-            if (s_shadowInterior != 1) {
-                s_shadowInterior = 1;
-                CShadowCache::SetShadowMapGenericInterior(1);
+            if (s_shadowInterior != CMapObj::INTERIOR) {
+                s_shadowInterior = CMapObj::INTERIOR;
+                CShadowCache::SetShadowMapGenericInterior(CMapObj::INTERIOR);
                 CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue() != 0;
             }
         }
 
-        GxRsSet(GxRs_Culling, static_cast<int32_t>((material.m_flags & 0x4) == 0));
+        GxRsSet(GxRs_Culling, static_cast<int32_t>((material.m_flags & SMOMaterial::F_UNCULLED) == 0));
 
-        uint32_t sidn = (material.m_flags & 0x10) ? *reinterpret_cast<uint32_t*>(&material.m_frameSidnColor) : 0;
+        uint32_t sidn = (material.m_flags & SMOMaterial::F_SIDN) ? *reinterpret_cast<uint32_t*>(&material.m_frameSidnColor) : 0;
         uint32_t sum = s_emissiveAmbient + sidn;
         uint32_t carry = (sum ^ s_emissiveAmbient ^ sidn) & 0x1010100;
         uint32_t saturated = (carry - (carry >> 8)) | (sum - carry);
@@ -1436,7 +1439,7 @@ void CMapObj::ExteriorRender(CMapObjGroup* group, uint32_t index) {
 
         GxRsSet(GxRs_BlendingMode, static_cast<int32_t>(material.m_blendMode));
         CShaderEffect::SetAlphaRefDefault();
-        GxTexSetWrap(gxTex0, static_cast<EGxTexWrapMode>((material.m_flags & 0x40) == 0), static_cast<EGxTexWrapMode>((material.m_flags & 0x80) == 0));
+        GxTexSetWrap(gxTex0, static_cast<EGxTexWrapMode>((material.m_flags & SMOMaterial::F_CLAMP_S) == 0), static_cast<EGxTexWrapMode>((material.m_flags & SMOMaterial::F_CLAMP_T) == 0));
         CShaderEffect* effect = CMapObj::s_classicShaders[shader];
         g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex0);
         g_theGxDevicePtr->RsSet(GxRs_Texture1, gxTex1);
@@ -1457,7 +1460,7 @@ void CMapObj::ExteriorRender(CMapObjGroup* group, uint32_t index) {
 // VERIFY: 8a73759b manual
 // OFFSET: 0x007AC9F0
 void CMapObj::InteriorRender(CMapObjGroup* group, uint32_t index) {
-    if (group->m_parent->m_header->m_flags & 0x2) {
+    if (group->m_parent->m_header->m_flags & SMOHeader::UNIFIED_RENDER) {
         this->UnifiedRender(group, index);
         return;
     }
@@ -1468,10 +1471,10 @@ void CMapObj::InteriorRender(CMapObjGroup* group, uint32_t index) {
     group->SetVertexVB();
     g_theGxDevicePtr->RsPush();
 
-    s_fogMode = -1;
-    CMapObj::s_lightingMode = -1;
+    s_fogMode = CMapObj::CACHE_RESET;
+    CMapObj::s_lightingMode = CMapObj::CACHE_INVALID;
     s_lastSidnColor = 0xFFFFFFFF;
-    s_shadowInterior = -1;
+    s_shadowInterior = CMapObj::INVALID;
 
     int32_t fogMode = 2 - (s_curGroupIsInterior != 0);
     CGxTex* defaultTex = nullptr;
@@ -1536,7 +1539,7 @@ void CMapObj::InteriorRender(CMapObjGroup* group, uint32_t index) {
         emissive.r >>= 1;
         CMapObj::SetEmissiveColor(emissive);
 
-        GxTexSetWrap(gxTex0, static_cast<EGxTexWrapMode>((material.m_flags & 0x40) == 0), static_cast<EGxTexWrapMode>((material.m_flags & 0x80) == 0));
+        GxTexSetWrap(gxTex0, static_cast<EGxTexWrapMode>((material.m_flags & SMOMaterial::F_CLAMP_S) == 0), static_cast<EGxTexWrapMode>((material.m_flags & SMOMaterial::F_CLAMP_T) == 0));
         CShaderEffect* effect = CMapObj::s_classicShaders[shader];
         g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex0);
         g_theGxDevicePtr->RsSet(GxRs_Texture1, gxTex1);
@@ -1544,17 +1547,17 @@ void CMapObj::InteriorRender(CMapObjGroup* group, uint32_t index) {
 
         if (i >= group->m_transparencyBatchesCount) {
             bool interiorBatch = i < static_cast<uint32_t>(group->m_transparencyBatchesCount + group->m_intBatchCount);
-            SetShaderFogFromDayNight((material.m_flags & 0x2) == 0 ? fogMode : 0);
+            SetShaderFogFromDayNight((material.m_flags & SMOMaterial::F_UNFOGGED) == 0 ? fogMode : CMapObj::DISABLED);
 
             if (interiorBatch) {
-                CMapObjGroup::SetLighting(group, 0);
+                CMapObjGroup::SetLighting(group, CMapObj::UNLIT);
             } else {
-                CMapObjGroup::SetLighting(group, ((material.m_flags & 0x20) != 0) + 1);
+                CMapObjGroup::SetLighting(group, ((material.m_flags & SMOMaterial::F_WINDOW) != 0) + 1);
             }
 
-            if (s_shadowInterior != 1) {
-                s_shadowInterior = 1;
-                CShadowCache::SetShadowMapGenericInterior(1);
+            if (s_shadowInterior != CMapObj::INTERIOR) {
+                s_shadowInterior = CMapObj::INTERIOR;
+                CShadowCache::SetShadowMapGenericInterior(CMapObj::INTERIOR);
                 CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue() != 0;
             }
 
@@ -1572,13 +1575,13 @@ void CMapObj::InteriorRender(CMapObjGroup* group, uint32_t index) {
         }
 
         if (s_shadowInterior) {
-            s_shadowInterior = 0;
-            CShadowCache::SetShadowMapGenericInterior(0);
+            s_shadowInterior = CMapObj::EXTERIOR;
+            CShadowCache::SetShadowMapGenericInterior(CMapObj::EXTERIOR);
             CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue();
         }
 
-        CMapObjGroup::SetLighting(group, ((material.m_flags & 0x20) != 0) + 1);
-        SetShaderFogFromDayNight(~material.m_flags & 0x2);
+        CMapObjGroup::SetLighting(group, ((material.m_flags & SMOMaterial::F_WINDOW) != 0) + 1);
+        SetShaderFogFromDayNight(~material.m_flags & SMOMaterial::F_UNFOGGED);
         GxRsSet(GxRs_BlendingMode, static_cast<int32_t>(9));
         CShaderEffect::SetAlphaRefDefault();
         CMapObj::SelectWorldShaders();
@@ -1590,11 +1593,11 @@ void CMapObj::InteriorRender(CMapObjGroup* group, uint32_t index) {
         draw.m_maxIndex = batch.m_vertexEnd;
         g_theGxDevicePtr->Draw(&draw, 1);
 
-        CMapObjGroup::SetLighting(group, 0);
-        SetShaderFogFromDayNight((material.m_flags & 0x2) == 0 ? fogMode : 0);
-        if (s_shadowInterior != 1) {
-            s_shadowInterior = 1;
-            CShadowCache::SetShadowMapGenericInterior(1);
+        CMapObjGroup::SetLighting(group, CMapObj::UNLIT);
+        SetShaderFogFromDayNight((material.m_flags & SMOMaterial::F_UNFOGGED) == 0 ? fogMode : CMapObj::DISABLED);
+        if (s_shadowInterior != CMapObj::INTERIOR) {
+            s_shadowInterior = CMapObj::INTERIOR;
+            CShadowCache::SetShadowMapGenericInterior(CMapObj::INTERIOR);
             CShaderEffect::s_shadowValue = CShadowCache::GetShadowValue() != 0;
         }
 
@@ -1622,27 +1625,27 @@ void CMapObj::PrepareUpdate() {
     s_portalVerts.SetCount(0);
 
     switch (CMapObj::s_renderMode) {
-        case 0:
+        case CMapObj::COLLISION_FACES:
             CMapObj::s_renderGroupExterior = &CMapObj::RenderGroupCollisionFaces;
             CMapObj::s_renderGroupInterior = &CMapObj::RenderGroupCollisionFaces;
             break;
 
-        case 1:
+        case CMapObj::DETAIL_FACES:
             CMapObj::s_renderGroupExterior = &CMapObj::RenderGroupDetailFaces;
             CMapObj::s_renderGroupInterior = &CMapObj::RenderGroupDetailFaces;
             break;
 
-        case 2:
+        case CMapObj::RENDER_FACES:
             CMapObj::s_renderGroupExterior = &CMapObj::RenderGroupRenderFaces;
             CMapObj::s_renderGroupInterior = &CMapObj::RenderGroupRenderFaces;
             break;
 
-        case 3:
+        case CMapObj::TRANSPARENT_FACES:
             CMapObj::s_renderGroupExterior = &CMapObj::RenderGroupTransFaces;
             CMapObj::s_renderGroupInterior = &CMapObj::RenderGroupTransFaces;
             break;
 
-        case 4:
+        case CMapObj::COLLIDABLE:
             CMapObj::s_renderGroupExterior = &CMapObj::RenderGroupCollidable;
             CMapObj::s_renderGroupInterior = &CMapObj::RenderGroupCollidable;
             break;
@@ -1739,7 +1742,7 @@ void CMapObj::RenderInterior(C44Matrix& mat, C44Matrix& invMat, C3Vector& worldP
     for (uint32_t i = 0; i < static_cast<uint32_t>(this->m_groupInfoCount); i++) {
         SMOGroupInfo& info = this->m_groupInfo[i];
 
-        if (!(info.m_flags & 0x10000)) {
+        if (!(info.m_flags & CMapObjGroup::F_ALWAYS_DRAW)) {
             continue;
         }
 
@@ -1865,7 +1868,7 @@ void CMapObj::Clear() {
     }
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(this->m_materialsCount); i++) {
-        for (uint32_t j = 0; j < 2; j++) {
+        for (uint32_t j = 0; j < SMOMaterial::MAPID_COUNT; j++) {
             if (this->m_materialList[i].Textures()[j]) {
                 HandleClose(reinterpret_cast<HOBJECT>(this->m_materialList[i].Textures()[j]));
                 this->m_materialList[i].Textures()[j] = nullptr;
@@ -2010,13 +2013,13 @@ bool CMapObj::TestBounds(C3Vector& start, C3Vector& end) {
 // VERIFY: 735b2379 auto
 // OFFSET: 0x007AE880
 bool CMapObj::TestGroupBounds(C3Vector& start, C3Vector& end, uint32_t groupNum) {
-    return this->m_isGroupLoaded && (this->m_mapObjGroupArray[groupNum]->m_unkLoadedFlag & 1) && CWorldMath::VectorIntersectAABox2(this->m_groupInfo[groupNum].m_boundingBox, start, end);
+    return this->m_isGroupLoaded && (this->m_mapObjGroupArray[groupNum]->m_unkLoadedFlag & CMapObjGroup::LOADED) && CWorldMath::VectorIntersectAABox2(this->m_groupInfo[groupNum].m_boundingBox, start, end);
 }
 
 // VERIFY: 6fd4dc44 auto
 // OFFSET: 0x007AE970
 bool CMapObj::GroupBoundingBoxIntersectsSphere(C3Vector& pos, uint32_t groupNum, float radius) {
-    if (!this->m_isGroupLoaded || !(this->m_mapObjGroupArray[groupNum]->m_unkLoadedFlag & 1)) {
+    if (!this->m_isGroupLoaded || !(this->m_mapObjGroupArray[groupNum]->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
         return false;
     }
 
@@ -2038,7 +2041,7 @@ CMapObjGroup* CMapObj::GetGroup(int32_t index, int32_t a3) {
 
     CMapObjGroup* group = this->m_mapObjGroupArray[index];
 
-    if (!(group->m_unkLoadedFlag & 1) && !a3) {
+    if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED) && !a3) {
         return nullptr;
     }
 
@@ -2061,7 +2064,7 @@ char* CMapObj::GetGroupName(int32_t index) {
     if (this->m_isGroupLoaded) {
         CMapObjGroup* group = this->m_mapObjGroupArray[index];
 
-        if (group->m_unkLoadedFlag & 1) {
+        if (group->m_unkLoadedFlag & CMapObjGroup::LOADED) {
             return group->m_groupName;
         }
     }
@@ -2082,7 +2085,7 @@ SMOGroupInfo* CMapObj::GetGroupInfo(int32_t index) {
 // VERIFY: 3afaacbc manual
 // OFFSET: 0x007AEC30
 int32_t CMapObj::GetDoodadSet(uint32_t index) {
-    if (!this->m_isGroupLoaded || index >= this->m_doodadDefCount) {
+    if (!this->m_isGroupLoaded || index >= static_cast<uint32_t>(this->m_doodadDefCount)) {
         return -1;
     }
 
@@ -2118,7 +2121,7 @@ bool CMapObj::VectorIntersectPortal(const C3Segment& seg, float* t, uint32_t* gr
         if (useSphere) {
             hit = this->GroupBoundingBoxIntersectsSphere(const_cast<C3Vector&>(seg.b), g, 0.0099999998f);
         } else {
-            if (!this->m_isGroupLoaded || !(this->m_mapObjGroupArray[g]->m_unkLoadedFlag & 1)) {
+            if (!this->m_isGroupLoaded || !(this->m_mapObjGroupArray[g]->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
                 continue;
             }
 
@@ -2131,7 +2134,7 @@ bool CMapObj::VectorIntersectPortal(const C3Segment& seg, float* t, uint32_t* gr
 
         CMapObjGroup* group = this->m_mapObjGroupArray[g];
 
-        if (!(group->m_unkLoadedFlag & 1)) {
+        if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
             continue;
         }
 
@@ -2184,21 +2187,21 @@ void CMapObj::Initialize() {
     s_portalVerts.Reserve(1024, 0);
     s_portalVerts.m_chunk = 1024;
 
-    CMapObj::s_classicShaders[0] = CShaderEffectManager::GetEffect("MapObjDiffuse");
-    CMapObj::s_classicShaders[1] = CShaderEffectManager::GetEffect("MapObjSpecular");
-    CMapObj::s_classicShaders[2] = CShaderEffectManager::GetEffect("MapObjMetal");
-    CMapObj::s_classicShaders[3] = CShaderEffectManager::GetEffect("MapObjEnv");
-    CMapObj::s_classicShaders[4] = CShaderEffectManager::GetEffect("MapObjOpaque");
-    CMapObj::s_classicShaders[5] = CShaderEffectManager::GetEffect("MapObjEnvMetal");
-    CMapObj::s_classicShaders[6] = nullptr;
+    CMapObj::s_classicShaders[CMapObj::DIFFUSE] = CShaderEffectManager::GetEffect("MapObjDiffuse");
+    CMapObj::s_classicShaders[CMapObj::SPECULAR] = CShaderEffectManager::GetEffect("MapObjSpecular");
+    CMapObj::s_classicShaders[CMapObj::METAL] = CShaderEffectManager::GetEffect("MapObjMetal");
+    CMapObj::s_classicShaders[CMapObj::ENVIRONMENT] = CShaderEffectManager::GetEffect("MapObjEnv");
+    CMapObj::s_classicShaders[CMapObj::OPAQUE_EFFECT] = CShaderEffectManager::GetEffect("MapObjOpaque");
+    CMapObj::s_classicShaders[CMapObj::ENVIRONMENT_METAL] = CShaderEffectManager::GetEffect("MapObjEnvMetal");
+    CMapObj::s_classicShaders[CMapObj::COMPOSITE] = nullptr;
 
-    CMapObj::s_unifiedShaders[0] = CShaderEffectManager::GetEffect("MapObjUDiffuse");
-    CMapObj::s_unifiedShaders[1] = CShaderEffectManager::GetEffect("MapObjUSpecular");
-    CMapObj::s_unifiedShaders[2] = CShaderEffectManager::GetEffect("MapObjUMetal");
-    CMapObj::s_unifiedShaders[3] = CShaderEffectManager::GetEffect("MapObjUEnv");
-    CMapObj::s_unifiedShaders[4] = CShaderEffectManager::GetEffect("MapObjUOpaque");
-    CMapObj::s_unifiedShaders[5] = CShaderEffectManager::GetEffect("MapObjUEnvMetal");
-    CMapObj::s_unifiedShaders[6] = CShaderEffectManager::GetEffect("MapObjUComposite");
+    CMapObj::s_unifiedShaders[CMapObj::DIFFUSE] = CShaderEffectManager::GetEffect("MapObjUDiffuse");
+    CMapObj::s_unifiedShaders[CMapObj::SPECULAR] = CShaderEffectManager::GetEffect("MapObjUSpecular");
+    CMapObj::s_unifiedShaders[CMapObj::METAL] = CShaderEffectManager::GetEffect("MapObjUMetal");
+    CMapObj::s_unifiedShaders[CMapObj::ENVIRONMENT] = CShaderEffectManager::GetEffect("MapObjUEnv");
+    CMapObj::s_unifiedShaders[CMapObj::OPAQUE_EFFECT] = CShaderEffectManager::GetEffect("MapObjUOpaque");
+    CMapObj::s_unifiedShaders[CMapObj::ENVIRONMENT_METAL] = CShaderEffectManager::GetEffect("MapObjUEnvMetal");
+    CMapObj::s_unifiedShaders[CMapObj::COMPOSITE] = CShaderEffectManager::GetEffect("MapObjUComposite");
 
     CMapObj::bPoolsDirty = 1;
     CMapObj::occluderHeap = new (__FILE__, __LINE__) uint32_t(ObjectAllocAddHeap(sizeof(CMapObjOccluder), 128, "MAPOBJOCC", true));
@@ -2276,7 +2279,7 @@ void CMapObj::ClearCache(int32_t unused_a1) {
 // OFFSET: 0x007A8800
 void CMapObj::SetRenderModeLight() {
     CGxLight light;
-    light.m_flags |= 0x1;
+    light.m_flags |= CGxLight::F_ENABLED;
 
     float d = 1.0f / sqrtf(3.0f);
     light.m_dir = { d, d, d };
@@ -2369,7 +2372,7 @@ void CMapObj::QueryLiquidSounds(uint32_t groupIndex, uint32_t fromGroup, uint32_
         return;
     }
 
-    if ((group->m_flags & 0x8) && depth < *minDepth) {
+    if ((group->m_flags & CMapObjGroup::F_EXTERIOR) && depth < *minDepth) {
         *minDepth = depth;
     }
 
@@ -2412,7 +2415,7 @@ bool CMapObj::QueryLiquidStatus(uint32_t ignoreFlags, const C3Vector& pos, int32
 
         CMapObjGroup* group = this->m_mapObjGroupArray[i];
 
-        if ((group->m_unkLoadedFlag & 0x1) && group->QueryLiquid(pos, liquidType, level)) {
+        if ((group->m_unkLoadedFlag & CMapObjGroup::LOADED) && group->QueryLiquid(pos, liquidType, level)) {
             return true;
         }
     }
@@ -2446,7 +2449,7 @@ void CMapObj::BuildLiquidIndices(CMapObjGroup* group, const TSGrowableArray<uint
 
             for (int32_t x = 0; x < group->m_liquidTiles.x; x++) {
                 uint8_t flags = group->m_liquidTileList[group->m_liquidTiles.x * y + x].m_flags;
-                int32_t visible = (flags & 0xF) != 0xF && !(flags & 0x80) ? 1 : 0;
+                int32_t visible = (flags & SMOLTile::LIQUID_TYPE_MASK) != SMOLTile::LIQUID_TYPE_NONE && !(flags & SMOLTile::SHARED_MASK) ? 1 : 0;
                 int32_t duplicateCol = 0;
 
                 if (sharedCol < sharedVerts[0].m_count && sharedVerts[0].m_data[sharedCol] == x) {
@@ -2605,14 +2608,14 @@ void CMapObjDef::CullMapObjDefGroupFromExterior(CMapObjDefGroup* mapObjDefGroup,
 
     uint32_t groupFlags = this->m_owner->GetGroupFlags(mapObjDefGroup->m_groupNum);
 
-    if (!CWorldScene::FrustumCull(&mapObjDefGroup->m_bbox) && (skipOcclusion || !CWorldOcclusion::QueryBuffer(&mapObjDefGroup->m_bbox, 1))) {
-        if (groupFlags & 0x10000) {
+    if (!CWorldScene::FrustumCull(&mapObjDefGroup->m_bbox) && (skipOcclusion || !CWorldOcclusion::QueryBuffer(&mapObjDefGroup->m_bbox, CWorldOcclusion::QUERY_FLAG_UNKNOWN_1))) {
+        if (groupFlags & CMapObjGroup::F_ALWAYS_DRAW) {
             this->m_owner->InvokeRenderCallback(mapObjDefGroup->m_groupNum);
             CWorldScene::FrustumPop();
             return;
         }
 
-        if (groupFlags & 0x8) {
+        if (groupFlags & CMapObjGroup::F_EXTERIOR) {
             CRect ndcRect;
             ndcRect.minY = rect->minY * 2.0f - 1.0f;
             ndcRect.minX = rect->minX * 2.0f - 1.0f;
@@ -2632,7 +2635,7 @@ void CMapObj::CreateRefs(CMapObj* mapObj, CMapObjGroup* mapObjGroup, CMapObjDef*
         CMapObj::CreateRef(mapObj, mapObjGroup->m_doodadRefList[i], mapObjDef, mapObjDefGroup);
     }
 
-    mapObjDefGroup->m_flags = static_cast<MapObjFlag>(mapObjDefGroup->m_flags | 0x8);
+    mapObjDefGroup->m_flags = static_cast<MapObjFlag>(mapObjDefGroup->m_flags | MAPOBJ_FLAG_REFS_CREATED);
 }
 
 // HoT: split from CreateRefs so the editor can bring back a single deleted doodad.
@@ -2667,7 +2670,7 @@ void CMapObj::CreateRef(CMapObj* mapObj, uint16_t doodadRef, CMapObjDef* mapObjD
         return;
     }
 
-    CMapDoodadDef* mapDoodadDef = CMap::CreateDoodadDef(doodadRef, doodadDef, &mapObj->m_doodadNameList[doodadDef->m_flags & 0xFFFFFF], mapObjDef->m_hashval + 1, &mapObjDef->m_mat, static_cast<uint16_t>(overrideSet));
+    CMapDoodadDef* mapDoodadDef = CMap::CreateDoodadDef(doodadRef, doodadDef, &mapObj->m_doodadNameList[doodadDef->m_flags & SMODoodadDef::NAME_INDEX_MASK], mapObjDef->m_hashval + 1, &mapObjDef->m_mat, static_cast<uint16_t>(overrideSet));
     CMapBaseObjLink* link = CMap::AllocBaseObjLink(mapDoodadDef);
     link->m_ref = mapObjDefGroup;
 
@@ -2677,11 +2680,11 @@ void CMapObj::CreateRef(CMapObj* mapObj, uint16_t doodadRef, CMapObjDef* mapObjD
         mapObjDefGroup->m_doodadDefLinkList.LinkToTail(link);
     }
 
-    if (!(mapObjDefGroup->m_flags & 0x2) || (mapDoodadDef->m_flags & 0x4)) {
+    if (!(mapObjDefGroup->m_flags & MAPOBJ_FLAG_INTERIOR) || (mapDoodadDef->m_flags & MAPOBJ_FLAG_EXTERIOR)) {
         mapDoodadDef->m_diffuseLightScale = 1.0f;
-        mapDoodadDef->m_flags = static_cast<MapObjFlag>((mapDoodadDef->m_flags & ~0x2) | 0x4);
+        mapDoodadDef->m_flags = static_cast<MapObjFlag>((mapDoodadDef->m_flags & ~MAPOBJ_FLAG_INTERIOR) | MAPOBJ_FLAG_EXTERIOR);
     } else {
-        mapDoodadDef->m_flags = static_cast<MapObjFlag>(mapDoodadDef->m_flags | 0x2);
+        mapDoodadDef->m_flags = static_cast<MapObjFlag>(mapDoodadDef->m_flags | MAPOBJ_FLAG_INTERIOR);
     }
 }
 
@@ -2716,7 +2719,7 @@ void CMapObj::DistFromClosestExtPortal(uint32_t depth, uint32_t flags, CMapObjGr
 // VERIFY: 231987cf manual
 // OFFSET: 0x007D8010
 float CMapObj::DistFromClosestExtPortal(CMapObjGroup* group, const C3Vector& pos, int32_t exteriorLit) {
-    uint32_t flags = exteriorLit ? 0x48 : 0x8;
+    uint32_t flags = exteriorLit ? CMapObjGroup::F_EXTERIOR_CLASSIFICATION_MASK : CMapObjGroup::F_EXTERIOR;
     float dist = 3.4028235e38f;
     this->DistFromClosestExtPortal(0, flags, group, nullptr, pos, &dist);
 
@@ -2742,7 +2745,7 @@ bool CMapObj::GetTris(const CAaBox& box, uint32_t flags, World::TriData* triData
 
         CMapObjGroup* group = this->m_mapObjGroupArray[i];
 
-        if ((group->m_unkLoadedFlag & 1) && !(group->m_flags & 0x80)) {
+        if ((group->m_unkLoadedFlag & CMapObjGroup::LOADED) && !(group->m_flags & CMapObjGroup::F_UNREACHABLE)) {
             result |= group->GetTris(box, flags, ignoreFlags, triData, mapObjDef);
         }
     }
@@ -2768,7 +2771,7 @@ bool CMapObj::GetLiquidFacets(const CAaBox& box, uint32_t flags, World::FacetDat
 
         CMapObjGroup* group = this->m_mapObjGroupArray[i];
 
-        if ((group->m_unkLoadedFlag & 1) && !(group->m_flags & 0x400080)) {
+        if ((group->m_unkLoadedFlag & CMapObjGroup::LOADED) && !(group->m_flags & (CMapObjGroup::F_UNKNOWN_0x400000 | CMapObjGroup::F_UNREACHABLE))) {
             result |= group->GetLiquidFacets(box, flags, facets, mapObjDef);
         }
     }
@@ -2779,7 +2782,7 @@ bool CMapObj::GetLiquidFacets(const CAaBox& box, uint32_t flags, World::FacetDat
 // VERIFY: d6cd6b2c auto
 // OFFSET: 0x007AE920
 bool CMapObj::TestGroupBounds(const C3Vector& point, uint32_t groupNum) {
-    return this->m_isGroupLoaded && (this->m_mapObjGroupArray[groupNum]->m_unkLoadedFlag & 1) && this->m_groupInfo[groupNum].m_boundingBox.ContainsPoint(point);
+    return this->m_isGroupLoaded && (this->m_mapObjGroupArray[groupNum]->m_unkLoadedFlag & CMapObjGroup::LOADED) && this->m_groupInfo[groupNum].m_boundingBox.ContainsPoint(point);
 }
 
 // VERIFY: 15693e65 auto
@@ -2791,7 +2794,7 @@ bool CMapObj::Intersect(C3Vector& start, C3Vector& end, float* distance, uint32_
 
     CMapObjGroup* group = this->m_mapObjGroupArray[groupNum];
 
-    if (!(group->m_unkLoadedFlag & 1)) {
+    if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
         return false;
     }
 
@@ -2804,7 +2807,7 @@ bool CMapObj::Intersect(C3Vector& start, C3Vector& end, float* distance, uint32_
 // VERIFY: d090e248 manual
 // OFFSET: 0x007AE8D0
 bool CMapObj::TestGroupBounds(CAaBox& box, uint32_t groupNum, int32_t a3) {
-    return (!a3 || (this->m_isGroupLoaded && (this->m_mapObjGroupArray[groupNum]->m_unkLoadedFlag & 1))) && this->m_groupInfo[groupNum].m_boundingBox.Intersects(box);
+    return (!a3 || (this->m_isGroupLoaded && (this->m_mapObjGroupArray[groupNum]->m_unkLoadedFlag & CMapObjGroup::LOADED))) && this->m_groupInfo[groupNum].m_boundingBox.Intersects(box);
 }
 
 // VERIFY: aacb9f67 manual
@@ -2816,7 +2819,7 @@ bool CMapObj::QueryLighting(uint32_t groupNum, const C3Vector& point, uint16_t f
 
     CMapObjGroup* group = this->m_mapObjGroupArray[groupNum];
 
-    if (!(group->m_unkLoadedFlag & 1) || (group->m_flags & 0x48)) {
+    if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED) || (group->m_flags & CMapObjGroup::F_EXTERIOR_CLASSIFICATION_MASK)) {
         return false;
     }
 
@@ -2834,7 +2837,7 @@ bool CMapObj::QueryLighting(uint32_t groupNum, const C3Segment& seg, CImVector* 
 
     CMapObjGroup* group = this->m_mapObjGroupArray[groupNum];
 
-    if (!(group->m_unkLoadedFlag & 1) || (group->m_flags & 0x48)) {
+    if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED) || (group->m_flags & CMapObjGroup::F_EXTERIOR_CLASSIFICATION_MASK)) {
         return false;
     }
 
@@ -2873,7 +2876,7 @@ bool CMapObj::GetTris(const CWFrustum& frustum, uint32_t flags, World::TriData* 
 
         CMapObjGroup* group = this->m_mapObjGroupArray[i];
 
-        if ((group->m_unkLoadedFlag & 1) && !(group->m_flags & 0x80)) {
+        if ((group->m_unkLoadedFlag & CMapObjGroup::LOADED) && !(group->m_flags & CMapObjGroup::F_UNREACHABLE)) {
             result |= group->GetTris(frustum, flags, ignoreFlags, triData, mapObjDef);
         }
     }
@@ -2994,11 +2997,11 @@ void CMapObj::QueryMapObjMinimapGroup(int32_t groupNum, int32_t fromGroup, CAaBo
 
     CMapObjGroup* group = this->m_mapObjGroupArray[groupNum];
 
-    if (!(group->m_unkLoadedFlag & 1)) {
+    if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
         return;
     }
 
-    if ((inside ? (group->m_flags & 0x48) : (group->m_flags & 0x8)) != flagsMask || group->m_minimapTag == static_cast<int32_t>(CMapObj::sMinimapTag)) {
+    if ((inside ? (group->m_flags & CMapObjGroup::F_EXTERIOR_CLASSIFICATION_MASK) : (group->m_flags & CMapObjGroup::F_EXTERIOR)) != flagsMask || group->m_minimapTag == static_cast<int32_t>(CMapObj::sMinimapTag)) {
         return;
     }
 
@@ -3011,7 +3014,7 @@ void CMapObj::QueryMapObjMinimapGroup(int32_t groupNum, int32_t fromGroup, CAaBo
     ::GetMinimapQuads(&group->m_bbox, box, groupNum, quads, maxQuads);
     int32_t wmoGroupId = group->m_wmoGroupId;
 
-    if (wmoGroupId == 23015 || wmoGroupId == 23016 || !group->m_portalCount || !g_minimapPortalMaxCVar || depth >= static_cast<uint32_t>(g_minimapPortalMaxCVar->m_intValue)) {
+    if (wmoGroupId == WMO_GROUP_ID_RAVENS_WATCH || wmoGroupId == WMO_GROUP_ID_EAGLES_EYE || !group->m_portalCount || !g_minimapPortalMaxCVar || depth >= static_cast<uint32_t>(g_minimapPortalMaxCVar->m_intValue)) {
         return;
     }
 
@@ -3019,7 +3022,7 @@ void CMapObj::QueryMapObjMinimapGroup(int32_t groupNum, int32_t fromGroup, CAaBo
         SMOPortalRef* portalRef = &this->m_portalRefList[group->m_portalStart + i];
         uint32_t target = portalRef->m_groupIndex;
 
-        if (target == 0xFFFF || target == static_cast<uint32_t>(fromGroup) || (this->GetGroupFlags(target) & 0x80)) {
+        if (target == 0xFFFF || target == static_cast<uint32_t>(fromGroup) || (this->GetGroupFlags(target) & CMapObjGroup::F_UNREACHABLE)) {
             continue;
         }
 
@@ -3043,7 +3046,7 @@ void CMapObj::QueryMapObjMinimapGroup(int32_t groupNum, int32_t fromGroup, CAaBo
 
         CMapObjGroup* targetGroup;
 
-        if (!this->m_isGroupLoaded || !((targetGroup = this->m_mapObjGroupArray[target])->m_unkLoadedFlag & 1) || (targetGroup->m_wmoGroupId != 23015 && targetGroup->m_wmoGroupId != 23016)) {
+        if (!this->m_isGroupLoaded || !((targetGroup = this->m_mapObjGroupArray[target])->m_unkLoadedFlag & CMapObjGroup::LOADED) || (targetGroup->m_wmoGroupId != WMO_GROUP_ID_RAVENS_WATCH && targetGroup->m_wmoGroupId != WMO_GROUP_ID_EAGLES_EYE)) {
             this->QueryMapObjMinimapGroup(target, groupNum, box, quads, maxQuads, inside, flagsMask, ++depth);
         }
     }
@@ -3061,7 +3064,7 @@ bool CMapObj::QueryMapObjMinimap(int32_t groupNum, CAaBox* box, TSStackArray<MIN
     CAaBox query = *box;
     CMapObjGroup* group = this->m_mapObjGroupArray[groupNum];
 
-    if (!(group->m_unkLoadedFlag & 1)) {
+    if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
         return false;
     }
 
@@ -3072,7 +3075,7 @@ bool CMapObj::QueryMapObjMinimap(int32_t groupNum, CAaBox* box, TSStackArray<MIN
         return true;
     }
 
-    uint32_t flagsMask = inside ? (this->m_groupInfo[groupNum].m_flags & 0x40) : 8;
+    uint32_t flagsMask = inside ? (this->m_groupInfo[groupNum].m_flags & CMapObjGroup::F_EXTERIOR_LIT) : CMapObjGroup::F_EXTERIOR;
     this->QueryMapObjMinimapGroup(groupNum, groupNum, &query, quads, maxQuads, inside, flagsMask, 0);
     return true;
 }
@@ -3086,7 +3089,7 @@ bool CMapObj::VectorIntersectPortals(uint32_t groupNum, C3Segment& seg, float* t
 
     CMapObjGroup* group = this->m_mapObjGroupArray[groupNum];
 
-    if (!(group->m_unkLoadedFlag & 1)) {
+    if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
         return false;
     }
 
@@ -3106,7 +3109,7 @@ bool CMapObj::VectorIntersectPortals(uint32_t groupNum, C3Segment& seg, float* t
     for (int32_t i = 0; i < group->m_portalCount; i++, ref++) {
         SMOPortal& portal = this->m_portalList[ref->m_portalIndex];
 
-        if (!this->m_isGroupLoaded || !(this->m_mapObjGroupArray[ref->m_groupIndex]->m_unkLoadedFlag & 1)) {
+        if (!this->m_isGroupLoaded || !(this->m_mapObjGroupArray[ref->m_groupIndex]->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
             continue;
         }
 
@@ -3180,7 +3183,7 @@ void CMapObj::RenderMapObjGroupsShadowMap(void* groups, uint32_t count, void* gr
         group->SetVertexVB();
         CShaderEffect::UpdateWorldViewMatrix();
 
-        if (group->m_unkLoadedFlag & 0x4) {
+        if (group->m_unkLoadedFlag & CMapObjGroup::ALL_BATCHES_OPAQUE) {
             CShaderEffect::SetAlphaRef(0.0f);
             CShaderEffect::SetDefaultShaders(0);
             GxRsSet(GxRs_Texture0, 0);
@@ -3202,14 +3205,14 @@ void CMapObj::RenderMapObjGroupsShadowMap(void* groups, uint32_t count, void* gr
         for (int32_t j = 0; j < group->m_batchListCount; j++) {
             SMOBatch& smoBatch = group->m_batchList[j];
             SMOMaterial& material = mapObj->m_materialList[smoBatch.m_texture];
-            CGxTex* gxTex = TextureGetGxTex(material.Textures()[0], 0, nullptr);
+            CGxTex* gxTex = TextureGetGxTex(material.Textures()[SMOMaterial::MAPID_DIFFUSE], 0, nullptr);
 
             if (!gxTex) {
                 continue;
             }
 
             g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex);
-            constants[3] = material.m_blendMode == 1 ? 0.87843138f : 0.0f;
+            constants[3] = material.m_blendMode == GxBlend_AlphaKey ? 0.87843138f : 0.0f;
             g_theGxDevicePtr->ShaderConstantsSet(GxSh_Pixel, 2, constants, 1);
             CGxBatch batch;
             batch.m_primType = GxPrim_Triangles;
@@ -3240,7 +3243,7 @@ void CMapObj::RenderMapObjGroupsColor(CMapObjGroup** groups, uint32_t count, C44
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 0);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Opaque);
     GxRsSet(GxRs_AlphaRef, static_cast<int32_t>(CGxDevice::s_alphaRef[g_theGxDevicePtr->m_appRenderStates.m_data[GxRs_BlendingMode].m_value.m_data.i[0]]));
     GxRsSet(GxRs_VertexShader, static_cast<void*>(nullptr));
     GxRsSet(GxRs_PixelShader, static_cast<void*>(nullptr));
@@ -3277,7 +3280,7 @@ void CMapObj::RenderMapObjGroupsColor(CMapObjGroup** groups, uint32_t count, C44
         indexBuf->m_hasData = 1;
         g_theGxDevicePtr->PrimIndexPtr(indexBuf);
 
-        if (group->m_unkLoadedFlag & 0x4) {
+        if (group->m_unkLoadedFlag & CMapObjGroup::ALL_BATCHES_OPAQUE) {
             GxRsSet(GxRs_Texture0, static_cast<void*>(nullptr));
             CGxBatch batch;
             batch.m_primType = GxPrim_Triangles;
@@ -3291,7 +3294,7 @@ void CMapObj::RenderMapObjGroupsColor(CMapObjGroup** groups, uint32_t count, C44
 
         for (int32_t j = 0; j < group->m_batchListCount; j++) {
             SMOBatch& smoBatch = group->m_batchList[j];
-            CGxTex* gxTex = TextureGetGxTex(mapObj->m_materialList[smoBatch.m_texture].Textures()[0], 0, nullptr);
+            CGxTex* gxTex = TextureGetGxTex(mapObj->m_materialList[smoBatch.m_texture].Textures()[SMOMaterial::MAPID_DIFFUSE], 0, nullptr);
 
             if (!gxTex) {
                 continue;
@@ -3333,7 +3336,7 @@ bool CMapObj::VectorIntersect(C3Vector& start, C3Vector& end, uint32_t flags, ui
 
         CMapObjGroup* group = this->m_mapObjGroupArray[i];
 
-        if (!(group->m_unkLoadedFlag & 1) || (groupIgnoreFlags & group->m_flags)) {
+        if (!(group->m_unkLoadedFlag & CMapObjGroup::LOADED) || (groupIgnoreFlags & group->m_flags)) {
             continue;
         }
 
@@ -3420,7 +3423,7 @@ void __stdcall CMapObj::RenderGroupCollidableFaces(CMapObjGroup* mapObjGroup) {
     for (uint32_t i = 0; i < static_cast<uint32_t>(mapObjGroup->m_polyListSize); i++, poly++) {
         uint8_t flags = poly->m_flags;
 
-        if (!(flags & 0x8) && (!(flags & 0x20) || (flags & 0x4))) {
+        if (!(flags & SMOPoly::F_COLLISION) && (!(flags & SMOPoly::F_RENDER) || (flags & SMOPoly::F_DETAIL))) {
             continue;
         }
 
@@ -3480,11 +3483,11 @@ void CMapObj::RenderGroupLightmapTex(CMapObjGroup* group, uint32_t index) {
             batch->m_flags &= 0xF;
         }
 
-        if ((batch->m_flags & 0xF0) || CMapObj::CullBatch(batch)) {
+        if ((batch->m_flags & SMOBatch::F_RENDERED) || CMapObj::CullBatch(batch)) {
             continue;
         }
 
-        batch->m_flags |= 0xF0;
+        batch->m_flags |= SMOBatch::F_RENDERED;
         CGxBatch draw;
         draw.m_primType = GxPrim_Triangles;
         draw.m_start = batch->m_indexStart;
@@ -3517,14 +3520,14 @@ void CMapObj::RenderGroupColorTex(CMapObjGroup* group, uint32_t index) {
             batch->m_flags &= 0xF;
         }
 
-        if ((batch->m_flags & 0xF0) || CMapObj::CullBatch(batch)) {
+        if ((batch->m_flags & SMOBatch::F_RENDERED) || CMapObj::CullBatch(batch)) {
             continue;
         }
 
-        batch->m_flags |= 0xF0;
+        batch->m_flags |= SMOBatch::F_RENDERED;
         SMOMaterial& material = this->m_materialList[batch->m_texture];
-        CGxTex* gxTex = TextureGetGxTex(material.Textures()[0], 1, nullptr);
-        GxTexSetWrap(gxTex, static_cast<EGxTexWrapMode>((material.m_flags & 0x40) == 0), static_cast<EGxTexWrapMode>((material.m_flags & 0x80) == 0));
+        CGxTex* gxTex = TextureGetGxTex(material.Textures()[SMOMaterial::MAPID_DIFFUSE], 1, nullptr);
+        GxTexSetWrap(gxTex, static_cast<EGxTexWrapMode>((material.m_flags & SMOMaterial::F_CLAMP_S) == 0), static_cast<EGxTexWrapMode>((material.m_flags & SMOMaterial::F_CLAMP_T) == 0));
         g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex);
         CGxBatch draw;
         draw.m_primType = GxPrim_Triangles;
@@ -3573,8 +3576,8 @@ void CMapObj::RenderPortals(CMapObjGroup* group) {
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>((group->m_flags & 0x8) ? 0xFFFFFFFF : 0x60FF0000));
-    GxRsSet(GxRs_BlendingMode, 3);
+    GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>((group->m_flags & CMapObjGroup::F_EXTERIOR) ? 0xFFFFFFFF : 0x60FF0000));
+    GxRsSet(GxRs_BlendingMode, GxBlend_Add);
     GxRsSet(GxRs_Fog, 0);
     GxRsSet(GxRs_Lighting, 0);
     GxRsSet(GxRs_DepthTest, 0);
@@ -3602,7 +3605,7 @@ void CMapObj::RenderGroupCollisionFaces(CMapObjGroup* group, uint32_t index) {
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 0);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Opaque);
     GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(0x80FF0000));
     GxRsSet(GxRs_Fog, 0);
     CMapObj::SetRenderModeLight();
@@ -3629,7 +3632,7 @@ void CMapObj::RenderGroupCollisionFaces(CMapObjGroup* group, uint32_t index) {
     uint32_t count = 0;
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(group->m_polyListSize); i++, poly++) {
-        if (!(poly->m_flags & 0x8)) {
+        if (!(poly->m_flags & SMOPoly::F_COLLISION)) {
             continue;
         }
 
@@ -3679,7 +3682,7 @@ void CMapObj::RenderGroupDetailFaces(CMapObjGroup* group, uint32_t index) {
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 0);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Opaque);
     GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(0xFF8080FF));
     GxRsSet(GxRs_Fog, 0);
     CMapObj::SetRenderModeLight();
@@ -3706,7 +3709,7 @@ void CMapObj::RenderGroupDetailFaces(CMapObjGroup* group, uint32_t index) {
     uint32_t count = 0;
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(group->m_polyListSize); i++, poly++) {
-        if (!(poly->m_flags & 0x4)) {
+        if (!(poly->m_flags & SMOPoly::F_DETAIL)) {
             continue;
         }
 
@@ -3756,7 +3759,7 @@ void CMapObj::RenderGroupRenderFaces(CMapObjGroup* group, uint32_t index) {
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 0);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Opaque);
     GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(0xFF00FF00));
     GxRsSet(GxRs_Fog, 0);
     CMapObj::SetRenderModeLight();
@@ -3783,7 +3786,7 @@ void CMapObj::RenderGroupRenderFaces(CMapObjGroup* group, uint32_t index) {
     uint32_t count = 0;
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(group->m_polyListSize); i++, poly++) {
-        if (!(poly->m_flags & 0x20) || (poly->m_flags & 0x4)) {
+        if (!(poly->m_flags & SMOPoly::F_RENDER) || (poly->m_flags & SMOPoly::F_DETAIL)) {
             continue;
         }
 
@@ -3833,7 +3836,7 @@ void CMapObj::RenderGroupTransFaces(CMapObjGroup* group, uint32_t index) {
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 0);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Opaque);
     GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(0xFF7F7F7F));
     GxRsSet(GxRs_Fog, 0);
     CMapObj::SetRenderModeLight();
@@ -3866,7 +3869,7 @@ void CMapObj::RenderGroupTransFaces(CMapObjGroup* group, uint32_t index) {
     uint32_t count = 0;
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(group->m_polyListSize); i++, poly++) {
-        if (!(poly->m_flags & 0x1) || !(poly->m_flags & 0x24)) {
+        if (!(poly->m_flags & SMOPoly::F_TRANSITION) || !(poly->m_flags & (SMOPoly::F_DETAIL | SMOPoly::F_RENDER))) {
             continue;
         }
 
@@ -3921,13 +3924,13 @@ void CMapObj::RenderGroupCollidable(CMapObjGroup* group, uint32_t index) {
     CMapObj::SetRenderModeLight();
     GxRsSet(GxRs_VertexShader, 0);
     GxRsSet(GxRs_PixelShader, 0);
-    g_theGxDevicePtr->MasterEnableSet(GxMasterEnable_PolygonFill, 1);
-    GxRsSet(GxRs_BlendingMode, 0);
+    g_theGxDevicePtr->MasterEnableSet(GxMasterEnable_PolygonFill, Gx_Enable);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Opaque);
     GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(0x80CCCCCC));
     GxRsSet(GxRs_DepthWrite, 1);
     CMapObj::RenderGroupCollidableFaces(group);
-    g_theGxDevicePtr->MasterEnableSet(GxMasterEnable_PolygonFill, 0);
-    GxRsSet(GxRs_BlendingMode, 2);
+    g_theGxDevicePtr->MasterEnableSet(GxMasterEnable_PolygonFill, Gx_Disable);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(0x80111111));
     GxRsSet(GxRs_DepthWrite, 0);
     CMapObj::RenderGroupCollidableFaces(group);
@@ -3960,7 +3963,7 @@ void __stdcall CMapObj::RenderNormals(CMapObjGroup* group) {
         uint16_t* indices = reinterpret_cast<uint16_t*>(g_theGxDevicePtr->BufLock(indexBuf));
 
         CImVector color;
-        *reinterpret_cast<uint32_t*>(&color) = 0xFFFFFF00;
+        *reinterpret_cast<uint32_t*>(&color) = COLOR_YELLOW_ARGB;
 
         for (uint32_t i = 0; i < chunk; i++) {
             const C3Vector& vertex = group->m_vertexList[start + i];
@@ -4031,7 +4034,7 @@ int32_t CMapObj::IsAllLoaded() {
     }
 
     for (int32_t i = 0; i < this->m_groupInfoCount; i++) {
-        if (!(this->m_mapObjGroupArray[i]->m_unkLoadedFlag & 0x1)) {
+        if (!(this->m_mapObjGroupArray[i]->m_unkLoadedFlag & CMapObjGroup::LOADED)) {
             return 0;
         }
     }
@@ -4049,13 +4052,13 @@ int32_t CMapObj::IsAllDrawable() {
     }
 
     for (int32_t i = 0; i < this->m_materialsCount; i++) {
-        CTexture* texture0 = this->m_materialList[i].Textures()[0];
+        CTexture* texture0 = this->m_materialList[i].Textures()[SMOMaterial::MAPID_DIFFUSE];
 
         if (texture0 && !TextureGetGxTex(texture0, 0, nullptr)) {
             return 0;
         }
 
-        CTexture* texture1 = this->m_materialList[i].Textures()[1];
+        CTexture* texture1 = this->m_materialList[i].Textures()[SMOMaterial::MAPID_ENV];
 
         if (texture1 && !TextureGetGxTex(texture1, 0, nullptr)) {
             return 0;

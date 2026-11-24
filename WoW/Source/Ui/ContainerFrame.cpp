@@ -240,9 +240,9 @@ static void TriggerMultiCastBarUpdate(const ItemStats_C* stats) {
     }
 
     if (CGTutorial::m_tutorialShown.m_count && !(CGTutorial::m_tutorialShown.m_bits.m_data[1] & 0x4000)) {
-        for (uint32_t i = 0; i < 4; i++) {
+        for (uint32_t i = 0; i < MAX_TOTEMS; i++) {
             if (((1 << i) & mask) && CGSpellBook::m_totemSpells[i].Count()) {
-                CGTutorial::TriggerTutorial(46);
+                CGTutorial::TriggerTutorial(TUTORIAL_TOTEM_BAR);
                 break;
             }
         }
@@ -355,7 +355,7 @@ int32_t UpdateInvContents(WOWGUID guid, uint32_t fieldOffset, uint32_t fieldSize
     CGGameUI::m_autoStoreItemID = 0;
     CGContainerInfo::UpdateContents(guid);
 
-    if ((oldItem && oldItem->GetClassID() == 10) || (newItem && newItem->GetClassID() == 10) || slot - CURRENCYTOKEN_FIRST <= CURRENCYTOKEN_LAST - CURRENCYTOKEN_FIRST) {
+    if ((oldItem && oldItem->GetClassID() == ITEM_CLASS_MONEY) || (newItem && newItem->GetClassID() == ITEM_CLASS_MONEY) || slot - CURRENCYTOKEN_FIRST <= CURRENCYTOKEN_LAST - CURRENCYTOKEN_FIRST) {
         CGCurrencyTypes::EnterWorld();
     }
 

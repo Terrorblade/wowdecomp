@@ -180,7 +180,7 @@ static void DisplayErrorLevelStatus() {
     uint32_t minLevel = SysMsgGetMinDisplayLevel();
     uint32_t maxLevel = SysMsgGetMaxDisplayLevel();
 
-    if (!minLevel && maxLevel == 3) {
+    if (!minLevel && maxLevel == STATUS_FATAL) {
         ConsoleWrite("Displaying all system messages", DEFAULT_COLOR);
         return;
     }
@@ -193,19 +193,19 @@ static void DisplayErrorLevelStatus() {
     }
 
     switch (minLevel) {
-        case 0:
+        case STATUS_INFO:
             SStrPack(status, "informational messages", STORM_MAX_STR);
             break;
 
-        case 1:
+        case STATUS_WARNING:
             SStrPack(status, "warnings", STORM_MAX_STR);
             break;
 
-        case 2:
+        case STATUS_ERROR:
             SStrPack(status, "errors", STORM_MAX_STR);
             break;
 
-        case 3:
+        case STATUS_FATAL:
             SStrPack(status, "fatal errors", STORM_MAX_STR);
             break;
 
@@ -215,15 +215,15 @@ static void DisplayErrorLevelStatus() {
 
     if (minLevel != maxLevel) {
         switch (maxLevel) {
-            case 1:
+            case STATUS_WARNING:
                 SStrPack(status, " through warnings", STORM_MAX_STR);
                 break;
 
-            case 2:
+            case STATUS_ERROR:
                 SStrPack(status, " through errors", STORM_MAX_STR);
                 break;
 
-            case 3:
+            case STATUS_FATAL:
                 SStrPack(status, " through fatal errors", STORM_MAX_STR);
                 break;
         }
@@ -269,7 +269,7 @@ static bool ErrorDisplayMaxLevelCallback(CVar* var, const char* oldValue, const 
 static void PrintFilterMask() {
     uint32_t filter = SysMsgGetFilter();
 
-    if (filter == 0xFFFFFFFF) {
+    if (filter == SYSMSG_FILTER_ALL) {
         ConsoleWrite("Now filtering: all messages", DEFAULT_COLOR);
         return;
     }
@@ -387,40 +387,40 @@ static bool DesktopGammaCallback(CVar* var, const char* oldValue, const char* va
 // VERIFY: 85990911 auto
 // OFFSET: 0x00402100
 static uint32_t GetM2FasterModifierMask(int32_t faster, int32_t debug) {
-    uint32_t mask = 0;
+    uint32_t mask = CM2Cache::CACHE_NONE;
 
     switch (faster) {
         case 0:
             if (!debug) {
-                return 0;
+                return CM2Cache::CACHE_NONE;
             }
 
             switch (debug % 10) {
                 case 1:
-                    mask = 0x2000;
+                    mask = CM2Cache::CACHE_OPT_TIER1;
                     break;
 
                 case 2:
-                    mask = 0x6000;
+                    mask = CM2Cache::CACHE_OPT_TIER2;
                     break;
 
                 case 3:
-                    mask = 0xE000;
+                    mask = CM2Cache::CACHE_OPT_TIER3_MASK;
                     break;
             }
 
             if (debug / 100 % 10 && EventIsKeyDown(KEY_LCONTROL)) {
-                return 0;
+                return CM2Cache::CACHE_NONE;
             }
 
             return mask;
 
         case 1:
-            return 0xE000;
+            return CM2Cache::CACHE_OPT_TIER3_MASK;
 
         case 2:
         case 3:
-            return 0x2000;
+            return CM2Cache::CACHE_OPT_TIER1;
 
         default:
             return mask;
@@ -462,7 +462,7 @@ bool UIFasterCallback(CVar* var, const char* oldValue, const char* value, void* 
         Hardware* hardware = ConsoleGetHardware();
 
         if (hardware) {
-            if (!hardware->m_videoHw && hardware->m_videoDevice.m_vendorID == 0x8086) {
+            if (!hardware->m_videoHw && hardware->m_videoDevice.m_vendorID == GX_PCI_VENDOR_INTEL) {
                 faster &= ~1u;
                 ConsoleWrite("Texture atlas disabled.", DEFAULT_COLOR);
             }
@@ -524,10 +524,10 @@ static bool BatchDoodadsCallback(CVar* var, const char* oldValue, const char* va
     uint32_t flags = M2GetCacheFlags();
 
     if (enable) {
-        M2SetCacheFlags(flags | 0x20);
+        M2SetCacheFlags(flags | CM2Cache::CACHE_BATCH_DOODADS);
         ConsoleWrite("Doodad batching enabled.", DEFAULT_COLOR);
     } else {
-        M2SetCacheFlags(flags & ~0x20);
+        M2SetCacheFlags(flags & ~CM2Cache::CACHE_BATCH_DOODADS);
         ConsoleWrite("Doodad batching disabled.", DEFAULT_COLOR);
     }
 
@@ -541,10 +541,10 @@ static bool BatchParticlesCallback(CVar* var, const char* oldValue, const char* 
     uint32_t flags = M2GetCacheFlags();
 
     if (enable) {
-        M2SetCacheFlags(flags | 0x80);
+        M2SetCacheFlags(flags | CM2Cache::CACHE_BATCH_PARTICLES);
         ConsoleWrite("Particle batching enabled.", DEFAULT_COLOR);
     } else {
-        M2SetCacheFlags(flags & ~0x80);
+        M2SetCacheFlags(flags & ~CM2Cache::CACHE_BATCH_PARTICLES);
         ConsoleWrite("Particle batching disabled.", DEFAULT_COLOR);
     }
 
@@ -558,10 +558,10 @@ static bool ForceAdditiveParticleSortCallback(CVar* var, const char* oldValue, c
     uint32_t flags = M2GetCacheFlags();
 
     if (enable) {
-        M2SetCacheFlags(flags | 0x100);
+        M2SetCacheFlags(flags | CM2Cache::CACHE_FORCE_ADDITIVE_PARTICLE_SORT);
         ConsoleWrite("Sorting all particles as though they were additive.", DEFAULT_COLOR);
     } else {
-        M2SetCacheFlags(flags & ~0x100);
+        M2SetCacheFlags(flags & ~CM2Cache::CACHE_FORCE_ADDITIVE_PARTICLE_SORT);
         ConsoleWrite("Sorting particles normally.", DEFAULT_COLOR);
     }
 
@@ -622,52 +622,52 @@ void ClientRegisterConsoleCommands() {
     ConsoleCommandRegister("reloadUI", CCommand_ReloadUI, CATEGORY_GRAPHICS, nullptr);
     ConsoleCommandRegister("perf", CCommand_Perf, CATEGORY_DEBUG, nullptr);
 
-    g_accountNameVar = CVar::Register("accountName", "Saved account name", 0x40, "", nullptr, CATEGORY_GAME, false, nullptr, false);
-    g_accountListVar = CVar::Register("accountList", "List of wow accounts for saved Blizzard account", 0, "", nullptr, CATEGORY_GAME, false, nullptr, false);
-    g_accountUsesTokenVar = CVar::Register("g_accountUsesToken", "Saved whether uses authenticator", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
-    s_cvMovie = CVar::Register("movie", "Show movie on startup", 0, "1", nullptr, CATEGORY_GAME, false, nullptr, false);
-    s_cvExpansionMovie = CVar::Register("expansionMovie", "Show expansion movie on startup", 0, "1", nullptr, CATEGORY_GAME, false, nullptr, false);
-    s_cvMovieSubtitle = CVar::Register("movieSubtitle", "Show movie subtitles", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
-    g_checkAddonVersionVar = CVar::Register("checkAddonVersion", "Check interface addon version number", 0, "1", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_accountNameVar = CVar::Register("accountName", "Saved account name", CVAR_HIDDEN, "", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_accountListVar = CVar::Register("accountList", "List of wow accounts for saved Blizzard account", CVAR_NONE, "", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_accountUsesTokenVar = CVar::Register("g_accountUsesToken", "Saved whether uses authenticator", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+    s_cvMovie = CVar::Register("movie", "Show movie on startup", CVAR_NONE, "1", nullptr, CATEGORY_GAME, false, nullptr, false);
+    s_cvExpansionMovie = CVar::Register("expansionMovie", "Show expansion movie on startup", CVAR_NONE, "1", nullptr, CATEGORY_GAME, false, nullptr, false);
+    s_cvMovieSubtitle = CVar::Register("movieSubtitle", "Show movie subtitles", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_checkAddonVersionVar = CVar::Register("checkAddonVersion", "Check interface addon version number", CVAR_NONE, "1", nullptr, CATEGORY_GAME, false, nullptr, false);
 
     char mouseSpeed[32];
     SStrPrintf(mouseSpeed, sizeof(mouseSpeed), "%1.1f", OsInputGetMouseSpeed());
-    s_cvMouseSpeed = CVar::Register("mouseSpeed", nullptr, 0, mouseSpeed, MouseSpeedCallback, CATEGORY_GAME, false, nullptr, false);
+    s_cvMouseSpeed = CVar::Register("mouseSpeed", nullptr, CVAR_NONE, mouseSpeed, MouseSpeedCallback, CATEGORY_GAME, false, nullptr, false);
 
-    s_cvErrors = CVar::Register("Errors", nullptr, 0, "0", ErrorDisplayCallback, CATEGORY_DEBUG, false, nullptr, false);
-    s_cvShowErrors = CVar::Register("ShowErrors", nullptr, 0, "1", ErrorDisplayShowCallback, CATEGORY_DEBUG, false, nullptr, false);
-    s_cvErrorLevelMin = CVar::Register("ErrorLevelMin", nullptr, 0, "2", ErrorDisplayMinLevelCallback, CATEGORY_DEBUG, false, nullptr, false);
-    s_cvErrorLevelMax = CVar::Register("ErrorLevelMax", nullptr, 0, "3", ErrorDisplayMaxLevelCallback, CATEGORY_DEBUG, false, nullptr, false);
-    s_cvErrorFilter = CVar::Register("ErrorFilter", nullptr, 0, "all", ErrorDisplayFilterCallback, CATEGORY_DEBUG, false, nullptr, false);
-    s_desktopGammaCvar = CVar::Register("DesktopGamma", nullptr, 0, "0", DesktopGammaCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_gammaCvar = CVar::Register("Gamma", nullptr, 0, "1.0", GammaCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    g_lastCharacterIndexVar = CVar::Register("lastCharacterIndex", "Last character selected", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
-    g_readTOSVar = CVar::Register("readTOS", "Status of the TOS", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
-    g_readEULAVar = CVar::Register("readEULA", "Status of the EULA", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
-    g_readTerminationWithoutNoticeVar = CVar::Register("readTerminationWithoutNotice", "Status of the Termination without Notice notice", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
-    g_readScanningVar = CVar::Register("readScanning", "Status of the Scanning notice", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
-    g_readContestVar = CVar::Register("readContest", "Status of the Contest notice", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+    s_cvErrors = CVar::Register("Errors", nullptr, CVAR_NONE, "0", ErrorDisplayCallback, CATEGORY_DEBUG, false, nullptr, false);
+    s_cvShowErrors = CVar::Register("ShowErrors", nullptr, CVAR_NONE, "1", ErrorDisplayShowCallback, CATEGORY_DEBUG, false, nullptr, false);
+    s_cvErrorLevelMin = CVar::Register("ErrorLevelMin", nullptr, CVAR_NONE, "2", ErrorDisplayMinLevelCallback, CATEGORY_DEBUG, false, nullptr, false);
+    s_cvErrorLevelMax = CVar::Register("ErrorLevelMax", nullptr, CVAR_NONE, "3", ErrorDisplayMaxLevelCallback, CATEGORY_DEBUG, false, nullptr, false);
+    s_cvErrorFilter = CVar::Register("ErrorFilter", nullptr, CVAR_NONE, "all", ErrorDisplayFilterCallback, CATEGORY_DEBUG, false, nullptr, false);
+    s_desktopGammaCvar = CVar::Register("DesktopGamma", nullptr, CVAR_NONE, "0", DesktopGammaCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_gammaCvar = CVar::Register("Gamma", nullptr, CVAR_NONE, "1.0", GammaCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    g_lastCharacterIndexVar = CVar::Register("lastCharacterIndex", "Last character selected", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_readTOSVar = CVar::Register("readTOS", "Status of the TOS", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_readEULAVar = CVar::Register("readEULA", "Status of the EULA", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_readTerminationWithoutNoticeVar = CVar::Register("readTerminationWithoutNotice", "Status of the Termination without Notice notice", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_readScanningVar = CVar::Register("readScanning", "Status of the Scanning notice", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+    g_readContestVar = CVar::Register("readContest", "Status of the Contest notice", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
     CVar::Register("screenshotFormat", "Set the format of screenshots", 1, "png", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
     CVar::Register("screenshotQuality", "Set the quality of screenshots (1 - 10)", 1, "3", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
 
-    CVar* showToolsUI = CVar::Register("showToolsUI", "Display the launcher when starting the game", 0, "-1", nullptr, CATEGORY_GAME, false, nullptr, false);
+    CVar* showToolsUI = CVar::Register("showToolsUI", "Display the launcher when starting the game", CVAR_NONE, "-1", nullptr, CATEGORY_GAME, false, nullptr, false);
 
     if (static_cast<uint32_t>(showToolsUI->m_intValue) >= 2) {
         showToolsUI->Set("1", true, false, false, true);
     }
 
     if (SFile::IsTrial()) {
-        CVar* converted = CVar::Register("converted", "Trial to Retail", 0, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
+        CVar* converted = CVar::Register("converted", "Trial to Retail", CVAR_NONE, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
         StreamingSetEnabled(converted->m_intValue != 0);
     }
 
-    CVar::Register("accounttype", "Account Type", 0, "", nullptr, CATEGORY_GAME, false, nullptr, false);
+    CVar::Register("accounttype", "Account Type", CVAR_NONE, "", nullptr, CATEGORY_GAME, false, nullptr, false);
 }
 
 // VERIFY: dd31cf34 auto
 // OFFSET: 0x004026B0
 void AsyncFileReadRegisterCVars() {
-    s_cvAsyncThreadSleep = CVar::Register("asyncThreadSleep", "Engine option: Async read thread sleep", 1, "0", AsyncFileReadThreadSleepCallback, CATEGORY_DEBUG, false, nullptr, false);
+    s_cvAsyncThreadSleep = CVar::Register("asyncThreadSleep", "Engine option: Async read thread sleep", CVAR_ARCHIVE, "0", AsyncFileReadThreadSleepCallback, CATEGORY_DEBUG, false, nullptr, false);
     s_cvAsyncHandlerTimeout = CVar::Register("asyncHandlerTimeout", "Engine option: Async read main thread timeout", 1, "10", AsyncFileReadHandlerTimeoutCallback, CATEGORY_DEBUG, false, nullptr, false);
     AsyncFileReadInitialize(s_cvAsyncThreadSleep->m_intValue, s_cvAsyncHandlerTimeout->m_intValue);
 }
@@ -675,36 +675,36 @@ void AsyncFileReadRegisterCVars() {
 // VERIFY: 8ac33977 auto
 // OFFSET: 0x00402760
 uint32_t GetM2CvarFlags() {
-    s_M2UseZFillVar = CVar::Register("M2UseZFill", "z-fill transparent objects", 0, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_M2UseClipPlanesVar = CVar::Register("M2UseClipPlanes", "use clip planes for sorting transparent objects", 0, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_M2UseThreadsVar = CVar::Register("M2UseThreads", "multithread model animations", 0, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_M2BatchDoodadsVar = CVar::Register("M2BatchDoodads", "combine doodads to reduce batch count", 0, "1", BatchDoodadsCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_M2BatchParticlesVar = CVar::Register("M2BatchParticles", "combine particle emitters to reduce batch count", 0, "1", BatchParticlesCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_M2ForceAdditiveParticleSortVar = CVar::Register("M2ForceAdditiveParticleSort", "force all particles to sort as though they were additive", 0, "0", ForceAdditiveParticleSortCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_M2FasterVar = CVar::Register("M2Faster", "end user control of scene optimization mode - (0-3)", 0, "1", M2FasterChanged, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_M2FasterDebugVar = CVar::Register("M2FasterDebug", "programmer control of scene optimization mode", 0, "0", M2DebugFasterChanged, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_M2UseZFillVar = CVar::Register("M2UseZFill", "z-fill transparent objects", CVAR_NONE, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_M2UseClipPlanesVar = CVar::Register("M2UseClipPlanes", "use clip planes for sorting transparent objects", CVAR_NONE, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_M2UseThreadsVar = CVar::Register("M2UseThreads", "multithread model animations", CVAR_NONE, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_M2BatchDoodadsVar = CVar::Register("M2BatchDoodads", "combine doodads to reduce batch count", CVAR_NONE, "1", BatchDoodadsCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_M2BatchParticlesVar = CVar::Register("M2BatchParticles", "combine particle emitters to reduce batch count", CVAR_NONE, "1", BatchParticlesCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_M2ForceAdditiveParticleSortVar = CVar::Register("M2ForceAdditiveParticleSort", "force all particles to sort as though they were additive", CVAR_NONE, "0", ForceAdditiveParticleSortCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_M2FasterVar = CVar::Register("M2Faster", "end user control of scene optimization mode - (0-3)", CVAR_NONE, "1", M2FasterChanged, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_M2FasterDebugVar = CVar::Register("M2FasterDebug", "programmer control of scene optimization mode", CVAR_NONE, "0", M2DebugFasterChanged, CATEGORY_GRAPHICS, false, nullptr, false);
 
     uint32_t flags = s_M2UseZFillVar->m_intValue != 0;
 
     if (s_M2UseClipPlanesVar->m_intValue) {
-        flags |= 0x2;
+        flags |= CM2Cache::CACHE_CLIP_PLANES;
     }
 
     if (s_M2UseThreadsVar->m_intValue) {
-        flags |= 0x4;
+        flags |= CM2Cache::CACHE_ANIMATION_THREADS;
     }
 
     if (s_M2BatchDoodadsVar->m_intValue) {
-        flags |= 0x20;
+        flags |= CM2Cache::CACHE_BATCH_DOODADS;
     }
 
     if (s_M2BatchParticlesVar->m_intValue) {
-        flags |= 0x80;
+        flags |= CM2Cache::CACHE_BATCH_PARTICLES;
     }
 
     if (s_M2ForceAdditiveParticleSortVar->m_intValue) {
-        flags |= 0x100;
+        flags |= CM2Cache::CACHE_FORCE_ADDITIVE_PARTICLE_SORT;
     }
 
-    return flags | 0x8;
+    return flags | CM2Cache::CACHE_GPU_SHADERS;
 }

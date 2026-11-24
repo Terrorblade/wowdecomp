@@ -6,6 +6,7 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "ThirdParty/lgLcd/lglcd.h"
 #include "WoW/Source/Ui/UILCD/Windows/LCDConnection.h"
+#include "WoW/Source/Ui/UILCD/Windows/LCDBase.h"
 
 class CEzLcdPage;
 class CLCDBitmap;
@@ -14,6 +15,28 @@ class CLCDText;
 
 class CEzLcd {
     public:
+
+    enum LCD_TYPE : int32_t {
+        LCD_TYPE_MONO = 0,
+        LCD_TYPE_COLOR = 1,
+        LCD_TYPE_DUAL = 2,
+        LCD_TYPE_NONE = 3,
+    };
+
+    enum BUTTON : int32_t {
+        BUTTON_0 = 0,
+        BUTTON_1 = 1,
+        BUTTON_2 = 2,
+        BUTTON_3 = 3,
+        BUTTON_LEFT = 4,
+        BUTTON_RIGHT = 5,
+        BUTTON_UP = 6,
+        BUTTON_DOWN = 7,
+        BUTTON_OK = 8,
+        BUTTON_CANCEL = 9,
+        BUTTON_MENU = 10,
+    };
+
     /* 0004 */ char m_friendlyName[260];
     /* 0108 */ CLCDConnection m_connection;
     /* 0174 */ int32_t m_lcdType;

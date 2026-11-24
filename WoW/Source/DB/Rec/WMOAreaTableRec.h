@@ -6,6 +6,21 @@
 
 class SFileImpl;
 
+enum WMO_AREA_FLAGS : int32_t {
+    WMO_AREA_FLAG_NONE                           = 0x00000000,
+    WMO_AREA_FLAG_RENDER_MINIMAP                 = 0x00000001,
+    WMO_AREA_FLAG_FORCE_INDOORS                  = 0x00000002,
+    WMO_AREA_FLAG_FORCE_OUTDOORS                 = 0x00000004,
+    WMO_AREA_FLAG_GENERATE_SINGLE_EXTERIOR_MAP   = 0x00000008,
+    WMO_AREA_FLAG_STORMWIND                      = 0x00000010,
+    WMO_AREA_FLAG_CHUNK_USES_TERRAIN_FOR_MINIMAP = 0x00000020,
+};
+
+enum WMO_GROUP_ID : int32_t {
+    WMO_GROUP_ID_RAVENS_WATCH = 23015,
+    WMO_GROUP_ID_EAGLES_EYE = 23016,
+};
+
 class WMOAreaTableRec {
     public:
     static const int32_t s_numColumns = 28;

@@ -4,6 +4,7 @@
 #include "Engine/Source/Model2/M2Light.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/ShaderEffect/Types.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00D45098
 CDataAllocator Liquid::s_waterFFPAllocator(sizeof(Liquid::CMaterialWaterFFP), 8);
@@ -304,7 +305,7 @@ void Liquid::CMaterialWaterFFP::Render(Liquid::IEnvironment* environment, Liquid
     g_theGxDevicePtr->RsPush();
     g_theGxDevicePtr->XformPush(GxXform_World);
     g_theGxDevicePtr->RsSet(GxRs_Culling, 0);
-    g_theGxDevicePtr->RsSet(GxRs_BlendingMode, 2);
+    g_theGxDevicePtr->RsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     GxRsSet(GxRs_DepthWrite, g_theGxDevicePtr->Caps().m_maxClipPlanes == 0);
 

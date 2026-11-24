@@ -73,7 +73,7 @@ float CGQuestLog::m_questIconOverlapDist = 12.0f;
 static const int32_t s_questGreenRange[20] = { 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
 
 // STATIC: 0x00C23680
-QuestWatch CGQuestLog::m_questWatches[25];
+QuestWatch CGQuestLog::m_questWatches[MAX_WATCHABLE_QUESTS];
 
 // HoT: sized for the HoT 100 slot quest log.
 // STATIC: 0x00C237B0
@@ -179,7 +179,7 @@ void CGQuestLog::InitializeGame() {
     flags.m_forceMipTracking = 1;
     flags.m_renderTarget = 1;
     ClientServices::SetMessageHandler(SMSG_QUERY_TIME_RESPONSE, Packet_SMSG_QUERY_TIME_RESPONSE, nullptr);
-    s_cvPOIShiftComplete = CVar::Register("POIShiftComplete", nullptr, 0, "0.6", nullptr, 0, false, nullptr, false);
+    s_cvPOIShiftComplete = CVar::Register("POIShiftComplete", nullptr, CVAR_NONE, "0.6", nullptr, 0, false, nullptr, false);
     ConsoleCommandRegister("UpdatePOI", UpdateQuestPOIHandler, CATEGORY_GAME, "Updates Quest POI from User Server");
     // HoT: clears its server pushed slots and party quest cache.
     HoT::QuestLog::Reset();
@@ -344,11 +344,11 @@ int32_t CGQuestLog::IsQuestCompleteEx(uint32_t index, int32_t a2) {
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::m_quests[index].m_questId, none, QuestQueryCallback, nullptr, false);
 
-    if (!quest || !entry || (entry->m_state & 2) || CGQuestLog::IsQuestFailed(index)) {
+    if (!quest || !entry || (entry->m_state & QUEST_LOG_ENTRY_FAILED) || CGQuestLog::IsQuestFailed(index)) {
         return 0;
     }
 
-    uint32_t special = quest->m_flags & 6;
+    uint32_t special = quest->m_flags & QUEST_FLAG_COMPLETION_STATE_MASK;
 
     if (!special && !quest->m_friendlyFactionId && !quest->m_hostileFactionId && !quest->m_rewardMoney) {
         int32_t hasObjectives = 0;
@@ -372,7 +372,7 @@ int32_t CGQuestLog::IsQuestCompleteEx(uint32_t index, int32_t a2) {
         }
     }
 
-    if (special && !(entry->m_state & 1)) {
+    if (special && !(entry->m_state & QUEST_LOG_ENTRY_COMPLETE)) {
         return 0;
     }
 
@@ -395,7 +395,7 @@ int32_t CGQuestLog::IsQuestCompleteEx(uint32_t index, int32_t a2) {
     }
 
     for (uint32_t i = 0; i < 6; i++) {
-        if (quest->m_collectItemId[i] && player->m_bag.GetItemTypeCount(quest->m_collectItemId[i], 8) < static_cast<int32_t>(quest->m_collectItemCount[i])) {
+        if (quest->m_collectItemId[i] && player->m_bag.GetItemTypeCount(quest->m_collectItemId[i], BAG_SEARCH_BANK) < static_cast<int32_t>(quest->m_collectItemCount[i])) {
             return 0;
         }
     }
@@ -421,7 +421,7 @@ bool CGQuestLog::HasNoObjectives(uint32_t index) {
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::m_quests[index].m_questId, none, QuestQueryCallback, nullptr, false);
 
-    if (!quest || !entry || (entry->m_state & 2) || CGQuestLog::IsQuestFailed(index)) {
+    if (!quest || !entry || (entry->m_state & QUEST_LOG_ENTRY_FAILED) || CGQuestLog::IsQuestFailed(index)) {
         return false;
     }
 
@@ -437,7 +437,7 @@ bool CGQuestLog::HasNoObjectives(uint32_t index) {
         }
     }
 
-    return !quest->m_requiredPlayersKilled && !(quest->m_flags & 6) && !quest->m_friendlyFactionId && !quest->m_hostileFactionId && quest->m_rewardMoney >= 0;
+    return !quest->m_requiredPlayersKilled && !(quest->m_flags & QUEST_FLAG_COMPLETION_STATE_MASK) && !quest->m_friendlyFactionId && !quest->m_hostileFactionId && quest->m_rewardMoney >= 0;
 }
 
 // VERIFY: e4a82c9a manual
@@ -529,7 +529,7 @@ int32_t CountQuestItemDropsNeeded(int32_t questId, void (*callback)(int32_t id, 
         for (uint32_t i = 0; i < 4; i++) {
             int32_t itemId = quest->m_intermediateItemId[i];
 
-            if (itemId > 0 && (static_cast<uint32_t>(itemId) != quest->m_startingItemId || static_cast<int32_t>(quest->m_intermediateItemCount[i]) > 1) && !player->m_bag.GetItemTypeCount(itemId, 8)) {
+            if (itemId > 0 && (static_cast<uint32_t>(itemId) != quest->m_startingItemId || static_cast<int32_t>(quest->m_intermediateItemCount[i]) > 1) && !player->m_bag.GetItemTypeCount(itemId, BAG_SEARCH_BANK)) {
                 count++;
             }
         }
@@ -565,7 +565,7 @@ int32_t CGQuestLog::AddQuestWatch(int32_t questId, int32_t duration) {
         }
     }
 
-    if (CGQuestLog::m_numQuestWatches < 25) {
+    if (CGQuestLog::m_numQuestWatches < MAX_WATCHABLE_QUESTS) {
         uint32_t index = CGQuestLog::m_numQuestWatches;
         CGQuestLog::m_questWatches[index].m_questId = questId;
         CGQuestLog::m_questWatches[index].m_expireTime = duration ? duration + now : 0;
@@ -680,7 +680,7 @@ uint32_t IsDailyQuest(int32_t index) {
         return 0;
     }
 
-    return quest->m_flags & 0x1000;
+    return quest->m_flags & QUEST_FLAG_DAILY;
 }
 
 // VERIFY: d701767c manual
@@ -1019,7 +1019,7 @@ CGItem_C* CGQuestLog::GetQuestSpecialItem(uint32_t index) {
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::m_quests[index].m_questId, none, QuestQueryCallback, nullptr, false);
 
-    if (!quest || (!quest->m_startingItemId && !(quest->m_flags & 0x20000))) {
+    if (!quest || (!quest->m_startingItemId && !(quest->m_flags & QUEST_FLAG_DISPLAY_ITEM_IN_TRACKER))) {
         return nullptr;
     }
 
@@ -1030,13 +1030,13 @@ CGItem_C* CGQuestLog::GetQuestSpecialItem(uint32_t index) {
     }
 
     CGBag_C* bag = &player->m_bag;
-    CGItem_C* item = bag->FindItemOfType(quest->m_startingItemId, 0);
+    CGItem_C* item = bag->FindItemOfType(quest->m_startingItemId, BAG_SEARCH_NONE);
 
     if (item && item->CanBeUsed()) {
         return item;
     }
 
-    if (!(quest->m_flags & 0x20000)) {
+    if (!(quest->m_flags & QUEST_FLAG_DISPLAY_ITEM_IN_TRACKER)) {
         return nullptr;
     }
 
@@ -1045,7 +1045,7 @@ CGItem_C* CGQuestLog::GetQuestSpecialItem(uint32_t index) {
             continue;
         }
 
-        item = bag->FindItemOfType(quest->m_intermediateItemId[i], 0);
+        item = bag->FindItemOfType(quest->m_intermediateItemId[i], BAG_SEARCH_NONE);
 
         if (item && item->CanBeUsed()) {
             return item;
@@ -1142,7 +1142,7 @@ void CGQuestLog::Update(int32_t a1) {
         CGQuestLog::m_quests[CGQuestLog::m_numQuest].m_logSlot = slot;
         CGQuestLog::m_numQuest++;
 
-        if (entry->m_time && !(entry->m_state & 2) && timeOffset + static_cast<int32_t>(entry->m_time) - static_cast<int32_t>(time(nullptr)) - 1 < 0) {
+        if (entry->m_time && !(entry->m_state & QUEST_LOG_ENTRY_FAILED) && timeOffset + static_cast<int32_t>(entry->m_time) - static_cast<int32_t>(time(nullptr)) - 1 < 0) {
             CGQuestLog::SetQuestExpired(CGQuestLog::m_numQuest - 1);
         }
 
@@ -1348,7 +1348,7 @@ int32_t CalculateExperience(int32_t questId, int32_t level) {
 int32_t CGQuestLog::IsOnQuest(int32_t questId) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (!player || (player->m_modelFlags & 0x10000)) {
+    if (!player || (player->m_modelFlags & OBJECT_MODEL_FLAG_DISABLED)) {
         return 0;
     }
 
@@ -1423,7 +1423,7 @@ int32_t CGQuestLog::GetQuestLeaderBoardByID(int32_t questId, QuestLogLeaderBoard
             SStrCopy(type, "event", STORM_MAX_STR);
 
             if (entry) {
-                params->m_complete = entry->m_state & 1;
+                params->m_complete = entry->m_state & QUEST_LOG_ENTRY_COMPLETE;
             }
 
             return 1;
@@ -1510,8 +1510,8 @@ int32_t CGQuestLog::GetQuestLeaderBoardByID(int32_t questId, QuestLogLeaderBoard
         if (showProgress) {
             int32_t have = required;
 
-            if (player->m_bag.GetItemTypeCount(itemId, 8) < required) {
-                have = player->m_bag.GetItemTypeCount(itemId, 8);
+            if (player->m_bag.GetItemTypeCount(itemId, BAG_SEARCH_BANK) < required) {
+                have = player->m_bag.GetItemTypeCount(itemId, BAG_SEARCH_BANK);
             }
 
             const char* format = FrameScript_GetText("QUEST_ITEMS_NEEDED", -1, GENDER_NOT_APPLICABLE);
@@ -1545,7 +1545,7 @@ int32_t CGQuestLog::GetQuestLeaderBoardByID(int32_t questId, QuestLogLeaderBoard
 
             ItemStats_C* item = g_itemDBCache.GetRecord(itemId, none, params->m_itemCallback, params->m_param, false);
             uint32_t plural = FrameScript_GetPluralIndex(1);
-            int32_t have = player->m_bag.GetItemTypeCount(itemId, 8);
+            int32_t have = player->m_bag.GetItemTypeCount(itemId, BAG_SEARCH_BANK);
             const char* format = FrameScript_GetText("QUEST_INTERMEDIATE_ITEMS_NEEDED", -1, GENDER_NOT_APPLICABLE);
             const char* name;
 
@@ -1708,8 +1708,8 @@ int32_t CGQuestLog::GetQuestLogItemDropByID(int32_t questId, QuestLogLeaderBoard
             int32_t required = quest->m_intermediateItemCount[i];
             int32_t count = required;
 
-            if (player->m_bag.GetItemTypeCount(quest->m_intermediateItemId[i], 8) < required) {
-                count = player->m_bag.GetItemTypeCount(quest->m_intermediateItemId[i], 8);
+            if (player->m_bag.GetItemTypeCount(quest->m_intermediateItemId[i], BAG_SEARCH_BANK) < required) {
+                count = player->m_bag.GetItemTypeCount(quest->m_intermediateItemId[i], BAG_SEARCH_BANK);
             }
 
             const char* format = FrameScript_GetText("QUEST_ITEMS_NEEDED", -1, GENDER_NOT_APPLICABLE);
@@ -2088,7 +2088,7 @@ int32_t CGQuestLog::GetQuestPOILeaderBoardByID(int32_t questId, QuestLogLeaderBo
 
     SStrCopy(params->m_text, quest->m_endText, STORM_MAX_STR);
     SStrCopy(params->m_type, "event", STORM_MAX_STR);
-    params->m_complete = entry->m_state & 1;
+    params->m_complete = entry->m_state & QUEST_LOG_ENTRY_COMPLETE;
     return 1;
 }
 
@@ -2140,7 +2140,7 @@ int32_t CGQuestLog::UpdateAllQuestPOI() {
             if (dungeonMap) {
                 onMap = CGQuestLog::IsPOIVisibleOnDungeonMap(&blob.m_centerX, blob.m_mapId, blob.m_floor, dungeonMap->m_id);
             } else {
-                if (!area || ((blob.m_flags & 0x4) && blob.m_worldMapAreaId != area->m_id)) {
+                if (!area || ((blob.m_flags & QuestPOIBlob::F_WORLD_MAP_AREA_ONLY) && blob.m_worldMapAreaId != area->m_id)) {
                     continue;
                 }
 
@@ -2197,7 +2197,7 @@ uint32_t CGQuestLog::ComputeBlobQuestObjectives(int32_t questId) {
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::m_quests[index].m_questId, none, nullptr, nullptr, false);
 
-    if (!quest || !entry || (entry->m_state & 2) || CGQuestLog::IsQuestFailed(index)) {
+    if (!quest || !entry || (entry->m_state & QUEST_LOG_ENTRY_FAILED) || CGQuestLog::IsQuestFailed(index)) {
         return 0;
     }
 
@@ -2212,7 +2212,7 @@ uint32_t CGQuestLog::ComputeBlobQuestObjectives(int32_t questId) {
     }
 
     for (uint32_t i = 0; i < 6; i++) {
-        if (quest->m_collectItemId[i] && player->m_bag.GetItemTypeCount(quest->m_collectItemId[i], 8) < static_cast<int32_t>(quest->m_collectItemCount[i])) {
+        if (quest->m_collectItemId[i] && player->m_bag.GetItemTypeCount(quest->m_collectItemId[i], BAG_SEARCH_BANK) < static_cast<int32_t>(quest->m_collectItemCount[i])) {
             result |= 1 << (i + 4);
         }
     }
@@ -2220,12 +2220,12 @@ uint32_t CGQuestLog::ComputeBlobQuestObjectives(int32_t questId) {
     for (uint32_t i = 0; i < 4; i++) {
         uint32_t itemId = quest->m_intermediateItemId[i];
 
-        if (itemId && itemId != quest->m_startingItemId && !player->m_bag.GetItemTypeCount(itemId, 8)) {
+        if (itemId && itemId != quest->m_startingItemId && !player->m_bag.GetItemTypeCount(itemId, BAG_SEARCH_BANK)) {
             result |= 1 << (i + 10);
         }
     }
 
-    if ((quest->m_flags & 6) && !(entry->m_state & 1)) {
+    if ((quest->m_flags & QUEST_FLAG_COMPLETION_STATE_MASK) && !(entry->m_state & QUEST_LOG_ENTRY_COMPLETE)) {
         result |= 0x10000;
     }
 
@@ -2352,7 +2352,7 @@ void CGQuestLog::UpdatePOIIcons() {
             if (dungeonMap) {
                 visible = CGQuestLog::IsPOIVisibleOnDungeonMap(&blob->m_centerX, blob->m_mapId, blob->m_floor, dungeonMap->m_id);
             } else {
-                if (!area || ((blob->m_flags & 0x4) && blob->m_worldMapAreaId != area->m_id)) {
+                if (!area || ((blob->m_flags & QuestPOIBlob::F_WORLD_MAP_AREA_ONLY) && blob->m_worldMapAreaId != area->m_id)) {
                     continue;
                 }
 
@@ -2703,8 +2703,8 @@ int32_t CGQuestLog::GetQuestLeaderBoardForItem(int32_t questId, int32_t itemId, 
     int32_t required = quest->m_collectItemCount[i];
     int32_t have = required;
 
-    if (player->m_bag.GetItemTypeCount(quest->m_collectItemId[i], 8) < required) {
-        have = player->m_bag.GetItemTypeCount(quest->m_collectItemId[i], 8);
+    if (player->m_bag.GetItemTypeCount(quest->m_collectItemId[i], BAG_SEARCH_BANK) < required) {
+        have = player->m_bag.GetItemTypeCount(quest->m_collectItemId[i], BAG_SEARCH_BANK);
     }
 
     const char* format = FrameScript_GetText("QUEST_ITEMS_NEEDED", -1, GENDER_NOT_APPLICABLE);
@@ -2855,11 +2855,11 @@ static int QSortQuestWatches(const void* a, const void* b) {
     int32_t questB = watchB->m_questId;
     int32_t sort = g_trackerSortingCVar->m_intValue;
 
-    if (sort == 1) {
+    if (sort == CGQuestLog::DISTANCE) {
         return watchB->m_distance >= watchA->m_distance ? -1 : 1;
     }
 
-    if (sort <= 1 || sort > 3) {
+    if (sort <= CGQuestLog::DISTANCE || sort > CGQuestLog::LEVEL_ASCENDING) {
         return questA - questB;
     }
 
@@ -2870,7 +2870,7 @@ static int QSortQuestWatches(const void* a, const void* b) {
         return questA - questB;
     }
 
-    return sort == 3 ? levelA - levelB : levelB - levelA;
+    return sort == CGQuestLog::LEVEL_ASCENDING ? levelA - levelB : levelB - levelA;
 }
 
 // VERIFY: 3900de0c manual
@@ -2940,7 +2940,7 @@ bool CGQuestLog::SortQuestWatches() {
         return false;
     }
 
-    if (sort == 1) {
+    if (sort == CGQuestLog::DISTANCE) {
         float last = 0.0f;
         bool sorted = true;
 

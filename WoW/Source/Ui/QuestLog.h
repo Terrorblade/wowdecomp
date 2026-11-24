@@ -7,6 +7,9 @@
 #include "HoT/Features/Features.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/Net/Types.h"
+#include "Engine/Source/Tempest/C2iVector.h"
+#include "WoW/Source/Object/Player.h"
+constexpr uint32_t MAX_WATCHABLE_QUESTS = 25;
 
 class CGItem_C;
 class CDataStore;
@@ -28,6 +31,11 @@ struct QuestPOIPoint {
 };
 
 struct QuestPOIBlob {
+
+    enum FLAGS : int32_t {
+        F_WORLD_MAP_AREA_ONLY = 0x4,
+    };
+
     /* 0000 */ TSGrowableArray<QuestPOIPoint> m_points;
     /* 0010 */ int32_t m_centerX;
     /* 0014 */ int32_t m_centerY;
@@ -76,6 +84,14 @@ int32_t CountQuestItemDropsNeeded(int32_t questId, void (*callback)(int32_t id, 
 
 class CGQuestLog {
     public:
+
+    enum TRACKER_SORT_MODE : int32_t {
+        DISABLED = 0,
+        DISTANCE = 1,
+        LEVEL_DESCENDING = 2,
+        LEVEL_ASCENDING = 3,
+    };
+
     static void LeaveWorld();
     static void SaveTrackedQuests();
     static int32_t UpdateAllQuestPOI();
@@ -123,7 +139,7 @@ class CGQuestLog {
     static void SetServerTime(int32_t serverTime, int32_t resetTime);
     static int32_t SetQuestExpired(uint32_t index);
     static void UpdateQuestPOIFromUserServer();
-    static QuestWatch m_questWatches[25];
+    static QuestWatch m_questWatches[MAX_WATCHABLE_QUESTS];
     static uint32_t m_numShownQuests;
     static void Update(int32_t a1);
     static void EnterWorld();

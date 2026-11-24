@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_UNIT_BLOOD_GROUND_BLOOD = 5;
 
 class UnitBloodRec {
     public:
@@ -15,7 +16,7 @@ class UnitBloodRec {
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_combatBloodSpurtFront [2];
     /* 000C */ int32_t m_combatBloodSpurtBack [2];
-    /* 0014 */ const char* m_groundBlood [5];
+    /* 0014 */ const char* m_groundBlood [NUM_UNIT_BLOOD_GROUND_BLOOD];
 
     UnitBloodRec();
     ~UnitBloodRec();

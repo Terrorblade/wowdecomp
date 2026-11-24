@@ -13,7 +13,7 @@ CGGameObject_C_Type_DungeonDifficulty::CGGameObject_C_Type_DungeonDifficulty(CGG
 // VERIFY: dc085aed auto
 // OFFSET: 0x0070DD50
 float CGGameObject_C_Type_DungeonDifficulty::GetBaseAlpha() const {
-    if (this->m_owner->m_gameObject->m_dynamicFlags & 2) {
+    if (this->m_owner->m_gameObject->m_dynamicFlags & CGGameObjectData::DYNFLAG_UNKNOWN_1) {
         return 1.0f;
     }
 
@@ -47,13 +47,13 @@ void CGGameObject_C_Type_DungeonDifficulty::HandleAnimEvent(uint32_t eventId, ui
 // VERIFY: 2227204f manual
 // OFFSET: 0x007109D0
 int32_t CGGameObject_C_Type_DungeonDifficulty::GetMapID() const {
-    return this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, 87));
+    return this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, CGameObjectDef::PROP_MAPID));
 }
 
 // VERIFY: e3596c37 manual
 // OFFSET: 0x00710A10
 int32_t CGGameObject_C_Type_DungeonDifficulty::GetDifficulty() const {
-    return this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, 88));
+    return this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, CGameObjectDef::PROP_DIFFICULTY));
 }
 
 // VERIFY: 53a12509 manual
@@ -62,17 +62,17 @@ void CGGameObject_C_Type_DungeonDifficulty::UpdateDisplay(uint32_t time) {
     int32_t hidden = 1;
     MapRec* map = nullptr;
 
-    if (this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, 87))) {
-        map = g_mapDB.GetRecord(this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, 87)));
+    if (this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, CGameObjectDef::PROP_MAPID))) {
+        map = g_mapDB.GetRecord(this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, CGameObjectDef::PROP_MAPID)));
     }
 
-    if (!map || map->m_instanceType != 2) {
-        int32_t difficulty = this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, 88));
+    if (!map || map->m_instanceType != MAP_INSTANCE_TYPE_RAID_DUNGEON) {
+        int32_t difficulty = this->m_owner->GetPropertyValue(CGameObjectDef::GetPropNum(this->m_owner->m_gameObject->m_typeID, CGameObjectDef::PROP_DIFFICULTY));
 
         if (CGGameUI::GetCurrentDungeonDifficulty() == difficulty) {
             hidden = 0;
         }
-    } else if (map->m_flags & 0x100) {
+    } else if (map->m_flags & MAP_FLAG_DYNAMIC_DIFFICULTY) {
         int32_t difficulty = this->GetDifficulty();
 
         if (CGGameUI::GetEffectiveRaidDifficulty() == difficulty) {
@@ -83,10 +83,10 @@ void CGGameObject_C_Type_DungeonDifficulty::UpdateDisplay(uint32_t time) {
 
         if (CGGameUI::GetCurrentRaidDifficulty() == difficulty) {
             hidden = 0;
-        } else if (CGGameUI::GetCurrentRaidDifficulty() >= 2) {
+        } else if (CGGameUI::GetCurrentRaidDifficulty() >= RAID_DIFFICULTY_10MAN_HEROIC) {
             difficulty = this->GetDifficulty();
 
-            if (CGGameUI::GetCurrentRaidDifficulty() - 2 == difficulty && !GetMapDifficultyEntryByMapIdAndDifficulty(this->GetMapID(), CGGameUI::GetCurrentRaidDifficulty(), nullptr)) {
+            if (CGGameUI::GetCurrentRaidDifficulty() - RAID_DIFFICULTY_HEROIC_OFFSET == difficulty && !GetMapDifficultyEntryByMapIdAndDifficulty(this->GetMapID(), CGGameUI::GetCurrentRaidDifficulty(), nullptr)) {
                 hidden = 0;
             }
         }

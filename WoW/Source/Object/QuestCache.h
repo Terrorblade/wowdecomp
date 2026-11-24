@@ -6,6 +6,19 @@
 
 class CDataStore;
 
+enum QUEST_TEMPLATE_FLAGS : uint32_t {
+    QUEST_FLAG_NONE                      = 0x00000000,
+    QUEST_FLAG_COMPLETION_STATE_MASK     = 0x00000006,
+    QUEST_FLAG_SHARABLE                  = 0x00000008,
+    QUEST_FLAG_DAILY                     = 0x00001000,
+    QUEST_FLAG_PVP                       = 0x00002000,
+    QUEST_FLAG_WEEKLY                    = 0x00008000,
+    QUEST_FLAG_AUTO_COMPLETE             = 0x00010000,
+    QUEST_FLAG_DISPLAY_ITEM_IN_TRACKER   = 0x00020000,
+    QUEST_FLAG_USE_OBJECTIVE_TEXT        = 0x00040000,
+    QUEST_FLAG_AUTO_ACCEPT               = 0x00080000,
+};
+
 class QuestCache {
     public:
     static const uint32_t s_cacheVersion = 3;

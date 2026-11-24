@@ -47,6 +47,44 @@ class CTexture;
 class Particulate;
 class Weather;
 
+enum WORLD_QUERY_FLAGS : uint32_t {
+    WORLD_QUERY_NONE                    = 0x00000000u,
+    WORLD_QUERY_M2_COLLISION            = 0x00000001u,
+    WORLD_QUERY_M2_RENDER               = 0x00000002u,
+    WORLD_QUERY_M2_UNKNOWN_0x4          = 0x00000004u,
+    WORLD_QUERY_M2_NON_OPAQUE           = 0x00000008u,
+    WORLD_QUERY_WMO_COLLISION           = 0x00000010u,
+    WORLD_QUERY_WMO_RENDER              = 0x00000020u,
+    WORLD_QUERY_WMO_CAMERA              = 0x00000040u,
+    WORLD_QUERY_WMO_NON_OPAQUE          = 0x00000080u,
+    WORLD_QUERY_TERRAIN                 = 0x00000100u,
+    WORLD_QUERY_FLIGHT_BOUNDS           = 0x00000200u,
+    WORLD_QUERY_UNKNOWN_0x2000          = 0x00002000u,
+    WORLD_QUERY_WALKABLE_ONLY           = 0x00004000u,
+    WORLD_QUERY_IGNORE_DOORS            = 0x00008000u,
+    WORLD_QUERY_WATER_WALK_LIQUID       = 0x00010000u,
+    WORLD_QUERY_LIQUID                  = 0x00020000u,
+    WORLD_QUERY_OBJECT_COLLISION        = 0x00100000u,
+    WORLD_QUERY_OBJECT_RENDER           = 0x00200000u,
+    WORLD_QUERY_OBJECT_UNKNOWN_0x400000 = 0x00400000u,
+    WORLD_QUERY_OBJECT_UNKNOWN_0x800000 = 0x00800000u,
+    WORLD_QUERY_VISIBLE_OPAQUE          = 0x01000000u,
+    WORLD_QUERY_PROJ_TEX_DOODADS        = 0x02000000u,
+    WORLD_QUERY_ALL_OBJS_ALL_GEO      = 0x40000000u,
+    WORLD_QUERY_UNLOADED_AS_BOUNDS      = 0x80000000u,
+    WORLD_QUERY_M2_MASK                 = WORLD_QUERY_M2_COLLISION | WORLD_QUERY_M2_RENDER | WORLD_QUERY_M2_UNKNOWN_0x4 | WORLD_QUERY_M2_NON_OPAQUE,
+    WORLD_QUERY_WMO_MASK                = WORLD_QUERY_WMO_COLLISION | WORLD_QUERY_WMO_RENDER | WORLD_QUERY_WMO_CAMERA | WORLD_QUERY_WMO_NON_OPAQUE,
+    WORLD_QUERY_LIQUID_MASK             = WORLD_QUERY_WATER_WALK_LIQUID | WORLD_QUERY_LIQUID,
+    WORLD_QUERY_OBJECT_MASK             = WORLD_QUERY_OBJECT_COLLISION | WORLD_QUERY_OBJECT_RENDER | WORLD_QUERY_OBJECT_UNKNOWN_0x400000 | WORLD_QUERY_OBJECT_UNKNOWN_0x800000,
+    WORLD_QUERY_DOODAD_MASK             = WORLD_QUERY_M2_MASK | WORLD_QUERY_OBJECT_MASK,
+    WORLD_QUERY_ENTITY_MASK             = WORLD_QUERY_OBJECT_MASK | WORLD_QUERY_ALL_OBJS_ALL_GEO,
+    WORLD_QUERY_MODEL_MASK              = WORLD_QUERY_DOODAD_MASK | WORLD_QUERY_ALL_OBJS_ALL_GEO,
+    WORLD_QUERY_COLLISION_MASK          = WORLD_QUERY_M2_COLLISION | WORLD_QUERY_WMO_COLLISION | WORLD_QUERY_TERRAIN | WORLD_QUERY_OBJECT_COLLISION,
+    WORLD_QUERY_RENDER_MASK             = WORLD_QUERY_M2_RENDER | WORLD_QUERY_WMO_RENDER | WORLD_QUERY_OBJECT_RENDER,
+    WORLD_QUERY_RENDER_HIT_TEST_MASK    = WORLD_QUERY_M2_RENDER | WORLD_QUERY_M2_UNKNOWN_0x4 | WORLD_QUERY_M2_NON_OPAQUE | WORLD_QUERY_WMO_RENDER | WORLD_QUERY_WMO_NON_OPAQUE
+                                        | WORLD_QUERY_OBJECT_RENDER | WORLD_QUERY_OBJECT_UNKNOWN_0x400000 | WORLD_QUERY_VISIBLE_OPAQUE,
+};
+
 typedef void (*CALLBACK_FUNC)(float, void*);
 
 class CChunkLiquid;
@@ -104,12 +142,28 @@ struct WorldOccluderData {
 };
 
 struct OcclusionVolume {
+
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        NO_VIEW_CLIP = 0x1,
+        UNKNOWN_2 = 0x2,
+    };
+
     /* 0000 */ int32_t m_mapID;
     /* 0004 */ uint32_t m_flags;
     /* 0008 */ OcclusionVolumeData m_data;
 };
 
 struct SPortalExt {
+
+    enum FLAGS : uint16_t {
+        F_SCREEN_CULLED = 0x1,
+        F_INTERSECT_NEAR = 0x2,
+        F_EXTERIOR_VIEW_HANDLED = 0x4,
+        F_INTERIOR_VIEW_HANDLED = 0x8,
+        F_NO_OCCLUSION = 0x10,
+    };
+
     /* 0000 */ uint16_t m_flags;
     /* 0002 */ uint16_t unused_0002;
     /* 0004 */ CRect m_rect;
@@ -137,6 +191,12 @@ extern TSExplicitList<SWModelFadeout, offsetof(SWModelFadeout, m_link)> s_fadeou
 
 class CWorldScene {
     public:
+    enum CLIP_SIDE : int32_t {
+        SIDE_ON = 0,
+        SIDE_POS = 1,
+        SIDE_NEG = 2,
+    };
+
     static bool IsBeyondFadeDistance(const C3Vector& position, uint32_t fadeLevel);
     static Liquid::CRenderer* s_liquidRenderer;
     static TSExplicitList<CWFrustum, offsetof(CWFrustum, m_link)> frustumFreeList;
@@ -339,6 +399,14 @@ namespace World {
     class TriData;
     class HitTestDebug {
         public:
+        enum TYPE : int32_t {
+            TYPE_NONE = 0,
+            TYPE_DOODAD = 1,
+            TYPE_ENTITY = 2,
+            TYPE_UNKNOWN_3 = 3,
+            TYPE_MAP_OBJ_GROUP = 4,
+        };
+
         struct Model {
             /* 0000 */ const char* m_name;
             /* 0004 */ int32_t m_depth;

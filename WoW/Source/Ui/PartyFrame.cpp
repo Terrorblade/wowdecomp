@@ -32,6 +32,7 @@
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "HoT/Features/Features.h"
+#include "WoW/Source/Ui/LFGInfo.h"
 
 // STATIC: 0x00BD1948
 WOWGUID CGPartyInfo::m_members[4];
@@ -159,7 +160,7 @@ WOWGUID GetPartyPetGUID(uint32_t index) {
         return pet;
     }
 
-    if (s_partyMemberStates[index].m_flags & 0x1) {
+    if (s_partyMemberStates[index].m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) {
         return s_partyMemberStates[index].m_pet.m_guid;
     }
 
@@ -267,7 +268,7 @@ int32_t Packet_SMSG_INSTANCE_SAVE_CREATED(void* param, NETMESSAGE msgId, uint32_
         return 1;
     }
 
-    CGChat::AddChatMessage(text, 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+    CGChat::AddChatMessage(text, CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
     return 1;
 }
 
@@ -371,7 +372,7 @@ CGPartyPetState* CGPartyInfo::GetRemotePetStats(const WOWGUID& guid) {
     }
 
     for (uint32_t i = 0; i < sizeof(CGPartyInfo::m_members) / sizeof(CGPartyInfo::m_members[0]); i++) {
-        if (CGPartyInfo::m_members[i] && (s_partyMemberStates[i].m_flags & 1) && s_partyMemberStates[i].m_pet.m_guid == guid) {
+        if (CGPartyInfo::m_members[i] && (s_partyMemberStates[i].m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && s_partyMemberStates[i].m_pet.m_guid == guid) {
             return &s_partyMemberStates[i].m_pet;
         }
     }
@@ -406,15 +407,15 @@ int32_t CGPartyInfo::GetPartyAssignments(lua_State* L, int32_t assignment) {
 
     uint8_t flag = 0;
 
-    if (assignment == 0) {
-        flag = 2;
-    } else if (assignment == 1) {
-        flag = 4;
+    if (assignment == CGPartyInfo::MAINTANK) {
+        flag = CGPartyInfo::MAIN_TANK;
+    } else if (assignment == CGPartyInfo::MAINASSIST) {
+        flag = CGPartyInfo::MAIN_ASSIST;
     }
 
     if (lua_isstring(L, 2)) {
         const char* name = lua_tolstring(L, 2, nullptr);
-        WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_PLAYER, 5, StringToBOOL(L, 3, 0), 3.4028235e38f, 0);
+        WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_PLAYER, UNIT_TARGET_PARTY_MEMBER, StringToBOOL(L, 3, 0), 3.4028235e38f, 0);
 
         if (!guid) {
             CGGameUI::DisplayError(ERR_TARGET_NOT_IN_GROUP_S, name);
@@ -458,7 +459,7 @@ void CGPartyInfo::SetOptOutOfLoot(int32_t optOut) {
 bool CGGameUI::CanChangePlayerDifficulty() {
     MapRec* map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
 
-    if (!map || map->m_instanceType != 2 || !CGGameUI::IsDynamicDifficultyMap()) {
+    if (!map || map->m_instanceType != MAP_INSTANCE_TYPE_RAID_DUNGEON || !CGGameUI::IsDynamicDifficultyMap()) {
         return false;
     }
 
@@ -490,7 +491,7 @@ void CGPartyInfo::CheckClearLFGSlot() {
         return;
     }
 
-    const LfgDungeonsRec* dungeon = g_lfgDungeonsDB.GetRecord(CGPartyInfo::m_lfgSlot & 0xFFFFFF);
+    const LfgDungeonsRec* dungeon = g_lfgDungeonsDB.GetRecord(CGPartyInfo::m_lfgSlot & CGLookingForGroup::SLOT_DUNGEON_ID_MASK);
 
     if (dungeon && dungeon->m_mapID != CGGameUI::m_iCurrentMapID) {
         CGPartyInfo::m_lfgSlot = 0;
@@ -531,7 +532,7 @@ int32_t CGPartyInfo::IsMemberPet(const WOWGUID& guid, int32_t* index) {
             const WOWGUID& pet = member->m_unit->m_unitFieldCharm ? member->m_unit->m_unitFieldCharm : member->m_unit->m_unitFieldSummon;
             match = pet == guid;
         } else {
-            match = (s_partyMemberStates[i].m_flags & 1) && s_partyMemberStates[i].m_pet.m_guid == guid;
+            match = (s_partyMemberStates[i].m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && s_partyMemberStates[i].m_pet.m_guid == guid;
         }
 
         if (match) {
@@ -563,8 +564,8 @@ void CGPartyInfo::InitializeGame() {
     CGPartyInfo::m_memberRoles[3] = 0;
     CGPartyInfo::m_leader.m_guid = 0;
     CGPartyInfo::m_leaderIndex = -1;
-    CGPartyInfo::m_dungeonDifficulty = 0;
-    CGPartyInfo::m_raidDifficulty = 0;
+    CGPartyInfo::m_dungeonDifficulty = DUNGEON_DIFFICULTY_NORMAL;
+    CGPartyInfo::m_raidDifficulty = RAID_DIFFICULTY_10MAN_NORMAL;
     CGPartyInfo::m_playerAssignments = 0;
     CGPartyInfo::m_playerLFGFlags = 0;
     CGPartyInfo::m_playerRole = 0;
@@ -625,7 +626,7 @@ int32_t CGPartyInfo::IsPlayerOrPetInParty(const WOWGUID& guid) {
             if (pet == guid) {
                 return 1;
             }
-        } else if ((s_partyMemberStates[i].m_flags & 1) && s_partyMemberStates[i].m_pet.m_guid == guid) {
+        } else if ((s_partyMemberStates[i].m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && s_partyMemberStates[i].m_pet.m_guid == guid) {
             return 1;
         }
     }
@@ -671,7 +672,7 @@ int32_t CGPartyInfo::IsMemberOrPet(const WOWGUID& guid) {
             if (pet == guid) {
                 return 1;
             }
-        } else if ((s_partyMemberStates[i].m_flags & 1) && s_partyMemberStates[i].m_pet.m_guid == guid) {
+        } else if ((s_partyMemberStates[i].m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && s_partyMemberStates[i].m_pet.m_guid == guid) {
             return 1;
         }
     }
@@ -723,23 +724,23 @@ void CGPartyInfo::AddMember(WOWGUID guid, int32_t online, const CGPartyMemberSta
     }
 
     if (online) {
-        s_partyMemberStates[index].m_flags |= 0x1;
-        CGAutoCompleteName::AddFlags(guid, 33, 0, nullptr);
+        s_partyMemberStates[index].m_flags |= CGPartyMemberState::MEMBER_FLAG_CONNECTED;
+        CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_IN_GROUP | AUTOCOMPLETE_FLAG_ONLINE, 0, nullptr);
     } else {
-        s_partyMemberStates[index].m_flags &= ~0x1;
-        CGAutoCompleteName::AddFlags(guid, 1, 0, nullptr);
-        CGAutoCompleteName::RemoveFlags(guid, 32);
+        s_partyMemberStates[index].m_flags &= ~CGPartyMemberState::MEMBER_FLAG_CONNECTED;
+        CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_IN_GROUP, 0, nullptr);
+        CGAutoCompleteName::RemoveFlags(guid, AUTOCOMPLETE_FLAG_ONLINE);
     }
 
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
     if (unit) {
-        unit->RegisterScript(16);
+        unit->RegisterScript(CGUnit_C::SCRIPT_REGISTRATION_PARTY);
         const WOWGUID& petGuid = unit->m_unit->m_unitFieldCharm.m_guid ? unit->m_unit->m_unitFieldCharm : unit->m_unit->m_unitFieldSummon;
         CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (pet) {
-            pet->RegisterScript(32);
+            pet->RegisterScript(CGUnit_C::SCRIPT_REGISTRATION_PARTY_PET);
         }
 
         unit->UpdateReaction(true);
@@ -806,13 +807,13 @@ void CGPartyInfo::RemoveAll(int32_t a1) {
                 CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPE_UNIT, __FILE__, __LINE__));
 
                 if (pet) {
-                    pet->UnregisterScript(32);
+                    pet->UnregisterScript(CGUnit_C::SCRIPT_REGISTRATION_PARTY_PET);
                 } else if (a1) {
                     CGGameUI::ClearTarget(petGuid, 1);
                 }
             }
 
-            unit->UnregisterScript(16);
+            unit->UnregisterScript(CGUnit_C::SCRIPT_REGISTRATION_PARTY);
             unit->UpdateReaction(true);
         } else if (a1) {
             CGGameUI::ClearTarget(CGPartyInfo::m_members[i], 1);
@@ -836,7 +837,7 @@ void CGPartyInfo::RemoveAll(int32_t a1) {
     CGPartyInfo::m_playerRole = 0;
     CGPartyInfo::m_lfgSlot = 0;
     CGPartyInfo::m_lfgRestricted = 0;
-    CGAutoCompleteName::RemoveFlagsFromAllNodes(1);
+    CGAutoCompleteName::RemoveFlagsFromAllNodes(AUTOCOMPLETE_FLAG_IN_GROUP);
 
     if (a1) {
         CGGameUI::CheckInstanceDifficultyMessages(dungeonDifficulty, raidDifficulty);
@@ -917,7 +918,7 @@ void CGPartyInfo::ClearRecruitAFriend(WOWGUID guid) {
     CGPartyMemberState* stats = CGPartyInfo::GetRemoteStats(guid);
 
     if (stats) {
-        stats->m_flags &= ~0x100;
+        stats->m_flags &= ~CGPartyMemberState::MEMBER_FLAG_REFER_A_FRIEND;
     }
 }
 
@@ -978,55 +979,55 @@ int32_t Packet_SMSG_PLAYER_DIFFICULTY_CHANGE(void* param, NETMESSAGE msgId, uint
     }
 
     switch (result) {
-        case 0:
+        case CGPartyInfo::DIFFICULTY_RESULT_SET_DIFFICULTY:
             msg->Get(difficulty);
             CGPartyInfo::m_dynamicDifficulty = difficulty;
             break;
 
-        case 1:
+        case CGPartyInfo::DIFFICULTY_RESULT_COOLDOWN:
             msg->Get(value);
             CGTooltip::GetDurationString(duration, sizeof(duration), 1000 * value, "INT_SPELL_DURATION", nullptr, 1, 0);
             CGGameUI::DisplayError(ERR_DIFFICULTY_CHANGE_COOLDOWN_S, duration);
             break;
 
-        case 2:
+        case CGPartyInfo::DIFFICULTY_RESULT_WORLDSTATE:
             CGGameUI::DisplayError(ERR_DIFFICULTY_CHANGE_WORLDSTATE);
             break;
 
-        case 3:
+        case CGPartyInfo::DIFFICULTY_RESULT_ENCOUNTER:
             CGGameUI::DisplayError(ERR_DIFFICULTY_CHANGE_ENCOUNTER);
             break;
 
-        case 4:
+        case CGPartyInfo::DIFFICULTY_RESULT_COMBAT:
             CGGameUI::DisplayError(ERR_DIFFICULTY_CHANGE_COMBAT);
             break;
 
-        case 5:
+        case CGPartyInfo::DIFFICULTY_RESULT_PLAYER_BUSY:
             CGGameUI::DisplayError(ERR_DIFFICULTY_CHANGE_PLAYER_BUSY);
             break;
 
-        case 6:
+        case CGPartyInfo::DIFFICULTY_RESULT_START_LOADING:
             msg->Get(value);
             CGPartyInfo::m_nextDifficultyChange = value + static_cast<uint32_t>(::time(nullptr));
             LoadingScreenEnable(CGGameUI::m_iCurrentMapID, false);
             break;
 
-        case 7:
+        case CGPartyInfo::DIFFICULTY_RESULT_ALREADY_STARTED:
             CGGameUI::DisplayError(ERR_DIFFICULTY_CHANGE_ALREADY_STARTED);
             break;
 
-        case 8: {
+        case CGPartyInfo::DIFFICULTY_RESULT_MAP_MESSAGE: {
             msg->Get(value);
             MapDifficultyRec* rec = g_mapDifficultyDB.GetRecord(value);
 
             if (rec && rec->m_message) {
-                CGChat::AddChatMessage(rec->m_message, 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+                CGChat::AddChatMessage(rec->m_message, CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
             }
 
             break;
         }
 
-        case 9:
+        case CGPartyInfo::DIFFICULTY_RESULT_COMPLETE:
             LoadingScreenDisable();
             ConsoleWrite("Changed difficulty successfully", DEFAULT_COLOR);
             FrameScript_SignalEvent(SCRIPT_EVENT_PLAYER_DIFFICULTY_CHANGED, nullptr);

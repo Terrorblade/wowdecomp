@@ -110,7 +110,7 @@ void CNameGen::CreateDictionary() {
         SStrPrintf(name, sizeof(name), "_%s", this->m_names.m_data[i]);
         SStrLower(name);
 
-        int32_t length = SStrLen(name) - 1;
+        int32_t length = static_cast<int32_t>(SStrLen(name) - 1);
 
         for (int32_t j = 0; j < length; j++) {
             DictionaryRecord record = { { 0 }, 0 };

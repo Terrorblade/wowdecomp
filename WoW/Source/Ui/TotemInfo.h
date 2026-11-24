@@ -4,6 +4,14 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
+constexpr uint32_t MAX_TOTEMS = 4;
+
+enum TOTEM_SLOT : int32_t {
+    TOTEM_SLOT_FIRE = 0,
+    TOTEM_SLOT_EARTH = 1,
+    TOTEM_SLOT_WATER = 2,
+    TOTEM_SLOT_AIR = 3,
+};
 
 class TotemInfo {
     public:

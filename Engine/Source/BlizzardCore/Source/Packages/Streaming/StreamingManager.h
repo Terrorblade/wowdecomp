@@ -36,6 +36,22 @@ class StreamingFileEntry {
 
 class StreamingManager {
     public:
+    enum STATE : int32_t {
+        START_CLIENT = 0,
+        START_CHARACTER = 1,
+        START_RACE_COMMON = 2,
+        START_CURRENT_RACE = 3,
+        BACKGROUND_CURRENT_ZONE = 4,
+        BACKGROUND_CURRENT_RACE = 5,
+        BACKGROUND_ALL_RACES = 6,
+        BACKGROUND_ALL_ZONES = 7,
+        UNKNOWN_8 = 8,
+        LOCALE_ARCHIVES = 9,
+        REGION_ARCHIVES = 10,
+        IDLE = 11,
+        SHUTDOWN = 12,
+    };
+
     /* 0000 */ std::map<std::string, StreamingFileEntry*> m_entries;
     /* 000C */ int32_t m_state;
     /* 0010 */ int32_t m_gameState;

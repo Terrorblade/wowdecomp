@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum SPELL_RANGE_FLAGS : int32_t {
+    SPELL_RANGE_FLAG_MELEE = 0x1,
+    SPELL_RANGE_FLAG_RANGED = 0x2,
+};
+
 class SpellRangeRec {
     public:
     static const int32_t s_numColumns = 40;

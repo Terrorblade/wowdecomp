@@ -142,7 +142,7 @@ FMOD_INLINE const unsigned int DSPFFT::reverse(unsigned int val, int bits)
 // OFFSET: 0x00918D70
 FMOD_RESULT DSPFFT::process(int bits)
 {
-    register int    count, count2, count3;
+    int    count, count2, count3;
     unsigned        i1;		/* going to right shift this */
     int             i2, i3, i4, y;
     int             fftlen = 1 << bits;

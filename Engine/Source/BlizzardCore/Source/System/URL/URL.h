@@ -53,6 +53,12 @@ class DownloadCallback {
 
 class HttpRequest {
     public:
+    enum STATE : int32_t {
+        STATE_CONNECTING = 0,
+        STATE_REQUESTING = 1,
+        STATE_REQUEST_COMPLETE = 2,
+    };
+
     /* 0000 */ void* m_session;
     /* 0004 */ void* m_connect;
     /* 0008 */ void* m_request;

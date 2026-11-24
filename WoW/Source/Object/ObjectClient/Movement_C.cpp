@@ -180,7 +180,7 @@ void MovementRemoveTransport(CGGameObject_C* transport) {
 int32_t MovementGetLastUpdateTime(uint32_t* time) {
     CMovementGlobals* globals = MovementGetGlobals();
 
-    if (!globals || !(globals->m_flags & 0x1)) {
+    if (!globals || !(globals->m_flags & CMovementGlobals::FLAG_INITIALIZED)) {
         return 0;
     }
 

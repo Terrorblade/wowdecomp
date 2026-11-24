@@ -50,14 +50,14 @@ void EffectGlow::SetParameters(int32_t count, const int32_t* params) {
     color.r = params[2];
     color.a = params[1];
 
-    static_cast<PassGlowBase*>(this->m_altPasses[2])->m_color = color;
-    static_cast<PassGlowBase*>(this->m_passes[2])->m_color = color;
+    static_cast<PassGlowBase*>(this->m_altPasses[COMBINE_PASS])->m_color = color;
+    static_cast<PassGlowBase*>(this->m_passes[COMBINE_PASS])->m_color = color;
 }
 
 // VERIFY: 46600cfa manual
 // OFFSET: 0x008BFE80
 EffectGlow::EffectGlow() {
-    this->m_cvar = CVar::Register("ffxGlow", "full screen glow effect", 1, this->m_defaultEnabled ? "1" : "0", FFX::CVarCallback, 1, false, nullptr, false);
+    this->m_cvar = CVar::Register("ffxGlow", "full screen glow effect", CVAR_ARCHIVE, this->m_defaultEnabled ? "1" : "0", FFX::CVarCallback, 1, false, nullptr, false);
 
     FFX::Tex* fullInputs[] = { &FFX::s_full[0] };
     FFX::Tex* quartInputs[] = { &FFX::s_quart[0] };
@@ -87,7 +87,7 @@ EffectGlow::EffectGlow() {
         *this->m_altPasses.New() = pass;
     }
 
-    this->m_mode = 0;
+    this->m_mode = EffectGlow::STANDARD_PASSES;
 }
 
 // VERIFY: ae406627 auto

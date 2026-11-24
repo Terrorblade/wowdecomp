@@ -125,7 +125,7 @@ namespace FMOD
                 }
                 else if (!mCurrentAllocatedThreadID[count])
                 {
-                    mCurrentAllocatedThreadID[count] = id;
+                    mCurrentAllocatedThreadID[count] = static_cast<uint32_t>(id);
                     mCurrentAllocated[count] = 0;
                     break;
                 }

@@ -58,7 +58,7 @@ static void ConvertNumber(CMDDEF* ptr, const char* string, int32_t* datachars) {
     if (endptr) {
         *datachars = static_cast<int32_t>(endptr - string);
     } else {
-        *datachars = SStrLen(string);
+        *datachars = static_cast<int32_t>(SStrLen(string));
     }
 
     if (ptr->variableptr) {
@@ -69,7 +69,7 @@ static void ConvertNumber(CMDDEF* ptr, const char* string, int32_t* datachars) {
 // VERIFY: e5d0c972 manual
 // OFFSET: 0x00772C20
 static void ConvertString(CMDDEF* ptr, const char* string, int32_t* datachars) {
-    *datachars = SStrLen(string);
+    *datachars = static_cast<int32_t>(SStrLen(string));
 
     if (ptr->currvaluestr) {
         SMemFree(ptr->currvaluestr, __FILE__, __LINE__, 0);
@@ -86,7 +86,7 @@ static void ConvertString(CMDDEF* ptr, const char* string, int32_t* datachars) {
 // VERIFY: 07f50fe2 manual
 // OFFSET: 0x00772E70
 static CMDDEF* FindFlagDef(const char* string, CMDDEF* firstdef, int32_t minlength) {
-    int32_t strlength = SStrLen(string);
+    int32_t strlength = static_cast<int32_t>(SStrLen(string));
     int32_t bestlength = minlength - 1;
     CMDDEF* bestptr = nullptr;
 
@@ -199,8 +199,8 @@ static int32_t ProcessFlags(const char* string, _PROCESSING* processing, void (S
     lastflag[0] = 0;
 
     while (*string) {
-        int32_t strlength = SStrLen(string);
-        int32_t namelength = 1 > SStrLen(lastflag) ? 1 : SStrLen(lastflag);
+        int32_t strlength = static_cast<int32_t>(SStrLen(string));
+        int32_t namelength = static_cast<int32_t>(1 > SStrLen(lastflag) ? 1 : SStrLen(lastflag));
         CMDDEF* flagdef = nullptr;
 
         while (namelength--) {
@@ -364,7 +364,7 @@ int32_t STORMAPI SCmdRegisterArgument(uint32_t flags, uint32_t id, const char* n
         name = "";
     }
 
-    int32_t namelength = SStrLen(name);
+    int32_t namelength = static_cast<int32_t>(SStrLen(name));
 
     if (namelength >= 16) {
         DebugValidate("namelength < 16");
@@ -396,7 +396,7 @@ int32_t STORMAPI SCmdRegisterArgument(uint32_t flags, uint32_t id, const char* n
         return 0;
     }
 
-    CMDDEF* ptr = ((flags & SCMD_ARG_MASK) ? &s_arglist : &s_flaglist)->NewNode(2, 0, 0);
+    CMDDEF* ptr = ((flags & SCMD_ARG_MASK) ? &s_arglist : &s_flaglist)->NewNode(TSLIST_LINK_BEFORE, 0, 0);
     SStrCopy(ptr->name, name, sizeof(ptr->name));
     ptr->id = id;
     ptr->namelength = namelength;

@@ -31,7 +31,7 @@ int32_t CGGuildInfo::m_numEventLogEntries;
 // STATIC: 0x00C22AB8
 uint32_t CGGuildInfo::m_numRanks;
 // STATIC: 0x00C21E60
-GuildRankInfo CGGuildInfo::m_rankInfo[10];
+GuildRankInfo CGGuildInfo::m_rankInfo[MAX_GUILD_RANKS];
 
 // STATIC: 0x00C22090
 char CGGuildInfo::m_infoText[2004];
@@ -40,7 +40,7 @@ char CGGuildInfo::m_infoText[2004];
 char CGGuildInfo::m_motd[516];
 
 // STATIC: 0x00C22A70
-GuildRosterSortCriteria CGGuildInfo::m_sortCriteria[8];
+GuildRosterSortCriteria CGGuildInfo::m_sortCriteria[NUM_GUILD_ROSTER_SORT_COLUMNS];
 
 // STATIC: 0x00C22AB0
 uint32_t CGGuildInfo::m_numMembers;
@@ -105,7 +105,7 @@ void CGGuildInfo::InitializeGame() {
     CGGuildInfo::m_infoText[0] = '\0';
     CGGuildInfo::m_motd[0] = '\0';
 
-    for (int32_t i = 0; i < 8; i++) {
+    for (int32_t i = 0; i < NUM_GUILD_ROSTER_SORT_COLUMNS; i++) {
         CGGuildInfo::m_sortCriteria[i].m_column = i;
         CGGuildInfo::m_sortCriteria[i].m_descending = 0;
     }
@@ -159,7 +159,7 @@ int32_t Packet_MSG_GUILD_EVENT_LOG_QUERY(void* param, NETMESSAGE msgId, uint32_t
             CGGuildInfo::m_pendingEventLogNames++;
         }
 
-        if (entry.m_type == 2 || entry.m_type == 6) {
+        if (entry.m_type == GuildEventLogEntry::EVENT_JOIN || entry.m_type == GuildEventLogEntry::EVENT_QUIT) {
             entry.m_player2 = WOWGUID();
         } else {
             msg->Get(entry.m_player2.m_guid);
@@ -173,7 +173,7 @@ int32_t Packet_MSG_GUILD_EVENT_LOG_QUERY(void* param, NETMESSAGE msgId, uint32_t
             }
         }
 
-        if (entry.m_type == 3 || entry.m_type == 4) {
+        if (entry.m_type == GuildEventLogEntry::EVENT_PROMOTE || entry.m_type == GuildEventLogEntry::EVENT_DEMOTE) {
             uint8_t rank;
             msg->Get(rank);
             entry.m_rank = rank;
@@ -302,10 +302,10 @@ int32_t Packet_SMSG_GUILD_ROSTER(void* param, NETMESSAGE msgId, uint32_t time, C
 
     char motd[516];
     msg->GetString(motd, sizeof(motd));
-    ScrubString(motd, CGGuildInfo::m_motd, 129, sizeof(CGGuildInfo::m_motd), 1);
+    ScrubString(motd, CGGuildInfo::m_motd, 129, sizeof(CGGuildInfo::m_motd), SCRUB_FLAG_TRUNCATE_NEWLINES);
     char infoText[2004];
     msg->GetString(infoText, sizeof(infoText));
-    ScrubString(infoText, CGGuildInfo::m_infoText, 501, sizeof(CGGuildInfo::m_infoText), 0);
+    ScrubString(infoText, CGGuildInfo::m_infoText, 501, sizeof(CGGuildInfo::m_infoText), SCRUB_FLAG_NONE);
     constexpr uint32_t maxRanks = sizeof(CGGuildInfo::m_rankInfo) / sizeof(CGGuildInfo::m_rankInfo[0]);
     uint32_t numRanks = 0;
     msg->Get(numRanks);
@@ -326,7 +326,7 @@ int32_t Packet_SMSG_GUILD_ROSTER(void* param, NETMESSAGE msgId, uint32_t time, C
     rank = rank < maxRanks ? rank : maxRanks;
     CGGuildInfo::m_numRanks = rank;
 
-    for (; rank < 10; rank++) {
+    for (; rank < MAX_GUILD_RANKS; rank++) {
         memset(&CGGuildInfo::m_rankInfo[rank], 0, sizeof(GuildRankInfo));
     }
 
@@ -353,18 +353,18 @@ int32_t Packet_SMSG_GUILD_ROSTER(void* param, NETMESSAGE msgId, uint32_t time, C
 
         if (member->m_online) {
             member->m_lastOnline = 0.0f;
-            CGAutoCompleteName::AddFlags(CGGuildInfo::m_roster.m_data[i]->m_guid, 34, 0, CGGuildInfo::m_roster.m_data[i]->m_name);
+            CGAutoCompleteName::AddFlags(CGGuildInfo::m_roster.m_data[i]->m_guid, AUTOCOMPLETE_FLAG_IN_GUILD | AUTOCOMPLETE_FLAG_ONLINE, 0, CGGuildInfo::m_roster.m_data[i]->m_name);
         } else {
             msg->Get(member->m_lastOnline);
-            CGAutoCompleteName::AddFlags(CGGuildInfo::m_roster.m_data[i]->m_guid, 2, 0, CGGuildInfo::m_roster.m_data[i]->m_name);
-            CGAutoCompleteName::RemoveFlags(CGGuildInfo::m_roster.m_data[i]->m_guid, 32);
+            CGAutoCompleteName::AddFlags(CGGuildInfo::m_roster.m_data[i]->m_guid, AUTOCOMPLETE_FLAG_IN_GUILD, 0, CGGuildInfo::m_roster.m_data[i]->m_name);
+            CGAutoCompleteName::RemoveFlags(CGGuildInfo::m_roster.m_data[i]->m_guid, AUTOCOMPLETE_FLAG_ONLINE);
         }
 
         char note[128];
         msg->GetString(note, sizeof(note));
-        ScrubString(note, CGGuildInfo::m_roster.m_data[i]->m_note, 32, sizeof(member->m_note), 1);
+        ScrubString(note, CGGuildInfo::m_roster.m_data[i]->m_note, 32, sizeof(member->m_note), SCRUB_FLAG_TRUNCATE_NEWLINES);
         msg->GetString(note, sizeof(note));
-        ScrubString(note, CGGuildInfo::m_roster.m_data[i]->m_officerNote, 32, sizeof(member->m_officerNote), 1);
+        ScrubString(note, CGGuildInfo::m_roster.m_data[i]->m_officerNote, 32, sizeof(member->m_officerNote), SCRUB_FLAG_TRUNCATE_NEWLINES);
 
         if (CGGuildInfo::m_roster.m_data[i]->m_online) {
             CGGuildInfo::m_numOnlineMembers++;
@@ -404,7 +404,7 @@ int32_t CGGuildInfo::GetNumGuildBankTabItemWithdrawalsByRankID(uint8_t tab, uint
 // VERIFY: e01e8061 auto
 // OFFSET: 0x005CA060
 void CGGuildInfo::SetMOTD(const char* motd) {
-    ScrubString(motd, CGGuildInfo::m_motd, 129, sizeof(CGGuildInfo::m_motd), 1);
+    ScrubString(motd, CGGuildInfo::m_motd, 129, sizeof(CGGuildInfo::m_motd), SCRUB_FLAG_TRUNCATE_NEWLINES);
 }
 
 // VERIFY: 8962a32a auto
@@ -432,12 +432,12 @@ int32_t QSortRoster(const void* a, const void* b) {
         return 2 * (left->m_online == 0) - 1;
     }
 
-    for (uint32_t i = 0; i < 8; i++) {
+    for (uint32_t i = 0; i < NUM_GUILD_ROSTER_SORT_COLUMNS; i++) {
         GuildRosterSortCriteria* criteria = &CGGuildInfo::m_sortCriteria[i];
         int32_t result;
 
         switch (criteria->m_column) {
-            case 0: {
+            case GUILD_ROSTER_SORT_RANK: {
                 if (right->m_rank == left->m_rank) {
                     continue;
                 }
@@ -446,7 +446,7 @@ int32_t QSortRoster(const void* a, const void* b) {
                 break;
             }
 
-            case 1: {
+            case GUILD_ROSTER_SORT_LEVEL: {
                 if (left->m_level == right->m_level) {
                     continue;
                 }
@@ -455,12 +455,12 @@ int32_t QSortRoster(const void* a, const void* b) {
                 break;
             }
 
-            case 2: {
+            case GUILD_ROSTER_SORT_NAME: {
                 result = SStrCmpUTF8I(left->m_name, right->m_name, STORM_MAX_STR);
                 break;
             }
 
-            case 3: {
+            case GUILD_ROSTER_SORT_ZONE: {
                 AreaTableRec* leftArea = g_areaTableDB.GetRecord(left->m_zoneID);
                 AreaTableRec* rightArea = g_areaTableDB.GetRecord(right->m_zoneID);
 
@@ -472,7 +472,7 @@ int32_t QSortRoster(const void* a, const void* b) {
                 break;
             }
 
-            case 4: {
+            case GUILD_ROSTER_SORT_CLASS: {
                 ChrClassesRec* leftClass = g_chrClassesDB.GetRecord(left->m_class);
                 ChrClassesRec* rightClass = g_chrClassesDB.GetRecord(right->m_class);
 
@@ -484,7 +484,7 @@ int32_t QSortRoster(const void* a, const void* b) {
                 break;
             }
 
-            case 6: {
+            case GUILD_ROSTER_SORT_ONLINE: {
                 if (left->m_online && right->m_online) {
                     continue;
                 }
@@ -498,7 +498,7 @@ int32_t QSortRoster(const void* a, const void* b) {
                 return criteria->m_descending ? -result : result;
             }
 
-            case 7: {
+            case GUILD_ROSTER_SORT_NOTE: {
                 if (right->unk_0051) {
                     right->unk_0051 = 0;
                 }
@@ -545,13 +545,13 @@ void CGGuildInfo::QueryRosterAndRanks() {
 void CGGuildInfo::SortRoster(int32_t column) {
     uint32_t index;
 
-    for (index = 0; index < 8; index++) {
+    for (index = 0; index < NUM_GUILD_ROSTER_SORT_COLUMNS; index++) {
         if (CGGuildInfo::m_sortCriteria[index].m_column == column) {
             break;
         }
     }
 
-    if (index < 8) {
+    if (index < NUM_GUILD_ROSTER_SORT_COLUMNS) {
         int32_t descending = CGGuildInfo::m_sortCriteria[index].m_descending;
 
         if (!index) {
@@ -629,7 +629,7 @@ void CGGuildInfo::SaveToFile() {
             AreaTableRec* area = g_areaTableDB.GetRecord(member->m_zoneID);
             const char* rankName = static_cast<uint32_t>(member->m_rank) < sizeof(stats->m_rankNames) / sizeof(stats->m_rankNames[0]) ? stats->m_rankNames[member->m_rank] : "";
             SStrPrintf(line, sizeof(line), "%s\t%i\t%s\t%s\t%s\t%s\t%s\t%i\r\n", member->m_name, member->m_level, chrClass ? chrClass->m_name : "", area ? area->m_areaName : "", rankName, member->m_note, member->m_officerNote, member->m_lastOnline);
-            OsWriteFile(file, line, SStrLen(line), &written);
+            OsWriteFile(file, line, static_cast<uint32_t>(SStrLen(line)), &written);
         }
 
         OsCloseFile(file);

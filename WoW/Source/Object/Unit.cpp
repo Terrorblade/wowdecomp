@@ -2,6 +2,8 @@
 #include "WoW/Source/Object/CMoveSpline.h"
 #include "WoW/Source/Object/Movement.h"
 #include "WoW/Source/Object/Object.h"
+#include "WoW/Source/DB/Rec/EmotesRec.h"
+#include "WoW/Source/Object/Types.h"
 
 // STATIC: 0x00AC49D8
 const uint32_t CGUnit::s_mirrorFieldIndices[123] = {
@@ -32,11 +34,11 @@ uint32_t CGUnit::MirrorIndexFromFieldIndex(uint32_t fieldIndex) {
 bool CGUnit::CanSwim() const {
     uint32_t flags = this->m_unit->m_unitFieldFlags;
 
-    if (flags & 0x4000) {
+    if (flags & UNIT_FLAG_CANNOT_SWIM) {
         return false;
     }
 
-    if ((flags & 0x8) || (flags & 0x800) || (flags & 0x10)) {
+    if ((flags & UNIT_FLAG_PLAYER_CONTROLLED) || (flags & UNIT_FLAG_PET_IN_COMBAT) || (flags & UNIT_FLAG_EVADING_HOME)) {
         return true;
     }
 
@@ -48,39 +50,39 @@ bool CGUnit::CanSwim() const {
 int32_t CGUnit::CanPlayEmote(uint32_t emoteFlags, int32_t targeted, int32_t* standUp) const {
     *standUp = 0;
 
-    if (targeted && (emoteFlags & 0x400)) {
+    if (targeted && (emoteFlags & EMOTE_FLAG_DISALLOW_TARGETED)) {
         return 0;
     }
 
-    if ((emoteFlags & 0x1) && this->m_unit->m_unitFieldBytes1[0]) {
+    if ((emoteFlags & EMOTE_FLAG_REQUIRES_STANDING) && this->m_unit->m_unitFieldBytes1[0]) {
         return 0;
     }
 
-    if ((emoteFlags & 0x80) && (this->m_movement->m_flags & 0x200000)) {
+    if ((emoteFlags & EMOTE_FLAG_DISALLOW_SWIMMING) && (this->m_movement->m_flags & MOVEMENTFLAG_SWIMMING)) {
         return 0;
     }
 
-    if (emoteFlags & 0x8000) {
+    if (emoteFlags & EMOTE_FLAG_DISALLOW_FLYING) {
         CMoveSpline* spline = this->m_movement->m_spline;
 
-        if (spline && !(spline->m_flags & 0x400) && (spline->m_flags & 0x2000)) {
+        if (spline && !(spline->m_flags & SPLINEFLAG_NO_SPLINE) && (spline->m_flags & SPLINEFLAG_FLYING)) {
             return 0;
         }
 
-        if (this->m_movement->m_flags & 0x2000000) {
+        if (this->m_movement->m_flags & MOVEMENTFLAG_FLYING) {
             return 0;
         }
     }
 
-    if (!(emoteFlags & 0x200)) {
+    if (!(emoteFlags & EMOTE_FLAG_ALLOW_SLEEPING_OR_DEAD)) {
         uint8_t standState = this->m_unit->m_unitFieldBytes1[0];
 
-        if (standState == 3 || standState == 7) {
+        if (standState == UNIT_SLEEPING || standState == UNIT_DEAD) {
             return 0;
         }
     }
 
-    if ((emoteFlags & 0x4000) && (this->m_movement->m_flags & 0xC010FF)) {
+    if ((emoteFlags & EMOTE_FLAG_STAND_UP_ON_ACTIVE_MOVEMENT) && (this->m_movement->m_flags & MOVEMENTFLAG_ACTIVE_MASK)) {
         *standUp = 1;
     }
 
@@ -144,7 +146,7 @@ int32_t CGUnit::HasAuraState(int32_t state) const {
 int32_t CGUnit::IsOnFlyingSpline() const {
     CMoveSpline* spline = this->m_movement->m_spline;
 
-    if (spline && !(spline->m_flags & 0x400) && (spline->m_flags & 0x2000)) {
+    if (spline && !(spline->m_flags & SPLINEFLAG_NO_SPLINE) && (spline->m_flags & SPLINEFLAG_FLYING)) {
         return 1;
     }
 
@@ -155,7 +157,7 @@ int32_t CGUnit::IsOnFlyingSpline() const {
 // OFFSET: 0x005F9810
 int32_t CGUnit::IsOnSpline() const {
     CMoveSpline* spline = this->m_movement->m_spline;
-    return spline && !(spline->m_flags & 0x400);
+    return spline && !(spline->m_flags & SPLINEFLAG_NO_SPLINE);
 }
 
 // VERIFY: ea2cbe01 auto
@@ -167,7 +169,7 @@ int32_t CGUnit::IsJumping() const {
 // VERIFY: 4e64bda0 auto
 // OFFSET: 0x005FA9E0
 int32_t CGUnit::CanMove() const {
-    return this->m_unit->m_unitFieldHealth > 0 && !(this->m_movement->m_flags & 0x100A00) && this->m_unit->m_unitFieldBytes1[0] != UNIT_DEAD;
+    return this->m_unit->m_unitFieldHealth > 0 && !(this->m_movement->m_flags & (MOVEMENTFLAG_ONTRANSPORT | MOVEMENTFLAG_ROOT | MOVEMENTFLAG_PENDING_ROOT)) && this->m_unit->m_unitFieldBytes1[0] != UNIT_DEAD;
 }
 
 // VERIFY: 68641d42 auto
@@ -218,7 +220,7 @@ float CGUnit::GetPowerRegen(POWER_TYPE powerType, bool inCombat) const {
 // VERIFY: 90149eb1 manual
 // OFFSET: 0x004F7250
 bool CGUnit::IsPossessedBy(const WOWGUID& guid) const {
-    return (this->m_unit->m_unitFieldFlags & 0x1000000) && *this->GetCharmerOrCreatorGuid() == guid;
+    return (this->m_unit->m_unitFieldFlags & UNIT_FLAG_POSSESSED) && *this->GetCharmerOrCreatorGuid() == guid;
 }
 
 // VERIFY: 3c755101 auto
@@ -237,7 +239,7 @@ bool CGUnit::HasSummoner() const {
 // OFFSET: 0x004F5F80
 bool CGUnit::IsGuildMaster() const {
     uint32_t flags = this->m_unit->m_unitNpcFlags;
-    return (flags & 0x40000) && (flags & 0x80000);
+    return (flags & UNIT_NPC_FLAG_PETITIONER) && (flags & UNIT_NPC_FLAG_TABARD_DESIGNER);
 }
 
 // VERIFY: 124e37fd auto
@@ -290,7 +292,7 @@ int32_t CGUnit::GetQuestGreenRange() const {
 // OFFSET: 0x00716190
 bool CGUnit::IsSitting() const {
     uint8_t standState = this->m_unit->m_unitFieldBytes1[0];
-    return standState == 1 || (standState >= 4 && standState <= 6);
+    return standState == UNIT_SITTING || (standState >= UNIT_FIRSTCHAIRSIT && standState <= UNIT_FIRSTCHAIRSIT + UNIT_NUMCHAIRSTATES - 1);
 }
 
 // VERIFY: 01cf0dc8 auto

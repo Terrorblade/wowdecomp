@@ -7,10 +7,10 @@
 // VERIFY: 41d87533 auto
 // OFFSET: 0x008C1F70
 PassBox4::PassBox4(FFX::Tex** inputs, uint32_t count, FFX::Tex* output, EGxBlend blend, bool unk) : FFX::Pass(inputs, count, output, blend, unk) {
-    this->m_shaderIndex = 0;
+    this->m_shaderIndex = NORMALIZED_COORDS;
 
     if (FFX::s_useRECT) {
-        this->m_shaderIndex = 1;
+        this->m_shaderIndex = RECTANGLE_COORDS;
     }
 
     g_theGxDevicePtr->ShaderCreate(this->m_shaders, GxSh_Pixel, "Shaders\\Pixel", "FFXBox4", sizeof(this->m_shaders) / sizeof(this->m_shaders[0]));

@@ -268,7 +268,7 @@ static void WriteURL(const char* path, const char* url) {
     SStrPrintf(text, sizeof(text), "[InternetShortcut]\r\nURL=%s\r\n", url);
 
     uint32_t bytes;
-    OsWriteFile(file, text, SStrLen(text), &bytes);
+    OsWriteFile(file, text, static_cast<uint32_t>(SStrLen(text)), &bytes);
     OsCloseFile(file);
 }
 
@@ -292,7 +292,7 @@ void UIADDON::SavePublicKey() {
         OsCreateDirectory(path, 1);
     }
 
-    uint32_t length = SStrLen(path);
+    uint32_t length = static_cast<uint32_t>(SStrLen(path));
     SStrPrintf(&path[length], sizeof(path) - length, "\\%s.pub", name);
     WritePublicKey(this->m_hasPublicKey, this->m_publicKey, path);
 }
@@ -342,7 +342,7 @@ void GetAddOnInfoRequest(CDataStore* msg) {
         info.PutString(addon->m_key.m_str);
         info.Put(static_cast<uint8_t>(addon->m_hasPublicKey));
         info.Put(addon->m_hasPublicKey ? SCrcCompute(addon->m_publicKey, sizeof(addon->m_publicKey), nullptr, 7) : 0u);
-        info.Put(addon->m_url && *addon->m_url ? SCrcCompute(addon->m_url, SStrLen(addon->m_url), nullptr, 7) : 0u);
+        info.Put(addon->m_url && *addon->m_url ? SCrcCompute(addon->m_url, static_cast<uint32_t>(SStrLen(addon->m_url)), nullptr, 7) : 0u);
         count++;
     }
 
@@ -389,7 +389,7 @@ UIADDON::UIADDON() {
     this->m_checkingLoadable = 0;
     this->m_url = nullptr;
     this->m_numFiles = 0;
-    this->m_status = 1;
+    this->m_status = UIADDON_SECURITY_INSECURE;
     this->m_enabledByDefault = true;
     this->m_outOfDate = 0;
     this->m_hasPublicKey = false;
@@ -519,7 +519,7 @@ static int32_t ComputeAddOnEnableState(const char* name) {
     UIADDON* addon = s_addons.Ptr(name);
 
     if (!addon) {
-        return 0;
+        return ADDON_ENABLE_STATE_DISABLED;
     }
 
     uint32_t total = 0;
@@ -538,7 +538,7 @@ static int32_t ComputeAddOnEnableState(const char* name) {
     }
 
     if (!total) {
-        return addon->m_enabledByDefault ? 2 : 0;
+        return addon->m_enabledByDefault ? ADDON_ENABLE_STATE_ALL : ADDON_ENABLE_STATE_DISABLED;
     }
 
     if (!enabled) {
@@ -698,16 +698,16 @@ void SetAddOnInfoRequest(CDataStore* msg) {
             WriteURL(path, addon->m_url);
         }
 
-        addon->m_status = 1;
+        addon->m_status = UIADDON_SECURITY_INSECURE;
         addon->m_signed = false;
 
-        if (state == 2) {
+        if (state == ADDON_INFO_STATE_BLIZZARD) {
             addon->m_blizzard = true;
         } else {
             addon->m_blizzard = false;
 
             if (!state) {
-                addon->m_status = 2;
+                addon->m_status = UIADDON_SECURITY_BANNED;
                 continue;
             }
         }
@@ -720,10 +720,10 @@ void SetAddOnInfoRequest(CDataStore* msg) {
 
         int32_t result = FrameXML_CheckSignature(toc, bindings, addon->m_hasPublicKey ? addon->m_publicKey : nullptr, addon->m_digest);
 
-        if (result == 2) {
+        if (result == XML_SIGNATURE_MODIFIED) {
             addon->m_signed = true;
-        } else if (result == 3) {
-            addon->m_status = 0;
+        } else if (result == XML_SIGNATURE_VALID) {
+            addon->m_status = UIADDON_SECURITY_SECURE;
         }
     }
 
@@ -759,7 +759,7 @@ void SetAddOnInfoRequest(CDataStore* msg) {
         UIADDON::METADATA* version = addon->m_metadata.Ptr("Version");
 
         if (IsBannedAddOn(name, version ? version->m_value : nullptr)) {
-            addon->m_status = 2;
+            addon->m_status = UIADDON_SECURITY_BANNED;
         }
     }
 
@@ -782,7 +782,7 @@ int32_t GetAddOnEnableState(const char* name, const char* character, bool comput
     UIADDON* addon = s_addons.Ptr(name);
 
     if (!addon) {
-        return 0;
+        return ADDON_ENABLE_STATE_DISABLED;
     }
 
     uint32_t total = 0;
@@ -800,15 +800,15 @@ int32_t GetAddOnEnableState(const char* name, const char* character, bool comput
             state = addonState->m_enabled;
         } else if (compute) {
             switch (ComputeAddOnEnableState(name)) {
-                case 0:
+                case ADDON_ENABLE_STATE_DISABLED:
                     state = false;
                     break;
 
-                case 1:
+                case ADDON_ENABLE_STATE_SOME:
                     state = addon->m_enabledByDefault;
                     break;
 
-                case 2:
+                case ADDON_ENABLE_STATE_ALL:
                     state = true;
                     break;
             }
@@ -828,7 +828,7 @@ int32_t GetAddOnEnableState(const char* name, const char* character, bool comput
     }
 
     if (!total) {
-        return addon->m_enabledByDefault ? 2 : 0;
+        return addon->m_enabledByDefault ? ADDON_ENABLE_STATE_ALL : ADDON_ENABLE_STATE_DISABLED;
     }
 
     if (!enabled) {
@@ -857,7 +857,7 @@ bool IsAddOnLoadable(const char* name, bool demandLoad, UIADDON_LOADABLE_REASON&
         return false;
     }
 
-    if (addon->m_status == 2) {
+    if (addon->m_status == UIADDON_SECURITY_BANNED) {
         reason = UIADDON_BANNED;
         return false;
     }
@@ -995,7 +995,7 @@ static void LoadAddOnMetadata(UIADDON* addon, const char* line) {
         end++;
     }
 
-    uint32_t keyLength = keyEnd - line;
+    uint32_t keyLength = static_cast<uint32_t>(keyEnd - line);
     char* key = static_cast<char*>(alloca(keyLength + 1));
     memcpy(key, line, keyLength);
     key[keyLength] = '\0';
@@ -1088,7 +1088,7 @@ bool LoadAddOn(const char* name, bool demandLoad, CStatus* status) {
 
 #ifndef DISABLE_SIGNATURE_CHECKS
         if (!addon->m_status && memcmp(addon->m_digest, digest, sizeof(digest))) {
-            ClientPostClose(10);
+            ClientPostClose(MSG_FRAMEXML_UI_CORRUPT);
         }
 #endif
 
@@ -1485,7 +1485,7 @@ void LoadAddOnEnableState(const char* character) {
     }
 
     if (TSList<ADDONSTATELIST, TSGetLink<ADDONSTATELIST> >::IsEnd(list)) {
-        list = s_addOnStates.NewNode(2, 0, 8);
+        list = s_addOnStates.NewNode(TSLIST_LINK_BEFORE, 0, 8);
         list->m_name = SStrDupA(character, __FILE__, __LINE__);
     }
 
@@ -1710,7 +1710,7 @@ int32_t GetAddOnSecurity(const char* name) {
         return addon->m_status;
     }
 
-    return 1;
+    return UIADDON_SECURITY_INSECURE;
 }
 
 // VERIFY: 6b68ae99 manual
@@ -1747,7 +1747,7 @@ void SaveAddOnEnableState() {
             char line[1024];
             SStrPrintf(line, sizeof(line), "%s: %s\r\n", state->m_key.m_str, state->m_enabled ? "enabled" : "disabled");
             uint32_t written;
-            OsWriteFile(file, line, SStrLen(line), &written);
+            OsWriteFile(file, line, static_cast<uint32_t>(SStrLen(line)), &written);
         }
 
         OsCloseFile(file);
@@ -1785,7 +1785,7 @@ const char* GetAddOnURL(const char* name) {
 
     const char* url = addon->m_url;
 
-    if (!url || !*url || addon->m_status == 2) {
+    if (!url || !*url || addon->m_status == UIADDON_SECURITY_BANNED) {
         return nullptr;
     }
 

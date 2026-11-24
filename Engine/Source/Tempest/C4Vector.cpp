@@ -1,6 +1,7 @@
 #include <cmath>
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/CImVector.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // VERIFY: 42d2cfec manual
 // OFFSET: 0x00979110

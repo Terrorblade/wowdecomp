@@ -32,6 +32,7 @@
 #include "WoW/Source/Ui/TalentInfo.h"
 #include "WoW/Source/Ui/Types.h"
 #include "Engine/Source/Frame/CSimpleTexture.h"
+#include "WoW/Common/ComponentCore/Types.h"
 
 // VERIFY: c886e670 auto
 // OFFSET: 0x005E9BC0
@@ -48,11 +49,11 @@ static int32_t Script_GetInventoryItemTexture(lua_State* L) {
     if (CGCharacterInfo::CanInspect(unit)) {
         int32_t displayId = 0;
 
-        if (slot == -1) {
+        if (slot == INVSLOT_AMMO) {
             if (unit->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
                 int32_t ammoId = CGCharacterInfo::GetActivePlayerAmmoID(unit);
 
-                if (ammoId && unit->GetBag()->GetItemTypeCount(ammoId, 0)) {
+                if (ammoId && unit->GetBag()->GetItemTypeCount(ammoId, BAG_SEARCH_NONE)) {
                     WOWGUID requester = unit->m_obj->m_guid;
                     ItemStats_C* stats = g_itemDBCache.GetRecord(ammoId, requester, UnitInventoryChangedCallback, nullptr, true);
 
@@ -69,7 +70,7 @@ static int32_t Script_GetInventoryItemTexture(lua_State* L) {
             } else {
                 const CGItem_C* item = static_cast<const CGBag_C*>(unit->GetBag())->GetItemPointer(slot);
 
-                if (item && !(item->m_modelFlags & 0x10000)) {
+                if (item && !(item->m_modelFlags & OBJECT_MODEL_FLAG_DISABLED)) {
                     displayId = item->GetDisplayID();
                 }
             }
@@ -123,9 +124,9 @@ static int32_t Script_KeyRingButtonIDToInvSlotID(lua_State* L) {
 // OFFSET: 0x005EAC10
 static int32_t Script_OffhandHasWeapon(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
-    CGItem_C* item = player ? player->m_bag.GetItemPointer(16) : nullptr;
+    CGItem_C* item = player ? player->m_bag.GetItemPointer(INVSLOT_OFFHAND) : nullptr;
 
-    if (item && item->GetClassID() == 2) {
+    if (item && item->GetClassID() == ITEM_CLASS_WEAPON) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -153,10 +154,10 @@ static int32_t Script_GetInventoryAlertStatus(lua_State* L) {
 static int32_t Script_HasWandEquipped(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && static_cast<uint32_t>(player->m_bag.m_numSlots) > 17 && player->m_bag.m_slots[17]) {
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(player->m_bag.m_slots[17], TYPE_ITEM, __FILE__, __LINE__));
+    if (player && static_cast<uint32_t>(player->m_bag.m_numSlots) > INVSLOT_RANGED && player->m_bag.m_slots[INVSLOT_RANGED]) {
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(player->m_bag.m_slots[INVSLOT_RANGED], TYPE_ITEM, __FILE__, __LINE__));
 
-        if (item && item->GetSubtypeID() == 19) {
+        if (item && item->GetSubtypeID() == ITEM_SUBCLASS_WEAPON_WAND) {
             lua_pushnumber(L, 1.0);
             return 1;
         }
@@ -192,7 +193,7 @@ static int32_t Script_GetInventorySlotInfo(lua_State* L) {
                 lua_pushnumber(L, rec->m_slotNumber);
                 lua_pushstring(L, rec->m_slotIcon);
 
-                if (rec->m_slotNumber == 18) {
+                if (rec->m_slotNumber == INVSLOT_RANGED + 1) {
                     lua_pushnumber(L, 1.0);
                 } else {
                     lua_pushnil(L);
@@ -219,7 +220,7 @@ static int32_t Script_IsInventoryItemLocked(lua_State* L) {
     CGPlayer_C* player = slot != -1 ? static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) : nullptr;
     const CGItem_C* item = player ? static_cast<const CGBag_C*>(&player->m_bag)->GetItemPointer(slot) : nullptr;
 
-    if (item && (item->m_itemFlags & 1)) {
+    if (item && (item->m_itemFlags & CGItem_C::ITEM_CLIENT_LOCKED)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -241,7 +242,7 @@ static int32_t Script_GetInventoryItemCooldown(lua_State* L) {
     CGPlayer_C* unit;
     CGItem_C* item;
 
-    if (slot != -1 && CGCharacterInfo::CanInspect(unit = static_cast<CGPlayer_C*>(GetUnitFromName(unitName))) && (item = unit->m_bag.GetItemPointer(slot)) && item->GetEnchantmentSpell(0) && (!item->GetUsableSpellCharges() || item->GetCurrentSpellCharges())) {
+    if (slot != -1 && CGCharacterInfo::CanInspect(unit = static_cast<CGPlayer_C*>(GetUnitFromName(unitName))) && (item = unit->m_bag.GetItemPointer(slot)) && item->GetEnchantmentSpell(SPELL_EFFECT_NONE) && (!item->GetUsableSpellCharges() || item->GetCurrentSpellCharges())) {
         uint32_t start = 0;
         uint32_t duration = 0;
         uint32_t enable = 0;
@@ -271,7 +272,7 @@ static int32_t Script_GetInventoryItemBroken(lua_State* L) {
     CGPlayer_C* unit = static_cast<CGPlayer_C*>(GetUnitFromName(unitName));
     CGItem_C* item;
 
-    if (!CGCharacterInfo::CanInspect(unit) || slot == -1 || !(item = unit->m_bag.GetItemPointer(slot)) || (item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) || !item->m_item->m_itemFieldMaxdurability || item->GetDurability()) {
+    if (!CGCharacterInfo::CanInspect(unit) || slot == INVSLOT_AMMO || !(item = unit->m_bag.GetItemPointer(slot)) || (item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) || !item->m_item->m_itemFieldMaxdurability || item->GetDurability()) {
         lua_pushnil(L);
         return 1;
     }
@@ -297,12 +298,12 @@ static int32_t Script_GetInventoryItemCount(lua_State* L) {
         return 1;
     }
 
-    if (slot == -1) {
+    if (slot == INVSLOT_AMMO) {
         if (unit->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
             int32_t ammo = CGCharacterInfo::GetActivePlayerAmmoID(unit);
 
             if (ammo) {
-                lua_pushnumber(L, unit->GetBag()->GetItemTypeCount(ammo, 0));
+                lua_pushnumber(L, unit->GetBag()->GetItemTypeCount(ammo, BAG_SEARCH_NONE));
                 return 1;
             }
         }
@@ -323,7 +324,7 @@ static int32_t Script_GetInventoryItemCount(lua_State* L) {
         return 1;
     }
 
-    if (slot > 22) {
+    if (slot > INVSLOT_BAG3) {
         lua_pushnumber(L, 0.0);
         return 1;
     }
@@ -335,14 +336,14 @@ static int32_t Script_GetInventoryItemCount(lua_State* L) {
             continue;
         }
 
-        if (!(rec->m_displayFlags & 0x4)) {
+        if (!(rec->m_displayFlags & ITEM_SUBCLASS_DISPLAY_FLAG_SHOW_CONTENTS_COUNT)) {
             break;
         }
 
-        if (item->GetBag()->GetItemTypeCount(-1, 0) <= 0) {
+        if (item->GetBag()->GetItemTypeCount(-1, BAG_SEARCH_NONE) <= 0) {
             lua_pushnumber(L, 0.0);
         } else {
-            lua_pushnumber(L, item->GetBag()->GetItemTypeCount(-1, 0));
+            lua_pushnumber(L, item->GetBag()->GetItemTypeCount(-1, BAG_SEARCH_NONE));
         }
 
         return 1;
@@ -387,7 +388,7 @@ static int32_t Script_CursorCanGoInSlot(lua_State* L) {
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if ((player && player->ValidateSlot(slot, CGGameUI::GetCursorItem())) || (slot == -1 && CGGameUI::m_cursorItemType == UICURSOR_AMMO)) {
+    if ((player && player->ValidateSlot(slot, CGGameUI::GetCursorItem())) || (slot == INVSLOT_AMMO && CGGameUI::m_cursorItemType == UICURSOR_AMMO)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -411,19 +412,19 @@ static int32_t Script_GetWeaponEnchantInfo(lua_State* L) {
         return 6;
     }
 
-    for (int32_t slot = 15; slot <= 16; slot++) {
+    for (int32_t slot = INVSLOT_MAINHAND; slot <= INVSLOT_OFFHAND; slot++) {
         CGItem_C* item = player->m_bag.GetItemPointer(slot);
 
-        if (item && item->GetEnchantmentId(1)) {
+        if (item && item->GetEnchantmentId(CGItemData::TEMPORARY)) {
             lua_pushnumber(L, 1.0);
 
-            if (item->GetEnchantmentDuration(1)) {
+            if (item->GetEnchantmentDuration(CGItemData::TEMPORARY)) {
                 lua_pushnumber(L, item->GetEnchantmentTimeLeft(1));
             } else {
                 lua_pushnil(L);
             }
 
-            lua_pushnumber(L, item->GetEnchantmentCharges(1));
+            lua_pushnumber(L, item->GetEnchantmentCharges(CGItemData::TEMPORARY));
         } else {
             lua_pushnil(L);
             lua_pushnil(L);
@@ -474,7 +475,7 @@ static int32_t Script_GetGuildInfo(lua_State* L) {
 static int32_t Script_PutItemInBag(lua_State* L) {
     int32_t slot = 0;
 
-    if (!ResolveInventorySlotArg(L, 1, slot) || slot < 19) {
+    if (!ResolveInventorySlotArg(L, 1, slot) || slot < INVSLOT_BAG0) {
         return 0;
     }
 
@@ -524,7 +525,7 @@ static int32_t Script_GetInspectArenaTeamData(lua_State* L) {
 
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
 
-    if (index >= 3) {
+    if (index >= MAX_ARENA_TEAMS) {
         return 0;
     }
 
@@ -573,7 +574,7 @@ static int32_t Script_GetInventoryItemsForSlot(lua_State* L) {
     if (lua_isnumber(L, 1)) {
         slot = static_cast<int32_t>(lua_tonumber(L, 1) - 1.0);
 
-        if (slot > 18) {
+        if (slot > EQUIPPED_LAST) {
             return 0;
         }
     } else {
@@ -612,9 +613,9 @@ static int32_t Script_GetInventoryItemsForSlot(lua_State* L) {
         return 0;
     }
 
-    int32_t bypass = (chrClass->m_flags & 0x8) != 0;
+    int32_t bypass = (chrClass->m_flags & ChrClassesRec::HAS_RELIC_SLOT) != 0;
 
-    for (int32_t i = 0; i <= 18; i++) {
+    for (int32_t i = EQUIPPED_FIRST; i <= EQUIPPED_LAST; i++) {
         CGItem_C* item = inventory->GetItemPointer(i);
 
         if (item && item->CanGoInSlot(slot, bypass) && CGCharacterInfo::CanEquipItem(item, slot)) {
@@ -625,7 +626,7 @@ static int32_t Script_GetInventoryItemsForSlot(lua_State* L) {
         }
     }
 
-    for (int32_t i = 23; i <= 38; i++) {
+    for (int32_t i = BACKPACK_FIRST; i <= BACKPACK_LAST; i++) {
         CGItem_C* item = inventory->GetItemPointer(i);
 
         if (item && item->CanGoInSlot(slot, bypass)) {
@@ -672,7 +673,7 @@ static int32_t Script_GetInventoryItemsForSlot(lua_State* L) {
         return 1;
     }
 
-    for (int32_t i = 39; i <= 66; i++) {
+    for (int32_t i = BANKGENERIC_FIRST; i <= BANKGENERIC_LAST; i++) {
         CGItem_C* item = inventory->GetItemPointer(i);
 
         if (item && item->CanGoInSlot(slot, bypass)) {
@@ -828,7 +829,7 @@ static int32_t Script_GetInventoryItemLink(lua_State* L) {
     WOWGUID guid = unit->m_obj->m_guid;
     WOWGUID activePlayer = ClntObjMgrGetActivePlayer();
 
-    if (slot == -1) {
+    if (slot == INVSLOT_AMMO) {
         int32_t ammo = guid == activePlayer ? CGCharacterInfo::GetActivePlayerAmmoID(unit) : 0;
         WOWGUID none = WOWGUID();
         ItemStats_C* stats = g_itemDBCache.GetRecord(ammo, none, nullptr, nullptr, false);
@@ -852,7 +853,7 @@ static int32_t Script_GetInventoryItemLink(lua_State* L) {
             ItemStats_C* stats = g_itemDBCache.GetRecord(inspected->m_itemId, none, nullptr, nullptr, false);
 
             if (stats) {
-                lua_pushstring(L, CGTooltip::CreateItemLink(inspected->m_itemId, stats->m_quality, inspected->m_enchants[0], &inspected->m_enchants[2], static_cast<uint16_t>(inspected->m_randomPropertiesId), inspected->m_propertySeed));
+                lua_pushstring(L, CGTooltip::CreateItemLink(inspected->m_itemId, stats->m_quality, inspected->m_enchants[CGItemData::PERMANENT], &inspected->m_enchants[CGItemData::SOCKET_1], static_cast<uint16_t>(inspected->m_randomPropertiesId), inspected->m_propertySeed));
                 return 1;
             }
         }
@@ -880,7 +881,7 @@ static int32_t Script_GetInventoryItemID(lua_State* L) {
     WOWGUID guid = unit->m_obj->m_guid;
     WOWGUID activePlayer = ClntObjMgrGetActivePlayer();
 
-    if (slot == -1) {
+    if (slot == INVSLOT_AMMO) {
         if (guid == activePlayer) {
             int32_t ammo = CGCharacterInfo::GetActivePlayerAmmoID(unit);
 
@@ -922,7 +923,7 @@ static int32_t Script_GetInventoryItemGems(lua_State* L) {
         return 0;
     }
 
-    if (slot == -1) {
+    if (slot == INVSLOT_AMMO) {
         return 0;
     }
 
@@ -956,7 +957,7 @@ static int32_t Script_GetInventoryItemGems(lua_State* L) {
 static int32_t Script_UseInventoryItem(lua_State* L) {
     int32_t slot = 0;
 
-    if (!ResolveInventorySlotArg(L, 1, slot) || slot == -1) {
+    if (!ResolveInventorySlotArg(L, 1, slot) || slot == INVSLOT_AMMO) {
         return 0;
     }
 
@@ -986,7 +987,7 @@ static int32_t Script_SocketInventoryItem(lua_State* L) {
 static int32_t Script_PickupBagFromSlot(lua_State* L) {
     int32_t slot = 0;
 
-    if (ResolveInventorySlotArg(L, 1, slot) && slot >= 19) {
+    if (ResolveInventorySlotArg(L, 1, slot) && slot >= INVSLOT_BAG0) {
         CGCharacterInfo::PickupBag(slot);
     }
 
@@ -1014,7 +1015,7 @@ static int32_t Script_ShowInventorySellCursor(lua_State* L) {
 
     CGItem_C* item = player->GetBag()->GetItemPointer(slot);
 
-    if (item && !(item->m_itemFlags & 0x1)) {
+    if (item && !(item->m_itemFlags & CGItem_C::ITEM_CLIENT_LOCKED)) {
         CursorSetMode(BUY_CURSOR);
     }
 
@@ -1044,7 +1045,7 @@ static int32_t Script_SetInventoryPortraitTexture(lua_State* L) {
     }
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(unit);
-    CGItem_C* item = slot == -1 ? player->m_bag.FindItemOfType(CGCharacterInfo::GetActivePlayerAmmoID(player), 0) : player->m_bag.GetItemPointer(slot);
+    CGItem_C* item = slot == INVSLOT_AMMO ? player->m_bag.FindItemOfType(CGCharacterInfo::GetActivePlayerAmmoID(player), BAG_SEARCH_NONE) : player->m_bag.GetItemPointer(slot);
 
     if (item) {
         const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);

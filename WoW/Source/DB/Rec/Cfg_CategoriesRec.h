@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum CFG_CATEGORY_FLAGS : int32_t {
+    CFG_CATEGORY_FLAG_NONE       = 0x00000000,
+    CFG_CATEGORY_FLAG_TOURNAMENT = 0x00000001,
+};
+
 class Cfg_CategoriesRec {
     public:
     static const int32_t s_numColumns = 21;

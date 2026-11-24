@@ -30,7 +30,7 @@ static int32_t Script_OverrideSlotDisplay(lua_State* L) {
     }
 
     // AddItem indexes m_itemDisplayID with the slot unchecked.
-    if (slot < 0 || slot >= NUM_ITEM_SLOTS) {
+    if (slot < 0 || slot >= NUM_ITEM_SLOT) {
         return 0;
     }
 

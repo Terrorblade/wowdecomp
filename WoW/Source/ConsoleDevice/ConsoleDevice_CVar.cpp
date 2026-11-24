@@ -527,8 +527,8 @@ static bool CVVideoOptionsVersionCallback(CVar* var, const char* oldValue, const
 // VERIFY: 62bcef94 auto
 // OFFSET: 0x00769C90
 void RegisterStereoCVars() {
-    s_cvGxStereoConvergence = CVar::Register("gxStereoConvergence", "Set stereoscopic rendering convergence depth", 1, "1", CVGxStereoConvergenceCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxStereoSeparation = CVar::Register("gxStereoSeparation", "Set stereoscopic rendering separation percentage", 1, "25", CVGxStereoSeparationCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxStereoConvergence = CVar::Register("gxStereoConvergence", "Set stereoscopic rendering convergence depth", CVAR_ARCHIVE, "1", CVGxStereoConvergenceCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxStereoSeparation = CVar::Register("gxStereoSeparation", "Set stereoscopic rendering separation percentage", CVAR_ARCHIVE, "25", CVGxStereoSeparationCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     g_theGxDevicePtr->AddStereoChangedCallback(StereoChangedCallback);
 }
 
@@ -536,42 +536,42 @@ void RegisterStereoCVars() {
 // OFFSET: 0x0076A630
 void RegisterGxCVars() {
     const CGxFormat& format = *s_defaults.m_format;
-    bool window = s_locale == 4;
+    bool window = s_locale == LOCALE_zh_CN;
     char value[260];
 
-    s_cvWidescreen = CVar::Register("widescreen", "Allow widescreen support", 0, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxWindow = CVar::Register("gxWindow", "toggle fullscreen/window", 3, window ? "1" : "0", CVGxWindowCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxMaximize = CVar::Register("gxMaximize", "maximize game window", 3, window ? "1" : "0", CVGxMaximizeCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvWidescreen = CVar::Register("widescreen", "Allow widescreen support", CVAR_NONE, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxWindow = CVar::Register("gxWindow", "toggle fullscreen/window", CVAR_ARCHIVE_LATCH, window ? "1" : "0", CVGxWindowCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxMaximize = CVar::Register("gxMaximize", "maximize game window", CVAR_ARCHIVE_LATCH, window ? "1" : "0", CVGxMaximizeCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
     SStrPrintf(value, sizeof(value), "%s", s_formatToInt[format.m_colorFormat]);
-    s_cvGxColorBits = CVar::Register("gxColorBits", "color bits", 3, value, CVGxColorBitsCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxColorBits = CVar::Register("gxColorBits", "color bits", CVAR_ARCHIVE_LATCH, value, CVGxColorBitsCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
     SStrPrintf(value, sizeof(value), "%s", s_formatToInt[format.m_depthFormat]);
-    s_cvGxDepthBits = CVar::Register("gxDepthBits", "depth bits", 3, value, CVGxDepthBitsCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxDepthBits = CVar::Register("gxDepthBits", "depth bits", CVAR_ARCHIVE_LATCH, value, CVGxDepthBitsCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
     SStrPrintf(value, sizeof(value), "%dx%d", format.m_size.x, format.m_size.y);
-    s_cvGxResolution = CVar::Register("gxResolution", "resolution", 3, value, CVGxResolutionCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxResolution = CVar::Register("gxResolution", "resolution", CVAR_ARCHIVE_LATCH, value, CVGxResolutionCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
-    s_cvGxRefresh = CVar::Register("gxRefresh", "refresh rate", 3, "75", CVGxRefreshCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxTripleBuffer = CVar::Register("gxTripleBuffer", "triple buffer", 3, "0", CVGxTripleBufferCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxApi = CVar::Register("gxApi", "graphics api", 3, g_gxApiNames[GxDefaultApi()], CVGxApiCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxVSync = CVar::Register("gxVSync", "vsync on or off", 3, "1", CVGxVSyncCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxAspect = CVar::Register("gxAspect", "constrain window aspect", 3, "1", CVGxAspectCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxCursor = CVar::Register("gxCursor", "toggle hardware cursor", 3, "1", CVGxCursorCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxRefresh = CVar::Register("gxRefresh", "refresh rate", CVAR_ARCHIVE_LATCH, "75", CVGxRefreshCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxTripleBuffer = CVar::Register("gxTripleBuffer", "triple buffer", CVAR_ARCHIVE_LATCH, "0", CVGxTripleBufferCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxApi = CVar::Register("gxApi", "graphics api", CVAR_ARCHIVE_LATCH, g_gxApiNames[GxDefaultApi()], CVGxApiCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxVSync = CVar::Register("gxVSync", "vsync on or off", CVAR_ARCHIVE_LATCH, "1", CVGxVSyncCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxAspect = CVar::Register("gxAspect", "constrain window aspect", CVAR_ARCHIVE_LATCH, "1", CVGxAspectCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxCursor = CVar::Register("gxCursor", "toggle hardware cursor", CVAR_ARCHIVE_LATCH, "1", CVGxCursorCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
     SStrPrintf(value, sizeof(value), "%d", s_hardware.m_videoHw->m_multisample);
-    s_cvGxMultisample = CVar::Register("gxMultisample", "multisample", 3, value, CVGxMultisampleCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxMultisample = CVar::Register("gxMultisample", "multisample", CVAR_ARCHIVE_LATCH, value, CVGxMultisampleCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
-    s_cvGxMultisampleQuality = CVar::Register("gxMultisampleQuality", "multisample quality", 3, "0.0", CVGxMultisampleQualityCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxMultisampleQuality = CVar::Register("gxMultisampleQuality", "multisample quality", CVAR_ARCHIVE_LATCH, "0.0", CVGxMultisampleQualityCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
     SStrPrintf(value, sizeof(value), "%d", s_hardware.m_videoHw->m_fixLag);
-    s_cvGxFixLag = CVar::Register("gxFixLag", "prevent cursor lag", 3, value, CVGxFixLagCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxFixLag = CVar::Register("gxFixLag", "prevent cursor lag", CVAR_ARCHIVE_LATCH, value, CVGxFixLagCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
-    s_cvGxStereoEnabled = CVar::Register("gxStereoEnabled", "Enable stereoscopic rendering", 1, "0", CVGxStereoEnabledCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxOverride = CVar::Register("gxOverride", "gx overrides", 1, "", CVGxOverrideCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvMaxFPS = CVar::Register("maxFPS", "Set FPS limit", 1, "200", CVGxMaxFPSCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvMaxFPSBk = CVar::Register("maxFPSBk", "Set background FPS limit", 1, "30", CVGxMaxFPSBkCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvVideoOptionsVersion = CVar::Register("videoOptionsVersion", "Video options version", 3, "0", CVVideoOptionsVersionCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvWindowResizeLock = CVar::Register("windowResizeLock", "prevent resizing in windowed mode", 1, "0", CVGxWindowResizeLockCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvFixedFunction = CVar::Register("fixedFunction", "Force fixed function rendering", 3, "0", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxStereoEnabled = CVar::Register("gxStereoEnabled", "Enable stereoscopic rendering", CVAR_ARCHIVE, "0", CVGxStereoEnabledCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvGxOverride = CVar::Register("gxOverride", "gx overrides", CVAR_ARCHIVE, "", CVGxOverrideCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvMaxFPS = CVar::Register("maxFPS", "Set FPS limit", CVAR_ARCHIVE, "200", CVGxMaxFPSCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvMaxFPSBk = CVar::Register("maxFPSBk", "Set background FPS limit", CVAR_ARCHIVE, "30", CVGxMaxFPSBkCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvVideoOptionsVersion = CVar::Register("videoOptionsVersion", "Video options version", CVAR_ARCHIVE_LATCH, "0", CVVideoOptionsVersionCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvWindowResizeLock = CVar::Register("windowResizeLock", "prevent resizing in windowed mode", CVAR_ARCHIVE, "0", CVGxWindowResizeLockCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvFixedFunction = CVar::Register("fixedFunction", "Force fixed function rendering", CVAR_ARCHIVE_LATCH, "0", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
 }

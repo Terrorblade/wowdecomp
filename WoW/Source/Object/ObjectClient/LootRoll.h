@@ -45,6 +45,23 @@ extern uint32_t s_numShownLootRolls;
 PendingLootRoll* FindRoll(int32_t id);
 WOWGUID GetMasterLootCandidate(uint32_t index);
 void LootRollShowPending();
+
+enum LOOT_ROLL_TYPE : int32_t {
+    LOOT_ROLL_PASS = 0,
+    LOOT_ROLL_NEED = 1,
+    LOOT_ROLL_GREED = 2,
+    LOOT_ROLL_DISENCHANT = 3,
+};
+
+enum LOOT_ROLL_INELIGIBLE_REASON : uint8_t {
+    LOOT_ROLL_ELIGIBLE = 0,
+    LOOT_ROLL_INELIGIBLE_CLASS = 1,
+    LOOT_ROLL_INELIGIBLE_MAX_COUNT = 2,
+    LOOT_ROLL_INELIGIBLE_NO_DISENCHANT = 3,
+    LOOT_ROLL_INELIGIBLE_NO_ENCHANTER = 4,
+    LOOT_ROLL_INELIGIBLE_NEED_DISABLED = 5,
+};
+
 void LootRoll(int32_t id, int32_t rollType, bool confirmed);
 
 void CloseAllLootRolls();

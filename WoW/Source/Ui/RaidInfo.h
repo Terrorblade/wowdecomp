@@ -15,6 +15,12 @@ struct lua_State;
 
 class CGRaidMember {
     public:
+    enum RANK : int32_t {
+        MEMBER = 0,
+        ASSISTANT = 1,
+        LEADER = 2,
+    };
+
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ uint32_t m_subgroup;
     /* 000C */ int32_t m_rank;

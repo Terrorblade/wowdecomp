@@ -13,6 +13,8 @@
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Tempest/CAaSphere.h"
 #include "Engine/Source/Tempest/CRange.h"
+#include "Engine/Source/Model2/Attachment.h"
+#include "Engine/Source/Model2/Types.h"
 
 class C3Vector;
 class C44Matrix;
@@ -49,6 +51,46 @@ class M2ModelParticle;
 class M2ModelRibbon;
 class M2ModelTextureTransform;
 
+enum KEY_BONE_ID : uint32_t {
+    KEY_BONE_ARM_L = 0,
+    KEY_BONE_ARM_R = 1,
+    KEY_BONE_SHOULDER_L = 2,
+    KEY_BONE_SHOULDER_R = 3,
+    KEY_BONE_SPINE_LOW = 4,
+    KEY_BONE_WAIST = 5,
+    KEY_BONE_HEAD = 6,
+    KEY_BONE_JAW = 7,
+    KEY_BONE_INDEX_FINGER_R = 8,
+    KEY_BONE_MIDDLE_FINGER_R = 9,
+    KEY_BONE_PINKY_FINGER_R = 10,
+    KEY_BONE_RING_FINGER_R = 11,
+    KEY_BONE_THUMB_R = 12,
+    KEY_BONE_INDEX_FINGER_L = 13,
+    KEY_BONE_MIDDLE_FINGER_L = 14,
+    KEY_BONE_PINKY_FINGER_L = 15,
+    KEY_BONE_RING_FINGER_L = 16,
+    KEY_BONE_THUMB_L = 17,
+    KEY_BONE_EVENT_BREATH = 18,
+    KEY_BONE_EVENT_MISSILE_RELEASE_RIGHT = 19,
+    KEY_BONE_EVENT_MISSILE_RELEASE_LEFT = 20,
+    KEY_BONE_BREATH = 21,
+    KEY_BONE_NAME = 22,
+    KEY_BONE_NAME_MOUNT = 23,
+    KEY_BONE_EVENT_CHD = 24,
+    KEY_BONE_EVENT_FISHING_POLE = 25,
+    KEY_BONE_ROOT = 26,
+    KEY_BONE_WHEEL1 = 27,
+    KEY_BONE_WHEEL2 = 28,
+    KEY_BONE_WHEEL3 = 29,
+    KEY_BONE_WHEEL4 = 30,
+    KEY_BONE_WHEEL5 = 31,
+    KEY_BONE_WHEEL6 = 32,
+    KEY_BONE_WHEEL7 = 33,
+    KEY_BONE_WHEEL8 = 34,
+    NUM_KEY_BONES = 35,
+};
+constexpr int32_t NUM_WHEEL_KEY_BONES = KEY_BONE_WHEEL8 - KEY_BONE_WHEEL1 + 1;
+
 typedef void (*M2EventCallback)(CM2Model* model, uint32_t boneId, uint32_t eventId, uint32_t data, const C3Vector* position, uint32_t time, uint64_t param);
 typedef void (*M2SequenceCallback)(CM2Model* model, uint32_t boneId, uint32_t sequenceId, int32_t interrupted, uint32_t time, uint64_t param);
 
@@ -76,6 +118,11 @@ class SModelBatchLessThan {
 
 class M2ModelCallback {
     public:
+    enum TYPE : uint32_t {
+        SEQUENCE = 0,
+        EVENT = 1,
+    };
+
     /* 0000 */ uint32_t m_type;
     /* 0004 */ CM2Model* m_model;
     /* 0008 */ uint32_t m_boneId;
@@ -135,6 +182,19 @@ class M2ModelOptGeo {
 
 class CM2Model {
     public:
+    enum INSTANCE_FLAGS : uint32_t {
+        INSTANCE_DISABLE_DEPTH_SORT_AND_CHILD_INHERITANCE = 0x1,
+        INSTANCE_INITIALIZE_ON_DEMAND = 0x20,
+    };
+
+    enum HIT_TEST_MODE : uint32_t {
+        HIT_TEST_RENDER = 0,
+        HIT_TEST_OPAQUE = 1,
+        HIT_TEST_NON_OPAQUE = 2,
+        HIT_TEST_COLLISION = 3,
+        HIT_TEST_UNKNOWN_4 = 4,
+    };
+
     /* 0000 */ uint32_t m_refCount;
     /* 0004 */ uint32_t m_flags;
     /* 0008 */ CM2Model** m_scenePrev;
@@ -221,6 +281,19 @@ class CM2Model {
     /* 02E4 */ uint32_t m_hitTestGroup;
     /* 02E8 */ uint32_t m_handle;
     /* 02EC */ uint32_t unused_02EC;
+
+    enum DEBUG_BOUNDS : uint32_t {
+        DEBUG_BOUNDS_NONE = 0,
+        DEBUG_BOUNDS_SPHERE = 1,
+        DEBUG_BOUNDS_BOX = 2,
+    };
+
+    enum DEBUG_COLLISION : uint32_t {
+        DEBUG_COLLISION_MESH = 0x1,
+        DEBUG_COLLISION_AABOX = 0x2,
+        DEBUG_HIT_TEST = 0x4,
+        DEBUG_UNSELECTABLE = 0x8,
+    };
 
     static void (*s_transformVertices[5])(CM2Model*, M2SkinSection*, uint8_t*, int32_t);
     static TSGrowableArray<M2ModelCallback> s_sequenceCallbacks;
@@ -374,12 +447,31 @@ class CM2Model {
 
 class M2SequenceFallback {
     public:
+    enum Mode : uint16_t {
+        MODE_NORMAL = 0,
+        MODE_REVERSE = 1,
+        MODE_FREEZE = 2,
+        MODE_REVERSE_FREEZE = 3,
+    };
+
+    enum KeyPacking : int32_t {
+        MODE_KEY_SHIFT = 16,
+    };
+
     /* 0000 */ uint16_t m_id;
     /* 0002 */ uint16_t m_mode;
 };
 
 class CM2SequencePlayBack : public TSLinkedNode<CM2SequencePlayBack> {
     public:
+    enum FLAGS : uint16_t {
+        NONE = 0,
+        BLEND = 1,
+        PRIMARY = 2,
+        PICK_RANDOM_VARIATION = 4,
+        CANCELED = 8,
+    };
+
     /* 0008 */ CM2Model* m_model;
     /* 000C */ uint16_t m_boneIndex;
     /* 000E */ uint16_t m_flags;

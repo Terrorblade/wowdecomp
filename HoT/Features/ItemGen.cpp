@@ -176,7 +176,7 @@ static int32_t Script_RequestStatGroups(lua_State* L) {
 }
 
 static int32_t Script_GetStatGroupCount(lua_State* L) {
-    lua_pushnumber(L, s_hasGroups ? s_groups.size() : 0);
+    lua_pushnumber(L, static_cast<lua_Number>(s_hasGroups ? s_groups.size() : 0));
     return 1;
 }
 
@@ -197,7 +197,7 @@ static int32_t Script_GetStatGroupInfo(lua_State* L) {
 }
 
 static int32_t Script_GetStatGroupMaskCount(lua_State* L) {
-    lua_pushnumber(L, s_hasGroups ? s_maskBits.size() : 0);
+    lua_pushnumber(L, static_cast<lua_Number>(s_hasGroups ? s_maskBits.size() : 0));
     return 1;
 }
 
@@ -219,7 +219,7 @@ static int32_t Script_RequestLegendaries(lua_State* L) {
 }
 
 static int32_t Script_GetLegendaryCount(lua_State* L) {
-    lua_pushnumber(L, s_hasLegendaries ? s_legendaries.size() : 0);
+    lua_pushnumber(L, static_cast<lua_Number>(s_hasLegendaries ? s_legendaries.size() : 0));
     return 1;
 }
 
@@ -252,7 +252,7 @@ static int32_t Script_RequestUniqueItems(lua_State* L) {
 }
 
 static int32_t Script_GetUniqueItemCount(lua_State* L) {
-    lua_pushnumber(L, s_hasUniques ? s_uniques.size() : 0);
+    lua_pushnumber(L, static_cast<lua_Number>(s_hasUniques ? s_uniques.size() : 0));
     return 1;
 }
 

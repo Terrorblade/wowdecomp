@@ -1,6 +1,8 @@
 #ifndef WOW_SOURCE_UI_MATHSTATE_H
 #define WOW_SOURCE_UI_MATHSTATE_H
 
+#include "Engine/Source/Storm/H/storm.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -213,7 +215,13 @@ struct MathStack {
 
 class MathState {
     public:
-    /* 0000 */ uint32_t m_status;
+    enum STATUS : uint32_t {
+        STATUS_COMPILING = 0,
+        STATUS_ERROR = 1,
+        STATUS_OK = 2,
+    };
+
+    /* 0000 */ STATUS m_status;
     /* 0004 */ uint32_t m_numOps;
     /* 0008 */ uint8_t m_ops[128];
     /* 0088 */ uint32_t m_numConstants;

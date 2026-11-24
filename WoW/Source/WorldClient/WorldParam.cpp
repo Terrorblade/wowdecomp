@@ -8,22 +8,22 @@
 // OFFSET: 0x0078DD40
 void CWorldParam::SetDefaultParticleDensity() {
     switch (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel]) {
-        case 0:
-        case 1:
-        case 7:
-        case 8:
-        case 9:
-        case 10: {
+        case GxShPS_none:
+        case GxShPS_ps_1_1:
+        case GxShPS_nvrc:
+        case GxShPS_nvts:
+        case GxShPS_nvts2:
+        case GxShPS_nvts3: {
             CWorldParam::cvar_particleDensity->Set("0.1", true, false, false, true);
             break;
         }
 
-        case 2: {
+        case GxShPS_ps_1_4: {
             CWorldParam::cvar_particleDensity->Set("0.4", true, false, false, true);
             break;
         }
 
-        case 3: {
+        case GxShPS_ps_2_0: {
             CWorldParam::cvar_particleDensity->Set("0.7", true, false, false, true);
             break;
         }
@@ -39,13 +39,13 @@ void CWorldParam::SetDefaultParticleDensity() {
 // OFFSET: 0x0078DDF0
 void CWorldParam::SetDefaultProjectedTextures() {
     switch (g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel]) {
-        case 0:
-        case 1:
-        case 2:
-        case 7:
-        case 8:
-        case 9:
-        case 10: {
+        case GxShPS_none:
+        case GxShPS_ps_1_1:
+        case GxShPS_ps_1_4:
+        case GxShPS_nvrc:
+        case GxShPS_nvts:
+        case GxShPS_nvts2:
+        case GxShPS_nvts3: {
             CWorldParam::cvar_projectedTextures->Set("0", true, false, false, true);
             break;
         }

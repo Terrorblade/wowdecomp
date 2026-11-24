@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum CURRENCY_CATEGORY_FLAGS : int32_t {
+    CURRENCY_CATEGORY_FLAG_NONE = 0x0,
+    CURRENCY_CATEGORY_FLAG_UNKNOWN_1 = 0x1,
+};
+
 class CurrencyCategoryRec {
     public:
     static const int32_t s_numColumns = 19;

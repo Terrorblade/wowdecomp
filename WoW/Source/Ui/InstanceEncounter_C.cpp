@@ -144,11 +144,11 @@ void CGInstanceEncounter_C::DisengageUnit(const WOWGUID& guid) {
 // VERIFY: aa66d396 manual
 // OFFSET: 0x005ED930
 static void OnUnitMessage(int32_t type, WOWGUID guid, uint8_t priority) {
-    if (type == 0) {
+    if (type == CGInstanceEncounter_C::UPDATE_ENGAGE_UNIT) {
         CGInstanceEncounter_C::EngageUnit(guid, priority);
-    } else if (type == 1) {
+    } else if (type == CGInstanceEncounter_C::UPDATE_DISENGAGE_UNIT) {
         CGInstanceEncounter_C::DisengageUnit(guid);
-    } else if (type == 2) {
+    } else if (type == CGInstanceEncounter_C::UPDATE_UNIT_PRIORITY) {
         ENCOUNTER_UNIT* unit = FindUnit(guid);
 
         if (unit) {
@@ -194,7 +194,7 @@ void CGInstanceEncounter_C::ClearExpiredTimers() {
 // OFFSET: 0x005EDBC0
 void CGInstanceEncounter_C::AddTimer(uint32_t duration) {
     CGInstanceEncounter_C::ClearExpiredTimers();
-    ENCOUNTER_TIMER* timer = CGInstanceEncounter_C::m_timers.NewNode(2, 0, 0);
+    ENCOUNTER_TIMER* timer = CGInstanceEncounter_C::m_timers.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     timer->m_expireTime = duration + OsGetAsyncTimeMs();
 }
 
@@ -207,7 +207,7 @@ void CGInstanceEncounter_C::EnableObjective(int32_t id) {
         }
     }
 
-    ENCOUNTER_OBJECTIVE* objective = CGInstanceEncounter_C::m_objectives.NewNode(2, 0, 0);
+    ENCOUNTER_OBJECTIVE* objective = CGInstanceEncounter_C::m_objectives.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     objective->m_id = static_cast<uint8_t>(id);
     objective->m_progress = 0;
 }
@@ -237,11 +237,11 @@ void CGInstanceEncounter_C::DisableObjective(int32_t id) {
 // VERIFY: a2968217 manual
 // OFFSET: 0x005EDD90
 static void OnObjectiveMessage(int32_t type, uint8_t value) {
-    if (type == 3) {
+    if (type == CGInstanceEncounter_C::UPDATE_ADD_TIMER) {
         CGInstanceEncounter_C::AddTimer(value);
-    } else if (type == 4) {
+    } else if (type == CGInstanceEncounter_C::UPDATE_ENABLE_OBJECTIVE) {
         CGInstanceEncounter_C::EnableObjective(value);
-    } else if (type == 6) {
+    } else if (type == CGInstanceEncounter_C::UPDATE_DISABLE_OBJECTIVE) {
         CGInstanceEncounter_C::DisableObjective(value);
     }
 }
@@ -256,9 +256,9 @@ int32_t Packet_SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT(void* param, NETMESSAGE msgId
     msg->Get(type);
 
     switch (type) {
-        case 0:
-        case 1:
-        case 2:
+        case CGInstanceEncounter_C::UPDATE_ENGAGE_UNIT:
+        case CGInstanceEncounter_C::UPDATE_DISENGAGE_UNIT:
+        case CGInstanceEncounter_C::UPDATE_UNIT_PRIORITY:
             *msg >> guid;
             msg->Get(value);
 
@@ -269,9 +269,9 @@ int32_t Packet_SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT(void* param, NETMESSAGE msgId
             OnUnitMessage(type, guid, value);
             break;
 
-        case 3:
-        case 4:
-        case 6:
+        case CGInstanceEncounter_C::UPDATE_ADD_TIMER:
+        case CGInstanceEncounter_C::UPDATE_ENABLE_OBJECTIVE:
+        case CGInstanceEncounter_C::UPDATE_DISABLE_OBJECTIVE:
             msg->Get(value);
 
             if (msg->m_read > msg->m_size) {
@@ -281,7 +281,7 @@ int32_t Packet_SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT(void* param, NETMESSAGE msgId
             OnObjectiveMessage(type, value);
             break;
 
-        case 5:
+        case CGInstanceEncounter_C::UPDATE_OBJECTIVE_PROGRESS:
             msg->Get(value);
             msg->Get(delta);
 
@@ -292,7 +292,7 @@ int32_t Packet_SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT(void* param, NETMESSAGE msgId
             UpdateObjective(value, delta);
             break;
 
-        case 7:
+        case CGInstanceEncounter_C::UPDATE_REFRESH_UNITS:
             SortUnits();
             FrameScript_SignalEvent(SCRIPT_EVENT_INSTANCE_ENCOUNTER_ENGAGE_UNIT, nullptr);
             break;

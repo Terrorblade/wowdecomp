@@ -43,7 +43,7 @@ static int32_t Script_GetNumBankSlots(lua_State* L) {
     int32_t slots = player ? player->m_player->m_playerBytes2[2] : 0;
     lua_pushnumber(L, slots);
 
-    if (slots < 7) {
+    if (slots < NUM_BANKBAG_SLOTS) {
         lua_pushnil(L);
     } else {
         lua_pushnumber(L, 1.0);
@@ -96,7 +96,7 @@ static uint32_t GetBankSlotCost(int32_t slot) {
 static int32_t Script_PurchaseSlot(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (!player || !CGGameUI::m_hasControl || !CGBankInfo::m_banker || player->m_player->m_playerBytes2[2] >= 7) {
+    if (!player || !CGGameUI::m_hasControl || !CGBankInfo::m_banker || player->m_player->m_playerBytes2[2] >= NUM_BANKBAG_SLOTS) {
         return 0;
     }
 

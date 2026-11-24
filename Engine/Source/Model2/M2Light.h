@@ -43,6 +43,16 @@ class CM2Light {
 
 class CM2Lighting {
     public:
+    enum FLAGS : uint32_t {
+        CAMERA_SPACE_READY = 0x1,
+        SUNLIGHT_READY = 0x2,
+        INTERIOR = 0x8,
+        SHADOW_MAP_ALLOWED = 0x10,
+        ABOVE_LIQUID = 0x20,
+        BELOW_LIQUID = 0x40,
+        LIQUID_SIDES_MASK = 0x60,
+    };
+
     /* 0000 */ CM2Scene* m_scene;
     /* 0004 */ CAaSphere m_sphere4;
     /* 0014 */ uint32_t m_flags;

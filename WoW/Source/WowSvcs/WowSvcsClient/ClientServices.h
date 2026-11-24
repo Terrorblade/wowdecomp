@@ -21,6 +21,17 @@ struct CLIENTCDKEY {
 
 class ClientConnection : public RealmConnection {
     public:
+    enum CHARACTER_LOGIN_FAILURE : int32_t {
+        LOGIN_FAILURE_UI_NO_WORLD = 1,
+        LOGIN_FAILURE_UI_DUPLICATE_CHARACTER = 2,
+        LOGIN_FAILURE_UI_NO_INSTANCES = 3,
+        LOGIN_FAILURE_UI_DISABLED = 4,
+        LOGIN_FAILURE_UI_NO_CHARACTER = 5,
+        LOGIN_FAILURE_UI_LOCKED_FOR_TRANSFER = 6,
+        LOGIN_FAILURE_UI_LOCKED_BY_BILLING = 7,
+        LOGIN_FAILURE_UI_LOCKED_BY_MOBILE_AH = 8,
+    };
+
     /* 2F3C */ uint32_t m_connected;
     /* 2F40 */ uint32_t m_characterLoggedIn;
     /* 2F44 */ int32_t m_statusComplete;

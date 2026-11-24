@@ -3,6 +3,7 @@
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "WoW/Source/Ui/WorldFrame.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // VERIFY: f43753f0 manual
 // OFFSET: 0x007E2D60

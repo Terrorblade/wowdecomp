@@ -2382,7 +2382,7 @@ int CodecXM::EncodeVAG_pcm2vag(unsigned char *vag, short *wave, int sample_len, 
 
     //FLOG((FMOD_DEBUG_LEVEL_ERROR, __FILE__, __LINE__, "CodecXM::EncodeVAG_pcm2vag", "encoded len = %d.  numframes = %d\n", (vag_ptr-vag), numframes));
 
-    return (vag_ptr-vag);
+    return static_cast<int>((vag_ptr-vag));
 }
 #endif
 

@@ -617,7 +617,7 @@ bool WowConnection::Connect(const char* address, int32_t timeout) {
     if (separator) {
         this->m_connectPort = SStrToInt(separator + 1);
 
-        uint32_t length = separator - address + 1;
+        uint32_t length = static_cast<uint32_t>(separator - address + 1);
 
         if (length >= sizeof(host)) {
             length = sizeof(host);

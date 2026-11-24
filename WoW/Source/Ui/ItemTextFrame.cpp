@@ -158,7 +158,7 @@ void CGItemText::SetItem(const WOWGUID& guid, int32_t a2) {
     }
 
     int32_t page = object->GetPageTextID(CGItemText::ItemTextCallback);
-    bool hasText = (object->m_obj->m_type & TYPE_ITEM) && (static_cast<CGItem_C*>(object)->m_item->m_itemFieldFlags & 0x200);
+    bool hasText = (object->m_obj->m_type & TYPE_ITEM) && (static_cast<CGItem_C*>(object)->m_item->m_itemFieldFlags & ITEM_DFLAG_HAS_ITEM_TEXT);
     CGItemText::m_hasItemText = hasText;
 
     if (!page && !hasText) {

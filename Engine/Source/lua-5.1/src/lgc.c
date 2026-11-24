@@ -304,7 +304,7 @@ static l_mem propagatemark (global_State *g) {
       if (traversetable(g, h))  /* table is weak? */
         black2gray(o);  /* keep it gray */
       return sizeof(Table) + sizeof(TValue) * h->sizearray +
-                             sizeof(Node) * sizenode(h);
+                             sizeof(Node) * ((size_t)1 << h->lsizenode);
     }
     case LUA_TFUNCTION: {
       Closure *cl = gco2cl(o);
@@ -430,7 +430,7 @@ static lu_mem sizeobj (GCObject *o) {
       return sizestring(gco2ts(o));
     case LUA_TTABLE: {
       Table *h = gco2h(o);
-      return sizeof(Table) + sizeof(TValue) * h->sizearray + sizeof(Node) * sizenode(h);
+      return sizeof(Table) + sizeof(TValue) * h->sizearray + sizeof(Node) * ((size_t)1 << h->lsizenode);
     }
     case LUA_TFUNCTION: {
       Closure *cl = gco2cl(o);

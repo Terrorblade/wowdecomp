@@ -15,7 +15,7 @@ static const char* s_minigameNames[] = { "TicTacToe", nullptr };
 static int32_t Script_GetMinigameType(lua_State* L) {
     CMinigame_C* minigame = CGMinigameInfo::m_minigame;
 
-    if (minigame && minigame->m_type - 1 <= 0) {
+    if (minigame && minigame->m_type == MINIGAME_TICTACTOE) {
         lua_pushstring(L, s_minigameNames[minigame->m_type]);
         return 1;
     }

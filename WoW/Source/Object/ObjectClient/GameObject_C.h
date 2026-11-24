@@ -16,6 +16,7 @@
 #include "WoW/Source/Object/Passenger.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/WorldClient/Map.h"
+#include "WoW/Source/Object/GameObjectDef.h"
 
 static const float MAX_SHOP_DISTANCE = 5.5555553f;
 static const float MAX_BIND_DISTANCE = 10.0f;
@@ -36,6 +37,23 @@ class GameObjectStats;
 class GameObjectStats_C;
 class LockRec;
 enum GAME_ERROR_TYPE : int32_t;
+
+enum GAMEOBJECT_DISPLAY_STATE : int32_t {
+    GAMEOBJECT_DISPLAY_STATE_OPEN = 0,
+    GAMEOBJECT_DISPLAY_STATE_CLOSED = 1,
+    GAMEOBJECT_DISPLAY_STATE_DESTROYED = 2,
+};
+
+enum : int32_t {
+    ONE_SHOT_ANIM_NONE = 0,
+    ONE_SHOT_ANIM_SPAWN = 1,
+    ONE_SHOT_ANIM_CUSTOM0 = 2,
+    ONE_SHOT_ANIM_CUSTOM1 = 3,
+    ONE_SHOT_ANIM_CUSTOM2 = 4,
+    ONE_SHOT_ANIM_CUSTOM3 = 5,
+    ONE_SHOT_ANIM_DESPAWN = 6,
+    NUM_ONE_SHOT_ANIMS = 7,
+};
 
 class CGGameObject_C_TypeBase {
     public:
@@ -233,7 +251,7 @@ class CGGameObject_C_Type_DestructibleBuilding : public CGGameObject_C_Type_Worl
     static void ImpactEffectSequenceFinishedHandler(CM2Model* model, uint32_t boneId, uint32_t sequenceId, int32_t interrupted, uint32_t time, uint64_t param);
     static void MovedDoodadSequenceHandler(CM2Model* model, uint32_t boneId, uint32_t sequenceId, int32_t interrupted, uint32_t time, uint64_t param);
 
-    /* 0014 */ DestructibleBuildingState m_states [4];
+    /* 0014 */ DestructibleBuildingState m_states [NUM_DESTRUCTIBLE_STATES];
     /* 0054 */ int32_t m_previousState;
     /* 0058 */ float m_baseZ;
     /* 005C */ uint32_t m_animStartTime;

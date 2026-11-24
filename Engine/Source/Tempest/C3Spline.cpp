@@ -4,6 +4,7 @@
 #include <cstring>
 #include "Engine/Source/Tempest/C3Spline.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: f58fcef3 manual
 // OFFSET: 0x004096D0
@@ -175,7 +176,7 @@ float C3Spline::SegLength(uint32_t seg, const C44Matrix& basis) {
 
     this->Evaluate(seg, 0.0f, basis, prev);
 
-    for (int32_t i = 20; i; i--) {
+    for (int32_t i = C3Spline::DEFAULT_STEPS; i; i--) {
         this->Evaluate(seg, step, basis, cur);
 
         float dx = cur.x - prev.x;

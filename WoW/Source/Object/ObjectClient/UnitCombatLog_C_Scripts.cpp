@@ -59,7 +59,7 @@ static int32_t Script_CombatLog_Object_IsA(lua_State* L) {
     uint32_t flags = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)));
     flags &= static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
-    if ((flags & 0xFFFF0000) || ((flags & 0xF) && (flags & 0xF0) && (flags & 0x300) && (flags & 0xFC00))) {
+    if ((flags & COMBATLOG_OBJECT_SPECIAL_MASK) || ((flags & COMBATLOG_OBJECT_AFFILIATION_MASK) && (flags & COMBATLOG_OBJECT_REACTION_MASK) && (flags & COMBATLOG_OBJECT_CONTROL_MASK) && (flags & COMBATLOG_OBJECT_TYPE_MASK))) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -83,7 +83,7 @@ static int32_t Script_CombatLogAddFilter(lua_State* L) {
         case LUA_TNUMBER:
             sourceFlags = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
-            if (!(sourceFlags & 0xFFFF0000) && (!(sourceFlags & 0xF) || !(sourceFlags & 0xF0) || !(sourceFlags & 0x300) || !(sourceFlags & 0xFC00))) {
+            if (!(sourceFlags & COMBATLOG_OBJECT_SPECIAL_MASK) && (!(sourceFlags & COMBATLOG_OBJECT_AFFILIATION_MASK) || !(sourceFlags & COMBATLOG_OBJECT_REACTION_MASK) || !(sourceFlags & COMBATLOG_OBJECT_CONTROL_MASK) || !(sourceFlags & COMBATLOG_OBJECT_TYPE_MASK))) {
                 luaL_error(L, "CombatLogAddFilter(): incomplete filter for srcMask");
                 return 0;
             }
@@ -103,7 +103,7 @@ static int32_t Script_CombatLogAddFilter(lua_State* L) {
         case LUA_TNUMBER:
             destFlags = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 3)));
 
-            if (!(destFlags & 0xFFFF0000) && (!(destFlags & 0xF) || !(destFlags & 0xF0) || !(destFlags & 0x300) || !(destFlags & 0xFC00))) {
+            if (!(destFlags & COMBATLOG_OBJECT_SPECIAL_MASK) && (!(destFlags & COMBATLOG_OBJECT_AFFILIATION_MASK) || !(destFlags & COMBATLOG_OBJECT_REACTION_MASK) || !(destFlags & COMBATLOG_OBJECT_CONTROL_MASK) || !(destFlags & COMBATLOG_OBJECT_TYPE_MASK))) {
                 luaL_error(L, "CombatLogAddFilter(): incomplete filter for dstMask");
                 return 0;
             }
@@ -129,7 +129,7 @@ static int32_t Script_CombatLogAddFilter(lua_State* L) {
             break;
     }
 
-    CombatLogFilter* filter = s_filters.NewNode(2, 0, 0);
+    CombatLogFilter* filter = s_filters.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     filter->SetFilterData(events, sourceGuid, sourceFlags, destGuid, destFlags, spellId, spellName);
     return 0;
 }
@@ -166,7 +166,7 @@ static int32_t Script_CombatLogSetCurrentEntry(lua_State* L) {
     }
 
     s_currentEntry = nullptr;
-    int32_t index = lua_tointeger(L, 1);
+    int32_t index = static_cast<int32_t>(lua_tointeger(L, 1));
     int32_t all = StringToBOOL(L, 2, 0);
 
     if (index <= 0) {
@@ -214,7 +214,7 @@ static int32_t Script_CombatLogAdvanceEntry(lua_State* L) {
         return 0;
     }
 
-    int32_t count = lua_tointeger(L, 1);
+    int32_t count = static_cast<int32_t>(lua_tointeger(L, 1));
     int32_t ignoreFilter = StringToBOOL(L, 2, 0);
 
     if (count) {

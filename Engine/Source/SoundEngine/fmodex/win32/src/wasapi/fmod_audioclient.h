@@ -25,7 +25,9 @@ typedef enum
 } AUDCLNT_SHAREMODE;
 
 // Error defines
+#ifndef FACILITY_AUDCLNT
 #define FACILITY_AUDCLNT              0x889
+#endif
 #define AUDCLNT_ERR(n)                MAKE_HRESULT(SEVERITY_ERROR, FACILITY_AUDCLNT, n)
 #define AUDCLNT_SUCCESS(n)            MAKE_SCODE(SEVERITY_SUCCESS, FACILITY_AUDCLNT, n)
 #define AUDCLNT_E_NOT_INITIALIZED               AUDCLNT_ERR(0x001)

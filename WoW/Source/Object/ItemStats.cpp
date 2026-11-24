@@ -115,13 +115,13 @@ void ItemStats_C::Unpack(CDataStore* msg) {
     msg->Get(this->m_scalingStatDistribution);
     msg->Get(this->m_scalingStatValue);
 
-    for (uint32_t i = 0; i < 2; i++) {
+    for (uint32_t i = 0; i < NUM_ITEM_DAMAGES; i++) {
         msg->Get(reinterpret_cast<uint32_t&>(this->m_damageMin[i]));
         msg->Get(reinterpret_cast<uint32_t&>(this->m_damageMax[i]));
         msg->Get(this->m_damageType[i]);
     }
 
-    for (uint32_t i = 0; i < 7; i++) {
+    for (uint32_t i = 0; i < NUM_SPELL_SCHOOLS; i++) {
         msg->Get(this->m_resistances[i]);
     }
 
@@ -129,7 +129,7 @@ void ItemStats_C::Unpack(CDataStore* msg) {
     msg->Get(this->m_ammoType);
     msg->Get(reinterpret_cast<uint32_t&>(this->m_rangedModRange));
 
-    for (uint32_t i = 0; i < 5; i++) {
+    for (uint32_t i = 0; i < NUM_ITEM_SPELLS; i++) {
         msg->Get(this->m_spellId[i]);
         msg->Get(this->m_spellTrigger[i]);
         msg->Get(reinterpret_cast<uint32_t&>(this->m_spellCharges[i]));
@@ -166,7 +166,7 @@ void ItemStats_C::Unpack(CDataStore* msg) {
     msg->Get(this->m_bagFamily);
     msg->Get(this->m_totemCategory);
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < MAX_NUM_SOCKETS; i++) {
         msg->Get(this->m_socketColor[i]);
         msg->Get(this->m_socketContent[i]);
     }
@@ -229,13 +229,13 @@ void ItemStats_C::Pack(CDataStore* msg) {
     msg->Put(this->m_scalingStatDistribution);
     msg->Put(this->m_scalingStatValue);
 
-    for (uint32_t i = 0; i < 2; i++) {
+    for (uint32_t i = 0; i < NUM_ITEM_DAMAGES; i++) {
         msg->Put(reinterpret_cast<uint32_t&>(this->m_damageMin[i]));
         msg->Put(reinterpret_cast<uint32_t&>(this->m_damageMax[i]));
         msg->Put(this->m_damageType[i]);
     }
 
-    for (uint32_t i = 0; i < 7; i++) {
+    for (uint32_t i = 0; i < NUM_SPELL_SCHOOLS; i++) {
         msg->Put(this->m_resistances[i]);
     }
 
@@ -243,7 +243,7 @@ void ItemStats_C::Pack(CDataStore* msg) {
     msg->Put(this->m_ammoType);
     msg->Put(reinterpret_cast<uint32_t&>(this->m_rangedModRange));
 
-    for (uint32_t i = 0; i < 5; i++) {
+    for (uint32_t i = 0; i < NUM_ITEM_SPELLS; i++) {
         msg->Put(this->m_spellId[i]);
         msg->Put(this->m_spellTrigger[i]);
         msg->Put(static_cast<uint32_t>(this->m_spellCharges[i]));
@@ -271,7 +271,7 @@ void ItemStats_C::Pack(CDataStore* msg) {
     msg->Put(this->m_bagFamily);
     msg->Put(this->m_totemCategory);
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < MAX_NUM_SOCKETS; i++) {
         msg->Put(this->m_socketColor[i]);
         msg->Put(this->m_socketContent[i]);
     }

@@ -11,6 +11,7 @@
 #include "HoT/Net/Packet.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/ObjectClient/Bag_C.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
@@ -24,7 +25,6 @@
 namespace HoT::Builtins {
 
 static const uint32_t ITEM_SPELLTRIGGER_ON_SOCKET = 3;
-static const int32_t SPELL_AURA_TEMP_LEARN_SPELL = 317;
 static const int32_t NUM_ACTION_SLOTS = sizeof(CGActionBar::m_slotActions) / sizeof(CGActionBar::m_slotActions[0]);
 static const int32_t NUM_LFG_AFFIXES = 4;
 

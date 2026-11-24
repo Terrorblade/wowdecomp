@@ -71,7 +71,7 @@ static int32_t Script_TryOn(lua_State* L) {
                 if (spellId > 0) {
                     SpellRec spell;
 
-                    if (g_spellDB.GetRecord(spellId, &spell) && (spell.m_attributes & 0x20) && spell.m_effectItemType[0]) {
+                    if (g_spellDB.GetRecord(spellId, &spell) && (spell.m_attributes & SPELL_ATTR0_IS_TRADESKILL) && spell.m_effectItemType[0]) {
                         frame->TryOn(spell.m_effectItemType[0], nullptr, -1);
                         return 0;
                     }

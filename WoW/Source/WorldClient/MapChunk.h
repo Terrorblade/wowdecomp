@@ -14,6 +14,8 @@
 #include "WoW/Source/WorldClient/MapBaseObj.h"
 #include "Engine/Source/Tempest/C2iVector.h"
 #include "WoW/Source/WorldClient/MapObjGroup.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
+#include "Engine/Source/Tempest/CRange.h"
 
 class CFacet;
 class CFrustum;
@@ -159,6 +161,18 @@ struct SLVert {
 };
 
 struct SMChunk {
+
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        HAS_SHADOW_MAP = 0x1,
+        IMPASSABLE = 0x2,
+        LIQUID_WATER = 0x4,
+        LIQUID_OCEAN = 0x8,
+        LIQUID_MAGMA = 0x10,
+        LIQUID_SLIME = 0x20,
+        DO_NOT_FIX_ALPHA_MAP = 0x8000,
+    };
+
     /* 0000 */ uint32_t m_flags;
     /* 0004 */ C2iVector m_index;
     /* 000C */ uint32_t m_nLayers;

@@ -11,14 +11,14 @@ static uint32_t s_deviceRestored;
 // VERIFY: beff8e6d auto
 // OFFSET: 0x007E7FE0
 void __fastcall PassFogSeed::DeviceRestoredCallback() {
-    s_deviceRestored = 1;
+    s_deviceRestored = PassFogSeed::CLEAR_PENDING;
 }
 
 // INLINED
 PassFogSeed::PassFogSeed(FFX::Tex** inputs, uint32_t count, FFX::Tex* output, EGxBlend blend, bool unk) : FFX::Pass(inputs, count, output, blend, unk) {
     this->m_row = 0;
     this->m_color = 0;
-    s_deviceRestored = 1;
+    s_deviceRestored = PassFogSeed::CLEAR_PENDING;
     g_theGxDevicePtr->AddDeviceRestoredCallback(PassFogSeed::DeviceRestoredCallback);
 }
 
@@ -73,7 +73,7 @@ void PassFogSeed::Execute() {
 
     if (s_deviceRestored) {
         GxSceneClear(GxBufferBit_Color, CImVector(0, 0, 0, 0));
-        s_deviceRestored = 0;
+        s_deviceRestored = PassFogSeed::CLEAR_NOT_PENDING;
     }
 
     GxPrimVertexPtr(buf, GxVBF_PT);

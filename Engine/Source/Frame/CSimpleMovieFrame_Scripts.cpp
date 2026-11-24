@@ -29,7 +29,7 @@ static int32_t Script_StartMovie(lua_State* L) {
         return 0;
     }
 
-    if (movieFrame->StartMovie(lua_tolstring(L, 2, nullptr), lua_tointeger(L, 3))) {
+    if (movieFrame->StartMovie(lua_tolstring(L, 2, nullptr), static_cast<int32_t>(lua_tointeger(L, 3)))) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);

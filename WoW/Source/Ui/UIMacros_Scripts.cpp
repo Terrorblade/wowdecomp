@@ -23,7 +23,7 @@
 // VERIFY: 3dacc7a5 auto
 // OFFSET: 0x00564B90
 static int32_t Script_StopMacro(lua_State* L) {
-    if (CGGameUI::CanPerformAction(3)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_RUN_MACRO)) {
         CGUIMacros::m_macroButton = nullptr;
         CGUIMacros::m_macroRunning = nullptr;
     }
@@ -70,7 +70,7 @@ static MACRONODE* GetMacroFromLua(lua_State* L) {
     if (lua_isnumber(L, 1)) {
         uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-        if (index < 72) {
+        if (index < NUM_SORTED_MACRO_SLOTS) {
             return CGUIMacros::GetMacroByID(CGUIMacros::m_sortedMacros[index]);
         }
     } else if (lua_isstring(L, 1)) {
@@ -320,7 +320,7 @@ static int32_t Script_GetMacroBody(lua_State* L) {
 // VERIFY: 83e2ca27 auto
 // OFFSET: 0x00566F70
 static int32_t Script_DeleteMacro(lua_State* L) {
-    if (CGGameUI::CanPerformAction(12)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_EDIT_MACRO)) {
         MACRONODE* macro = GetMacroFromLua(L);
 
         if (macro) {
@@ -334,7 +334,7 @@ static int32_t Script_DeleteMacro(lua_State* L) {
 // VERIFY: 5b5c7cba manual
 // OFFSET: 0x00566FA0
 static int32_t Script_EditMacro(lua_State* L) {
-    if (!CGGameUI::CanPerformAction(12)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_EDIT_MACRO)) {
         return 0;
     }
 
@@ -378,7 +378,7 @@ static int32_t Script_EditMacro(lua_State* L) {
     int32_t index;
 
     for (index = 0; CGUIMacros::m_sortedMacros[index] != id; ) {
-        if (++index >= 72) {
+        if (++index >= NUM_SORTED_MACRO_SLOTS) {
             index = -1;
             break;
         }
@@ -449,7 +449,7 @@ static int32_t Script_GetMacroItem(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player) {
-        CGItem_C* item = player->m_bag.FindItemOfType(macro->m_itemID, 0);
+        CGItem_C* item = player->m_bag.FindItemOfType(macro->m_itemID, BAG_SEARCH_NONE);
 
         if (item) {
             lua_pushstring(L, item->GetFullItemName(name, sizeof(name)));
@@ -466,7 +466,7 @@ static int32_t Script_GetMacroItem(lua_State* L) {
 // VERIFY: 0a84a578 auto
 // OFFSET: 0x005674F0
 static int32_t Script_PickupMacro(lua_State* L) {
-    if (CGGameUI::CanPerformAction(14)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_ACTION_MANIPULATION)) {
         MACRONODE* macro = GetMacroFromLua(L);
 
         if (macro) {
@@ -485,7 +485,7 @@ static int32_t Script_CreateMacro(lua_State* L) {
         return 0;
     }
 
-    if (!CGGameUI::CanPerformAction(12)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_EDIT_MACRO)) {
         return 0;
     }
 
@@ -507,7 +507,7 @@ static int32_t Script_CreateMacro(lua_State* L) {
     uint32_t id = CGUIMacros::CreateMacro(name, icon, body, StringToBOOL(L, 4, 0));
 
     if (!id) {
-        luaL_error(L, "CreateMacro() failed, already have %d macros", 36);
+        luaL_error(L, "CreateMacro() failed, already have %d macros", MAX_ACCOUNT_MACROS);
         return 0;
     }
 

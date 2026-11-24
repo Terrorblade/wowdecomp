@@ -13,6 +13,7 @@
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/UIUtil/Tooltip.h"
 #include "WoW/Source/Ui/GameUI.h"
+#include "WoW/Source/DB/Rec/GemPropertiesRec.h"
 
 // VERIFY: 1a1201d8 manual
 // OFFSET: 0x005C4550
@@ -35,7 +36,7 @@ static int32_t Script_GetSocketTypes(lua_State* L) {
 
     uint32_t color = stats->m_socketColor[socket];
 
-    for (uint32_t i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < NUM_SOCKET_COLORS; i++) {
         if ((1 << i) & color) {
             lua_pushstring(L, s_socketColorNames[i]);
             count++;
@@ -105,7 +106,7 @@ static int32_t Script_GetNewSocketInfo(lua_State* L) {
 
     double number = lua_tonumber(L, 1);
     uint32_t index = static_cast<int32_t>(number) - 1;
-    WOWGUID guid = index >= 3 ? WOWGUID() : CGItemSocketInfo::m_gemItems[index];
+    WOWGUID guid = index >= MAX_NUM_SOCKETS ? WOWGUID() : CGItemSocketInfo::m_gemItems[index];
     CGItem_C* gem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
     ItemStats_C* stats = nullptr;
 
@@ -147,7 +148,7 @@ static int32_t Script_GetNewSocketLink(lua_State* L) {
     }
 
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
-    WOWGUID guid = index >= 3 ? WOWGUID() : CGItemSocketInfo::m_gemItems[index];
+    WOWGUID guid = index >= MAX_NUM_SOCKETS ? WOWGUID() : CGItemSocketInfo::m_gemItems[index];
     CGItem_C* gem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!gem) {
@@ -212,7 +213,7 @@ static int32_t Script_GetExistingSocketInfo(lua_State* L) {
     SpellItemEnchantmentRec* enchant;
     ItemStats_C* stats;
 
-    if (!item || index >= 3 || !(enchant = g_spellItemEnchantmentDB.GetRecord(item->GetEnchantmentId(index + 2))) || !enchant->m_srcItemID) {
+    if (!item || index >= MAX_NUM_SOCKETS || !(enchant = g_spellItemEnchantmentDB.GetRecord(item->GetEnchantmentId(index + 2))) || !enchant->m_srcItemID) {
         lua_pushnil(L);
         lua_pushnil(L);
         lua_pushnil(L);
@@ -257,7 +258,7 @@ static int32_t Script_GetExistingSocketLink(lua_State* L) {
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPE_ITEM, __FILE__, __LINE__));
 
-    if (!item || index >= 3) {
+    if (!item || index >= MAX_NUM_SOCKETS) {
         return 0;
     }
 

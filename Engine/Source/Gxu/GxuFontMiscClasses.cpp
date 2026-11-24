@@ -14,6 +14,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "HoT/MSDF/MSDF.h"
+#include "Engine/Source/ShaderEffect/Types.h"
 
 // GxVBF_PCT2 layout, TEXCOORD1 holds the MSDF atlas page and the outline hint.
 struct MSDFVERT {
@@ -92,15 +93,15 @@ GLYPHBITMAPDATA::~GLYPHBITMAPDATA() {
 // OFFSET: 0x006C4380
 void CHARCODEDESC::GenerateTextureCoords(uint32_t rowNumber, uint32_t cellHeight) {
     int32_t top = rowNumber * cellHeight;
-    float left = this->m_glyphStartPixel;
+    float left = static_cast<float>(this->m_glyphStartPixel);
 
     CRect coords;
-    coords.minY = top * ONEOVERTEXSIZE;
-    coords.minX = left * ONEOVERTEXSIZE;
-    coords.maxY = (top + cellHeight) * ONEOVERTEXSIZE;
+    coords.minY = static_cast<float>(top * ONEOVERTEXSIZE);
+    coords.minX = static_cast<float>(left * ONEOVERTEXSIZE);
+    coords.maxY = static_cast<float>((top + cellHeight) * ONEOVERTEXSIZE);
 
     float right = left + this->m_bitmapData.m_glyphCellWidth;
-    coords.maxX = ONEOVERTEXSIZE * right;
+    coords.maxX = static_cast<float>(ONEOVERTEXSIZE * right);
 
     this->m_bitmapData.m_textureCoords = coords;
 }
@@ -628,7 +629,7 @@ CHARCODEDESC* TEXTURECACHEROW::CreateNewDesc(GLYPHBITMAPDATA* data, uint32_t row
 
     if (this->m_widestFreeSlot >= width) {
         CHARCODEDESC* desc = new (__FILE__, __LINE__) CHARCODEDESC;
-        this->m_glyphlist.LinkNode(desc, 2, head);
+        this->m_glyphlist.LinkNode(desc, TSLIST_LINK_BEFORE, head);
         desc->m_glyphEndPixel = head->m_glyphStartPixel - 1;
         desc->m_glyphStartPixel = desc->m_glyphEndPixel - width + 1;
         desc->m_rowNumber = rowNumber;
@@ -663,7 +664,7 @@ CHARCODEDESC* TEXTURECACHEROW::CreateNewDesc(GLYPHBITMAPDATA* data, uint32_t row
             }
         } else if (gap >= width) {
             desc = new (__FILE__, __LINE__) CHARCODEDESC;
-            this->m_glyphlist.LinkNode(desc, 1, glyph);
+            this->m_glyphlist.LinkNode(desc, TSLIST_LINK_AFTER, glyph);
             desc->m_glyphStartPixel = glyph->m_glyphEndPixel + 1;
             desc->m_glyphEndPixel = glyph->m_glyphEndPixel + width;
             desc->m_rowNumber = rowNumber;
@@ -697,12 +698,12 @@ void CGxStringBatch::RenderBatch() {
 
     GxRsSet(GxRs_Fog, 0);
     GxRsSet(GxRs_Culling, 0);
-    GxRsSet(GxRs_BlendingMode, 2);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxUpdateAlphaRef(GxRs_AlphaRef);
 
     CGxShader* vertexShader;
 
-    if (this->m_flags & 1) {
+    if (this->m_flags & CGxStringBatch::BATCH_BILLBOARDED) {
         BATCHEDRENDERFONTDESC::s_billboarded = 1;
         GxRsSet(GxRs_DepthTest, 1);
         GxRsSet(GxRs_DepthWrite, 1);
@@ -736,8 +737,8 @@ void CGxStringBatch::RenderBatch() {
         GxShaderConstantsSet(GxSh_Vertex, 0, reinterpret_cast<const float*>(&viewProj), 4);
     } else {
         GxRsSet(GxRs_Lighting, 0);
-        GxRsSet(GxRs_ColorOp0, 0);
-        GxRsSet(GxRs_AlphaOp0, 0);
+        GxRsSet(GxRs_ColorOp0, GxTexOp_Mod);
+        GxRsSet(GxRs_AlphaOp0, GxTexOp_Mod);
     }
 
     for (BATCHEDRENDERFONTDESC* desc = this->m_fontBatch.m_fulllist.Head(); desc; ) {
@@ -748,7 +749,7 @@ void CGxStringBatch::RenderBatch() {
 
         desc->RenderBatch();
 
-        if (this->m_flags & 2) {
+        if (this->m_flags & CGxStringBatch::BATCH_CLEAR_STRINGS_AFTER_RENDER) {
             desc->m_strings.UnlinkAll();
         }
 
@@ -789,7 +790,7 @@ void TEXTLINETEXTURE::Shutdown() {
 }
 
 // INLINED
-CGxStringBatch::CGxStringBatch() : m_flags(0) {
+CGxStringBatch::CGxStringBatch() : m_flags(CGxStringBatch::BATCH_NONE) {
 }
 
 // VERIFY: a85538e9 manual

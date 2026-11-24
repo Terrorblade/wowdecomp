@@ -34,7 +34,7 @@ static int32_t Script_SetMergeThreshold(lua_State* L) {
         threshold = 0.5f;
     }
 
-    frame->m_mergeThreshold = threshold;
+    frame->m_mergeThreshold = static_cast<float>(threshold);
     return 0;
 }
 
@@ -42,7 +42,7 @@ static int32_t Script_SetMergeThreshold(lua_State* L) {
 // OFFSET: 0x0058E920
 static int32_t Script_SetNumSplinePoints(lua_State* L) {
     CGQuestPOIFrame* frame = static_cast<CGQuestPOIFrame*>(FrameScript_GetObjectThis(L, CGQuestPOIFrame::GetObjectType()));
-    int32_t points = lua_tointeger(L, 2);
+    int32_t points = static_cast<int32_t>(lua_tointeger(L, 2));
 
     if (points < 8) {
         points = 8;
@@ -88,7 +88,7 @@ void CGQuestPOIFrame::DestroyScriptMetaTable() {
 // OFFSET: 0x0058EA50
 static int32_t Script_GetTooltipIndex(lua_State* L) {
     CGQuestPOIFrame* frame = static_cast<CGQuestPOIFrame*>(FrameScript_GetObjectThis(L, CGQuestPOIFrame::GetObjectType()));
-    uint32_t index = lua_tointeger(L, 2) - 1;
+    uint32_t index = static_cast<uint32_t>(lua_tointeger(L, 2) - 1);
 
     if (index > 3) {
         lua_pushinteger(L, 0);
@@ -118,7 +118,7 @@ void CGQuestPOIFrame::CreateScriptMetaTable() {
 static int32_t Script_SetFillAlpha(lua_State* L) {
     CGQuestPOIFrame* frame = static_cast<CGQuestPOIFrame*>(FrameScript_GetObjectThis(L, CGQuestPOIFrame::GetObjectType()));
     double value = lua_tonumber(L, 2);
-    float alpha = value;
+    float alpha = static_cast<float>(value);
 
     if (value > 255.0) {
         alpha = 255.0f;
@@ -135,7 +135,7 @@ static int32_t Script_SetFillAlpha(lua_State* L) {
 static int32_t Script_SetBorderAlpha(lua_State* L) {
     CGQuestPOIFrame* frame = static_cast<CGQuestPOIFrame*>(FrameScript_GetObjectThis(L, CGQuestPOIFrame::GetObjectType()));
     double value = lua_tonumber(L, 2);
-    float alpha = value;
+    float alpha = static_cast<float>(value);
 
     if (value > 255.0) {
         alpha = 255.0f;
@@ -159,7 +159,7 @@ static int32_t Script_SetBorderScalar(lua_State* L) {
         scalar = 0.0;
     }
 
-    frame->m_borderScalar = scalar;
+    frame->m_borderScalar = static_cast<float>(scalar);
     return 0;
 }
 

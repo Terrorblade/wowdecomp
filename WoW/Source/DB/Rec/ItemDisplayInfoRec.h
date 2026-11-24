@@ -8,6 +8,23 @@ class SFileImpl;
 
 class ItemDisplayInfoRec {
     public:
+
+    enum GEOSET_GROUP : int32_t {
+        PRIMARY = 0,
+        SECONDARY = 1,
+        ROBE = 2,
+        COUNT = 3,
+    };
+
+    enum DISPLAY_FLAGS : int32_t {
+        GUILD_TABARD = 0x1,
+        HIDE_PANTS_AND_BELT = 0x4,
+    };
+
+    enum DISPLAY_BITS : int32_t {
+        HIDE_PANTS_AND_BELT_BIT_INDEX = 2,
+    };
+
     static const int32_t s_numColumns = 25;
     static const int32_t s_rowSize = 100;
     static const bool s_generatedID = false;
@@ -16,7 +33,7 @@ class ItemDisplayInfoRec {
     /* 0004 */ const char* m_modelName [2];
     /* 000C */ const char* m_modelTexture [2];
     /* 0014 */ const char* m_inventoryIcon [2];
-    /* 001C */ int32_t m_geosetGroup [3];
+    /* 001C */ int32_t m_geosetGroup [COUNT];
     /* 0028 */ int32_t m_flags;
     /* 002C */ int32_t m_spellVisualID;
     /* 0030 */ int32_t m_groupSoundIndex;

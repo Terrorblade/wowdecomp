@@ -69,6 +69,13 @@ class EclipseState {
 
 class LightningObject : public TSLinkedNode<LightningObject> {
     public:
+    enum LIGHTNING_FLAGS : int32_t {
+        FLAG_NONE = 0,
+        FLAG_PERSISTENT = 0x1,
+        FLAG_FIXED_DESTINATION = 0x2,
+        FLAG_RAW_SOURCE_ATTACHMENT_IDS = 0x4,
+    };
+
     struct Bolt {
         /* 0000 */ uint16_t m_source;
         /* 0002 */ uint16_t m_target;
@@ -106,6 +113,13 @@ void LightningObjectReleaseRef(LightningObject* object);
 
 class MountTransitionObject : public TSLinkedNode<MountTransitionObject> {
     public:
+    enum TRANSITION_FLAGS : int32_t {
+        TRANSITION_NONE = 0,
+        TRANSITION_CHARACTER_DATA_READY = 0x1,
+        TRANSITION_RISE_FINISHED = 0x2,
+        TRANSITION_GROUND_HIT = 0x4,
+    };
+
     /* 0008 */ WOWGUID m_unitGuid;
     /* 0010 */ float m_height;
     /* 0014 */ float m_riseRate;

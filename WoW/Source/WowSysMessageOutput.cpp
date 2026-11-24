@@ -186,7 +186,7 @@ void WowSysMessageOutput::Initialize() {
     }
 
     RECTF rect = { 0.0f, 0.0f, 1.0f, 1.0f };
-    ScrnLayerCreate(&rect, 10.0f, 7, nullptr, WowSysMessageOutput::Paint, &s_layer);
+    ScrnLayerCreate(&rect, 10.0f, SCRN_LAYER_TRANSPARENT | SCRN_LAYER_ORTHO | SCRN_LAYER_FULLSCREEN_VIEWPORT, nullptr, WowSysMessageOutput::Paint, &s_layer);
 
     if (!s_layer) {
         return;

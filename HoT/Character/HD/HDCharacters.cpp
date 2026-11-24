@@ -31,6 +31,7 @@
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/Object/Types.h"
 
 namespace HoT::HD {
 
@@ -44,7 +45,6 @@ static const int32_t TARGET_BLANK = 0;
 static const int32_t TARGET_BY_NAME = -1;
 static const uint32_t SLOT_TYPES[] = { 11, 12, 13 };
 static const uint32_t TEXTURE_TYPE_SKIN_EXTRA = 8;
-static const uint32_t UNIT_FLAG2_MIRROR_IMAGE = 0x10;
 static const uint32_t DATA_FLAG_BAKED = 0x1;
 
 static const int32_t GROUP_BOOTS = 5;

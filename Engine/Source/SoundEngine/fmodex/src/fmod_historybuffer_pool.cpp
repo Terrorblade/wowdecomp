@@ -188,7 +188,7 @@ FMOD_RESULT HistoryBufferPool::free(float *historybuffer)
         if (poolstart <= historybuffer && historybuffer <= poolend)
         {
             /* determine the bufferindex of this block */
-            int bufferindex = ((FMOD_UINT_NATIVE)historybuffer - (FMOD_UINT_NATIVE)poolstart) / mBufferSize;
+            int bufferindex = static_cast<int>(((FMOD_UINT_NATIVE)historybuffer - (FMOD_UINT_NATIVE)poolstart) / mBufferSize);
             int numchannels = mBufferPool[bufferindex].numchannels;
             
             int count;

@@ -28,14 +28,14 @@ float FMOD_vorbis_coslook(float a){
   double d=a*(.31830989*(float)COS_LOOKUP_SZ);
   int i=FMOD_vorbis_ftoi(d-.5);
 
-  return COS_LOOKUP[i]+ (d-i)*(COS_LOOKUP[i+1]-COS_LOOKUP[i]);
+  return (float)(COS_LOOKUP[i]+ (d-i)*(COS_LOOKUP[i+1]-COS_LOOKUP[i]));
 }
 
 /* interpolated 1./sqrt(p) where .5 <= p < 1. */
 float FMOD_vorbis_invsqlook(float a){
   double d=a*(2.f*(float)INVSQ_LOOKUP_SZ)-(float)INVSQ_LOOKUP_SZ;
   int i=FMOD_vorbis_ftoi(d-.5f);
-  return INVSQ_LOOKUP[i]+ (d-i)*(INVSQ_LOOKUP[i+1]-INVSQ_LOOKUP[i]);
+  return (float)(INVSQ_LOOKUP[i]+ (d-i)*(INVSQ_LOOKUP[i+1]-INVSQ_LOOKUP[i]));
 }
 
 /* interpolated 1./sqrt(p) where .5 <= p < 1. */

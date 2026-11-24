@@ -8,17 +8,17 @@ void LFGHandler::ReadGroupInfo(CDataStore* msg, LFGListParty* party) {
     uint32_t flags = 0;
     msg->Get(flags);
 
-    if (flags & 0x2) {
+    if (flags & LFG_LIST_UPDATE_COMMENT) {
         msg->GetString(party->m_comment, sizeof(party->m_comment));
     }
 
-    if (flags & 0x10) {
+    if (flags & LFG_LIST_UPDATE_ROLES) {
         for (uint32_t i = 0; i < 3; i++) {
             msg->Get(party->m_roles[i]);
         }
     }
 
-    if (flags & 0x80) {
+    if (flags & LFG_LIST_UPDATE_ENCOUNTERS) {
         msg->Get(party->unk_0128);
         msg->Get(party->m_encounterMask);
     }
@@ -30,12 +30,12 @@ void LFGHandler::ReadPlayerInfo(CDataStore* msg, LFGLIST* list, LFGListPlayer* p
     uint32_t flags = 0;
     msg->Get(flags);
 
-    if (flags & 0x1) {
+    if (flags & LFG_LIST_UPDATE_CHARACTER_INFO) {
         msg->Get(player->m_level);
         msg->Get(player->m_class);
         msg->Get(player->m_race);
 
-        for (uint32_t i = 0; i < 3; i++) {
+        for (uint32_t i = 0; i < MAX_TALENT_TABS; i++) {
             msg->Get(player->m_talents[i]);
         }
 
@@ -61,11 +61,11 @@ void LFGHandler::ReadPlayerInfo(CDataStore* msg, LFGLIST* list, LFGListPlayer* p
         msg->Get(player->m_expertise);
     }
 
-    if (flags & 0x2) {
+    if (flags & LFG_LIST_UPDATE_COMMENT) {
         msg->GetString(player->m_comment, sizeof(player->m_comment));
     }
 
-    if (flags & 0x4) {
+    if (flags & LFG_LIST_UPDATE_LEADER) {
         uint32_t wasLeader = player->m_leader;
         uint8_t leader = 0;
         msg->Get(leader);
@@ -77,7 +77,7 @@ void LFGHandler::ReadPlayerInfo(CDataStore* msg, LFGLIST* list, LFGListPlayer* p
         }
     }
 
-    if (flags & 0x8) {
+    if (flags & LFG_LIST_UPDATE_GROUP_GUID) {
         uint64_t current = player->m_party ? player->m_party->m_key.m_guid.m_guid : 0;
         uint64_t guid = 0;
         msg->Get(guid);
@@ -98,19 +98,19 @@ void LFGHandler::ReadPlayerInfo(CDataStore* msg, LFGLIST* list, LFGListPlayer* p
         }
     }
 
-    if (flags & 0x10) {
+    if (flags & LFG_LIST_UPDATE_ROLES) {
         msg->Get(player->m_roles);
     }
 
-    if (flags & 0x20) {
+    if (flags & LFG_LIST_UPDATE_AREA) {
         msg->Get(reinterpret_cast<uint32_t&>(player->m_areaID));
     }
 
-    if (flags & 0x40) {
+    if (flags & LFG_LIST_UPDATE_STATUS) {
         msg->Get(player->unk_0088);
     }
 
-    if (flags & 0x80) {
+    if (flags & LFG_LIST_UPDATE_ENCOUNTERS) {
         msg->Get(player->unk_0198);
         msg->Get(player->m_encounterMask);
     }

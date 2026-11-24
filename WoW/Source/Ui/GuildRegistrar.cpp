@@ -24,7 +24,7 @@ void CGGuildRegistrar::EnterWorld() {
     CGGuildRegistrar::m_petition.m_itemID = 0;
     CGGuildRegistrar::m_petition.m_displayID = 0;
     CGGuildRegistrar::m_petition.m_cost = 0;
-    CGGuildRegistrar::m_petition.m_charterType = 0;
+    CGGuildRegistrar::m_petition.m_charterType = CGPetition::STATIC_TYPE_GUILD;
     CGGuildRegistrar::m_petition.m_requiredSignatures = 0;
 }
 
@@ -36,7 +36,7 @@ void CGGuildRegistrar::SetRegistrar(WOWGUID registrar, const GuildPetitionInfo* 
     CGGuildRegistrar::m_petition.m_itemID = 0;
     CGGuildRegistrar::m_petition.m_displayID = 0;
     CGGuildRegistrar::m_petition.m_cost = 0;
-    CGGuildRegistrar::m_petition.m_charterType = 0;
+    CGGuildRegistrar::m_petition.m_charterType = CGPetition::STATIC_TYPE_GUILD;
     CGGuildRegistrar::m_petition.m_requiredSignatures = 0;
     CGGuildRegistrar::m_registrar = registrar;
     CGGuildRegistrar::m_petition = *petition;

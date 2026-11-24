@@ -6,7 +6,7 @@
 // VERIFY: 18cf53cd auto
 // OFFSET: 0x004F4A50
 void CMoveSpline::Skip(CDataStore* msg) {
-    uint32_t flags = 0;
+    uint32_t flags = SPLINEFLAG_NONE;
     msg->Get(flags);
 
     uint32_t faceSize = 0;

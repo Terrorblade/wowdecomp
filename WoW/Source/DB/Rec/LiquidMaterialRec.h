@@ -6,6 +6,17 @@
 
 class SFileImpl;
 
+enum LIQUID_MATERIAL_FLAGS : int32_t {
+    LIQUID_MATERIAL_FLAG_NONE = 0x0,
+    LIQUID_MATERIAL_FLAG_TRANSPARENT = 0x1,
+};
+
+enum LIQUID_MATERIAL_ID : int32_t {
+    LIQUID_MATERIAL_WATER = 1,
+    LIQUID_MATERIAL_MAGMA = 2,
+    LIQUID_MATERIAL_PROCEDURAL_WATER = 3,
+};
+
 class LiquidMaterialRec {
     public:
     static const int32_t s_numColumns = 3;

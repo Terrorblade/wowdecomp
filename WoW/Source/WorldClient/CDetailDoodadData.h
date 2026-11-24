@@ -8,6 +8,11 @@ class CM2Model;
 class CTexture;
 class GroundEffectDoodadRec;
 
+enum GROUND_EFFECT_DOODAD_FLAGS : int32_t {
+    GROUND_EFFECT_DOODAD_ALIGN_TO_TERRAIN = 0x1,
+    GROUND_EFFECT_DOODAD_NO_VERTEX_SHADING = 0x2,
+};
+
 class CDetailDoodadData {
     public:
     static void ModelLoadedCallback(CM2Model* model, void* arg);

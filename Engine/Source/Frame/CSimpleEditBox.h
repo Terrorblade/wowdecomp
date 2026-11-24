@@ -9,6 +9,15 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/CRect.h"
 
+enum EDITBOX_FLAGS : uint32_t {
+    EDITBOX_AUTO_FOCUS = 0x1,
+    EDITBOX_MULTILINE = 0x2,
+    EDITBOX_NUMERIC = 0x4,
+    EDITBOX_PASSWORD = 0x8,
+    EDITBOX_ALT_ARROW_KEY_MODE = 0x10,
+    EDITBOX_COUNT_INVISIBLE_LETTERS = 0x20,
+};
+
 class CEvent;
 class CSimpleFontString;
 class CSimpleMessageFrame;
@@ -16,6 +25,17 @@ class CSimpleTexture;
 
 class CSimpleEditBox : public CSimpleFrame, public CSimpleFontedFrame {
     public:
+    enum DIRTY_BITS : uint32_t {
+        DIRTY_NONE = 0,
+        DIRTY_TEXT = 0x1,
+        DIRTY_HIGHLIGHT = 0x2,
+        DIRTY_CURSOR = 0x4,
+        DIRTY_USER_INPUT = 0x8,
+        DIRTY_TEXT_AND_CURSOR = 0x5,
+        DIRTY_HIGHLIGHT_AND_CURSOR = 0x6,
+        DIRTY_RENDER = 0x7,
+    };
+
     struct EditHistory {
         /* 0000 */ char* m_text;
         /* 0004 */ const char* m_taint;

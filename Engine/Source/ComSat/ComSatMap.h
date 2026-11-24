@@ -7,6 +7,7 @@
 #include <new>
 #include "Engine/Source/ComSat/ComSatHash.h"
 #include "Engine/Source/ComSat/ComSatInterface.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 namespace ComSat {
 

@@ -40,6 +40,19 @@ class CClipVolume {
 
 class CWorldOcclusion {
     public:
+    enum QUERY_FLAGS : uint8_t {
+        QUERY_FLAG_NONE = 0x0,
+        QUERY_FLAG_UNKNOWN_1 = 0x1,
+        QUERY_FLAG_TEST_NEAR = 0x8,
+        QUERY_FLAG_UNKNOWN_10 = 0x10,
+        QUERY_FLAG_UNKNOWN_20 = 0x20,
+    };
+
+    enum UPDATE_FLAGS : uint32_t {
+        UPDATE_FLAG_NONE = 0x0,
+        UPDATE_FLAG_MARK_MASK = 0x1,
+    };
+
     static TSGrowableArray<C4Plane> planeArray;
     static TSGrowableArray<CClipVolume> clipVolumeArray;
 

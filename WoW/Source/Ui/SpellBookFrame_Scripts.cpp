@@ -30,7 +30,7 @@
 #include "Engine/Source/Base/CDataStore.h"
 
 // STATIC: 0x00ACCCC4
-const char* s_companionTypes[2] = { "CRITTER", "MOUNT" };
+const char* s_companionTypes[NUM_COMPANION_TYPES] = { "CRITTER", "MOUNT" };
 
 // VERIFY: d9335da2 manual
 // OFFSET: 0x0053C0B0
@@ -77,7 +77,7 @@ static int32_t Script_FindSpellBookSlotByID(lua_State* L) {
 // VERIFY: 6fb2c8d5 auto
 // OFFSET: 0x0053B650
 static int32_t Script_GetKnownSlotFromHighestRankSlot(lua_State* L) {
-    uint32_t slot = lua_tointeger(L, 1) - 1;
+    uint32_t slot = static_cast<uint32_t>(lua_tointeger(L, 1) - 1);
     int32_t index = -1;
 
     if (slot < s_displayedSpellCount) {
@@ -169,7 +169,7 @@ static bool GetLuaCompanionType(lua_State* L, int32_t* type) {
         return false;
     }
 
-    for (int32_t i = 0; i < 2; i++) {
+    for (int32_t i = 0; i < NUM_COMPANION_TYPES; i++) {
         if (!SStrCmpI(token, s_companionTypes[i], STORM_MAX_STR)) {
             *type = i;
             return true;
@@ -288,7 +288,7 @@ static int32_t Script_IsPassiveSpell(lua_State* L) {
 
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && (spell.m_attributes & 0x40)) {
+    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && (spell.m_attributes & SPELL_ATTR0_PASSIVE)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -352,7 +352,7 @@ static int32_t Script_IsConsumableSpell(lua_State* L) {
     SpellRec spell;
 
     if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell)) {
-        for (uint32_t i = 0; i < 8; i++) {
+        for (uint32_t i = 0; i < NUM_SPELL_REAGENTS; i++) {
             if (spell.m_reagent[i] && spell.m_reagentCount[i] > 0) {
                 lua_pushnumber(L, 1.0);
                 return 1;
@@ -383,7 +383,7 @@ static int32_t Script_GetNumCompanions(lua_State* L) {
 static int32_t Script_IsSpellKnown(lua_State* L) {
     int32_t spellId;
 
-    if (!lua_isnumber(L, 1) || (spellId = lua_tointeger(L, 1)) <= 0) {
+    if (!lua_isnumber(L, 1) || (spellId = static_cast<int32_t>(lua_tointeger(L, 1))) <= 0) {
         luaL_error(L, "Usage: IsSpellKnown(spellID[, isPet])");
         return 0;
     }
@@ -455,7 +455,7 @@ static int32_t Script_IsHelpfulSpell(lua_State* L) {
 
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && SpellRec::IsHelpfulOrHarmful(&spell) == 1) {
+    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && SpellRec::IsHelpfulOrHarmful(&spell) == SPELL_DISPOSITION_HELPFUL) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -476,7 +476,7 @@ static int32_t Script_IsHarmfulSpell(lua_State* L) {
 
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && SpellRec::IsHelpfulOrHarmful(&spell) == 2) {
+    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && SpellRec::IsHelpfulOrHarmful(&spell) == SPELL_DISPOSITION_HARMFUL) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -546,13 +546,13 @@ static int32_t Script_GetSpellAutocast(lua_State* L) {
     PetAction* action = nullptr;
     int32_t spellId = static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0);
 
-    if (petSpell && (action = CGPetInfo::GetPetSpellAction(spellId)) && (action->m_data & 0x80000000)) {
+    if (petSpell && (action = CGPetInfo::GetPetSpellAction(spellId)) && (action->m_data & PetAction::AUTOCAST_ALLOWED)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (action && (action->m_data & 0x40000000)) {
+    if (action && (action->m_data & PetAction::AUTOCAST_ENABLED)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -638,7 +638,7 @@ static int32_t Script_IsCurrentSpell(lua_State* L) {
     int32_t spellId;
 
     if (lua_isnumber(L, 1) && lua_gettop(L) == 1) {
-        spellId = lua_tointeger(L, 1);
+        spellId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else {
         uint32_t slot = 0;
         int32_t petSpell;
@@ -996,7 +996,7 @@ static int32_t Script_CastSpellByID(lua_State* L) {
         return 0;
     }
 
-    int32_t spellId = lua_tointeger(L, 1);
+    int32_t spellId = static_cast<int32_t>(lua_tointeger(L, 1));
 
     if (!spellId) {
         return 0;
@@ -1036,7 +1036,7 @@ static int32_t Script_CastSpellByID(lua_State* L) {
         return 0;
     }
 
-    if (!(spell.m_attributesExD & 0x20) && player->GetPossessedUnit() != pet) {
+    if (!(spell.m_attributesExD & SPELL_ATTR4_ALLOW_CLIENT_TARGETING) && player->GetPossessedUnit() != pet) {
         Spell_C_StartSpellCooldown(&spell, pet);
 
         CDataStore msg;
@@ -1142,7 +1142,7 @@ static int32_t Script_CastSpellByName(lua_State* L) {
         return 0;
     }
 
-    if ((spell.m_attributesExD & 0x20) || player->GetPossessedUnit() == pet) {
+    if ((spell.m_attributesExD & SPELL_ATTR4_ALLOW_CLIENT_TARGETING) || player->GetPossessedUnit() == pet) {
         Spell_C_CastSpell(pet, spell.m_id, nullptr, target, nullptr, false);
         return 0;
     }
@@ -1180,7 +1180,7 @@ static int32_t Script_GetSpellLink(lua_State* L) {
     SpellRec spell;
     char link[256];
 
-    if (!g_spellDB.GetRecord(spellId, &spell) || ((spell.m_attributes & 0x80) && (spell.m_attributes & 0x100))) {
+    if (!g_spellDB.GetRecord(spellId, &spell) || ((spell.m_attributes & SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG) && (spell.m_attributes & SPELL_ATTR0_DO_NOT_LOG))) {
         lua_pushnil(L);
         lua_pushnil(L);
         return 2;
@@ -1231,7 +1231,7 @@ static int32_t Script_GetSpellInfo(lua_State* L) {
 
     if (spell.m_effect[0] == SPELL_EFFECT_ATTACK) {
         texture = CGActionBar::GetAttackTexture();
-    } else if ((spell.m_attributes & 0x2) && (spell.m_attributesExB & 0x20)) {
+    } else if ((spell.m_attributes & SPELL_ATTR0_USES_RANGED_SLOT) && (spell.m_attributesExB & SPELL_ATTR2_AUTO_REPEAT)) {
         texture = CGActionBar::GetRangedTexture();
     } else {
         SpellIconRec* icon = g_spellIconDB.GetRecord(spell.m_spellIconID);
@@ -1258,7 +1258,7 @@ static int32_t Script_GetSpellInfo(lua_State* L) {
 
     lua_pushnumber(L, spell.m_powerType);
 
-    if (spell.m_attributes & 0x40) {
+    if (spell.m_attributes & SPELL_ATTR0_PASSIVE) {
         lua_pushnumber(L, 0.0);
     } else {
         lua_pushnumber(L, static_cast<uint32_t>(SpellRec::GetCastTime(&spell, petSpell, 0, 1)));

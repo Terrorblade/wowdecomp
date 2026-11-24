@@ -9,6 +9,7 @@
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "WoW/Source/Ui/QuestFrame.h"
 #include "WoW/Source/Ui/QuestLog.h"
+#include "WoW/Source/Object/QuestCache.h"
 
 // STATIC: 0x00ACEF20
 static const char* s_gossipTypes[22] = {
@@ -126,7 +127,7 @@ static int32_t Script_GetGossipAvailableQuests(lua_State* L) {
             lua_pushnil(L);
         }
 
-        if (quest->m_flags & 0x1000) {
+        if (quest->m_flags & QUEST_FLAG_DAILY) {
             lua_pushnumber(L, 1.0);
         } else {
             lua_pushnil(L);

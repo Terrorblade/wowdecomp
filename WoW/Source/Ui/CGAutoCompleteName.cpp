@@ -40,7 +40,7 @@ static void SortNameNode(AUTOCOMPLETE_NAMENODE* node) {
             continue;
         }
 
-        CGAutoCompleteName::m_list.LinkNode(node, 2, current);
+        CGAutoCompleteName::m_list.LinkNode(node, TSLIST_LINK_BEFORE, current);
         return;
     }
 
@@ -117,8 +117,8 @@ int32_t CGAutoCompleteName::NodeMatchesParams(AUTOCOMPLETE_NAMENODE* node, const
         return 0;
     }
 
-    int32_t nameLength = SStrLenUTF8(node->m_name);
-    int32_t textLength = SStrLenUTF8(text);
+    int32_t nameLength = static_cast<int32_t>(SStrLenUTF8(node->m_name));
+    int32_t textLength = static_cast<int32_t>(SStrLenUTF8(text));
     int32_t tail = textLength - cursor;
 
     if (nameLength < textLength) {
@@ -211,7 +211,7 @@ void CGAutoCompleteName::AddFlags(const WOWGUID& guid, uint32_t flags, int32_t a
         return;
     }
 
-    if (flags & 0x8) {
+    if (flags & AUTOCOMPLETE_FLAG_BNET) {
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
@@ -249,7 +249,7 @@ int32_t CGAutoCompleteName::RemoveFlags(const WOWGUID& guid, uint32_t flags) {
     if (node) {
         node->m_flags &= ~flags;
 
-        if (!(node->m_flags & ~0x20)) {
+        if (!(node->m_flags & ~AUTOCOMPLETE_FLAG_ONLINE)) {
             CGAutoCompleteName::m_list.DeleteNode(node);
         }
     }
@@ -264,7 +264,7 @@ int32_t CGAutoCompleteName::RemoveFlagsFromAllNodes(uint32_t flags) {
         AUTOCOMPLETE_NAMENODE* next = node->RawNext();
         node->m_flags &= ~flags;
 
-        if (!(node->m_flags & ~0x20) && CGAutoCompleteName::s_useContext) {
+        if (!(node->m_flags & ~AUTOCOMPLETE_FLAG_ONLINE) && CGAutoCompleteName::s_useContext) {
             CGAutoCompleteName::m_list.DeleteNode(node);
         }
 
@@ -331,7 +331,7 @@ int32_t CGAutoCompleteName::RemoveFlags(const uint32_t& presenceId, uint32_t fla
     if (node) {
         node->m_flags &= ~flags;
 
-        if (!(node->m_flags & ~0x20)) {
+        if (!(node->m_flags & ~AUTOCOMPLETE_FLAG_ONLINE)) {
             CGAutoCompleteName::m_list.DeleteNode(node);
         }
     }
@@ -347,7 +347,7 @@ int32_t CGAutoCompleteName::RemoveFlagsByName(const char* name, uint32_t flags, 
     if (node) {
         node->m_flags &= ~flags;
 
-        if (!(node->m_flags & ~0x20) && CGAutoCompleteName::s_useContext) {
+        if (!(node->m_flags & ~AUTOCOMPLETE_FLAG_ONLINE) && CGAutoCompleteName::s_useContext) {
             CGAutoCompleteName::m_list.DeleteNode(node);
         }
     }
@@ -406,7 +406,7 @@ AUTOCOMPLETE_NAMENODE* CGAutoCompleteName::AddPlayerToList(const uint32_t& prese
         SortNameNode(node);
     }
 
-    node->m_flags = flags | 0x8;
+    node->m_flags = flags | AUTOCOMPLETE_FLAG_BNET;
     SortNameNode(node);
     return node;
 }

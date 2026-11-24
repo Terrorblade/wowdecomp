@@ -10,7 +10,7 @@ class CGxShader;
 class PassGauss4 : public FFX::Pass {
     public:
     /* 0030 */ int32_t m_shaderIndex;
-    /* 0034 */ CGxShader* m_shaders[2];
+    /* 0034 */ CGxShader* m_shaders[TEXCOORD_COUNT];
 
     ~PassGauss4() override;
     bool Valid() override;

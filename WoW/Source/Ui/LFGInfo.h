@@ -6,11 +6,23 @@
 #include "WoW/Source/Ui/LFGLIST.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/Net/Types.h"
+#include "WoW/Source/Ui/LFGRoles.h"
 
 class CDataStore;
 class LfgDungeonExpansionRec;
 
 struct lua_State;
+
+enum LFG_TELEPORT_DENIED_REASON : uint32_t {
+    LFG_TELEPORT_DENIED_NONE = 0,
+    LFG_TELEPORT_DENIED_PLAYER_DEAD = 1,
+    LFG_TELEPORT_DENIED_FALLING = 2,
+    LFG_TELEPORT_DENIED_UNKNOWN_3 = 3,
+    LFG_TELEPORT_DENIED_FATIGUE = 4,
+    LFG_TELEPORT_DENIED_UNKNOWN_5 = 5,
+    LFG_TELEPORT_DENIED_INVALID_LOCATION = 6,
+    LFG_TELEPORT_DENIED_UNKNOWN_7 = 7,
+};
 
 struct LFGRewardItem : public TSLinkedNode<LFGRewardItem> {
     /* 0008 */ int32_t m_itemID;
@@ -157,6 +169,35 @@ struct LFGRoleCheckMember {
 class LfgDungeonsRec;
 class CGLookingForGroup {
     public:
+
+    enum DUNGEON_TYPE : int32_t {
+        LFG_TYPE_NONE = 0,
+        LFG_TYPE_DUNGEON = 1,
+        LFG_TYPE_RAID = 2,
+        LFG_TYPE_QUEST = 3,
+        LFG_TYPE_ZONE = 4,
+        LFG_TYPE_HEROIC_DUNGEON = 5,
+        LFG_TYPE_RANDOM_DUNGEON = 6,
+        NUM_LFG_TYPES = 7,
+    };
+
+    enum SLOT_PACKING : int32_t {
+        SLOT_DUNGEON_ID_MASK = 0x00FFFFFF,
+        SLOT_TYPE_SHIFT = 24,
+        SLOT_TYPE_MASK = static_cast<int32_t>(0xFF000000),
+    };
+
+    enum SORT_COLUMN : int32_t {
+        ZONE = 0,
+        LEVEL = 1,
+        CLASS = 2,
+        NAME = 3,
+        TANK_ROLE = 4,
+        HEALER_ROLE = 5,
+        DAMAGE_ROLE = 6,
+        NUM_SORT_COLUMNS = 7,
+    };
+
     struct LFGEntryInfo {
         /* 0000 */ int32_t m_id;
         /* 0004 */ int32_t m_order;
@@ -171,7 +212,7 @@ class CGLookingForGroup {
     static LFGLIST m_searchResults;
     static LFGLIST m_prevSearchResults;
     static LFGProposal m_proposal;
-    static CGLookingForGroup::LFGEntryInfo m_unkBEA820[7];
+    static CGLookingForGroup::LFGEntryInfo m_unkBEA820[NUM_SORT_COLUMNS];
     static LFGBootProposal m_bootProposal;
     static uint8_t m_unkBEAA10;
     static uint8_t m_unkACD660;
@@ -182,6 +223,14 @@ class CGLookingForGroup {
     static LFGPartyLockInfo m_partyLockInfo;
     static LFGRewardInfo m_reward;
     static LFGQueueStatus m_queueStatus;
+
+    enum ROLE_CHECK_STATE : int32_t {
+        ROLE_CHECK_NONE = 0,
+        ROLE_CHECK_IN_PROGRESS = 2,
+        ROLE_CHECK_ABORTED = 5,
+        ROLE_CHECK_UNKNOWN_6 = 6,
+    };
+
     static int32_t m_roleCheckState;
     static TSGrowableArray<uint32_t> m_roleCheckSlots;
     static TSGrowableArray<LFGRoleCheckMember> m_roleCheckMembers;

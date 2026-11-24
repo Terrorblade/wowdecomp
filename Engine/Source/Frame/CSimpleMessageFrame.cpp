@@ -129,10 +129,10 @@ CSimpleMessageFrameLineNode::CSimpleMessageFrameLineNode() {
     CSimpleFontString* string = this->m_string;
     string->m_internal = true;
     uint32_t styleFlags = string->m_styleFlags;
-    string->m_settableStyleFlags &= ~0x4000u;
+    string->m_settableStyleFlags &= ~TEXTBLOCK_IGNORE_NEWLINE_CODES;
 
-    if ((styleFlags | 0x4000) != styleFlags) {
-        string->m_styleFlags = styleFlags | 0x4000;
+    if ((styleFlags | TEXTBLOCK_IGNORE_NEWLINE_CODES) != styleFlags) {
+        string->m_styleFlags = styleFlags | TEXTBLOCK_IGNORE_NEWLINE_CODES;
 
         if (string->m_string) {
             string->UpdateString();
@@ -297,7 +297,7 @@ void CSimpleMessageFrame::ClearPending() {
 // VERIFY: ca437c53 manual
 // OFFSET: 0x00968790
 void CSimpleMessageFrame::UpdateRect() {
-    if (!(this->m_layoutFlags & 0x100)) {
+    if (!(this->m_layoutFlags & CLayoutFrame::LAYOUT_RECT_VALID)) {
         return;
     }
 
@@ -430,7 +430,7 @@ CSimpleMessageFrame::~CSimpleMessageFrame() {
 // VERIFY: 3758e948 auto
 // OFFSET: 0x00968C90
 void CSimpleMessageFrame::FontUpdated(CSimpleFontedFrameFont* font, int32_t flags) {
-    if (flags & 0x11) {
+    if (flags & (FLAG_FONT_UPDATE | FLAG_SPACING_UPDATE)) {
         this->UpdateRect();
     }
 }

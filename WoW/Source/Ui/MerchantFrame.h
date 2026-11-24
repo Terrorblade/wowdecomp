@@ -3,11 +3,13 @@
 
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Common/ComponentCore/Types.h"
 
 class ItemStats_C;
 class CGItem_C;
 
 struct lua_State;
+constexpr int32_t MAX_MERCHANT_ITEMS = 150;
 
 struct MerchantItem {
     /* 0000 */ int32_t m_slot;
@@ -27,7 +29,7 @@ struct BuybackEntry {
 
 class CGMerchantInfo {
     public:
-    static uint32_t m_buybackSlots[12];
+    static uint32_t m_buybackSlots[NUM_BUYBACK_SLOTS];
     static MerchantItem* GetItem(int32_t index);
     static ItemStats_C* GetItemStats(int32_t itemId);
     static uint32_t m_pendingItemStats;
@@ -42,7 +44,7 @@ class CGMerchantInfo {
     static void SortBuybackItems();
     static MerchantItem* FindItemById(int32_t itemId);
     static int32_t GetRepairCost(CGItem_C* item);
-    static MerchantItem m_items[150];
+    static MerchantItem m_items[MAX_MERCHANT_ITEMS];
     static WOWGUID m_merchant;
     static int32_t m_numMerchantItems;
     static uint32_t m_numBuybackItems;

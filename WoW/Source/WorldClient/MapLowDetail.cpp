@@ -16,6 +16,7 @@
 #include "Engine/Source/Gx/Gx.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "Engine/Source/Gx/CGxVertexPC.h"
+#include "Engine/Source/Tempest/Color.h"
 
 // VERIFY: 3763adce auto
 // OFFSET: 0x007C06E0
@@ -27,7 +28,7 @@ CMapAreaLow::CMapAreaLow() {
     this->m_horizonLink.m_next = nullptr;
     this->m_indexCount = 0;
     this->m_block = nullptr;
-    this->m_flags = 0;
+    this->m_flags = CMapAreaLow::NONE;
     this->m_heights = nullptr;
     this->m_holes = nullptr;
 }
@@ -98,7 +99,7 @@ void CMapLowDetail::CullHorizonAreas(const C3Vector* pos) {
                 continue;
             }
 
-            if (World::s_farClip > 300.0f && CWorldOcclusion::QueryBuffer(&area->m_bbox, 40)) {
+            if (World::s_farClip > 300.0f && CWorldOcclusion::QueryBuffer(&area->m_bbox, CWorldOcclusion::QUERY_FLAG_UNKNOWN_20 | CWorldOcclusion::QUERY_FLAG_TEST_NEAR)) {
                 continue;
             }
 
@@ -197,7 +198,7 @@ void CMapLowDetail::Load(const char* mapPath, const char* mapName) {
                 float dx = area->m_bbox.t.x - area->m_sphere.c.x;
                 area->m_sphere.r = sqrtf(dx * dx + dy * dy + dz * dz);
 
-                if (next[0] == 0x4D41484F) {
+                if (next[0] == SIffChunk::TOKEN_MAHO) {
                     uint16_t* holes = reinterpret_cast<uint16_t*>(next + 2);
                     area->m_holes = holes;
                     area->m_indexCount = 0;
@@ -287,7 +288,7 @@ void CMap::RenderLowDetail(CMapAreaLow* area) {
 
     uint32_t count;
 
-    if (!(area->m_flags & 0x1) && area->m_indexCount == 3072) {
+    if (!(area->m_flags & CMapAreaLow::UNKNOWN_1) && area->m_indexCount == 3072) {
         GxRsSet(GxRs_Culling, 0);
         CGxBuf* indexBuf = CMap::lowDetailIndexBuf;
 
@@ -345,7 +346,7 @@ void CMap::BuildLowDetailGridVertices(CMapAreaLow* area, CGxBuf* buf) {
             vertex->p.x = x;
             vertex->p.y = y;
             vertex->p.z = area->m_heights[index++];
-            vertex->c = CImVector(0xFF, 0xFF, 0xFF, 0xFF);
+            vertex->c = CImVector(COLOR_WHITE_BGRA);
             vertex++;
             y -= 33.333332f;
         }
@@ -362,7 +363,7 @@ void CMap::BuildLowDetailGridVertices(CMapAreaLow* area, CGxBuf* buf) {
             vertex->p.x = x;
             vertex->p.y = y;
             vertex->p.z = area->m_heights[index++];
-            vertex->c = CImVector(0xFF, 0xFF, 0xFF, 0xFF);
+            vertex->c = CImVector(COLOR_WHITE_BGRA);
             vertex++;
             y -= 33.333332f;
         }

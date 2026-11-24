@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum RESISTANCE_FLAGS : int32_t {
+    RESISTANCE_FLAG_NONE     = 0x00000000,
+    RESISTANCE_FLAG_PHYSICAL = 0x00000001,
+};
+
 class ResistancesRec {
     public:
     static const int32_t s_numColumns = 20;

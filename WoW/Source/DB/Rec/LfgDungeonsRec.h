@@ -6,6 +6,12 @@
 
 class SFileImpl;
 
+enum LFG_DUNGEON_FLAGS : int32_t {
+    LFG_DUNGEON_FLAG_NONE       = 0x00000000,
+    LFG_DUNGEON_FLAG_LFD_LISTED = 0x00000002,
+    LFG_DUNGEON_FLAG_HOLIDAY    = 0x00000004,
+};
+
 class LfgDungeonsRec {
     public:
     static const int32_t s_numColumns = 49;

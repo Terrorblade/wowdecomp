@@ -6,6 +6,14 @@
 
 class SFileImpl;
 
+enum WEATHER_EFFECT_TYPE : int32_t {
+    WEATHER_EFFECT_PENDING_NONE = -1,
+    WEATHER_EFFECT_NONE = 0,
+    WEATHER_EFFECT_RAIN = 1,
+    WEATHER_EFFECT_SNOW = 2,
+    WEATHER_EFFECT_SAND = 3,
+};
+
 class WeatherRec {
     public:
     static const int32_t s_numColumns = 8;

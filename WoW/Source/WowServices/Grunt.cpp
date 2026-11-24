@@ -13,13 +13,13 @@
 
 // STATIC: 0x00B24D00
 static Grunt::Command<Grunt::ClientLink> s_authCmds[] = {
-    { 0x00, {}, "ClientLink::CMD_AUTH_LOGON_CHALLENGE", &Grunt::ClientLink::CmdAuthLogonChallenge },
-    { 0x01, {}, "ClientLink::CMD_AUTH_LOGON_PROOF", &Grunt::ClientLink::CmdAuthLogonProof },
-    { 0x02, {}, "ClientLink::CMD_AUTH_RECONNECT_CHALLENGE", &Grunt::ClientLink::CmdAuthReconnectChallenge },
-    { 0x03, {}, "ClientLink::CMD_AUTH_RECONNECT_PROOF", &Grunt::ClientLink::CmdAuthReconnectProof },
-    { 0x10, {}, "ClientLink::CMD_REALM_LIST", &Grunt::ClientLink::CmdRealmList },
-    { 0x30, {}, "ClientLink::CMD_XFER_INITIATE", &Grunt::ClientLink::CmdXferInitiate },
-    { 0x31, {}, "ClientLink::CMD_XFER_DATA", &Grunt::ClientLink::CmdXferData },
+    { CMD_AUTH_LOGON_CHALLENGE, {}, "ClientLink::CMD_AUTH_LOGON_CHALLENGE", &Grunt::ClientLink::CmdAuthLogonChallenge },
+    { CMD_AUTH_LOGON_PROOF, {}, "ClientLink::CMD_AUTH_LOGON_PROOF", &Grunt::ClientLink::CmdAuthLogonProof },
+    { CMD_AUTH_RECONNECT_CHALLENGE, {}, "ClientLink::CMD_AUTH_RECONNECT_CHALLENGE", &Grunt::ClientLink::CmdAuthReconnectChallenge },
+    { CMD_AUTH_RECONNECT_PROOF, {}, "ClientLink::CMD_AUTH_RECONNECT_PROOF", &Grunt::ClientLink::CmdAuthReconnectProof },
+    { CMD_REALM_LIST, {}, "ClientLink::CMD_REALM_LIST", &Grunt::ClientLink::CmdRealmList },
+    { CMD_XFER_INITIATE, {}, "ClientLink::CMD_XFER_INITIATE", &Grunt::ClientLink::CmdXferInitiate },
+    { CMD_XFER_DATA, {}, "ClientLink::CMD_XFER_DATA", &Grunt::ClientLink::CmdXferData },
 };
 
 // STATIC: 0x00D45CD0
@@ -135,7 +135,7 @@ void Grunt::ClientLink::Connect(const char* address) {
         return;
     }
 
-    this->SetState(1);
+    this->SetState(ClientLink::STATE_CONNECTING);
 
     this->m_connection = new (__FILE__, __LINE__) WowConnection(this, nullptr);
     this->m_connection->SetType(WOWC_TYPE_STREAM);
@@ -151,7 +151,7 @@ void Grunt::ClientLink::Connect(const char* address) {
 // OFFSET: 0x008CCCB0
 void Grunt::ClientLink::WCConnected(WowConnection* connection, WowConnection* inbound, uint32_t timeStamp, const NETCONNADDR* addr) {
     this->m_lock.Enter();
-    this->SetState(2);
+    this->SetState(ClientLink::STATE_CONNECTED);
     bool failed = !this->m_clientResponse->Connected(addr->peerAddr);
     this->m_localAddress = OsNetAddrGetAddress(&addr->selfAddr, nullptr);
     this->m_lock.Leave();
@@ -166,7 +166,7 @@ void Grunt::ClientLink::WCConnected(WowConnection* connection, WowConnection* in
 void Grunt::ClientLink::WCDisconnected(WowConnection* connection, uint32_t timeStamp, const NETCONNADDR* addr) {
     this->m_lock.Enter();
     this->Shutdown();
-    this->SetState(0);
+    this->SetState(ClientLink::STATE_DISCONNECTED);
     this->m_lock.Leave();
 
     if (this->m_clientResponse->Disconnected()) {
@@ -179,7 +179,7 @@ void Grunt::ClientLink::WCDisconnected(WowConnection* connection, uint32_t timeS
 void Grunt::ClientLink::WCCantConnect(WowConnection* connection, uint32_t timeStamp, const NETCONNADDR* addr) {
     this->m_lock.Enter();
     this->Shutdown();
-    this->SetState(0);
+    this->SetState(ClientLink::STATE_DISCONNECTED);
     this->m_lock.Leave();
 
     if (this->m_clientResponse->CantConnect()) {
@@ -204,7 +204,7 @@ void Grunt::ClientLink::PackLogon(CDataStore& msg, const Grunt::ClientLink::Logo
     msg.Put(static_cast<uint32_t>(logon.m_timeZone));
     msg.Put(this->m_localAddress);
 
-    uint8_t length = SStrLen(this->m_accountName);
+    uint8_t length = static_cast<uint8_t>(SStrLen(this->m_accountName));
     msg.Put(length);
     msg.PutData(this->m_accountName, length);
 
@@ -214,7 +214,7 @@ void Grunt::ClientLink::PackLogon(CDataStore& msg, const Grunt::ClientLink::Logo
 // VERIFY: abfd5c66 manual
 // OFFSET: 0x008CD7E0
 void Grunt::ClientLink::LogonNewSession(const Grunt::ClientLink::Logon& logon) {
-    this->SetState(3);
+    this->SetState(ClientLink::STATE_AUTH_CHALLENGE_PENDING);
 
     SStrCopy(this->m_accountName, logon.m_accountName, sizeof(this->m_accountName));
     SStrUpper(this->m_accountName);
@@ -234,7 +234,7 @@ void Grunt::ClientLink::LogonNewSession(const Grunt::ClientLink::Logon& logon) {
     this->m_srpClient.BeginAuthentication(s_accountNameUnDecorated, password);
 
     CDataStoreCache<1024> msg;
-    msg.Put(static_cast<uint8_t>(0));
+    msg.Put(static_cast<uint8_t>(CMD_AUTH_LOGON_CHALLENGE));
     msg.Put(static_cast<uint8_t>(8));
     this->PackLogon(msg, logon);
     msg.Finalize();
@@ -246,14 +246,14 @@ void Grunt::ClientLink::LogonNewSession(const Grunt::ClientLink::Logon& logon) {
 // VERIFY: 902b90a7 manual
 // OFFSET: 0x008CD9F0
 void Grunt::ClientLink::LogonStoredSession(const Grunt::ClientLink::Logon& logon) {
-    this->SetState(3);
+    this->SetState(ClientLink::STATE_AUTH_CHALLENGE_PENDING);
 
     SStrCopy(this->m_accountName, logon.m_accountName, sizeof(this->m_accountName));
     SStrUpper(this->m_accountName);
     memcpy(this->m_reconnectKey, logon.m_password, sizeof(this->m_reconnectKey));
 
     CDataStoreCache<1024> msg;
-    msg.Put(static_cast<uint8_t>(2));
+    msg.Put(static_cast<uint8_t>(CMD_AUTH_RECONNECT_CHALLENGE));
     msg.Put(static_cast<uint8_t>(8));
     this->PackLogon(msg, logon);
     msg.Finalize();
@@ -264,7 +264,7 @@ void Grunt::ClientLink::LogonStoredSession(const Grunt::ClientLink::Logon& logon
 // OFFSET: 0x008CDB90
 void Grunt::ClientLink::SendSurveyData(uint16_t size, uint8_t* data) {
     CDataStoreCache<1024> msg;
-    msg.Put(static_cast<uint8_t>(4));
+    msg.Put(static_cast<uint8_t>(CMD_SURVEY_RESULT));
     msg.Put(this->m_surveyId);
     msg.Put(static_cast<uint8_t>(0));
     msg.Put(size);
@@ -277,7 +277,7 @@ void Grunt::ClientLink::SendSurveyData(uint16_t size, uint8_t* data) {
 // OFFSET: 0x008CDD00
 void Grunt::ClientLink::SendSurveyFailed() {
     CDataStoreCache<1024> msg;
-    msg.Put(static_cast<uint8_t>(4));
+    msg.Put(static_cast<uint8_t>(CMD_SURVEY_RESULT));
     msg.Put(this->m_surveyId);
     msg.Put(static_cast<uint8_t>(1));
     msg.Put(static_cast<uint16_t>(0));
@@ -294,7 +294,7 @@ void Grunt::Timer::Insert(Grunt::Timer::Event& event) {
 
     for (Grunt::Timer::Event* existing = this->m_list.Head(); !this->m_list.IsEnd(existing); existing = this->m_list.RawNext(existing)) {
         if (static_cast<int32_t>(event.m_nextTime - existing->m_nextTime) < 0) {
-            this->m_list.LinkNode(&event, 2, existing);
+            this->m_list.LinkNode(&event, TSLIST_LINK_BEFORE, existing);
             this->m_lock.Leave();
             return;
         }
@@ -406,9 +406,9 @@ void Grunt::ClientLink::Call() {
 
     this->m_lock.Enter();
 
-    if (this->m_state == 2) {
+    if (this->m_state == ClientLink::STATE_CONNECTED) {
         this->m_clientResponse->GetLogonMethod();
-    } else if (this->m_state == 6 && !this->m_clientResponse->OnlineIdle()) {
+    } else if (this->m_state == ClientLink::STATE_ONLINE && !this->m_clientResponse->OnlineIdle()) {
         this->Disconnect();
     }
 
@@ -444,7 +444,7 @@ Grunt::Timer::Timer() : m_event(0, 0) {
 // VERIFY: ec01e82e manual
 // OFFSET: 0x008CF800
 Grunt::ClientLink::ClientLink(Grunt::ClientResponse& clientResponse) : Grunt::Pending(18000), m_serverId(0), m_accountFlags(0), m_surveyId(0), m_localAddress(0), m_connection(nullptr), m_clientResponse(&clientResponse) {
-    this->SetState(0);
+    this->SetState(ClientLink::STATE_DISCONNECTED);
 
     if (this->m_timer.m_thread.Valid()) {
         this->m_interval = 100;
@@ -509,7 +509,7 @@ int32_t Grunt::ClientLink::CmdRealmList(CDataStore& msg) {
         msg.Get(timeZone);
         msg.Get(realmId);
 
-        if (flags & 0x4) {
+        if (flags & REALM_FLAG_SPECIFY_BUILD) {
             uint8_t versionMajor;
             uint8_t versionMinor;
             uint8_t versionRevision;
@@ -559,7 +559,7 @@ int32_t Grunt::ClientLink::CmdAuthLogonChallenge(CDataStore& msg) {
     uint8_t result;
     msg.Get(result);
 
-    if (result == Grunt::GRUNT_RESULT_SUCCESS) {
+    if (result == GRUNT_RESULT_SUCCESS) {
         if (msg.m_read > msg.m_size || msg.m_size - msg.m_read < 33) {
             return 0;
         }
@@ -603,7 +603,7 @@ int32_t Grunt::ClientLink::CmdAuthLogonChallenge(CDataStore& msg) {
         uint32_t pinSeed = 0;
         void* pinSalt = nullptr;
 
-        if (securityFlags & 0x1) {
+        if (securityFlags & GRUNT_SECURITY_PIN) {
             if (!CanReadNumBytes(msg, 20)) {
                 return 0;
             }
@@ -618,7 +618,7 @@ int32_t Grunt::ClientLink::CmdAuthLogonChallenge(CDataStore& msg) {
         uint8_t matrixChallengeCount = 0;
         uint64_t matrixSeed = 0;
 
-        if (securityFlags & 0x2) {
+        if (securityFlags & GRUNT_SECURITY_MATRIX) {
             if (!CanReadNumBytes(msg, 12)) {
                 return 0;
             }
@@ -629,7 +629,7 @@ int32_t Grunt::ClientLink::CmdAuthLogonChallenge(CDataStore& msg) {
             msg.Get(matrixChallengeCount);
             msg.Get(matrixSeed);
 
-            if ((securityFlags & 0x2) && !matrixChallengeCount) {
+            if ((securityFlags & GRUNT_SECURITY_MATRIX) && !matrixChallengeCount) {
                 return 1;
             }
 
@@ -640,7 +640,7 @@ int32_t Grunt::ClientLink::CmdAuthLogonChallenge(CDataStore& msg) {
 
         uint8_t tokenRequired = 0;
 
-        if (securityFlags & 0x4) {
+        if (securityFlags & GRUNT_SECURITY_TOKEN) {
             if (!CanReadNumBytes(msg, 1)) {
                 return 0;
             }
@@ -659,13 +659,13 @@ int32_t Grunt::ClientLink::CmdAuthLogonChallenge(CDataStore& msg) {
         SRP6_Random random(seed, sizeof(seed));
 
         if (this->m_srpClient.CalculateProof(static_cast<uint8_t*>(largeSafePrime), largeSafePrimeLength, static_cast<uint8_t*>(generator), generatorLength, static_cast<uint8_t*>(salt), 32, static_cast<uint8_t*>(serverPublicKey), 32, random)) {
-            this->SetState(2);
-            this->m_clientResponse->LogonResult(Grunt::GRUNT_RESULT_INCORRECT_PASSWORD, nullptr, 0, 0);
+            this->SetState(ClientLink::STATE_CONNECTED);
+            this->m_clientResponse->LogonResult(GRUNT_RESULT_INCORRECT_PASSWORD, nullptr, 0, 0);
         } else {
-            this->SetState(4);
-            this->m_clientResponse->SetPinInfo((securityFlags & 0x1) == 0x1, pinSeed, static_cast<uint8_t*>(pinSalt));
-            this->m_clientResponse->SetMatrixInfo((securityFlags & 0x2) == 0x2, matrixWidth, matrixHeight, matrixDigitCount, matrixDigitCount, false, matrixChallengeCount, matrixSeed, this->m_srpClient.m_sessionKey, sizeof(this->m_srpClient.m_sessionKey));
-            this->m_clientResponse->SetTokenInfo((securityFlags & 0x4) == 0x4, tokenRequired);
+            this->SetState(ClientLink::STATE_LOGON_VERSION_PROOF_PENDING);
+            this->m_clientResponse->SetPinInfo((securityFlags & GRUNT_SECURITY_PIN) == GRUNT_SECURITY_PIN, pinSeed, static_cast<uint8_t*>(pinSalt));
+            this->m_clientResponse->SetMatrixInfo((securityFlags & GRUNT_SECURITY_MATRIX) == GRUNT_SECURITY_MATRIX, matrixWidth, matrixHeight, matrixDigitCount, matrixDigitCount, false, matrixChallengeCount, matrixSeed, this->m_srpClient.m_sessionKey, sizeof(this->m_srpClient.m_sessionKey));
+            this->m_clientResponse->SetTokenInfo((securityFlags & GRUNT_SECURITY_TOKEN) == GRUNT_SECURITY_TOKEN, tokenRequired);
             this->m_clientResponse->GetVersionProof(static_cast<uint8_t*>(versionChallenge));
         }
 
@@ -676,14 +676,14 @@ int32_t Grunt::ClientLink::CmdAuthLogonChallenge(CDataStore& msg) {
         return 1;
     }
 
-    this->SetState(2);
+    this->SetState(ClientLink::STATE_CONNECTED);
 
     if (result >= 33) {
         DebugLog("Unknown grunt result %d @ %d", result, __LINE__);
-        result = Grunt::GRUNT_RESULT_DISCONNECTED;
+        result = GRUNT_RESULT_DISCONNECTED;
     }
 
-    this->m_clientResponse->LogonResult(static_cast<Grunt::Result>(result), nullptr, 0, 0);
+    this->m_clientResponse->LogonResult(static_cast<GRUNT_RESULT>(result), nullptr, 0, 0);
 
     return 2;
 }
@@ -698,7 +698,7 @@ int32_t Grunt::ClientLink::CmdAuthLogonProof(CDataStore& msg) {
     uint8_t result;
     msg.Get(result);
 
-    if (result == Grunt::GRUNT_RESULT_SUCCESS) {
+    if (result == GRUNT_RESULT_SUCCESS) {
         if (msg.m_read > msg.m_size || msg.m_size - msg.m_read < 24) {
             return 0;
         }
@@ -724,20 +724,20 @@ int32_t Grunt::ClientLink::CmdAuthLogonProof(CDataStore& msg) {
         }
 
         if (this->m_srpClient.VerifyServerProof(static_cast<uint8_t*>(serverProof), 20)) {
-            this->SetState(2);
-            this->m_clientResponse->LogonResult(Grunt::GRUNT_RESULT_UNKNOWN_11, nullptr, 0, 0);
+            this->SetState(ClientLink::STATE_CONNECTED);
+            this->m_clientResponse->LogonResult(GRUNT_RESULT_UNKNOWN_11, nullptr, 0, 0);
         } else {
             this->m_accountFlags = accountFlags;
             this->m_serverId = 0;
             this->m_surveyId = surveyId;
-            this->SetState(6);
-            this->m_clientResponse->LogonResult(Grunt::GRUNT_RESULT_SUCCESS, this->m_srpClient.m_sessionKey, sizeof(this->m_srpClient.m_sessionKey), loginFlags);
+            this->SetState(ClientLink::STATE_ONLINE);
+            this->m_clientResponse->LogonResult(GRUNT_RESULT_SUCCESS, this->m_srpClient.m_sessionKey, sizeof(this->m_srpClient.m_sessionKey), loginFlags);
         }
 
         return 2;
     }
 
-    if (result == Grunt::GRUNT_RESULT_UNKNOWN_ACCOUNT) {
+    if (result == GRUNT_RESULT_UNKNOWN_ACCOUNT) {
         if (msg.m_read > msg.m_size || msg.m_size - msg.m_read < 2) {
             return 0;
         }
@@ -750,15 +750,15 @@ int32_t Grunt::ClientLink::CmdAuthLogonProof(CDataStore& msg) {
         return 1;
     }
 
-    if (result != Grunt::GRUNT_RESULT_DOWNLOAD_FILE) {
-        this->SetState(2);
+    if (result != GRUNT_RESULT_DOWNLOAD_FILE) {
+        this->SetState(ClientLink::STATE_CONNECTED);
 
         if (result >= 33) {
             DebugLog("Unknown grunt result %d @ %d", result, __LINE__);
-            result = Grunt::GRUNT_RESULT_DISCONNECTED;
+            result = GRUNT_RESULT_DISCONNECTED;
         }
 
-        this->m_clientResponse->LogonResult(static_cast<Grunt::Result>(result), nullptr, 0, 0);
+        this->m_clientResponse->LogonResult(static_cast<GRUNT_RESULT>(result), nullptr, 0, 0);
     }
 
     return 2;
@@ -798,12 +798,12 @@ void Grunt::ClientLink::WCDataReady(WowConnection* connection, uint32_t timeStam
 // VERIFY: 8e4d36ef manual
 // OFFSET: 0x008CE0F0
 void Grunt::ClientLink::GetRealmList() {
-    if (this->m_state != 6) {
+    if (this->m_state != ClientLink::STATE_ONLINE) {
         return;
     }
 
     CDataStoreCache<1024> msg;
-    msg.Put(static_cast<uint8_t>(0x10));
+    msg.Put(static_cast<uint8_t>(CMD_REALM_LIST));
     msg.Put(static_cast<uint32_t>(0));
     msg.Finalize();
     this->Send(msg);
@@ -823,8 +823,8 @@ void Grunt::ClientLink::ProveVersion(const uint8_t* versionChecksum) {
         cdKeys.m_count = 0;
     }
 
-    if (this->m_state == 4) {
-        msg.Put(static_cast<uint8_t>(1));
+    if (this->m_state == ClientLink::STATE_LOGON_VERSION_PROOF_PENDING) {
+        msg.Put(static_cast<uint8_t>(CMD_AUTH_LOGON_PROOF));
         msg.PutData(this->m_srpClient.m_publicKey, sizeof(this->m_srpClient.m_publicKey));
         msg.PutData(this->m_srpClient.m_clientProof, sizeof(this->m_srpClient.m_clientProof));
 
@@ -872,7 +872,7 @@ void Grunt::ClientLink::ProveVersion(const uint8_t* versionChecksum) {
         char token[17] = {};
         bool tokenEnabled;
         this->m_clientResponse->GetTokenInfo(&tokenEnabled, token);
-        uint8_t tokenLength = SStrLen(token);
+        uint8_t tokenLength = static_cast<uint8_t>(SStrLen(token));
 
         if (tokenEnabled) {
             securityFlags |= 0x4;
@@ -894,7 +894,7 @@ void Grunt::ClientLink::ProveVersion(const uint8_t* versionChecksum) {
             msg.PutArray(reinterpret_cast<uint8_t*>(token), tokenLength);
         }
     } else {
-        uint32_t length = SStrLen(this->m_accountName);
+        uint32_t length = static_cast<uint32_t>(SStrLen(this->m_accountName));
 
         uint8_t clientSalt[16];
         MD5_CTX md5;
@@ -904,7 +904,7 @@ void Grunt::ClientLink::ProveVersion(const uint8_t* versionChecksum) {
         MD5Update(&md5, clientSalt, sizeof(clientSalt));
         MD5Final(clientSalt, &md5);
 
-        msg.Put(static_cast<uint8_t>(3));
+        msg.Put(static_cast<uint8_t>(CMD_AUTH_RECONNECT_PROOF));
         msg.PutData(clientSalt, sizeof(clientSalt));
 
         SHA1_Init(&context);
@@ -967,7 +967,7 @@ int32_t Grunt::ClientLink::CmdAuthReconnectChallenge(CDataStore& msg) {
     }
 
     memcpy(this->m_serverChallenge, challenge, 16);
-    this->SetState(5);
+    this->SetState(ClientLink::STATE_RECONNECT_VERSION_PROOF_PENDING);
     this->m_clientResponse->GetVersionProof(static_cast<const uint8_t*>(versionChallenge));
     return 2;
 }
@@ -987,13 +987,13 @@ int32_t Grunt::ClientLink::CmdAuthReconnectProof(CDataStore& msg) {
     }
 
     if (result) {
-        this->SetState(2);
+        this->SetState(ClientLink::STATE_CONNECTED);
 
         if (result >= 33) {
-            result = Grunt::GRUNT_RESULT_DISCONNECTED;
+            result = GRUNT_RESULT_DISCONNECTED;
         }
 
-        this->m_clientResponse->ReconnectResult(static_cast<Grunt::Result>(result), nullptr, 0, 0);
+        this->m_clientResponse->ReconnectResult(static_cast<GRUNT_RESULT>(result), nullptr, 0, 0);
         return 2;
     }
 
@@ -1003,8 +1003,8 @@ int32_t Grunt::ClientLink::CmdAuthReconnectProof(CDataStore& msg) {
 
     uint16_t flags = 0;
     msg.Get(flags);
-    this->SetState(6);
-    this->m_clientResponse->ReconnectResult(Grunt::GRUNT_RESULT_SUCCESS, this->m_reconnectKey, sizeof(this->m_reconnectKey), flags);
+    this->SetState(ClientLink::STATE_ONLINE);
+    this->m_clientResponse->ReconnectResult(GRUNT_RESULT_SUCCESS, this->m_reconnectKey, sizeof(this->m_reconnectKey), flags);
     return 2;
 }
 
@@ -1076,13 +1076,13 @@ void Grunt::ClientLink::FileStatus(bool accept, uint64_t offset) {
 
     if (accept) {
         if (offset) {
-            msg.Put(static_cast<uint8_t>(0x33));
+            msg.Put(static_cast<uint8_t>(CMD_XFER_RESUME));
             msg.Put(offset);
         } else {
-            msg.Put(static_cast<uint8_t>(0x32));
+            msg.Put(static_cast<uint8_t>(CMD_XFER_ACCEPT));
         }
     } else {
-        msg.Put(static_cast<uint8_t>(0x34));
+        msg.Put(static_cast<uint8_t>(CMD_XFER_CANCEL));
     }
 
     msg.Finalize();
@@ -1093,14 +1093,14 @@ void Grunt::ClientLink::FileStatus(bool accept, uint64_t offset) {
 // OFFSET: 0x008CDFC0
 void Grunt::ClientLink::FileComplete() {
     CDataStoreCache<1024> msg;
-    msg.Put(static_cast<uint8_t>(0x34));
+    msg.Put(static_cast<uint8_t>(CMD_XFER_CANCEL));
     msg.Finalize();
     this->Send(msg);
 }
 
 // INLINED
 const char* Grunt::ServerLink::GetLinkTypeName() const {
-    return this->m_linkType <= 1 ? s_linkTypeNames[this->m_linkType] : "None";
+    return this->m_linkType <= SERVER_LINK_BATTLENET ? s_linkTypeNames[this->m_linkType] : "None";
 }
 
 // VERIFY: 24f16393 manual
@@ -1216,7 +1216,7 @@ void Grunt::ServerLink::Send(CDataStore& msg) {
 void Grunt::ServerLink::SendConnected(CDataStore& msg) {
     this->m_lock.Enter();
 
-    if (this->m_connection && this->m_state == 3) {
+    if (this->m_connection && this->m_state == SERVER_STATE_CONNECTED) {
         uint32_t size = msg.m_size;
         void* data;
         msg.GetDataInSitu(data, size);
@@ -1320,7 +1320,7 @@ int32_t Grunt::ServerLink::CmdGruntAuthChallenge(CDataStore& msg) {
         return 1;
     }
 
-    uint32_t nameLength = SStrLen(this->m_serverName);
+    uint32_t nameLength = static_cast<uint32_t>(SStrLen(this->m_serverName));
     DebugLog("%s Auth Challenge. Server name=%s", this->GetLinkTypeName(), this->m_serverName);
 
     uint8_t salt[16];
@@ -1429,7 +1429,7 @@ int32_t Grunt::ServerLink::CmdGruntHello(CDataStore& msg) {
     CDataStoreCache<1024> reply;
     reply.Put(static_cast<uint8_t>(0x20));
 
-    if (this->m_linkType != 0 && this->m_linkType != 1) {
+    if (this->m_linkType != SERVER_LINK_GRUNT && this->m_linkType != SERVER_LINK_BATTLENET) {
         return 1;
     }
 
@@ -1437,12 +1437,12 @@ int32_t Grunt::ServerLink::CmdGruntHello(CDataStore& msg) {
     uint8_t revision = 0;
 
     switch (this->m_linkType) {
-        case 0:
+        case SERVER_LINK_GRUNT:
             typeName = "Grunt";
             revision = 0x20;
             break;
 
-        case 1:
+        case SERVER_LINK_BATTLENET:
             typeName = "Battle.net";
             revision = 0x21;
             break;
@@ -1507,13 +1507,13 @@ int32_t Grunt::ServerLink::CmdGruntHello(CDataStore& msg) {
     reply.m_read = 0;
     this->Send(reply);
 
-    if (this->m_linkType == 1) {
+    if (this->m_linkType == SERVER_LINK_BATTLENET) {
         this->m_response->HelloComplete();
     }
 
-    this->m_state = 3;
+    this->m_state = SERVER_STATE_CONNECTED;
 
-    if (this->m_linkType == 1) {
+    if (this->m_linkType == SERVER_LINK_BATTLENET) {
         this->SendFeatures();
     }
 
@@ -1566,17 +1566,17 @@ int32_t Grunt::ServerLink::CmdGruntProveSession(CDataStore& msg) {
         msg.Get(info.m_expansionLevel);
         msg.Get(reinterpret_cast<uint32_t&>(info.unk_0068));
 
-        info.m_accountFlags &= 0x6A8E040F;
+        info.m_accountFlags &= ACCOUNT_FLAGS_RETAINED_MASK;
 
         if (info.unk_0068 > 0) {
-            info.m_accountFlags |= 0x10;
+            info.m_accountFlags |= ACCOUNT_UNKNOWN_10;
         }
 
         msg.Get(info.unk_006C);
         msg.Get(info.m_referrerAccountId);
         msg.Get(reinterpret_cast<uint32_t&>(info.m_referralTime));
 
-        if (this->m_linkType == 1) {
+        if (this->m_linkType == SERVER_LINK_BATTLENET) {
             msg.Get(info.unk_007C);
         }
 

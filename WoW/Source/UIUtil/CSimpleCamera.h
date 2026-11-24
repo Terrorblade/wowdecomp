@@ -5,6 +5,7 @@
 #include <cstdint>
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/C33Matrix.h"
+#include "Engine/Source/Tempest/CRange.h"
 
 class CM2Scene;
 class CRect;

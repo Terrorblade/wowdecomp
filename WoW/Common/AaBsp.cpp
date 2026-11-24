@@ -47,13 +47,13 @@ void CAaBspDigestCache::GenerateDigest(CAaBspNodeDigest* digest, const CAaBsp& b
 
     memset(digest, 0, sizeof(*digest));
     digest->m_node = node;
-    digest->m_status = 0;
+    digest->m_status = CAaBspNodeDigest::STATUS_OK;
     digest->m_nVertices = 0;
     digest->m_nFaces = 0;
     memset(hash, 0xFF, sizeof(hash));
 
     if (node->m_nFaces > sizeof(digest->m_faceIndices) / sizeof(digest->m_faceIndices[0])) {
-        digest->m_status = 1;
+        digest->m_status = CAaBspNodeDigest::STATUS_TOO_MANY_FACES;
         return;
     }
 
@@ -74,7 +74,7 @@ void CAaBspDigestCache::GenerateDigest(CAaBspNodeDigest* digest, const CAaBsp& b
                     found = index;
                 } else if (hash[index] == 0xFFFF) {
                     if (digest->m_nVertices >= sizeof(digest->m_vertices) / sizeof(digest->m_vertices[0])) {
-                        digest->m_status = 2;
+                        digest->m_status = CAaBspNodeDigest::STATUS_TOO_MANY_VERTICES;
                         return;
                     }
 
@@ -92,7 +92,7 @@ void CAaBspDigestCache::GenerateDigest(CAaBspNodeDigest* digest, const CAaBsp& b
             digest->m_faceVertexIndices[digest->m_nFaces * 3 + j] = slots[found];
         }
 
-        digest->m_faceFlags[digest->m_nFaces] = faces[face].m_flags & ~0x80;
+        digest->m_faceFlags[digest->m_nFaces] = faces[face].m_flags & ~SMOPoly::F_COLLIDE_HIT;
         digest->m_nFaces++;
     }
 }
@@ -127,7 +127,7 @@ CAaBsp::CAaBsp() {
 void CAaBsp::Free() {
     if (g_BspDigestCache) {
         for (uint32_t i = 0; i < this->m_nNodes; i++) {
-            if (this->m_nodes[i].m_flags & 0x4) {
+            if (this->m_nodes[i].m_flags & CAaBspNode::Flag_Leaf) {
                 g_BspDigestCache->RemoveEntry(&this->m_nodes[i]);
             }
         }

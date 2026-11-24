@@ -110,6 +110,13 @@ LUA_API int lua_taintedclosure;
 LUA_API const char *lua_closuretaint;
 LUA_API const char *lua_gctag;
 
+enum {
+  LUA_TAINTEVENT_GLOBAL_TAINTED = 1,
+  LUA_TAINTEVENT_EXECUTION_TAINTED = 2,
+  LUA_TAINTEVENT_ACTION_BLOCKED = 3,
+  LUA_TAINTEVENT_ACTION_BLOCKED_COMBAT = 4
+};
+
 typedef void (*lua_TaintEventCallback) (lua_State *L, int event, const char *name, const char *taint);
 LUA_API lua_TaintEventCallback lua_tainteventcallback;
 

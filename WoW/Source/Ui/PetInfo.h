@@ -8,9 +8,61 @@
 
 class CDataStore;
 struct lua_State;
+constexpr uint32_t NUM_PET_ACTION_SLOTS = 10;
+constexpr int32_t NUM_DECLINED_NAME_CASES = 5;
+
+enum PET_MODE : uint32_t {
+    PET_MODE_PASSIVE = 0,
+    PET_MODE_DEFENSIVE = 1,
+    PET_MODE_AGGRESSIVE = 2,
+    NUM_PET_MODES = 3,
+};
+
+enum PET_ORDER : uint32_t {
+    PET_ORDER_WAIT = 0,
+    PET_ORDER_FOLLOW = 1,
+    PET_ORDER_ATTACK = 2,
+    PET_ORDER_DISMISS = 3,
+    NUM_PET_ORDERS = 4,
+};
 
 class PetAction {
     public:
+    enum Kind : int32_t {
+        SPELL = 1,
+        MODE = 6,
+        ORDER = 7,
+        UNKNOWN_8 = 8,
+        UNKNOWN_9 = 9,
+        UNKNOWN_10 = 10,
+        UNKNOWN_11 = 11,
+        UNKNOWN_12 = 12,
+        UNKNOWN_13 = 13,
+        UNKNOWN_14 = 14,
+        UNKNOWN_15 = 15,
+        UNKNOWN_16 = 16,
+        UNKNOWN_17 = 17,
+    };
+
+    enum PackedKind : int32_t {
+        PACKED_SPELL = 0x1000000,
+        PACKED_MODE = 0x06000000,
+        PACKED_ORDER = 0x07000000,
+    };
+
+    enum PackingMasks : uint32_t {
+        ID_MASK = 0xffffff,
+        KIND_MASK = 0x3f000000,
+        IDENTITY_MASK = 0x3fffffff,
+        ATTRIBUTES_MASK = 0xff000000,
+        KIND_VALUE_MASK = 0x3f,
+    };
+
+    enum AutocastFlags : uint32_t {
+        AUTOCAST_ENABLED = 0x40000000,
+        AUTOCAST_ALLOWED = 0x80000000,
+    };
+
     /* 0000 */ uint32_t m_data;
 
     void SetAutocast(bool enable);
@@ -18,6 +70,12 @@ class PetAction {
 
 class CGPetInfo {
     public:
+    enum : uint32_t {
+        PET_MODE_MASK = 0xFF,
+        PET_ORDERS_SHIFT = 8,
+        PET_MODE_FLAG_UNKNOWN_27 = 0x8000000,
+    };
+
     static uint8_t m_comboPoints;
     static int32_t m_possessSpell;
     static WOWGUID m_comboTarget;

@@ -1,8 +1,16 @@
 #ifndef WOW_SOURCE_LIQUIDSYSTEM_TYPES_H
 #define WOW_SOURCE_LIQUIDSYSTEM_TYPES_H
 
+#include "Engine/Source/Tempest/CRange.h"
+
 #include <cstddef>
 #include <cstdint>
+
+enum LIQUID_VERTEX_FORMAT : uint16_t {
+    LIQUID_VERTEX_HEIGHT_DEPTH = 0,
+    LIQUID_VERTEX_HEIGHT_TEXCOORD = 1,
+    LIQUID_VERTEX_DEPTH_ONLY = 2,
+};
 
 struct SMLiquidChunkDesc {
     /* 0000 */ uint32_t m_offsetInstances;

@@ -13,7 +13,7 @@ struct IMPACTSOUND {
 };
 
 struct IMPACTSOUNDARRAY {
-    /* 0000 */ IMPACTSOUND m_sounds[10][NUM_PARRYMATERIALS];
+    /* 0000 */ IMPACTSOUND m_sounds[10][NUM_WEAPONMATERIALS];
 };
 
 #endif

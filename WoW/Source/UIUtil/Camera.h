@@ -12,6 +12,7 @@
 #include "WoW/Source/UIUtil/CSimpleCamera.h"
 #include "WoW/Source/UIUtil/Types.h"
 #include "Engine/Source/Services/CameraInt.h"
+#include "Engine/Source/Tempest/CRange.h"
 
 class CGObject_C;
 class CGUnit_C;
@@ -74,6 +75,101 @@ class CGInputControl;
 
 class CGCamera : public CSimpleCamera {
     public:
+    enum VIEW_MODE : int32_t {
+        VIEW_FIRST_PERSON = 0,
+        VIEW_THIRD_PERSON_A = 1,
+        VIEW_THIRD_PERSON_B = 2,
+        VIEW_THIRD_PERSON_C = 3,
+        VIEW_THIRD_PERSON_D = 4,
+        VIEW_THIRD_PERSON_E = 5,
+        VIEW_COMMENTATOR = 6,
+        VIEW_BARBER_SHOP = 7,
+        MAX_CAMERA_VIEWS,
+    };
+
+    enum VIEW_BLEND_STYLE : int32_t {
+        VIEW_BLEND_NONE = 0,
+        VIEW_BLEND_SMOOTH = 1,
+        VIEW_BLEND_INSTANT = 2,
+    };
+
+    enum VIEW_TRANSITION : int32_t {
+        VIEW_TRANSITION_NONE = 0,
+        VIEW_TRANSITION_TELESCOPE_ENTER = 1,
+        VIEW_TRANSITION_TELESCOPE_LEAVE = 2,
+    };
+
+    enum VEHICLE_TRACKING_STYLE : uint32_t {
+        TRACKING_USER_STYLE = 0,
+        TRACKING_IGNORE_FACING = 1,
+        TRACKING_FOLLOW_FACING = 2,
+    };
+
+    enum MOTION_FLAGS : int32_t {
+        FLAG_MOTION_NONE = 0,
+        FLAG_MOVE_IN_ACTIVE = 0x1,
+        FLAG_MOVE_IN_STOP_REQUESTED = 0x2,
+        FLAG_MOVE_OUT_ACTIVE = 0x4,
+        FLAG_MOVE_OUT_STOP_REQUESTED = 0x8,
+        FLAG_MOVE_RIGHT_ACTIVE = 0x10,
+        FLAG_MOVE_RIGHT_STOP_REQUESTED = 0x20,
+        FLAG_MOVE_LEFT_ACTIVE = 0x40,
+        FLAG_MOVE_LEFT_STOP_REQUESTED = 0x80,
+        FLAG_MOVE_UP_ACTIVE = 0x100,
+        FLAG_MOVE_UP_STOP_REQUESTED = 0x200,
+        FLAG_MOVE_DOWN_ACTIVE = 0x400,
+        FLAG_MOVE_DOWN_STOP_REQUESTED = 0x800,
+        FLAG_MOVE_IN_MASK = 0x3,
+        FLAG_MOVE_OUT_MASK = 0xC,
+    };
+
+    enum STATE_FLAGS : uint32_t {
+        STATE_NONE                           = 0x00000000u,
+        STATE_FREE_LOOK                      = 0x00000001u,
+        STATE_UNDERWATER_INITIALIZED         = 0x00000002u,
+        STATE_LOADED                         = 0x00000004u,
+        STATE_TELESCOPE                      = 0x00000008u,
+        STATE_INITIALIZED                    = 0x00000010u,
+        STATE_FREE_LOOK_DISABLED             = 0x00000020u,
+        STATE_VIEW_MODIFIED                  = 0x00000040u,
+        STATE_HEIGHT_INITIALIZED             = 0x00000080u,
+        STATE_TRACKING                       = 0x00000100u,
+        STATE_BOBBING                        = 0x00000200u,
+        STATE_UNCONTROLLED                   = 0x00001000u,
+        STATE_TRACKING_IGNORES_FACING        = 0x00002000u,
+        STATE_FREE_LOOK_FACING               = 0x00004000u,
+        STATE_TELESCOPE_ENTERING             = 0x00008000u,
+        STATE_DISTANCE_COLLISION             = 0x00010000u,
+        STATE_HEIGHT_COLLISION               = 0x00020000u,
+        STATE_LIQUID_SURFACED                = 0x00100000u,
+        STATE_LIQUID_SUBMERGED               = 0x00200000u,
+        STATE_SMOOTH_FLYING_HEIGHT           = 0x00400000u,
+        STATE_MOUNT_HEIGHT_INITIALIZED       = 0x00800000u,
+        STATE_SMOOTH_YAW                     = 0x01000000u,
+        STATE_SMOOTH_PITCH                   = 0x02000000u,
+        STATE_SMOOTH_DISTANCE                = 0x04000000u,
+        STATE_SMOOTH_TARGET_OFFSET           = 0x08000000u,
+        STATE_SMOOTH_GROUND_TILT             = 0x10000000u,
+        STATE_SMOOTH_HEIGHT                  = 0x20000000u,
+        STATE_SMOOTH_FOV                     = 0x40000000u,
+        STATE_TELESCOPE_LEAVING              = 0x80000000u,
+        STATE_COLLISION_MASK = STATE_DISTANCE_COLLISION | STATE_HEIGHT_COLLISION,
+        STATE_LIQUID_MASK = STATE_LIQUID_SURFACED | STATE_LIQUID_SUBMERGED,
+        STATE_TELESCOPE_TRANSITION_MASK = STATE_TELESCOPE_ENTERING | STATE_TELESCOPE_LEAVING,
+    };
+
+    enum FLAGS : uint32_t {
+        FLAG_NONE                            = 0x00000000u,
+        FLAG_AUTO_INTERACT                   = 0x00000001u,
+        FLAG_TARGET_FREE_LOOK                = 0x00000002u,
+        FLAG_PRESERVE_FREE_LOOK_FACING       = 0x00000004u,
+        FLAG_VEHICLE_ZOOM_MIN                = 0x00000008u,
+        FLAG_VEHICLE_ZOOM_MAX                = 0x00000010u,
+        FLAG_VEHICLE_EXIT_ZOOM               = 0x00000020u,
+        FLAG_ZOOM_TO_DISTANCE                = 0x00000040u,
+        FLAG_MOUNT_CAMERA_POSITION           = 0x00000080u,
+    };
+
     int32_t GetCameraDistance(float& distance, const C3Vector& position, const C3Vector& target, uint32_t flags);
     void ResetView(int32_t view);
     void SetView(int32_t view, int32_t blendStyle, int32_t transition);
@@ -119,7 +215,7 @@ class CGCamera : public CSimpleCamera {
     /* 00AC */ int32_t m_ignoreFacingRefs;
     /* 00B0 */ int32_t m_groundTiltRefs;
     /* 00B4 */ uint32_t m_viewIndex;
-    /* 00B8 */ CameraView m_views [8];
+    /* 00B8 */ CameraView m_views [MAX_CAMERA_VIEWS];
     /* 0118 */ float m_distance;
     /* 011C */ float m_yaw;
     /* 0120 */ float m_pitch;
@@ -283,19 +379,77 @@ class CGCamera : public CSimpleCamera {
 extern float MAX_PITCH_ANGLE;
 extern float MIN_PITCH_ANGLE;
 extern int32_t s_cameraViewAngular[3];
-extern CAMERA_DEFAULTS s_cameraViewDefaults[8];
+extern CAMERA_DEFAULTS s_cameraViewDefaults[CGCamera::MAX_CAMERA_VIEWS];
 extern const float s_terrainTiltTable[10][2];
 extern float s_targetHeightOffset;
 extern float s_cameraBobFrequency;
 extern float s_cameraBobVerticalAmplitude;
 extern float s_cameraBobHorizontalAmplitude;
+constexpr float MIN_CAMERA_DIST = 0.0f;
+constexpr float MAX_CAMERA_DIST = 50.0f;
+
+enum CAMERA_SMOOTH_STYLE : int32_t {
+    CAMERA_SMOOTH_STYLE_NEVER = 0,
+    CAMERA_SMOOTH_STYLE_SMART = 1,
+    CAMERA_SMOOTH_STYLE_ALWAYS = 2,
+    CAMERA_SMOOTH_STYLE_SPLINE = 3,
+    CAMERA_SMOOTH_STYLE_SMARTER = 4,
+    NUM_CAMERA_SMOOTH_STYLES,
+};
+
+enum CAMERA_SMOOTH_STATE : int32_t {
+    CAMERA_SMOOTH_STATE_IDLE = 0,
+    CAMERA_SMOOTH_STATE_STOP = 1,
+    CAMERA_SMOOTH_STATE_TRACK = 2,
+    CAMERA_SMOOTH_STATE_MOVE = 3,
+    CAMERA_SMOOTH_STATE_STRAFE = 4,
+    CAMERA_SMOOTH_STATE_TURN = 5,
+    CAMERA_SMOOTH_STATE_FEAR = 6,
+    NUM_CAMERA_SMOOTH_STATES,
+};
+#define CAMERA_SMOOTH_STATE_BIT(state) (1u << (state))
+#define CAMERA_SMOOTH_STATE_ALL_BITS (CAMERA_SMOOTH_STATE_BIT(NUM_CAMERA_SMOOTH_STATES) - 1)
+
+enum CAMERA_SMOOTH_PARAM : int32_t {
+    CAMERA_SMOOTH_PARAM_DELAY = 0,
+    CAMERA_SMOOTH_PARAM_FACTOR = 1,
+    NUM_CAMERA_SMOOTH_PARAMS,
+};
+
+enum CAMERA_VIEW_DATA : int32_t {
+    CAMERA_VIEW_DATA_DISTANCE = 0,
+    CAMERA_VIEW_DATA_PITCH = 1,
+    CAMERA_VIEW_DATA_YAW = 2,
+    NUM_CAMERA_VIEW_DATA,
+};
+
+enum CAMERA_TERRAIN_TILT_STATE : int32_t {
+    CAMERA_TERRAIN_TILT_STATE_FALL = 0,
+    CAMERA_TERRAIN_TILT_STATE_FEAR = 1,
+    CAMERA_TERRAIN_TILT_STATE_IDLE = 2,
+    CAMERA_TERRAIN_TILT_STATE_JUMP = 3,
+    CAMERA_TERRAIN_TILT_STATE_MOVE = 4,
+    CAMERA_TERRAIN_TILT_STATE_STRAFE = 5,
+    CAMERA_TERRAIN_TILT_STATE_SWIM = 6,
+    CAMERA_TERRAIN_TILT_STATE_TAXI = 7,
+    CAMERA_TERRAIN_TILT_STATE_TRACK = 8,
+    CAMERA_TERRAIN_TILT_STATE_TURN = 9,
+    NUM_CAMERA_TERRAIN_TILT_STATES,
+};
+
+enum CAMERA_TERRAIN_TILT_PARAM : int32_t {
+    CAMERA_TERRAIN_TILT_PARAM_ABSORB = 0,
+    CAMERA_TERRAIN_TILT_PARAM_DELAY = 1,
+    CAMERA_TERRAIN_TILT_PARAM_FACTOR = 2,
+    NUM_CAMERA_TERRAIN_TILT_PARAMS,
+};
 
 extern CVar* s_cvCameraView;
-extern CVar* s_cvCameraViewData[8][3];
+extern CVar* s_cvCameraViewData[CGCamera::MAX_CAMERA_VIEWS][NUM_CAMERA_VIEW_DATA];
 extern CVar* s_cameraSmooth;
 extern CVar* s_cvCameraSmoothStyle;
 extern CVar* s_cvCameraTerrainTilt;
-extern CVar* s_cvCameraTerrainTiltState[5][10][3];
+extern CVar* s_cvCameraTerrainTiltState[NUM_CAMERA_SMOOTH_STYLES][NUM_CAMERA_TERRAIN_TILT_STATES][NUM_CAMERA_TERRAIN_TILT_PARAMS];
 extern CVar* s_cvCameraTerrainTiltTimeMin;
 extern CVar* s_cvCameraTerrainTiltTimeMax;
 extern CVar* s_cvCameraGroundSmoothSpeed;
@@ -332,8 +486,8 @@ extern CVar* s_cvCameraSurfacePitch;
 extern CVar* s_cvCameraDive;
 extern CVar* s_cvCameraPivotDYMin;
 extern CVar* s_cvCameraPivotDXMax;
-extern CVar* s_cvCameraSmoothViewData[5][3][2];
-extern CVar* s_cvCameraSmoothState[5][7][2];
+extern CVar* s_cvCameraSmoothViewData[NUM_CAMERA_SMOOTH_STYLES][NUM_CAMERA_VIEW_DATA][NUM_CAMERA_SMOOTH_PARAMS];
+extern CVar* s_cvCameraSmoothState[NUM_CAMERA_SMOOTH_STYLES][NUM_CAMERA_SMOOTH_STATES][NUM_CAMERA_SMOOTH_PARAMS];
 extern CVar* s_cvCameraSmoothYaw;
 extern CVar* s_cvCameraSmoothTrackingStyle;
 extern CVar* s_cvCameraViewBlendStyle;

@@ -8,12 +8,13 @@
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Tempest/NTempest.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 static const int32_t WATERTEX_HEIGHT = 64;
 static const float kDeepDarken = 0.9f;
 
 // STATIC: 0x00D43B48
-uint8_t Liquid::s_unk_D43B48[4];
+uint8_t Liquid::s_unk_D43B48[NUM_PROC_TEXTURES];
 
 // STATIC: 0x00D43B4C
 CTexture* Liquid::s_unk_D43B4C;
@@ -86,10 +87,10 @@ void Liquid::CacheProceduralTextures() {
 // VERIFY: 5d576297 auto
 // OFFSET: 0x008A2E20
 void Liquid::CreateProceduralTextures() {
-    Liquid::s_unk_D43B48[3] = 0;
-    Liquid::s_unk_D43B48[2] = 0;
-    Liquid::s_unk_D43B48[1] = 0;
-    Liquid::s_unk_D43B48[0] = 0;
+    Liquid::s_unk_D43B48[PROC_TEXTURE_OCEAN_DEPTH] = 0;
+    Liquid::s_unk_D43B48[PROC_TEXTURE_RIVER_DEPTH] = 0;
+    Liquid::s_unk_D43B48[PROC_TEXTURE_WMO_WATER] = 0;
+    Liquid::s_unk_D43B48[PROC_TEXTURE_UNKNOWN_0] = 0;
 
     CGxTexFlags flags;
     Liquid::s_riverDepthTex = TextureCreate(8, WATERTEX_HEIGHT, GxTex_Argb8888, GxTex_Argb8888, flags, reinterpret_cast<void*>(1), Liquid::ExtWaterDepthTexCallback, "proceduralRiverDepthTex", 0);
@@ -106,7 +107,7 @@ void Liquid::CreateProceduralTextures() {
 // VERIFY: 7e3d28c3 manual
 // OFFSET: 0x008A2F00
 void Liquid::UpdateProceduralTextures() {
-    if (!Liquid::s_unk_D43B48[3] && Liquid::s_oceanDepthTex) {
+    if (!Liquid::s_unk_D43B48[PROC_TEXTURE_OCEAN_DEPTH] && Liquid::s_oceanDepthTex) {
         CGxTex* gxTex = TextureGetGxTex(Liquid::s_oceanDepthTex, 0, nullptr);
 
         if (gxTex) {
@@ -116,11 +117,11 @@ void Liquid::UpdateProceduralTextures() {
             rect.maxY = WATERTEX_HEIGHT;
             rect.maxX = 8;
             GxTexUpdate(gxTex, rect, 0);
-            Liquid::s_unk_D43B48[3] = 1;
+            Liquid::s_unk_D43B48[PROC_TEXTURE_OCEAN_DEPTH] = 1;
         }
     }
 
-    if (!Liquid::s_unk_D43B48[2] && Liquid::s_riverDepthTex) {
+    if (!Liquid::s_unk_D43B48[PROC_TEXTURE_RIVER_DEPTH] && Liquid::s_riverDepthTex) {
         CGxTex* gxTex = TextureGetGxTex(Liquid::s_riverDepthTex, 0, nullptr);
 
         if (gxTex) {
@@ -130,11 +131,11 @@ void Liquid::UpdateProceduralTextures() {
             rect.maxY = WATERTEX_HEIGHT;
             rect.maxX = 8;
             GxTexUpdate(gxTex, rect, 0);
-            Liquid::s_unk_D43B48[2] = 1;
+            Liquid::s_unk_D43B48[PROC_TEXTURE_RIVER_DEPTH] = 1;
         }
     }
 
-    if (!Liquid::s_unk_D43B48[1] && Liquid::s_wmoWaterTex) {
+    if (!Liquid::s_unk_D43B48[PROC_TEXTURE_WMO_WATER] && Liquid::s_wmoWaterTex) {
         CGxTex* gxTex = TextureGetGxTex(Liquid::s_wmoWaterTex, 0, nullptr);
 
         if (gxTex) {
@@ -144,18 +145,18 @@ void Liquid::UpdateProceduralTextures() {
             rect.maxY = WATERTEX_HEIGHT;
             rect.maxX = 8;
             GxTexUpdate(gxTex, rect, 0);
-            Liquid::s_unk_D43B48[1] = 1;
+            Liquid::s_unk_D43B48[PROC_TEXTURE_WMO_WATER] = 1;
         }
     }
 
-    if (!Liquid::s_unk_D43B48[0]) {
+    if (!Liquid::s_unk_D43B48[PROC_TEXTURE_UNKNOWN_0]) {
         for (uint32_t i = 0; i < sizeof(Liquid::s_unk_D43B50) / sizeof(Liquid::s_unk_D43B50[0]); i++) {
             if (Liquid::s_unk_D43B50[i]) {
                 GxTexUpdate(TextureGetGxTex(Liquid::s_unk_D43B50[i], 0, nullptr), 0, 0, 0, 0, 1);
             }
         }
 
-        Liquid::s_unk_D43B48[0] = 1;
+        Liquid::s_unk_D43B48[PROC_TEXTURE_UNKNOWN_0] = 1;
     }
 
     if (Liquid::s_unk_D43B4C) {
@@ -170,9 +171,9 @@ void Liquid::UpdateProceduralTextures() {
 // VERIFY: ff857bf4 auto
 // OFFSET: 0x008A2AA0
 void Liquid::InvalidateProceduralTextures() {
-    Liquid::s_unk_D43B48[3] = 0;
-    Liquid::s_unk_D43B48[2] = 0;
-    Liquid::s_unk_D43B48[1] = 0;
+    Liquid::s_unk_D43B48[PROC_TEXTURE_OCEAN_DEPTH] = 0;
+    Liquid::s_unk_D43B48[PROC_TEXTURE_RIVER_DEPTH] = 0;
+    Liquid::s_unk_D43B48[PROC_TEXTURE_WMO_WATER] = 0;
 }
 
 // The depth textures only depend on the day/night water colors and alphas, so skip the upload when those did not move.

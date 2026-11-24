@@ -110,10 +110,10 @@ bool IGxuFontGlyphRenderGlyph(FT_Face face, uint32_t pixelSize, uint32_t code, u
     dataPtr->m_data = data;
     dataPtr->m_glyphWidth = width;
     dataPtr->m_glyphHeight = height;
-    dataPtr->m_glyphAdvance = (face->glyph->metrics.horiAdvance / 64) + 1.0;
+    dataPtr->m_glyphAdvance = static_cast<float>((face->glyph->metrics.horiAdvance / 64) + 1.0);
     dataPtr->m_yOffset = 0;
     dataPtr->m_yStart = 0;
-    dataPtr->m_glyphBearing = face->glyph->metrics.horiBearingX * (1.0 / 64.0);
+    dataPtr->m_glyphBearing = static_cast<float>(face->glyph->metrics.horiBearingX * (1.0 / 64.0));
 
     if (width && data && !placeholder) {
         CalculateYOffset(pixelSize, baseline, face, height, &dataPtr->m_yOffset, &dataPtr->m_yStart, msdf);

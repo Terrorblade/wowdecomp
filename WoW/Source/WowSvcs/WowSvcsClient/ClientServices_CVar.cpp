@@ -19,7 +19,7 @@ CVar* ClientServices::s_decorateAccountName;
 // OFFSET: 0x006B0BF0
 void ClientServices::InitLoginServerCVars(int32_t overwrite, const char* locale) {
     if (!ClientServices::s_realmListVar || overwrite) {
-        ClientServices::s_decorateAccountName = CVar::Register("decorateAccountName", "", 0, "0", nullptr, CATEGORY_NET, false, nullptr, false);
+        ClientServices::s_decorateAccountName = CVar::Register("decorateAccountName", "", CVAR_NONE, "0", nullptr, CATEGORY_NET, false, nullptr, false);
     }
 
     char localeDir[260];
@@ -33,7 +33,7 @@ void ClientServices::InitLoginServerCVars(int32_t overwrite, const char* locale)
     char path[260];
 
     if (!ClientServices::s_serverAlertVar || overwrite) {
-        ClientServices::s_serverAlertVar = CVar::Register("serverAlert", "Get the glue-string tag for the URL", 0, "SERVER_ALERT_URL", nullptr, CATEGORY_NET, false, nullptr, false);
+        ClientServices::s_serverAlertVar = CVar::Register("serverAlert", "Get the glue-string tag for the URL", CVAR_NONE, "SERVER_ALERT_URL", nullptr, CATEGORY_NET, false, nullptr, false);
     }
 
     if (!ClientServices::s_realmListVar || overwrite) {

@@ -27,6 +27,18 @@ class CRibbonMat {
 
 class CRibbonEmitter {
     public:
+    enum RUNTIME_FLAGS : int32_t {
+        POSITION_SET = 0x1,
+        INITIALIZED = 0x2,
+        DATA_ENABLED = 0x4,
+        USER_ENABLED = 0x8,
+        UPDATED = 0x10,
+        UNKNOWN_0020 = 0x20,
+        UPDATE_STATE_MASK = 0x30,
+        CONSTRUCTOR_RESET_MASK = 0x12,
+        INITIAL_ENABLED_MASK = 0xE,
+    };
+
     /* 0000 */ int32_t m_refCount;
     /* 0004 */ TSGrowableArray<float> m_edgeAges;
     /* 0014 */ uint32_t m_writePos;

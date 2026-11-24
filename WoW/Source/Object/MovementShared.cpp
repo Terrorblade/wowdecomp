@@ -13,6 +13,7 @@
 #include "WoW/Source/Object/CMoveSpline.h"
 #include "WoW/Source/Object/ObjectClient/Movement_C.h"
 #include "WoW/Source/Object/Types.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00B2D9E8
 float CMovementShared::s_terminalVelocity = 60.148003f;
@@ -72,15 +73,15 @@ float CMovementShared::TimeToFallDistance(float distance, int32_t safeFall) {
 // VERIFY: 9850a93f auto
 // OFFSET: 0x0098C580
 CMovementShared::CMovementShared(const WOWGUID& transportGuid, const C3Vector& position, float facing, const WOWGUID& ownerGuid) : CPassenger(transportGuid, position, ownerGuid), m_groundNormal(0.0f, 0.0f, 1.0f), m_anchorPos(position) {
-    this->m_flags = 0;
-    this->m_flags2 = 0;
+    this->m_flags = MOVEMENTFLAG_NONE;
+    this->m_flags2 = MOVEFLAG2_NONE;
     this->m_transportSeat = 0xFF;
     this->m_anchorFacing = facing;
     this->m_anchorPitch = 0.0f;
     this->m_fallTimeMs = 0;
     this->m_pitchSin = 0.0f;
     this->m_pitchCos = 1.0f;
-    this->m_passengerFlags |= 1;
+    this->m_passengerFlags |= CPassenger::PASSENGER_MOVEMENT;
     this->m_fallStartZ = position.z;
     this->m_spline = nullptr;
     this->m_currentSpeed = 0.0f;
@@ -340,7 +341,7 @@ int32_t CMovementShared::CanCollideWhileFlying() const {
 
     CMoveSpline* spline = this->m_spline;
 
-    if ((this->m_flags2 & MOVEMENTFLAG2_JUMP_SPLINE_IN_AIR) && spline && !(spline->m_flags & SPLINEFLAG_NO_SPLINE) && (spline->m_flags & SPLINEFLAG_PARABOLIC)) {
+    if ((this->m_flags2 & MOVEFLAG2_JUMP_SPLINE_IN_AIR) && spline && !(spline->m_flags & SPLINEFLAG_NO_SPLINE) && (spline->m_flags & SPLINEFLAG_PARABOLIC)) {
         return 1;
     }
 
@@ -663,7 +664,7 @@ int32_t CMovementShared::IsFalling() const {
         return 1;
     }
 
-    if (!(this->m_flags2 & MOVEMENTFLAG2_JUMP_SPLINE_IN_AIR)) {
+    if (!(this->m_flags2 & MOVEFLAG2_JUMP_SPLINE_IN_AIR)) {
         return 0;
     }
 
@@ -703,7 +704,7 @@ int32_t CMovementShared::IsGravityDisabled() const {
         }
     }
 
-    return (this->m_flags2 & MOVEMENTFLAG2_DISABLE_GRAVITY) || (this->m_flags & MOVEMENTFLAG_DISABLE_GRAVITY);
+    return (this->m_flags2 & MOVEFLAG2_DISABLE_GRAVITY) || (this->m_flags & MOVEMENTFLAG_DISABLE_GRAVITY);
 }
 
 // VERIFY: bc4424ec manual
@@ -832,7 +833,7 @@ float CMovementShared::PlotFacing(float dt) const {
         rate = 0.0f;
     }
 
-    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEMENTFLAG2_FULL_SPEED_TURNING)) {
+    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEFLAG2_FULL_SPEED_TURNING)) {
         rate = rate * 0.75f;
     }
 
@@ -842,7 +843,7 @@ float CMovementShared::PlotFacing(float dt) const {
         facing = facing + s_twoPi;
     }
 
-    return facing;
+    return static_cast<float>(facing);
 }
 
 // VERIFY: 757fdadc manual
@@ -860,7 +861,7 @@ void CMovementShared::PlotHorzCircularPosition(float dt, C3Vector* move) const {
         rate = 0.0f;
     }
 
-    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEMENTFLAG2_FULL_SPEED_TURNING)) {
+    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEFLAG2_FULL_SPEED_TURNING)) {
         rate = rate * 0.75f;
     }
 
@@ -905,11 +906,11 @@ float CMovementShared::PlotPitch(float dt) const {
         rate = 0.0f;
     }
 
-    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEMENTFLAG2_FULL_SPEED_PITCHING)) {
+    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEFLAG2_FULL_SPEED_PITCHING)) {
         rate = rate * 0.75f;
     }
 
-    return fmod((double)(rate * dt + this->m_anchorPitch), (double)s_twoPi);
+    return static_cast<float>(fmod((double)(rate * dt + this->m_anchorPitch), (double)s_twoPi));
 }
 
 // VERIFY: 30021875 manual
@@ -927,7 +928,7 @@ void CMovementShared::PlotSpiralPosition(float dt, C3Vector* move) const {
         turnRate = 0.0f;
     }
 
-    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEMENTFLAG2_FULL_SPEED_TURNING)) {
+    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEFLAG2_FULL_SPEED_TURNING)) {
         turnRate = turnRate * 0.75f;
     }
 
@@ -941,7 +942,7 @@ void CMovementShared::PlotSpiralPosition(float dt, C3Vector* move) const {
         pitchRate = 0.0f;
     }
 
-    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEMENTFLAG2_FULL_SPEED_PITCHING)) {
+    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEFLAG2_FULL_SPEED_PITCHING)) {
         pitchRate = 0.75f * pitchRate;
     }
 
@@ -975,7 +976,7 @@ uint32_t CMovementShared::PlotUnitMovement(uint32_t time, C3Vector* move, float*
     }
 
     float dt = time * 0.001f;
-    uint32_t mode = 0;
+    uint32_t mode = PLOT_NONE;
 
     if (this->m_flags & (MOVEMENTFLAG_TURN_LEFT | MOVEMENTFLAG_TURN_RIGHT)) {
         if (facing) {
@@ -983,7 +984,7 @@ uint32_t CMovementShared::PlotUnitMovement(uint32_t time, C3Vector* move, float*
         }
 
         if (!(this->m_flags & MOVEMENTFLAG_FALLING)) {
-            mode = 2;
+            mode = PLOT_TURN;
         }
     }
 
@@ -993,58 +994,58 @@ uint32_t CMovementShared::PlotUnitMovement(uint32_t time, C3Vector* move, float*
         }
 
         if (!(this->m_flags & (MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING))) {
-            mode |= 8;
+            mode |= PLOT_PITCH;
         }
     }
 
     uint32_t flags = this->m_flags;
 
     if (flags & (MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) {
-        mode |= 0x10;
+        mode |= PLOT_ASCEND_DESCEND;
     }
 
     if (flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD)) {
-        mode |= 1;
+        mode |= PLOT_FORWARD_BACKWARD;
     }
 
     if (flags & (MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT)) {
-        mode |= 4;
+        mode |= PLOT_STRAFE;
     }
 
     switch (mode) {
-        case 1:
-        case 4:
-        case 5:
-        case 12: {
+        case PLOT_FORWARD_BACKWARD:
+        case PLOT_STRAFE:
+        case PLOT_FORWARD_BACKWARD | PLOT_STRAFE:
+        case PLOT_STRAFE | PLOT_PITCH: {
             this->PlotStraight(dt, move);
             break;
         }
 
-        case 3:
-        case 6:
-        case 7:
-        case 14:
-        case 19:
-        case 22:
-        case 23: {
+        case PLOT_FORWARD_BACKWARD | PLOT_TURN:
+        case PLOT_TURN | PLOT_STRAFE:
+        case PLOT_FORWARD_BACKWARD | PLOT_TURN | PLOT_STRAFE:
+        case PLOT_TURN | PLOT_STRAFE | PLOT_PITCH:
+        case PLOT_FORWARD_BACKWARD | PLOT_TURN | PLOT_ASCEND_DESCEND:
+        case PLOT_TURN | PLOT_STRAFE | PLOT_ASCEND_DESCEND:
+        case PLOT_FORWARD_BACKWARD | PLOT_TURN | PLOT_STRAFE | PLOT_ASCEND_DESCEND: {
             this->PlotHorzCircularPosition(dt, move);
             break;
         }
 
-        case 9:
-        case 13: {
+        case PLOT_FORWARD_BACKWARD | PLOT_PITCH:
+        case PLOT_FORWARD_BACKWARD | PLOT_STRAFE | PLOT_PITCH: {
             this->PlotVertCircularPosition(dt, move);
             break;
         }
 
-        case 11:
-        case 15: {
+        case PLOT_FORWARD_BACKWARD | PLOT_TURN | PLOT_PITCH:
+        case PLOT_FORWARD_BACKWARD | PLOT_TURN | PLOT_STRAFE | PLOT_PITCH: {
             this->PlotSpiralPosition(dt, move);
             break;
         }
 
-        case 16:
-        case 18: {
+        case PLOT_ASCEND_DESCEND:
+        case PLOT_TURN | PLOT_ASCEND_DESCEND: {
             float z = dt * this->m_currentSpeed;
 
             if (!(flags & MOVEMENTFLAG_ASCENDING)) {
@@ -1057,9 +1058,9 @@ uint32_t CMovementShared::PlotUnitMovement(uint32_t time, C3Vector* move, float*
             break;
         }
 
-        case 17:
-        case 20:
-        case 21: {
+        case PLOT_FORWARD_BACKWARD | PLOT_ASCEND_DESCEND:
+        case PLOT_STRAFE | PLOT_ASCEND_DESCEND:
+        case PLOT_FORWARD_BACKWARD | PLOT_STRAFE | PLOT_ASCEND_DESCEND: {
             this->PlotAscendDescend(dt, move);
             break;
         }
@@ -1082,7 +1083,7 @@ void CMovementShared::PlotVertCircularPosition(float dt, C3Vector* move) const {
         rate = 0.0f;
     }
 
-    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEMENTFLAG2_FULL_SPEED_PITCHING)) {
+    if ((flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD | MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT | MOVEMENTFLAG_FALLING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING)) && !(this->m_flags2 & MOVEFLAG2_FULL_SPEED_PITCHING)) {
         rate = rate * 0.75f;
     }
 
@@ -1157,9 +1158,9 @@ void CMovementShared::SetSplineEnabled() {
 // OFFSET: 0x0098B590
 void CMovementShared::SetAnimTierInTrans(int32_t enable) {
     if (enable) {
-        this->m_flags2 |= MOVEMENTFLAG2_ANIM_TIER_IN_TRANS;
+        this->m_flags2 |= MOVEFLAG2_ANIM_TIER_IN_TRANS;
     } else {
-        this->m_flags2 &= ~MOVEMENTFLAG2_ANIM_TIER_IN_TRANS;
+        this->m_flags2 &= ~MOVEFLAG2_ANIM_TIER_IN_TRANS;
     }
 }
 
@@ -1167,9 +1168,9 @@ void CMovementShared::SetAnimTierInTrans(int32_t enable) {
 // OFFSET: 0x0098B570
 void CMovementShared::SetJumpSplineInAir(int32_t enable) {
     if (enable) {
-        this->m_flags2 |= MOVEMENTFLAG2_JUMP_SPLINE_IN_AIR;
+        this->m_flags2 |= MOVEFLAG2_JUMP_SPLINE_IN_AIR;
     } else {
-        this->m_flags2 &= ~MOVEMENTFLAG2_JUMP_SPLINE_IN_AIR;
+        this->m_flags2 &= ~MOVEFLAG2_JUMP_SPLINE_IN_AIR;
     }
 }
 
@@ -1177,9 +1178,9 @@ void CMovementShared::SetJumpSplineInAir(int32_t enable) {
 // OFFSET: 0x0098B5B0
 void CMovementShared::SetVehicleExitVoluntary(int32_t enable) {
     if (enable) {
-        this->m_flags2 |= MOVEMENTFLAG2_VEHICLE_EXIT_VOLUNTARY;
+        this->m_flags2 |= MOVEFLAG2_VEHICLE_EXIT_VOLUNTARY;
     } else {
-        this->m_flags2 &= ~MOVEMENTFLAG2_VEHICLE_EXIT_VOLUNTARY;
+        this->m_flags2 &= ~MOVEFLAG2_VEHICLE_EXIT_VOLUNTARY;
     }
 }
 
@@ -1223,12 +1224,12 @@ int32_t CMovementShared::StartMove(int32_t forward, int32_t force) {
 void CMovementShared::StartPitch(int32_t up) {
     uint32_t flags = this->m_flags;
 
-    if (!(flags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) && !(this->m_flags2 & MOVEMENTFLAG2_ALWAYS_ALLOW_PITCHING)) {
+    if (!(flags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) && !(this->m_flags2 & MOVEFLAG2_ALWAYS_ALLOW_PITCHING)) {
         return;
     }
 
     this->m_flags = flags & ~(MOVEMENTFLAG_PITCH_UP | MOVEMENTFLAG_PITCH_DOWN) | (up ? MOVEMENTFLAG_PITCH_UP : MOVEMENTFLAG_PITCH_DOWN);
-    this->m_flags2 &= ~MOVEMENTFLAG2_INTERPOLATED_PITCHING;
+    this->m_flags2 &= ~MOVEFLAG2_INTERPOLATED_PITCHING;
     this->UpdateAnchors(0);
 }
 
@@ -1241,7 +1242,7 @@ void CMovementShared::StartTurn(int32_t left) {
         this->m_flags = this->m_flags & ~(MOVEMENTFLAG_TURN_LEFT | MOVEMENTFLAG_TURN_RIGHT) | MOVEMENTFLAG_TURN_RIGHT;
     }
 
-    this->m_flags2 &= ~MOVEMENTFLAG2_INTERPOLATED_TURNING;
+    this->m_flags2 &= ~MOVEFLAG2_INTERPOLATED_TURNING;
     this->UpdateAnchors(0);
 }
 
@@ -1271,7 +1272,7 @@ void CMovementShared::StopFalling() {
     }
 
     if (this->m_flags & MOVEMENTFLAG_PENDING_ROOT) {
-        this->m_flags = this->m_flags & 0xFF203700 | MOVEMENTFLAG_ROOT;
+        this->m_flags = this->m_flags & ~(MOVEMENTFLAG_STOP_MOTION_MASK | MOVEMENTFLAG_ROOT) | MOVEMENTFLAG_ROOT;
     } else if (!falling) {
         return;
     }
@@ -1288,7 +1289,7 @@ void CMovementShared::StopFallingAlwaysAnchor() {
     }
 
     if (this->m_flags & MOVEMENTFLAG_PENDING_ROOT) {
-        this->m_flags = this->m_flags & 0xFF203700 | MOVEMENTFLAG_ROOT;
+        this->m_flags = this->m_flags & ~(MOVEMENTFLAG_STOP_MOTION_MASK | MOVEMENTFLAG_ROOT) | MOVEMENTFLAG_ROOT;
     }
 
     this->UpdateAnchors(0);
@@ -1476,7 +1477,7 @@ int32_t CMovementShared::SetPitch(float pitch) {
         return 0;
     }
 
-    if (!(flags & MOVEMENTFLAG_WATERWALKING) || (flags & 0xC0100F) || (this->m_flags2 & MOVEMENTFLAG2_UNK_0200) || pitch > -0.6457718f) {
+    if (!(flags & MOVEMENTFLAG_WATERWALKING) || (flags & MOVEMENTFLAG_MOVING_MASK) || (this->m_flags2 & MOVEFLAG2_UNKNOWN_9) || pitch > -0.6457718f) {
         this->m_flags &= ~(MOVEMENTFLAG_PITCH_UP | MOVEMENTFLAG_PITCH_DOWN);
         return 0;
     }
@@ -1505,7 +1506,7 @@ void CMovementShared::SetRawFacing(float facing) {
 int32_t CMovementShared::StartAscensionDescension(int32_t ascend) {
     uint32_t flags = this->m_flags;
 
-    if (!(flags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) || (this->m_flags2 & MOVEMENTFLAG2_NO_STRAFE)) {
+    if (!(flags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) || (this->m_flags2 & MOVEFLAG2_NO_STRAFE)) {
         return 0;
     }
 
@@ -1529,7 +1530,7 @@ int32_t CMovementShared::StartFalling(float velocity) {
     this->UpdateAnchors(0);
     this->m_flags = (this->m_flags & ~(MOVEMENTFLAG_FALLING | MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING | MOVEMENTFLAG_FLYING | MOVEMENTFLAG_SPLINE_ELEVATION)) | MOVEMENTFLAG_FALLING;
 
-    if (!(this->m_flags2 & MOVEMENTFLAG2_ALWAYS_ALLOW_PITCHING)) {
+    if (!(this->m_flags2 & MOVEFLAG2_ALWAYS_ALLOW_PITCHING)) {
         this->m_flags &= ~(MOVEMENTFLAG_PITCH_UP | MOVEMENTFLAG_PITCH_DOWN);
     }
 
@@ -1581,7 +1582,7 @@ void CMovementShared::TryRoot() {
 
     this->m_flags = flags | MOVEMENTFLAG_ROOT;
     this->StopFalling();
-    this->m_flags &= 0xFF203F00;
+    this->m_flags &= ~MOVEMENTFLAG_STOP_MOTION_MASK;
     this->CalcCurrentSpeed(0);
 }
 
@@ -1591,7 +1592,7 @@ int32_t CMovementShared::StartStrafe(int32_t left) {
     this->m_flags &= ~(MOVEMENTFLAG_PENDING_STRAFE_STOP | MOVEMENTFLAG_PENDING_STRAFE_LEFT | MOVEMENTFLAG_PENDING_STRAFE_RIGHT);
     uint32_t flags = this->m_flags;
 
-    if (this->m_flags2 & MOVEMENTFLAG2_NO_STRAFE) {
+    if (this->m_flags2 & MOVEFLAG2_NO_STRAFE) {
         return 0;
     }
 
@@ -1668,7 +1669,7 @@ void CMovementShared::GetMoveStatus(NETMESSAGE msgId, uint32_t gameTime, CMoveme
 
         if (MovementGetGlobals()->m_hasTransportTime2) {
             uint32_t transportTime2 = MovementGetGlobals()->m_transportTime2;
-            status->m_moveExtraFlags |= MOVEMENTFLAG2_INTERPOLATED_MOVEMENT;
+            status->m_moveExtraFlags |= MOVEFLAG2_INTERPOLATED_MOVEMENT;
             status->m_transportTime2 = transportTime2;
             MovementGetGlobals()->m_hasTransportTime2 = 0;
         } else {
@@ -1753,11 +1754,11 @@ int32_t CMovementShared::Jump(int32_t checkHover) {
 
     uint16_t flags2 = this->m_flags2;
 
-    if (!(flags2 & MOVEMENTFLAG2_DISABLE_GRAVITY) && this->IsGravityDisabled()) {
+    if (!(flags2 & MOVEFLAG2_DISABLE_GRAVITY) && this->IsGravityDisabled()) {
         return 0;
     }
 
-    if (flags2 & MOVEMENTFLAG2_NO_JUMPING) {
+    if (flags2 & MOVEFLAG2_NO_JUMPING) {
         return 0;
     }
 
@@ -1806,7 +1807,7 @@ int32_t CMovementShared::StopStrafe() {
 // VERIFY: 0a61949c manual
 // OFFSET: 0x0098BFF0
 void CMovementShared::StopSwim() {
-    if (this->m_flags2 & MOVEMENTFLAG2_ALWAYS_ALLOW_PITCHING) {
+    if (this->m_flags2 & MOVEFLAG2_ALWAYS_ALLOW_PITCHING) {
         this->m_flags &= ~(MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING);
     } else {
         this->m_flags &= ~(MOVEMENTFLAG_PITCH_UP | MOVEMENTFLAG_PITCH_DOWN | MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_ASCENDING | MOVEMENTFLAG_DESCENDING);
@@ -1983,7 +1984,7 @@ int32_t IsMessageAllowedWhileOnSpline(uint32_t msgId) {
 // VERIFY: c48ff64a auto
 // OFFSET: 0x0098B730
 void CMovementShared::RemoveSpline() {
-    this->m_flags2 &= ~MOVEMENTFLAG2_JUMP_SPLINE_IN_AIR;
+    this->m_flags2 &= ~MOVEFLAG2_JUMP_SPLINE_IN_AIR;
 
     if (!this->m_spline) {
         return;
@@ -2070,7 +2071,7 @@ void CMovementShared::Teleport(const C3Vector& position, float facing, int32_t r
     this->m_pitch = 0.0f;
     this->StopFalling();
     this->m_anchorFacing = this->m_facing;
-    this->m_flags &= 0xF9003F00;
+    this->m_flags &= ~(MOVEMENTFLAG_STOP_MOTION_MASK | MOVEMENTFLAG_SWIMMING_OR_FLYING_MASK | MOVEMENTFLAG_SPLINE_ELEVATION);
     this->m_anchorPitch = this->m_pitch;
     this->m_anchorPos = this->m_position;
     this->m_anchorElapsedMs = 0;
@@ -2148,7 +2149,7 @@ uint32_t CMovementShared::PlotUnitSplineMovement(uint32_t time, C3Vector* positi
     *position = this->m_position;
 
     if (!(this->m_flags & (MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_BACKWARD))) {
-        return this->m_flags & 0xC0100F;
+        return this->m_flags & MOVEMENTFLAG_MOVING_MASK;
     }
 
     if (this->m_spline->m_flags & SPLINEFLAG_FROZEN) {
@@ -2246,13 +2247,13 @@ uint32_t CMovementShared::PlotUnitSplineMovement(uint32_t time, C3Vector* positi
     uint32_t flags = spline->m_flags;
 
     if (flags & SPLINEFLAG_ANIMATION) {
-        if (!(this->m_flags2 & MOVEMENTFLAG2_ANIM_TIER_IN_TRANS) && spline->m_start > spline->m_effectStartTime) {
-            this->m_flags2 |= MOVEMENTFLAG2_ANIM_TIER_IN_TRANS;
+        if (!(this->m_flags2 & MOVEFLAG2_ANIM_TIER_IN_TRANS) && spline->m_start > spline->m_effectStartTime) {
+            this->m_flags2 |= MOVEFLAG2_ANIM_TIER_IN_TRANS;
         }
     } else if (flags & SPLINEFLAG_PARABOLIC) {
-        if (spline->m_start > spline->m_effectStartTime && !(this->m_flags2 & MOVEMENTFLAG2_JUMP_SPLINE_IN_AIR)) {
+        if (spline->m_start > spline->m_effectStartTime && !(this->m_flags2 & MOVEFLAG2_JUMP_SPLINE_IN_AIR)) {
             this->m_fallStartZ = this->m_position.z;
-            this->m_flags2 |= MOVEMENTFLAG2_JUMP_SPLINE_IN_AIR;
+            this->m_flags2 |= MOVEFLAG2_JUMP_SPLINE_IN_AIR;
         }
 
         position->z = this->CalcSplineHeight(this->m_spline->m_start, position->z);
@@ -2285,22 +2286,22 @@ void CMovementShared::AddSpline(const C3Vector& position) {
         this->m_spline = MovementNewSpline();
     }
 
-    this->m_spline->m_flags = 0;
+    this->m_spline->m_flags = SPLINEFLAG_NONE;
     this->m_spline->m_finalDestination = position;
 }
 
 // VERIFY: 088e12ab manual
 // OFFSET: 0x006E9A60
 void CMovementShared::ResetFallOnControlLoss() {
-    if (!(this->m_flags & 0x100000)) {
+    if (!(this->m_flags & MOVEMENTFLAG_PENDING_ROOT)) {
         return;
     }
 
-    this->m_flags |= 0x800;
+    this->m_flags |= MOVEMENTFLAG_ROOT;
     this->StopFalling();
-    this->m_flags &= 0xFF203F00;
+    this->m_flags &= ~MOVEMENTFLAG_STOP_MOTION_MASK;
 
-    if (!(this->m_flags & 0x1000)) {
+    if (!(this->m_flags & MOVEMENTFLAG_FALLING)) {
         this->m_currentSpeed = this->GetBaseSpeed(0);
     }
 }
@@ -2308,13 +2309,13 @@ void CMovementShared::ResetFallOnControlLoss() {
 // VERIFY: 6c0feab8 manual
 // OFFSET: 0x0098C670
 void CMovementShared::Disable() {
-    this->m_flags2 &= ~0x80;
+    this->m_flags2 &= ~MOVEFLAG2_JUMP_SPLINE_IN_AIR;
 
     if (this->m_spline) {
         MovementDelSpline(this->m_spline);
         this->m_spline = nullptr;
 
-        if (!(this->m_flags & 0x1000)) {
+        if (!(this->m_flags & MOVEMENTFLAG_FALLING)) {
             this->m_currentSpeed = this->GetBaseSpeed(0);
         }
     }
@@ -2328,5 +2329,5 @@ void CMovementShared::Disable() {
         MovementNotifyTransportUnitRemoved(*this->m_ownerGuid, transport, this->m_transportSeat);
     }
 
-    this->m_flags &= 0x77FFFFFF;
+    this->m_flags &= ~(MOVEMENTFLAG_SPLINE_ENABLED | MOVEMENTFLAG_STATUS_APPLIED);
 }

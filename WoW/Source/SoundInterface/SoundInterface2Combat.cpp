@@ -6,6 +6,7 @@
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00B4AE7C
 static TSFixedArray<IMPACTSOUNDARRAY> s_impactSounds;
@@ -29,7 +30,7 @@ static void InitWeaponImpactSound(WeaponImpactSoundsRec* rec) {
 
     IMPACTSOUNDARRAY* sounds = &s_impactSounds.m_data[rec->m_weaponSubClassID];
 
-    for (int32_t i = 0; i < 10; i++) {
+    for (int32_t i = 0; i < NUM_WEAPON_IMPACT_SOUNDS; i++) {
         sounds->m_sounds[i][rec->m_parrySoundType].m_soundId = rec->m_impactSoundID[i];
         sounds->m_sounds[i][rec->m_parrySoundType].m_critSoundId = rec->m_critImpactSoundID[i];
     }
@@ -75,9 +76,9 @@ void SI2::PlayParrySound(const CGUnitVirtualItem* weapon, const CGUnitVirtualIte
     int32_t type = 6;
 
     if (defender) {
-        if (defender->m_classID == 2) {
+        if (defender->m_classID == ITEM_CLASS_WEAPON) {
             type = 6 - CGItem_C::IsMetal(defender->m_material);
-        } else if (defender->m_classID == 4) {
+        } else if (defender->m_classID == ITEM_CLASS_ARMOR) {
             type = 4 - CGItem_C::IsMetal(defender->m_material);
         }
     }
@@ -91,10 +92,10 @@ void SI2::PlayParrySound(const CGUnitVirtualItem* weapon, const CGUnitVirtualIte
 
     SE2SoundKitProperties properties;
     properties.ResetToDefaults();
-    properties.m_group = 14;
+    properties.m_group = SI2_SOUND_GROUP_IMPACT;
 
     if (self) {
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
     }
 
     SI2::PlaySoundKit(crit != 0 ? sound->m_critSoundId : sound->m_soundId, &soundPosition, nullptr, &properties, 0, nullptr, 1, 0);
@@ -127,10 +128,10 @@ void SI2::PlayHitSound(const CGUnitVirtualItem* weapon, int32_t impactType, int3
 
     SE2SoundKitProperties properties;
     properties.ResetToDefaults();
-    properties.m_group = 14;
+    properties.m_group = SI2_SOUND_GROUP_IMPACT;
 
     if (self) {
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
     }
 
     SI2::PlaySoundKit(crit != 0 ? sound->m_critSoundId : sound->m_soundId, position, nullptr, &properties, 0, nullptr, 1, 0);
@@ -140,7 +141,7 @@ void SI2::PlayHitSound(const CGUnitVirtualItem* weapon, int32_t impactType, int3
 // OFFSET: 0x004D0720
 int32_t SI2::PlayWeaponSwooshSound(WEAPONSWING_SOUNDTYPES type, int32_t crit, const C3Vector* position, int32_t quiet, int32_t self) {
     if (type >= NUM_WEAPONSWINGSOUNDTYPES) {
-        return 0;
+        return SI2_OK;
     }
 
     float volume = quiet ? 0.5f : 1.0f;
@@ -148,10 +149,10 @@ int32_t SI2::PlayWeaponSwooshSound(WEAPONSWING_SOUNDTYPES type, int32_t crit, co
     SE2SoundKitProperties properties;
     properties.ResetToDefaults();
     properties.m_volume = volume;
-    properties.m_group = 10;
+    properties.m_group = SI2_SOUND_GROUP_WEAPON_SWING;
 
     if (self) {
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
     }
 
     return SI2::PlaySoundKit(s_swingSounds[type][crit != SWING_NORMAL], position, nullptr, &properties, 0, nullptr, 1, 0);
@@ -161,13 +162,13 @@ int32_t SI2::PlayWeaponSwooshSound(WEAPONSWING_SOUNDTYPES type, int32_t crit, co
 // OFFSET: 0x004D07B0
 int32_t SI2::PlaySheatheSound(const CGUnitVirtualItem* item, int32_t sheathe, const C3Vector* position, int32_t self) {
     if (!item) {
-        return 0;
+        return SI2_OK;
     }
 
     MaterialRec* material = g_materialDB.GetRecord(item->m_material);
 
     if (!material) {
-        return 0;
+        return SI2_OK;
     }
 
     C3Vector soundPosition;
@@ -181,7 +182,7 @@ int32_t SI2::PlaySheatheSound(const CGUnitVirtualItem* item, int32_t sheathe, co
     properties.ResetToDefaults();
 
     if (self) {
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
     }
 
     return SI2::PlaySoundKit(soundKitId, &soundPosition, nullptr, &properties, 0, nullptr, 1, 0);
@@ -194,7 +195,7 @@ int32_t SI2::PlayMissedSound(bool oneHand, const C3Vector* position, int32_t sel
     properties.ResetToDefaults();
 
     if (self) {
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
     }
 
     return SI2::PlaySoundKit(oneHand ? "(DONOTRENAME)Combat Miss 1H" : "(DONOTRENAME)Combat Miss 2H", position, nullptr, &properties);

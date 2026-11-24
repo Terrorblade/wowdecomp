@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_ITEM_VISUAL_SLOTS = 5;
 
 class ItemVisualsRec {
     public:
@@ -13,7 +14,7 @@ class ItemVisualsRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t m_slot [5];
+    /* 0004 */ int32_t m_slot [NUM_ITEM_VISUAL_SLOTS];
 
     ItemVisualsRec();
     ~ItemVisualsRec();

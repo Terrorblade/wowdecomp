@@ -21,7 +21,7 @@
 #include "WoW/Source/UIUtil/Tooltip.h"
 
 // STATIC: 0x00AD05E8
-static int32_t s_activateTalentGroupSpells[2] = { 63645, 63644 };
+static int32_t s_activateTalentGroupSpells[MAX_TALENT_GROUPS] = { 63645, 63644 };
 
 // VERIFY: 29096ec7 manual
 // OFFSET: 0x005C5CC0
@@ -90,7 +90,7 @@ static int32_t Script_SetActiveTalentGroup(lua_State* L) {
 
     uint32_t group = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (group != CGTalentInfo::m_activeTalentGroup && group < CGTalentInfo::m_numTalentGroups && group < 2) {
+    if (group != CGTalentInfo::m_activeTalentGroup && group < CGTalentInfo::m_numTalentGroups && group < MAX_TALENT_GROUPS) {
         Spell_C_ClickSpell(s_activateTalentGroupSpells[group], nullptr, ClntObjMgrGetActivePlayer());
     }
 
@@ -238,7 +238,7 @@ static int32_t Script_ResetPreviewTalentPoints(lua_State* L) {
         return 0;
     }
 
-    uint32_t tab = lua_tointeger(L, 1) - 1;
+    uint32_t tab = static_cast<uint32_t>(lua_tointeger(L, 1) - 1);
     int32_t pet = StringToBOOL(L, 2, 0);
     uint32_t group = TalentInfoGetScriptGroupIndex(L, 3);
     int32_t before = CGTalentInfo::GetPreviewPointsSpent(group, pet);
@@ -289,7 +289,7 @@ static int32_t Script_GetTalentInfo(lua_State* L) {
         if (talent && (!pet || CGTalentInfo::IsTalentAvailableForPet(unit, talent))) {
             int32_t maxRank = -1;
 
-            for (int32_t i = 8; i >= 0; i--) {
+            for (int32_t i = MAX_TALENT_RANKS - 1; i >= 0; i--) {
                 if (talent->m_spellRank[i] && maxRank < 0) {
                     maxRank = i;
                 }
@@ -321,7 +321,7 @@ static int32_t Script_GetTalentInfo(lua_State* L) {
                 lua_pushnumber(L, rank + 1);
                 lua_pushnumber(L, maxRank + 1);
 
-                if (talent->m_flags & 1) {
+                if (talent->m_flags & TALENT_FLAG_EXCEPTIONAL) {
                     lua_pushnumber(L, 1.0);
                 } else {
                     lua_pushnil(L);
@@ -413,7 +413,7 @@ static int32_t Script_GetTalentPrereqs(lua_State* L) {
         const TalentRec* talent = &tab->m_talents[talentIndex];
 
         if (talent) {
-            for (uint32_t i = 0; i < 3; i++) {
+            for (uint32_t i = 0; i < MAX_TALENT_PREREQS; i++) {
                 int32_t prereqId = talent->m_prereqTalent[i];
 
                 if (!prereqId) {
@@ -522,7 +522,7 @@ static int32_t Script_LearnTalent(lua_State* L) {
     int32_t rank = -1;
     int32_t maxRank = -1;
 
-    for (int32_t i = 8; i >= 0; i--) {
+    for (int32_t i = MAX_TALENT_RANKS - 1; i >= 0; i--) {
         if (talent->m_spellRank[i]) {
             maxRank = i;
             break;
@@ -562,9 +562,9 @@ static int32_t Script_AddPreviewTalentPoints(lua_State* L) {
         return 0;
     }
 
-    uint32_t tab = lua_tointeger(L, 1) - 1;
-    uint32_t talent = lua_tointeger(L, 2) - 1;
-    int32_t points = lua_tointeger(L, 3);
+    uint32_t tab = static_cast<uint32_t>(lua_tointeger(L, 1) - 1);
+    uint32_t talent = static_cast<uint32_t>(lua_tointeger(L, 2) - 1);
+    int32_t points = static_cast<int32_t>(lua_tointeger(L, 3));
     int32_t pet = StringToBOOL(L, 4, 0);
     uint32_t group = TalentInfoGetScriptGroupIndex(L, 5);
     int32_t before = CGTalentInfo::GetPreviewPointsSpent(group, pet);

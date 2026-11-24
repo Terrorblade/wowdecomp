@@ -15,6 +15,11 @@ enum SPLINE_MODE : int32_t {
 
 class C3Spline {
     public:
+
+    enum : uint32_t {
+        DEFAULT_STEPS = 20,
+    };
+
     enum EvalType {
         EVAL_PARAMETRIC = 0,
         EVAL_ARCLENGTH = 1,

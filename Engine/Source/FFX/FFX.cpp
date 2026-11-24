@@ -57,19 +57,19 @@ C44Matrix FFX::s_oldViewMtx;
 
 // STATIC: 0x00AD88C0
 static CGxVertexAttrib s_vertexAttribsPCT[] = {
-    { GxVA_Position, 4, 0, 24 },
-    { GxVA_Color0, 0, 12, 24 },
-    { GxVA_TexCoord0, 3, 16, 24 }
+    { GxVA_Position, GxVAT_Float3, 0, 24 },
+    { GxVA_Color0, GxVAT_Color, 12, 24 },
+    { GxVA_TexCoord0, GxVAT_Float2, 16, 24 }
 };
 
 // STATIC: 0x00AD8940
 static CGxVertexAttrib s_vertexAttribsPCT4[] = {
-    { GxVA_Position, 4, 0, 48 },
-    { GxVA_Color0, 0, 12, 48 },
-    { GxVA_TexCoord0, 3, 16, 48 },
-    { GxVA_TexCoord1, 3, 24, 48 },
-    { GxVA_TexCoord2, 3, 32, 48 },
-    { GxVA_TexCoord3, 3, 40, 48 }
+    { GxVA_Position, GxVAT_Float3, 0, 48 },
+    { GxVA_Color0, GxVAT_Color, 12, 48 },
+    { GxVA_TexCoord0, GxVAT_Float2, 16, 48 },
+    { GxVA_TexCoord1, GxVAT_Float2, 24, 48 },
+    { GxVA_TexCoord2, GxVAT_Float2, 32, 48 },
+    { GxVA_TexCoord3, GxVAT_Float2, 40, 48 }
 };
 
 // INLINED
@@ -481,8 +481,8 @@ void FFX::Effect::Execute() {
 // VERIFY: 60f3461e manual
 // OFFSET: 0x008C12F0
 void FFX::Init() {
-    FFX::s_cvarFFX = CVar::Register("ffx", "full screen effects", 1, "1", FFX::CVarCallback, 1, false, nullptr, false);
-    FFX::s_cvarFFXRectangle = CVar::Register("ffxRectangle", "use rectangle texture for full screen effects", 1, "1", FFX::CVarCallback, 1, false, nullptr, false);
+    FFX::s_cvarFFX = CVar::Register("ffx", "full screen effects", CVAR_ARCHIVE, "1", FFX::CVarCallback, 1, false, nullptr, false);
+    FFX::s_cvarFFXRectangle = CVar::Register("ffxRectangle", "use rectangle texture for full screen effects", CVAR_ARCHIVE, "1", FFX::CVarCallback, 1, false, nullptr, false);
     FFX::s_cvarMultisample = CVar::Lookup("gxMultisample");
 
     ResetTex(FFX::s_full[0]);

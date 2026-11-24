@@ -2,6 +2,7 @@
 #include "Engine/Source/Tempest/C33Matrix.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/C4Quaternion.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // VERIFY: 2c41a0cf auto
 // OFFSET: 0x004C5100

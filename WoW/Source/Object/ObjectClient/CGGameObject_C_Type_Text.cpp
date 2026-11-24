@@ -1,6 +1,7 @@
 #include "CGGameObject_C_Type_Text.h"
 #include "WoW/Source/UIUtil/Types.h"
 #include "WoW/Source/Ui/ItemTextFrame.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: ec789ebc auto
 // OFFSET: 0x007126D0
@@ -11,13 +12,13 @@ CGGameObject_C_Type_Text::CGGameObject_C_Type_Text(CGGameObject_C* owner) : CGGa
 // VERIFY: 6f615625 auto
 // OFFSET: 0x0070B570
 void CGGameObject_C_Type_Text::CloseInteraction() {
-    this->UpdateAnimState(4);
+    this->UpdateAnimState(ANIMSTATE_CLOSING);
 }
 
 // VERIFY: 47a10015 auto
 // OFFSET: 0x0070B560
 void CGGameObject_C_Type_Text::StartInteraction() {
-    this->UpdateAnimState(2);
+    this->UpdateAnimState(ANIMSTATE_OPENING);
 }
 
 // VERIFY: 829ac8b8 auto

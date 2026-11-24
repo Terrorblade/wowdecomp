@@ -23,7 +23,7 @@ struct RenderToggle {
     const char* m_offText;
 };
 
-static const RenderToggle s_wireframe = { Enable_ShowTris, "Wireframe mode on.", "Wireframe mode off." };
+static const RenderToggle s_wireframe = { Enable_Wireframe, "Wireframe mode on.", "Wireframe mode off." };
 static const RenderToggle s_normals = { Enable_ShowNormals, "Normal display turned on.", "Normal display turned off." };
 static const RenderToggle s_groundEffects = { Enable_DetailDoodads, "Ground clutter shown.", "Ground clutter hidden." };
 static const RenderToggle s_liquids = { Enable_Water | Enable_Particulates, "Liquids shown.", "Liquids hidden." };

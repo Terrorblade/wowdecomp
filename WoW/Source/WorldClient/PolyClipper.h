@@ -10,6 +10,10 @@ class PCResultsIterator;
 
 class PolyClipper {
     public:
+    enum {
+        MAX_VTX_BUFFER_SIZE = 32,
+    };
+
     class PCDataProxy {
         public:
         /* 0000 */ mutable void* m_data;
@@ -35,7 +39,7 @@ class PolyClipper {
         /* 0008 */ bool m_clipped;
     };
 
-    /* 0000 */ PCVertex m_verts[32];
+    /* 0000 */ PCVertex m_verts[MAX_VTX_BUFFER_SIZE];
     /* 0580 */ PCEdge m_edges[16];
     /* 0640 */ int32_t m_vertCount;
     /* 0644 */ int32_t m_edgeCount;

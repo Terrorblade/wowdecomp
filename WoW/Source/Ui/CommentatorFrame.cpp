@@ -13,6 +13,7 @@
 #include "WoW/Source/UIUtil/Types.h"
 #include "WoW/Source/Ui/Types.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "WoW/Source/WorldClient/Types.h"
 
 // STATIC: 0x00ACE4A8
 CGCommentator CGCommentator::s_Commentator;
@@ -172,10 +173,10 @@ void CGCommentator::SnapCameraToPlayer() {
 // OFFSET: 0x0056B830
 void CGCommentator::PostInit(CGPlayer_C* player) {
     if (player && player->IsCommentatorUberOrInArena()) {
-        World::ObjectSetShadow(player->m_worldObject, 2, 2);
+        World::ObjectSetShadow(player->m_worldObject, MAP_OBJECT_CREATE_FLAG_NO_BLOB_SHADOW, MAP_OBJECT_CREATE_FLAG_NO_BLOB_SHADOW);
 
         if (CGWorldFrame::s_currentWorldFrame) {
-            CGWorldFrame::GetActiveCamera()->SetView(6, 2, 0);
+            CGWorldFrame::GetActiveCamera()->SetView(CGCamera::VIEW_COMMENTATOR, CGCamera::VIEW_BLEND_INSTANT, CGCamera::VIEW_TRANSITION_NONE);
             CGCommentator::s_Commentator.SnapCameraToPlayer();
         }
     }
@@ -353,7 +354,7 @@ void CGCommentator::OnUpdate(float elapsed) {
         C3Vector hit(0.0f, 0.0f, 0.0f);
         float hitDistance = 1.0f;
 
-        if (this->m_cameraCollision && World::Intersect(target, eye, &hit, &hitDistance, 0x100171, nullptr)) {
+        if (this->m_cameraCollision && World::Intersect(target, eye, &hit, &hitDistance, WORLD_QUERY_COLLISION_MASK | WORLD_QUERY_WMO_RENDER | WORLD_QUERY_WMO_CAMERA, nullptr)) {
             C3Vector direction(target.x - hit.x, target.y - hit.y, target.z - hit.z);
             direction.NormalizeSafe();
             this->m_position.x = direction.x * 0.80000001f + hit.x;
@@ -382,7 +383,7 @@ void CGCommentator::OnUpdate(float elapsed) {
             C3Vector hit(0.0f, 0.0f, 0.0f);
             float hitDistance = 1.0f;
 
-            if (!this->m_cameraCollision || !World::Intersect(this->m_position, next, &hit, &hitDistance, 0x100171, nullptr)) {
+            if (!this->m_cameraCollision || !World::Intersect(this->m_position, next, &hit, &hitDistance, WORLD_QUERY_COLLISION_MASK | WORLD_QUERY_WMO_RENDER | WORLD_QUERY_WMO_CAMERA, nullptr)) {
                 this->m_position = next;
             }
         }
@@ -468,7 +469,7 @@ uint64_t CGCommentator::GetArenaMember(int32_t index) {
     CGCommentator::MapInfo* map;
     CGCommentator::InstanceInfo* instance;
 
-    if (!player || !(player->m_player->m_playerFlags & 0x80000) || !this->GetCommentatorInfo(&map, &instance)) {
+    if (!player || !(player->m_player->m_playerFlags & PLAYER_FLAG_COMMENTATOR) || !this->GetCommentatorInfo(&map, &instance)) {
         return 0;
     }
 
@@ -583,17 +584,17 @@ int32_t CGCommentator::OnStateChanged(void* param, NETMESSAGE msgId, uint32_t ti
     }
 
     if (enabled && player->IsCommentatorUberOrInArena()) {
-        World::ObjectSetShadow(player->m_worldObject, 2, 2);
+        World::ObjectSetShadow(player->m_worldObject, MAP_OBJECT_CREATE_FLAG_NO_BLOB_SHADOW, MAP_OBJECT_CREATE_FLAG_NO_BLOB_SHADOW);
 
         if (CGWorldFrame::s_currentWorldFrame) {
-            CGWorldFrame::GetActiveCamera()->SetView(6, 2, 0);
+            CGWorldFrame::GetActiveCamera()->SetView(CGCamera::VIEW_COMMENTATOR, CGCamera::VIEW_BLEND_INSTANT, CGCamera::VIEW_TRANSITION_NONE);
             CGCommentator::s_Commentator.SnapCameraToPlayer();
         }
     } else {
-        World::ObjectSetShadow(player->m_worldObject, 0, 2);
+        World::ObjectSetShadow(player->m_worldObject, 0, MAP_OBJECT_CREATE_FLAG_NO_BLOB_SHADOW);
 
         if (CGWorldFrame::s_currentWorldFrame) {
-            CGWorldFrame::GetActiveCamera()->SetView(1, 2, 0);
+            CGWorldFrame::GetActiveCamera()->SetView(CGCamera::VIEW_THIRD_PERSON_A, CGCamera::VIEW_BLEND_INSTANT, CGCamera::VIEW_TRANSITION_NONE);
         }
     }
 

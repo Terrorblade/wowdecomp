@@ -17,7 +17,7 @@ class PassGlowBase : public FFX::Pass {
 class PassGlow : public PassGlowBase {
     public:
     /* 0034 */ int32_t m_shaderIndex;
-    /* 0038 */ CGxShader* m_shaders[2];
+    /* 0038 */ CGxShader* m_shaders[TEXCOORD_COUNT];
 
     ~PassGlow() override;
     bool Valid() override;

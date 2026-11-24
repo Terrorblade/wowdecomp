@@ -54,8 +54,8 @@ class GruntLogin : public Login {
     void GetMatrixProof(bool* enabled, const uint8_t** proof) const override;
     void SetTokenInfo(bool enabled, uint8_t required) override;
     void GetTokenInfo(bool* enabled, char* token) override;
-    void LogonResult(Grunt::Result result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) override;
-    void ReconnectResult(Grunt::Result result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) override;
+    void LogonResult(GRUNT_RESULT result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) override;
+    void ReconnectResult(GRUNT_RESULT result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) override;
     LOGIN_STATE NextSecurityState(LOGIN_STATE state) override;
     int32_t GetServerId() override;
     const uint8_t* GetVersionChallenge() override;

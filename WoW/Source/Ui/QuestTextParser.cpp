@@ -29,6 +29,7 @@
 #include "WoW/Source/Game/GameTime.h"
 #include "WoW/Source/Object/Player.h"
 #include "WoW/Source/Ui/CGWorldStateInfo.h"
+#include "Engine/Source/Os/TimeManager.h"
 
 // STATIC: 0x00BEB660
 static int32_t s_lastNumber;
@@ -96,10 +97,10 @@ void GenderConditional(char* buffer, uint32_t size, int32_t gender, const CGUnit
         end = selector ? selector : semicolon;
     }
 
-    int32_t length = end - *cursor;
+    int32_t length = static_cast<int32_t>(end - *cursor);
 
     if (length) {
-        uint32_t bufferLength = SStrLen(buffer);
+        uint32_t bufferLength = static_cast<uint32_t>(SStrLen(buffer));
         SStrPack(buffer, *cursor, size);
 
         if (bufferLength + length < size) {
@@ -167,10 +168,10 @@ static int32_t SpellParserPluralConditional(char* buffer, uint32_t size, int32_t
         end++;
     }
 
-    int32_t length = end - text;
+    int32_t length = static_cast<int32_t>(end - text);
 
     if (length) {
-        uint32_t bufferLength = SStrLen(buffer);
+        uint32_t bufferLength = static_cast<uint32_t>(SStrLen(buffer));
         SStrPack(buffer, text, size);
 
         if (bufferLength + length < size) {
@@ -250,7 +251,7 @@ static int32_t SpellParserVerifyConditional(const char* text, const char** trueS
 // OFFSET: 0x00577C40
 static int32_t SpellParserVariable(char* buffer, uint32_t size, const char** cursor, int32_t* lastNumber, const char* end) {
     char name[16];
-    int32_t length = end - *cursor;
+    int32_t length = static_cast<int32_t>(end - *cursor);
 
     if (length > 15) {
         length = 15;
@@ -278,10 +279,10 @@ int32_t SpellItemEnchantmentParseText(const SpellItemEnchantmentRec* enchant, ch
     const char* text = enchant->m_name;
 
     for (const char* dollar = SStrChr(text, '$'); dollar && *dollar; dollar = SStrChr(text, '$')) {
-        int32_t length = dollar - text;
+        int32_t length = static_cast<int32_t>(dollar - text);
 
         if (dollar != text) {
-            uint32_t bufferLength = SStrLen(buffer);
+            uint32_t bufferLength = static_cast<uint32_t>(SStrLen(buffer));
             SStrPack(buffer, text, size);
 
             if (bufferLength + length < size) {
@@ -454,17 +455,17 @@ static int32_t SpellParserExpression(const SpellRec* spell, char* buffer, uint32
     s_mathState.m_numIntArgs = 0;
     s_mathState.m_numVariables = 0;
     s_mathState.m_name = "TomT";
-    s_mathState.m_status = 0;
+    s_mathState.m_status = MathState::STATUS_COMPILING;
     s_mathState.CompileSum(0);
 
-    if (s_mathState.m_status == 1) {
+    if (s_mathState.m_status == MathState::STATUS_ERROR) {
         return 0;
     }
 
-    s_mathState.m_status = 2;
+    s_mathState.m_status = MathState::STATUS_OK;
     *value = s_mathState.Evaluate(spell, spellLevel, scale, parseUnit, parsePet, noModifiers);
 
-    if (s_mathState.m_status != 2) {
+    if (s_mathState.m_status != MathState::STATUS_OK) {
         return 0;
     }
 
@@ -533,7 +534,7 @@ static int32_t SpellParserConditional(const SpellRec* spell, char* buffer, uint3
         start = falseStart + 1;
     }
 
-    int32_t length = stop - start + 1;
+    int32_t length = static_cast<int32_t>(stop - start + 1);
 
     if (length >= static_cast<int32_t>(sizeof(text))) {
         length = sizeof(text) - 1;
@@ -581,7 +582,7 @@ static void SpellParserVariables(const SpellRec* spell, int32_t parsePet, int32_
         const char* equals = SStrChr(name, '=');
 
         if (equals) {
-            int32_t length = equals - name + 1;
+            int32_t length = static_cast<int32_t>(equals - name + 1);
             uint32_t nameLength = length <= 15 ? length : 15;
             *cursor = SStrChr(*cursor, '$');
 
@@ -674,7 +675,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
 
         spell = &loaded;
 
-        if (loaded.m_attributesExB & 0x1000000) {
+        if (loaded.m_attributesExB & SPELL_ATTR2_ITEM_CAST_WITH_OWNER_SKILL) {
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
             if (player) {
@@ -695,7 +696,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
         index = text[1] - '1';
         hasIndex = 1;
 
-        if (index >= 3) {
+        if (index >= NUM_SPELL_EFFECTS) {
             index = 0;
         }
     }
@@ -719,7 +720,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
 
             if (rec) {
                 radius = static_cast<int32_t>(rec->m_radius);
-                Spell_C_ModifySpellValue(spell, radius, 6);
+                Spell_C_ModifySpellValue(spell, radius, SPELLMOD_RADIUS);
             }
 
             SStrPrintf(number, sizeof(number), "%d", radius);
@@ -774,7 +775,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
         case 'E':
         case 'e': {
             float amplitude = spell->m_effectAmplitude[index];
-            Spell_C_ModifySpellValue(spell, amplitude, 27);
+            Spell_C_ModifySpellValue(spell, amplitude, SPELLMOD_VALUE_MULTIPLIER);
             SStrPrintf(number, sizeof(number), "%.1f", amplitude * multiplier);
             output = number;
             break;
@@ -799,7 +800,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
 
             int32_t gender = player->m_unit->m_unitFieldBytes0[2];
 
-            if (gender == 2) {
+            if (gender == UNITSEX_NONE) {
                 gender = player->m_player->m_playerBytes3[0];
             }
 
@@ -815,7 +816,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
         case 'H':
         case 'h': {
             int32_t chance = spell->m_procChance;
-            Spell_C_ModifySpellValue(spell, chance, 18);
+            Spell_C_ModifySpellValue(spell, chance, SPELLMOD_CHANCE_OF_SUCCESS);
             s_lastNumber = chance;
             SStrPrintf(number, sizeof(number), "%d", chance);
             output = number;
@@ -860,7 +861,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
                 int32_t time;
 
                 if (period > 0 && (time = Spell_C_GetDuration(spell, parsePet, parseUnit, noModifiers, 0)) > 0) {
-                    int32_t total = time + ((spell->m_attributesExE & 0x200) ? period : 0);
+                    int32_t total = time + ((spell->m_attributesExE & SPELL_ATTR5_EXTRA_INITIAL_PERIOD) ? period : 0);
                     minPoints = minPoints * total / period;
                     maxPoints = total * maxPoints / period;
                 } else {
@@ -938,7 +939,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
         case 'N':
         case 'n': {
             int32_t charges = spell->m_procCharges;
-            Spell_C_ModifySpellValue(spell, charges, 4);
+            Spell_C_ModifySpellValue(spell, charges, SPELLMOD_CHARGES);
             s_lastNumber = charges;
             SStrPrintf(number, sizeof(number), "%d", charges);
             output = number;
@@ -976,7 +977,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
 
             if (rec) {
                 range = rec->m_rangeMax[0];
-                Spell_C_ModifySpellValue(spell, range, 5);
+                Spell_C_ModifySpellValue(spell, range, SPELLMOD_RANGE);
             }
 
             s_lastNumber = static_cast<int32_t>(ceilf(range));
@@ -989,15 +990,15 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
         case 't': {
             int32_t period;
 
-            if (spell->m_procTypeMask & 1) {
+            if (spell->m_procTypeMask & SpellRec::PROC_HEARTBEAT) {
                 period = 5000;
             } else {
                 period = spell->m_effectAuraPeriod[index];
-                Spell_C_ModifySpellValue(spell, period, 19);
+                Spell_C_ModifySpellValue(spell, period, SPELLMOD_ACTIVATION_TIME);
 
-                for (uint32_t i = 0; i < 3; i++) {
+                for (uint32_t i = 0; i < NUM_SPELL_EFFECTS; i++) {
                     if (spell->m_effectAuraPeriod[i]) {
-                        if ((spell->m_attributesExE & 0x2000) && !(spell->m_attributesExC & 0x20000000)) {
+                        if ((spell->m_attributesExE & SPELL_ATTR5_SPELL_HASTE_AFFECTS_PERIODIC) && !(spell->m_attributesExC & SPELL_ATTR3_IGNORE_CASTER_MODIFIERS)) {
                             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
                             if (player && player->m_unit->m_unitModCastSpeed >= 0.001f) {
@@ -1011,9 +1012,9 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
             }
 
             if (TimeFractionBelow(static_cast<float>(period), 0.01f)) {
-                SStrPrintf(number, sizeof(number), "%d", period / 1000);
+                SStrPrintf(number, sizeof(number), "%d", period / TIME_MILLISECONDS_PER_SECOND);
             } else {
-                SStrPrintf(number, sizeof(number), "%.2f", period * 0.001f);
+                SStrPrintf(number, sizeof(number), "%.2f", period * TIME_SECONDS_PER_MILLISECOND_FLOAT);
             }
 
             output = number;
@@ -1037,7 +1038,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
         case 'X':
         case 'x': {
             int32_t targets = spell->m_effectChainTargets[index];
-            Spell_C_ModifySpellValue(spell, targets, 17);
+            Spell_C_ModifySpellValue(spell, targets, SPELLMOD_JUMP_TARGETS);
             s_lastNumber = targets;
             SStrPrintf(number, sizeof(number), "%d", targets);
             output = number;
@@ -1079,10 +1080,10 @@ static int32_t SpellParserParseSubText(const SpellRec* spell, char* buffer, uint
     int32_t failed = 0;
 
     while (*cursor && **cursor) {
-        int32_t length = *cursor - text;
+        int32_t length = static_cast<int32_t>(*cursor - text);
 
         if (*cursor != text) {
-            uint32_t bufferLength = SStrLen(buffer);
+            uint32_t bufferLength = static_cast<uint32_t>(SStrLen(buffer));
             SStrPack(buffer, text, size);
 
             if (bufferLength + length < size) {
@@ -1299,7 +1300,7 @@ bool QuestParserParseToken(char* buffer, uint32_t size, const NameCache* record,
 
             int32_t gender = unit ? unit->m_unit->m_unitFieldBytes0[2] : record->m_sex;
 
-            if (gender == 2 && unit && const_cast<CGUnit_C*>(unit)->IsActivePlayer()) {
+            if (gender == UNITSEX_NONE && unit && const_cast<CGUnit_C*>(unit)->IsActivePlayer()) {
                 gender = static_cast<const CGPlayer_C*>(unit)->m_player->m_playerBytes3[0];
             }
 

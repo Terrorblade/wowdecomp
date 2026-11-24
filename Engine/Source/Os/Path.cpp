@@ -5,7 +5,7 @@
 // VERIFY: 191ce23a manual
 // OFFSET: 0x0086BC30
 uint32_t OsPathGetRootChars(const char* path) {
-    uint32_t length = SStrLen(path);
+    uint32_t length = static_cast<uint32_t>(SStrLen(path));
 
     if (length < 2) {
         return 0;

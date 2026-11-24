@@ -10,6 +10,7 @@
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/Unit.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/Game/GameClient/tables.h"
 
 // VERIFY: 350bfeb0 auto
 // OFFSET: 0x0052E4F0
@@ -32,11 +33,11 @@ static int32_t Script_GetBarberShopStyleInfo(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index > 3) {
+    if (index > BARBER_SHOP_SKIN_COLOR) {
         return 0;
     }
 
-    if (index == 3 && !CGBarberShop::m_currentSkinColor) {
+    if (index == BARBER_SHOP_SKIN_COLOR && !CGBarberShop::m_currentSkinColor) {
         return 0;
     }
 
@@ -48,7 +49,7 @@ static int32_t Script_GetBarberShopStyleInfo(lua_State* L) {
 
     int32_t cost;
 
-    if (index == 1) {
+    if (index == BARBER_SHOP_HAIR_COLOR) {
         lua_pushnil(L);
         lua_pushnil(L);
         float value = GetGameTableValue(0, player->m_unit->m_unitFieldLevel - 1, 0) * 0.5f;
@@ -116,7 +117,7 @@ static int32_t Script_SetNextBarberShopStyle(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index <= 3 && (index != 3 || CGBarberShop::m_currentSkinColor)) {
+    if (index <= BARBER_SHOP_SKIN_COLOR && (index != BARBER_SHOP_SKIN_COLOR || CGBarberShop::m_currentSkinColor)) {
         bool backward = StringToBOOL(L, 2, 0) != 0;
         CGBarberShop::SetNextBarberShopStyle(index, backward);
     }

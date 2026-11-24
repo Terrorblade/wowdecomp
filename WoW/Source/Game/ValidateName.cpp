@@ -4,6 +4,7 @@
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/Client.h"
 
 // STATIC: 0x00AF2B98
 static const uint16_t s_koreanSyllables[2350] = {
@@ -680,7 +681,7 @@ void ValidateNameInitialize(int32_t localeMask, int32_t charsetMask) {
     }
 
     s_charsetCached = true;
-    CVar::Register("forceEnglishNames", nullptr, 0, "0", nullptr, 5, false, nullptr, false);
+    CVar::Register("forceEnglishNames", nullptr, CVAR_NONE, "0", nullptr, 5, false, nullptr, false);
     s_cachedLocaleMask = localeMask;
     s_cachedCharsetMask = charsetMask;
 
@@ -872,7 +873,7 @@ void CaseAccentInsensitiveParse(char* string, uint32_t size, int32_t locale) {
     memset(folded, 0, 512);
 
     switch (locale) {
-        case 0: {
+        case LOCALE_en_US: {
             SUniConvertUTF8to16(wide, 512, string, size, nullptr, nullptr);
 
             for (uint32_t i = 0; i < 512; i++) {
@@ -882,7 +883,7 @@ void CaseAccentInsensitiveParse(char* string, uint32_t size, int32_t locale) {
             break;
         }
 
-        case 2: {
+        case LOCALE_fr_FR: {
             SUniConvertUTF8to16(wide, 512, string, size, nullptr, nullptr);
             uint16_t* src = wide;
 
@@ -916,7 +917,7 @@ void CaseAccentInsensitiveParse(char* string, uint32_t size, int32_t locale) {
             break;
         }
 
-        case 3: {
+        case LOCALE_de_DE: {
             SUniConvertUTF8to16(wide, 512, string, size, nullptr, nullptr);
             uint16_t* src = wide;
 
@@ -935,8 +936,8 @@ void CaseAccentInsensitiveParse(char* string, uint32_t size, int32_t locale) {
             break;
         }
 
-        case 6:
-        case 7: {
+        case LOCALE_es_ES:
+        case LOCALE_es_MX: {
             SUniConvertUTF8to16(wide, 512, string, size, nullptr, nullptr);
 
             for (uint32_t i = 0; i < 512; i++) {
@@ -972,7 +973,7 @@ void CaseAccentInsensitiveParse(char* string, uint32_t size, int32_t locale) {
             break;
         }
 
-        case 8: {
+        case LOCALE_ru_RU: {
             SUniConvertUTF8to16(wide, 512, string, size, nullptr, nullptr);
 
             for (uint32_t i = 0; i < 512; i++) {
@@ -1108,13 +1109,13 @@ bool StripHyperlinks(const char* text, char* buffer, uint32_t size) {
 // VERIFY: ab213c53 auto
 // OFFSET: 0x0076DD20
 int32_t NameNeedsDeclensions(int32_t locale, const char* name) {
-    return locale == 8 && RussianNameNeedsDeclensions(name);
+    return locale == LOCALE_ru_RU && RussianNameNeedsDeclensions(name);
 }
 
 // VERIFY: d8c709a0 auto
 // OFFSET: 0x0076DD40
 uint32_t GetNumNameDeclensionSets(int32_t locale, const char* name, int32_t sex) {
-    if (locale == 8) {
+    if (locale == LOCALE_ru_RU) {
         return GetNumRussianNameDeclensionSets(name, sex);
     }
 
@@ -1124,7 +1125,7 @@ uint32_t GetNumNameDeclensionSets(int32_t locale, const char* name, int32_t sex)
 // VERIFY: d0bee4f8 auto
 // OFFSET: 0x0076DD60
 int32_t GetNameDeclensions(int32_t locale, char* declensions, const char* name, int32_t sex, uint32_t set) {
-    if (locale == 8) {
+    if (locale == LOCALE_ru_RU) {
         return GetRussianNameDeclensions(declensions, name, sex, set);
     }
 
@@ -1134,7 +1135,7 @@ int32_t GetNameDeclensions(int32_t locale, char* declensions, const char* name, 
 // VERIFY: e5fa55cb manual
 // OFFSET: 0x0076DD90
 VALIDATE_NAME_RESULT ValidateCharacterNameDeclension(int32_t locale, const char* name, const char* declension) {
-    if (locale != 8) {
+    if (locale != LOCALE_ru_RU) {
         return NAME_FAILURE;
     }
 
@@ -1155,7 +1156,7 @@ static void GetNameInfo(const char* name, RussianNameInfo* info, int32_t sex) {
         name = "";
     }
 
-    int32_t length = SStrLenUTF8(name);
+    int32_t length = static_cast<int32_t>(SStrLenUTF8(name));
     memset(info->m_name, 0, sizeof(info->m_name));
     SUniConvertUTF8to16(info->m_name, 1024, name, 0x7FFFFFFF, nullptr, nullptr);
 
@@ -1164,7 +1165,7 @@ static void GetNameInfo(const char* name, RussianNameInfo* info, int32_t sex) {
     }
 
     info->m_stemLen = length;
-    info->m_rule = sex == 1 ? 36 : 35;
+    info->m_rule = sex == UNITSEX_FEMALE ? 36 : 35;
     info->m_hasAltStem = 0;
 
     int32_t bestMatch = 0;
@@ -1172,7 +1173,7 @@ static void GetNameInfo(const char* name, RussianNameInfo* info, int32_t sex) {
     for (int32_t r = 0; r < 55; r++) {
         const RussianDeclensionRule* rule = &s_russianDeclensionRules[r];
 
-        if (rule->m_sex != 2 && sex != 2 && sex != rule->m_sex) {
+        if (rule->m_sex != UNITSEX_NONE && sex != UNITSEX_NONE && sex != rule->m_sex) {
             continue;
         }
 
@@ -1285,7 +1286,7 @@ static int32_t FormatCase(char* declensions, uint32_t set, const RussianNameInfo
     uint16_t buffer[1024];
 
     if (id == 71) {
-        for (int32_t i = 0; i < 5; i++) {
+        for (int32_t i = 0; i < NUM_DECLENSIONS; i++) {
             declensions[i * 1024] = '\0';
         }
 
@@ -1307,7 +1308,7 @@ static int32_t FormatCase(char* declensions, uint32_t set, const RussianNameInfo
 
         buffer[length] = 0;
 
-        for (int32_t i = 0; i < 5; i++) {
+        for (int32_t i = 0; i < NUM_DECLENSIONS; i++) {
             SUniConvertUTF16to8(&declensions[i * 1024], 1024, buffer, 1024, nullptr, nullptr);
         }
 
@@ -1466,7 +1467,7 @@ bool ScrubString(const char* source, char* dest, int32_t maxChars, uint32_t dest
     bool valid = ValidateStringIsUTF8(source);
     StripPipes(source, dest, destSize);
 
-    if ((flags & 1) && TruncateNewLines(dest)) {
+    if ((flags & SCRUB_FLAG_TRUNCATE_NEWLINES) && TruncateNewLines(dest)) {
         valid = false;
     }
 

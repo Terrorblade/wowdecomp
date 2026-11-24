@@ -23,6 +23,8 @@
 #include "WoW/Source/WorldClient/CPortalView.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "WoW/Source/Object/Types.h"
+#include "Engine/Source/Gx/CGxVertexPCT.h"
 
 const char* const SnowFlakeParticleBuffer::s_packetName = ".?AU?$Packet@UFlake@Snow@@$0BIAA@$00@@";
 
@@ -242,7 +244,7 @@ void Snow::UpdatePackets() {
         if (active) {
             CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(active, TYPE_PLAYER, __FILE__, __LINE__));
 
-            if (player && player->m_movement->m_spline && !(player->m_movement->m_spline->m_flags & 0x400)) {
+            if (player && player->m_movement->m_spline && !(player->m_movement->m_spline->m_flags & SPLINEFLAG_NO_SPLINE)) {
                 C3Spline_CatmullRom* spline = player->GetSpline();
 
                 if (spline && spline->m_pointCount > 2) {
@@ -273,8 +275,8 @@ void Snow::UpdatePackets() {
                         velocity = scaled;
 
                         if (scaled.z < -10.0f) {
-                            static float s_low = CMath::exp_(1.0f);
-                            static float s_high = CMath::exp_(2.25f);
+                            static float s_low = static_cast<float>(CMath::exp_(1.0f));
+                            static float s_high = static_cast<float>(CMath::exp_(2.25f));
                             float fallScale = static_cast<float>(CMath::exp_(velocity.z * -0.1f));
                             float factor = fclamp((fallScale - s_low) / (s_high - s_low), 0.0f, 1.0f);
                             origin.z = origin.z - factor * (this->m_bbox.t.z - this->m_bbox.b.z);
@@ -337,7 +339,7 @@ void Snow::RenderPackets() {
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 2);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxRsSet(GxRs_AlphaRef, static_cast<int32_t>(CGxDevice::s_alphaRef[g_theGxDevicePtr->m_appRenderStates.m_data[GxRs_BlendingMode].m_value.m_data.i[0]]));
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Lighting, 0);
@@ -408,7 +410,7 @@ void Snow::RenderPacketsSW() {
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 2);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxRsSet(GxRs_AlphaRef, static_cast<int32_t>(CGxDevice::s_alphaRef[g_theGxDevicePtr->m_appRenderStates.m_data[GxRs_BlendingMode].m_value.m_data.i[0]]));
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Lighting, 0);

@@ -46,7 +46,7 @@ int32_t CGlueLoading::Idle(CCharacterComponent* component) {
     CGlueLoading::m_loadStartTime = time;
 
     switch (CGlueLoading::m_loadState) {
-        case 1: {
+        case CGlueLoading::LOAD_STATE_LOADING: {
             int64_t loaded;
             int64_t total;
             float progress = CGlueLoading::ComputeLoadProgress(component, loaded, total);
@@ -60,7 +60,7 @@ int32_t CGlueLoading::Idle(CCharacterComponent* component) {
             bool done = false;
 
             if (loaded == total) {
-                CGlueLoading::m_loadState = 2;
+                CGlueLoading::m_loadState = CGlueLoading::LOAD_STATE_FINISHING;
                 CGlueLoading::m_loadCompleteTime = time + 250;
                 done = true;
             }
@@ -69,15 +69,15 @@ int32_t CGlueLoading::Idle(CCharacterComponent* component) {
                 CM2Model* model = component->m_data.m_model;
 
                 if (model->m_attachParent) {
-                    model->m_fFlags = (model->m_fFlags & ~0x80u) | (done << 7);
+                    model->m_fFlags = (model->m_fFlags & ~M2_ATTACHED_DRAW_ENABLED) | (done << M2_BIT_ATTACHED_DRAW_ENABLED);
                 } else {
-                    model->m_fFlags = (model->m_fFlags & ~0x8u) | (done << 3);
+                    model->m_fFlags = (model->m_fFlags & ~M2_DRAW_ENABLED) | (done << M2_BIT_DRAW_ENABLED);
                 }
 
                 if (model->m_attachParent) {
-                    model->m_fFlags = (model->m_fFlags & ~0x20000u) | (done << 17);
+                    model->m_fFlags = (model->m_fFlags & ~M2_ATTACHED_PARTICLES_ENABLED) | (done << M2_BIT_ATTACHED_PARTICLES_ENABLED);
                 } else {
-                    model->m_fFlags = (model->m_fFlags & ~0x10000u) | (done << 16);
+                    model->m_fFlags = (model->m_fFlags & ~M2_PARTICLES_ENABLED) | (done << M2_BIT_PARTICLES_ENABLED);
                 }
             }
 
@@ -85,7 +85,7 @@ int32_t CGlueLoading::Idle(CCharacterComponent* component) {
             break;
         }
 
-        case 2: {
+        case CGlueLoading::LOAD_STATE_FINISHING: {
             CGlueLoading::m_loadProgress += elapsed * 4.0f;
 
             if (CGlueLoading::m_loadProgress > 1.0f) {
@@ -96,7 +96,7 @@ int32_t CGlueLoading::Idle(CCharacterComponent* component) {
 
             if (time > CGlueLoading::m_loadCompleteTime) {
                 LoadingScreenMiniDisable();
-                CGlueLoading::m_loadState = 3;
+                CGlueLoading::m_loadState = CGlueLoading::LOAD_STATE_DONE;
             }
 
             break;
@@ -120,27 +120,27 @@ void CGlueLoading::StartLoad(CCharacterComponent* component, int32_t keepProgres
 
         if (loaded == total) {
             LoadingScreenMiniDisable();
-            CGlueLoading::m_loadState = 3;
+            CGlueLoading::m_loadState = CGlueLoading::LOAD_STATE_DONE;
         } else {
             if (component) {
                 CM2Model* model = component->m_data.m_model;
 
                 if (model->m_attachParent) {
-                    model->m_fFlags &= ~0x80u;
+                    model->m_fFlags &= ~M2_ATTACHED_DRAW_ENABLED;
                 } else {
-                    model->m_fFlags &= ~0x8u;
+                    model->m_fFlags &= ~M2_DRAW_ENABLED;
                 }
 
                 if (model->m_attachParent) {
-                    model->m_fFlags &= ~0x20000u;
+                    model->m_fFlags &= ~M2_ATTACHED_PARTICLES_ENABLED;
                 } else {
-                    model->m_fFlags &= ~0x10000u;
+                    model->m_fFlags &= ~M2_PARTICLES_ENABLED;
                 }
             }
 
             CGlueLoading::m_startProgress = keepProgress ? progress : 0.0f;
             CGlueLoading::m_loadProgress = progress;
-            CGlueLoading::m_loadState = 1;
+            CGlueLoading::m_loadState = CGlueLoading::LOAD_STATE_LOADING;
             CGlueLoading::m_loadStartTime = OsGetAsyncTimeMs();
         }
     } else {
@@ -149,6 +149,6 @@ void CGlueLoading::StartLoad(CCharacterComponent* component, int32_t keepProgres
             component->m_data.m_model->IsDrawable(1, 1);
         }
 
-        CGlueLoading::m_loadState = 3;
+        CGlueLoading::m_loadState = CGlueLoading::LOAD_STATE_DONE;
     }
 }

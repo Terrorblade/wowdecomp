@@ -14,12 +14,11 @@
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/GameUI.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 
 namespace HoT::Editor::SpellPreview {
 
 static constexpr int8_t kRequiredSecurityLevel = 3;
-static constexpr uint32_t TARGET_FLAG_UNIT = 0x2;
-static constexpr uint32_t TARGET_FLAG_DEST_LOCATION = 0x40;
 static constexpr int32_t kInfiniteChannelMs = 10000;
 static constexpr int32_t kMaxChannelMs = 60000;
 static constexpr float kGroundDistance = 10.0f;

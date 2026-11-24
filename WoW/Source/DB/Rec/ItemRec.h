@@ -3,8 +3,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/ItemTypes.h"
 
 class SFileImpl;
+
+enum ITEM_ID : int32_t {
+    ITEM_ID_HEARTHSTONE = 6948,
+};
 
 class ItemRec {
     public:

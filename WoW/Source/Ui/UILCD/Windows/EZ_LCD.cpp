@@ -27,7 +27,7 @@ CEzLcd::CEzLcd() {
     this->unk_01A8 = 0;
     this->m_currentColorPageIndex = 0;
     this->m_currentMonoPageIndex = 0;
-    this->m_lcdType = 3;
+    this->m_lcdType = LCD_TYPE_NONE;
     this->m_buttonsPending = 0;
     this->m_buttonsCurrent = 0;
     InitializeCriticalSection(&this->m_buttonLock);
@@ -121,17 +121,17 @@ int32_t CEzLcd::Initialize(const char* friendlyName, int32_t lcdType, int32_t is
     }
 
     switch (lcdType) {
-        case 0: {
+        case LCD_TYPE_MONO: {
             connectContext.dwAppletCapabilitiesSupported = LGLCD_APPLET_CAP_BW;
             break;
         }
 
-        case 1: {
+        case LCD_TYPE_COLOR: {
             connectContext.dwAppletCapabilitiesSupported = LGLCD_APPLET_CAP_QVGA;
             break;
         }
 
-        case 2: {
+        case LCD_TYPE_DUAL: {
             connectContext.dwAppletCapabilitiesSupported = LGLCD_APPLET_CAP_BW | LGLCD_APPLET_CAP_QVGA;
             break;
         }
@@ -156,11 +156,11 @@ int32_t CEzLcd::Initialize(const char* friendlyName, int32_t lcdType, int32_t is
 
     this->m_initialized = 1;
 
-    if (this->m_lcdType == 1 || this->m_lcdType == 2) {
+    if (this->m_lcdType == LCD_TYPE_COLOR || this->m_lcdType == LCD_TYPE_DUAL) {
         this->m_output = this->m_connection.ColorOutput();
     }
 
-    if (this->m_lcdType == 0 || this->m_lcdType == 2) {
+    if (this->m_lcdType == LCD_TYPE_MONO || this->m_lcdType == LCD_TYPE_DUAL) {
         this->m_output = this->m_connection.MonoOutput();
     }
 
@@ -194,9 +194,9 @@ int32_t CEzLcd::IsConnected() {
 int32_t CEzLcd::IsDeviceAvailable(int32_t type) {
     CLCDOutput* output;
 
-    if (type == 0) {
+    if (type == LCD_TYPE_MONO) {
         output = this->m_connection.MonoOutput();
-    } else if (type == 1) {
+    } else if (type == LCD_TYPE_COLOR) {
         output = this->m_connection.ColorOutput();
     } else {
         return 0;
@@ -228,8 +228,8 @@ HRESULT CEzLcd::SetText(void* handle, const WCHAR* text) {
         return E_FAIL;
     }
 
-    if (object->GetObjectType() == 1 || object->GetObjectType() == 0) {
-        if (object->GetObjectType() == 1) {
+    if (object->GetObjectType() == LCD_OBJECT_TYPE_TEXT || object->GetObjectType() == LCD_OBJECT_TYPE_UNKNOWN_0) {
+        if (object->GetObjectType() == LCD_OBJECT_TYPE_TEXT) {
             static_cast<CLCDText*>(object)->SetText(text);
             return S_OK;
         }
@@ -243,7 +243,7 @@ HRESULT CEzLcd::SetText(void* handle, const WCHAR* text) {
 HRESULT CEzLcd::SetTextWordWrap(void* handle, bool enable) {
     CLCDBase* object = static_cast<CLCDBase*>(handle);
 
-    if (!object || object->GetObjectType() != 1) {
+    if (!object || object->GetObjectType() != LCD_OBJECT_TYPE_TEXT) {
         return E_FAIL;
     }
 
@@ -317,27 +317,27 @@ HRESULT CEzLcd::SetAlpha(void* handle, int32_t alpha) {
 // OFFSET: 0x00959040
 int32_t CEzLcd::ButtonReleased(int32_t button) {
     switch (button) {
-        case 0:
+        case BUTTON_0:
             return (this->m_buttonsPrevious & LGLCDBUTTON_BUTTON0) && !(this->m_buttonsCurrent & LGLCDBUTTON_BUTTON0);
-        case 1:
+        case BUTTON_1:
             return (this->m_buttonsPrevious & LGLCDBUTTON_BUTTON1) && !(this->m_buttonsCurrent & LGLCDBUTTON_BUTTON1);
-        case 2:
+        case BUTTON_2:
             return (this->m_buttonsPrevious & LGLCDBUTTON_BUTTON2) && !(this->m_buttonsCurrent & LGLCDBUTTON_BUTTON2);
-        case 3:
+        case BUTTON_3:
             return (this->m_buttonsPrevious & LGLCDBUTTON_BUTTON3) && !(this->m_buttonsCurrent & LGLCDBUTTON_BUTTON3);
-        case 4:
+        case BUTTON_LEFT:
             return (this->m_buttonsPrevious & LGLCDBUTTON_LEFT) && !(this->m_buttonsCurrent & LGLCDBUTTON_LEFT);
-        case 5:
+        case BUTTON_RIGHT:
             return (this->m_buttonsPrevious & LGLCDBUTTON_RIGHT) && !(this->m_buttonsCurrent & LGLCDBUTTON_RIGHT);
-        case 6:
+        case BUTTON_UP:
             return (this->m_buttonsPrevious & LGLCDBUTTON_UP) && !(this->m_buttonsCurrent & LGLCDBUTTON_UP);
-        case 7:
+        case BUTTON_DOWN:
             return (this->m_buttonsPrevious & LGLCDBUTTON_DOWN) && !(this->m_buttonsCurrent & LGLCDBUTTON_DOWN);
-        case 8:
+        case BUTTON_OK:
             return (this->m_buttonsPrevious & LGLCDBUTTON_OK) && !(this->m_buttonsCurrent & LGLCDBUTTON_OK);
-        case 9:
+        case BUTTON_CANCEL:
             return (this->m_buttonsPrevious & LGLCDBUTTON_CANCEL) && !(this->m_buttonsCurrent & LGLCDBUTTON_CANCEL);
-        case 10:
+        case BUTTON_MENU:
             return (this->m_buttonsPrevious & LGLCDBUTTON_MENU) && !(this->m_buttonsCurrent & LGLCDBUTTON_MENU);
         default:
             return 0;

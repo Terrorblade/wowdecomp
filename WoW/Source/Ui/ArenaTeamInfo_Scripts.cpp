@@ -42,7 +42,7 @@ static int32_t Script_GetNumArenaTeamMembers(lua_State* L) {
     int32_t showOffline = StringToBOOL(L, 2, 0);
     uint32_t count;
 
-    if (team >= 3) {
+    if (team >= MAX_ARENA_TEAMS) {
         count = 0;
     } else if (CGArenaTeamInfo::m_showOffline || showOffline) {
         count = CGArenaTeamInfo::m_arenaTeams[team].m_numMembers;
@@ -66,7 +66,7 @@ static int32_t Script_GetArenaTeamGdfInfo(lua_State* L) {
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     ArenaTeamMember* member;
 
-    if (team < 3 && index < CGArenaTeamInfo::m_arenaTeams[team].m_numMembers && (member = CGArenaTeamInfo::m_arenaTeams[team].m_members.m_data[index])) {
+    if (team < MAX_ARENA_TEAMS && index < CGArenaTeamInfo::m_arenaTeams[team].m_numMembers && (member = CGArenaTeamInfo::m_arenaTeams[team].m_members.m_data[index])) {
         lua_pushnumber(L, member->m_matchmakerRatingBefore);
         lua_pushnumber(L, member->m_matchmakerRatingAfter);
     } else {
@@ -96,11 +96,11 @@ static int32_t Script_GetArenaTeam(lua_State* L) {
     lua_checkstack(L, 22);
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)) - 1);
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
-    uint32_t* info = player && index < 3 ? &player->m_player->m_playerFieldArenaTeamInfo11[index * 7] : nullptr;
-    ArenaTeam* team = index < 3 ? &CGArenaTeamInfo::m_arenaTeams[index] : nullptr;
+    uint32_t* info = player && index < MAX_ARENA_TEAMS ? &player->m_player->m_playerFieldArenaTeamInfo11[index * NUM_ARENA_TEAM_INFO_FIELDS] : nullptr;
+    ArenaTeam* team = index < MAX_ARENA_TEAMS ? &CGArenaTeamInfo::m_arenaTeams[index] : nullptr;
     ArenaTeamCache* cache = nullptr;
 
-    if (player && info && info[0] && team) {
+    if (player && info && info[ARENA_TEAM_INFO_ID] && team) {
         cache = g_arenaTeamCache.GetRecord(info[0], player->m_obj->m_guid, ArenaTeamCacheCallback, nullptr, true);
     }
 
@@ -121,10 +121,10 @@ static int32_t Script_GetArenaTeam(lua_State* L) {
     lua_pushnumber(L, team->m_weekWins);
     lua_pushnumber(L, team->m_seasonGames);
     lua_pushnumber(L, team->m_seasonWins);
-    lua_pushnumber(L, info[3]);
-    lua_pushnumber(L, info[4]);
+    lua_pushnumber(L, info[ARENA_TEAM_INFO_GAMES_WEEK]);
+    lua_pushnumber(L, info[ARENA_TEAM_INFO_GAMES_SEASON]);
     lua_pushnumber(L, team->m_rank);
-    lua_pushnumber(L, info[6]);
+    lua_pushnumber(L, info[ARENA_TEAM_INFO_PERSONAL_RATING]);
     lua_pushnumber(L, static_cast<int32_t>((cache->m_backgroundColor >> 16) & 0xFF) * (1.0f / 255.0f));
     lua_pushnumber(L, static_cast<int32_t>((cache->m_backgroundColor >> 8) & 0xFF) * (1.0f / 255.0f));
     lua_pushnumber(L, static_cast<int32_t>(cache->m_backgroundColor & 0xFF) * (1.0f / 255.0f));
@@ -142,7 +142,7 @@ static int32_t Script_GetArenaTeam(lua_State* L) {
 // VERIFY: 9361dbb0 auto
 // OFFSET: 0x005A2A40
 static int32_t Script_GetCurrentArenaSeason(lua_State* L) {
-    lua_pushnumber(L, GetWorldState(3191));
+    lua_pushnumber(L, GetWorldState(WORLD_STATE_ARENA_SEASON));
     return 1;
 }
 
@@ -165,7 +165,7 @@ static int32_t Script_GetArenaTeamRosterInfo(lua_State* L) {
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2))) - 1;
     ArenaTeamMember* member;
 
-    if (team >= 3 || index >= CGArenaTeamInfo::m_arenaTeams[team].m_numMembers || !(member = CGArenaTeamInfo::m_arenaTeams[team].m_members.m_data[index])) {
+    if (team >= MAX_ARENA_TEAMS || index >= CGArenaTeamInfo::m_arenaTeams[team].m_numMembers || !(member = CGArenaTeamInfo::m_arenaTeams[team].m_members.m_data[index])) {
         lua_pushnil(L);
         lua_pushnumber(L, 0.0);
         lua_pushnumber(L, 0.0);
@@ -246,41 +246,41 @@ static int32_t Script_SortArenaTeamRoster(lua_State* L) {
         return 0;
     }
 
-    int32_t column = 0;
+    int32_t column = CGArenaTeamInfo::COLUMN_NAME;
     const char* type = lua_tolstring(L, 1, nullptr);
 
     if (!SStrCmpI(type, "name", STORM_MAX_STR)) {
-        CGArenaTeamInfo::SortRoster(0);
+        CGArenaTeamInfo::SortRoster(CGArenaTeamInfo::COLUMN_NAME);
         return 0;
     }
 
     if (!SStrCmpI(type, "class", STORM_MAX_STR)) {
-        CGArenaTeamInfo::SortRoster(1);
+        CGArenaTeamInfo::SortRoster(CGArenaTeamInfo::COLUMN_CLASS);
         return 0;
     }
 
     if (!SStrCmpI(type, "played", STORM_MAX_STR)) {
-        CGArenaTeamInfo::SortRoster(2);
+        CGArenaTeamInfo::SortRoster(CGArenaTeamInfo::COLUMN_WEEK_GAMES);
         return 0;
     }
 
     if (!SStrCmpI(type, "won", STORM_MAX_STR)) {
-        CGArenaTeamInfo::SortRoster(3);
+        CGArenaTeamInfo::SortRoster(CGArenaTeamInfo::COLUMN_WEEK_WINS);
         return 0;
     }
 
     if (!SStrCmpI(type, "seasonplayed", STORM_MAX_STR)) {
-        CGArenaTeamInfo::SortRoster(4);
+        CGArenaTeamInfo::SortRoster(CGArenaTeamInfo::COLUMN_SEASON_GAMES);
         return 0;
     }
 
     if (!SStrCmpI(type, "seasonwon", STORM_MAX_STR)) {
-        CGArenaTeamInfo::SortRoster(5);
+        CGArenaTeamInfo::SortRoster(CGArenaTeamInfo::COLUMN_SEASON_WINS);
         return 0;
     }
 
     if (!SStrCmpI(type, "rating", STORM_MAX_STR)) {
-        column = 6;
+        column = CGArenaTeamInfo::COLUMN_PERSONAL_RATING;
     }
 
     CGArenaTeamInfo::SortRoster(column);

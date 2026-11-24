@@ -16,6 +16,13 @@ typedef bool (*OsURLDownloadCallback)(void* param, const char* data, uint32_t si
 
 class OsUrlDownload {
     public:
+
+    enum STATE : int32_t {
+        STATE_CONNECTING = 0,
+        STATE_REQUESTING = 1,
+        STATE_REQUEST_COMPLETE = 2,
+    };
+
     /* 0000 */ void* m_internet;
     /* 0004 */ void* m_connect;
     /* 0008 */ void* m_request;

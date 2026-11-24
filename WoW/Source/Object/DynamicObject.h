@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/Object/Object.h"
 
 class CGDynamicObjectData;
 
@@ -19,6 +20,19 @@ class CGDynamicObject {
 
 class CGDynamicObjectData {
     public:
+    enum FIELD_ID : uint32_t {
+        DYNAMICOBJECT_CASTER = 0,
+        DYNAMICOBJECT_BYTES = 2,
+        DYNAMICOBJECT_SPELLID = 3,
+        DYNAMICOBJECT_RADIUS = 4,
+        DYNAMICOBJECT_CASTTIME = 5,
+        DYNAMICOBJECT_END = 6,
+    };
+
+    enum FIELD_SIZE : uint32_t {
+        DYNAMICOBJECT_CASTER_SIZE = 2,
+    };
+
     /* 0000 */ WOWGUID m_caster;
     /* 0008 */ uint8_t m_bytes[4];
     /* 000C */ uint32_t m_spellID;

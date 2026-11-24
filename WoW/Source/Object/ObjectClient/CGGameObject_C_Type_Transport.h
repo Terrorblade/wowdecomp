@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Source/Object/ObjectClient/GameObject_C.h"
+#include "Engine/Source/Tempest/C3Vector.h"
 
 class TransportRotationRec;
 

@@ -7,6 +7,7 @@
 #include "Engine/Source/Event/Types.h"
 #include "Engine/Source/Services/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
+#include "Engine/Source/Tempest/CImVector.h"
 
 struct CGxString;
 class CONSOLELINE;

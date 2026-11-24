@@ -47,6 +47,13 @@
 #define STORM_THREAD_PRIORITY_HIGHEST 2
 #define STORM_THREAD_PRIORITY_TIME_CRITICAL 15
 
+enum ErrorDialogButtons {
+    ERROR_DIALOG_OK,
+    ERROR_DIALOG_OK_CANCEL,
+    ERROR_DIALOG_YES_NO,
+    ERROR_DIALOG_YES_NO_CANCEL,
+};
+
 namespace StormLinux {
     void* SyncCreateEvent(int32_t manualReset, int32_t initialState);
     void* SyncCreateSemaphore(int32_t initialCount, int32_t maximumCount);
@@ -84,13 +91,6 @@ namespace StormLinux {
     // The folder holding Data, WTF and Errors, with a trailing '/' ("" if unknown). On macOS it is the folder around
     // the .app bundle.
     void GetGameDirectory(char* buffer, size_t buffersize);
-
-    enum ErrorDialogButtons {
-        ERROR_DIALOG_OK,
-        ERROR_DIALOG_OK_CANCEL,
-        ERROR_DIALOG_YES_NO,
-        ERROR_DIALOG_YES_NO_CANCEL,
-    };
 
     // The message box of SErrDisplayError. Returns the SERR_ID* of the chosen button, or defaultResult where no box
     // can be shown.

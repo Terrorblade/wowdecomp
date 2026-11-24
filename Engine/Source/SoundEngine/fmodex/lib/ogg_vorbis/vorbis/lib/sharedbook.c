@@ -372,7 +372,7 @@ int FMOD_vorbis_book_init_decode(codebook *c,const static_codebook *s){
     }
     /* the index is a reverse index */
     for(i=0;i<n;i++){
-      int position=codep[i]-codes;
+      int position=(int)(codep[i]-codes);
       sortindex[position]=i;
     }
 

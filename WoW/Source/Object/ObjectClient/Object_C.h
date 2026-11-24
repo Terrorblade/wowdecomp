@@ -35,6 +35,82 @@ class SpellVisualKitRec;
 class SpellVisualEffectNameRec;
 class SpellVisualKitModelAttachRec;
 class SpellVisualRec;
+
+enum OUT_OF_RANGE_TYPE : int32_t {
+    OUT_OF_RANGE_UPDATE = 0,
+    OUT_OF_RANGE_DESTROYED = 1,
+    OUT_OF_RANGE_UNLOCKED = 2,
+};
+
+enum SPELL_VISUAL_KIT_TYPE : int32_t {
+    SPELL_VISUAL_KIT_CAST = 0,
+    SPELL_VISUAL_KIT_IMPACT = 1,
+    SPELL_VISUAL_KIT_STATE = 2,
+    SPELL_VISUAL_KIT_AT_POSITION = 3,
+    SPELL_VISUAL_KIT_PRECAST = 4,
+    SPELL_VISUAL_KIT_CASTER_IMPACT = 5,
+    SPELL_VISUAL_KIT_TARGET_IMPACT = 6,
+    SPELL_VISUAL_KIT_MISSILE_TARGETING = 7,
+    SPELL_VISUAL_KIT_STATE_DONE = 8,
+};
+
+enum OBJECT_MODEL_FLAGS : uint32_t {
+    OBJECT_MODEL_FLAG_NONE                         = 0x00000000u,
+    OBJECT_MODEL_LOCK_COUNT_MASK                   = 0x0000FFFFu,
+    OBJECT_MODEL_FLAG_DISABLED                     = 0x00010000u,
+    OBJECT_MODEL_FLAG_POST_REENABLE_PENDING        = 0x00020000u,
+    OBJECT_MODEL_FLAG_POST_INITED                  = 0x00040000u,
+    OBJECT_MODEL_FLAG_UNKNOWN_19                   = 0x00080000u,
+    OBJECT_MODEL_FLAG_DISABLE_PENDING              = 0x00100000u,
+    OBJECT_MODEL_FLAG_BOUNDS_DIRTY                 = 0x00200000u,
+    OBJECT_MODEL_FLAG_PASSIVE_HIGHLIGHT            = 0x00400000u,
+    OBJECT_MODEL_FLAG_COLLIDE_MOVEMENT             = 0x00800000u,
+    OBJECT_MODEL_FLAG_HIGHLIGHT_OBJSELECTION       = 0x01000000u,
+    OBJECT_MODEL_FLAG_HIGHLIGHT_MOUSEOVER          = 0x02000000u,
+    OBJECT_MODEL_FLAG_UNKNOWN_26                   = 0x04000000u,
+    OBJECT_MODEL_FLAG_UNKNOWN_27                   = 0x08000000u,
+    OBJECT_MODEL_FLAG_UNKNOWN_28                   = 0x10000000u,
+    OBJECT_MODEL_FLAG_UNKNOWN_29                   = 0x20000000u,
+    OBJECT_MODEL_FLAG_UNKNOWN_30                   = 0x40000000u,
+    OBJECT_MODEL_FLAG_UNKNOWN_31                   = 0x80000000u,
+    OBJECT_MODEL_FLAG_HIGHLIGHT_MASK = OBJECT_MODEL_FLAG_HIGHLIGHT_OBJSELECTION
+        | OBJECT_MODEL_FLAG_HIGHLIGHT_MOUSEOVER
+        | OBJECT_MODEL_FLAG_UNKNOWN_26,
+};
+constexpr int32_t OBJECT_MODEL_HIGHLIGHT_TYPE_SHIFT = 24;
+
+enum QUEST_GIVER_STATUS : uint32_t {
+    QUEST_GIVER_NONE = 0,
+    QUEST_GIVER_UNKNOWN_1 = 1,
+    QUEST_GIVER_UNKNOWN_2 = 2,
+    QUEST_GIVER_UNKNOWN_3 = 3,
+    QUEST_GIVER_UNKNOWN_4 = 4,
+    QUEST_GIVER_UNKNOWN_5 = 5,
+    QUEST_GIVER_UNKNOWN_6 = 6,
+    QUEST_GIVER_UNKNOWN_7 = 7,
+    QUEST_GIVER_UNKNOWN_8 = 8,
+    QUEST_GIVER_UNKNOWN_9 = 9,
+    QUEST_GIVER_UNKNOWN_10 = 10,
+    QUEST_GIVER_NUMITEMS = 11,
+};
+
+enum OBJECT_NAME_FLAGS : uint32_t {
+    OBJECT_NAME_OWN = 0x1,
+    OBJECT_NAME_NPC = 0x2,
+    OBJECT_NAME_PLAYER_GUILD = 0x4,
+    OBJECT_NAME_PLAYER_PVP_TITLE = 0x8,
+    OBJECT_NAME_ENEMY_PLAYER = 0x10,
+    OBJECT_NAME_ENEMY_PET = 0x20,
+    OBJECT_NAME_ENEMY_TOTEM = 0x40,
+    OBJECT_NAME_FRIENDLY_PLAYER = 0x80,
+    OBJECT_NAME_FRIENDLY_PET = 0x100,
+    OBJECT_NAME_FRIENDLY_TOTEM = 0x200,
+    OBJECT_NAME_NON_COMBAT_CREATURE = 0x400,
+    OBJECT_NAME_UNKNOWN_0x800 = 0x800,
+    OBJECT_NAME_ENEMY_GUARDIAN = 0x1000,
+    OBJECT_NAME_FRIENDLY_GUARDIAN = 0x2000,
+};
+
 enum OUT_OF_RANGE_TYPE : int32_t;
 enum SPELL_VISUAL_KIT_TYPE : int32_t;
 
@@ -64,14 +140,30 @@ inline bool CHashKeyGUID::operator==(const CHashKeyGUID& key) {
 
 class CGObject_C : public CGObject, public TSHashObject<CGObject_C, CHashKeyGUID> {
     public:
+    enum INTERACT_ICON : uint32_t {
+        INTERACT_ICON_NONE = 0,
+        INTERACT_ICON_TALK_TO_ME = 1,
+        INTERACT_ICON_QUESTION_LTBLUE = 2,
+        INTERACT_ICON_BLUE = 3,
+        INTERACT_ICON_TALK_TO_ME_4 = 4,
+        INTERACT_ICON_QUESTION_GREY = 5,
+        INTERACT_ICON_GREY = 6,
+        INTERACT_ICON_GREEN = 7,
+        INTERACT_ICON_UNKNOWN_8 = 8,
+        INTERACT_ICON_QUESTION_MARK = 9,
+        INTERACT_ICON_QUESTION_LTBLUE_10 = 10,
+        INTERACT_ICON_BLUE_11 = 11,
+        INTERACTICON_NUMITEMS = 12,
+    };
+
     struct InteractIcon {
         /* 0000 */ CM2Model* m_model;
         /* 0004 */ float m_scale;
         /* 0008 */ const char* m_fileName;
     };
 
-    static InteractIcon s_interactIcons[12];
-    static const uint32_t s_questStatusIcons[11];
+    static InteractIcon s_interactIcons[INTERACTICON_NUMITEMS];
+    static const uint32_t s_questStatusIcons[QUEST_GIVER_NUMITEMS];
     static CTexture* s_selectionTexture;
     static CVar* s_cvObjectSelectionCircle;
 

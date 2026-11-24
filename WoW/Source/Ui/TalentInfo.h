@@ -13,6 +13,9 @@ struct lua_State;
 class TalentRec;
 class CGPlayer_C;
 class CGUnit_C;
+constexpr uint32_t NUM_GLYPH_SLOTS = 6;
+constexpr uint32_t MAX_TALENT_GROUPS = 2;
+constexpr uint32_t MAX_TALENT_TABS = 3;
 
 struct TalentTabInfo {
     /* 0000 */ int32_t m_tabId;
@@ -57,7 +60,7 @@ class CGTalentGroup_C {
     /* 0004 */ TSHashTable<TalentGroupItem_C, HASHKEY_NONE> m_items;
     /* 002C */ TSFixedArray<TalentGroupTab_C> m_tabs;
     /* 0038 */ uint32_t m_unspentPoints;
-    /* 003C */ uint32_t m_glyphs[6];
+    /* 003C */ uint32_t m_glyphs[NUM_GLYPH_SLOTS];
 
     CGTalentGroup_C();
     virtual ~CGTalentGroup_C();
@@ -85,7 +88,7 @@ class CGTalentInfo {
     static int32_t m_petTalentTab;
     static TSFixedArray<TalentTabInfo*> m_tabs;
     static TSFixedArray<TalentTabInfo*> m_petTabs;
-    static CGTalentGroup_C m_talentGroups[2];
+    static CGTalentGroup_C m_talentGroups[MAX_TALENT_GROUPS];
     static CGTalentGroup_C m_petTalentGroup;
     static void EnterWorld();
     static void LeaveWorld();
@@ -123,7 +126,7 @@ class CGTalentInfo_Inspect {
     static uint32_t m_numTalentGroups;
     static int32_t m_unspentTalentPoints;
     static TSFixedArray<TalentTabInfo*> m_tabs;
-    static CGTalentGroup_C m_talentGroups[2];
+    static CGTalentGroup_C m_talentGroups[MAX_TALENT_GROUPS];
     static void EnterWorld();
     static void ShutdownGame();
     static void Reset();

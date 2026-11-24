@@ -10,6 +10,19 @@ class CDataStore;
 
 struct lua_State;
 class FactionRec;
+constexpr int32_t MAX_REPUTATION_FACTIONS = 128;
+
+enum FACTION_FLAGS : uint8_t {
+    FACTION_FLAG_NONE         = 0x00,
+    FACTION_FLAG_VISIBLE      = 0x01,
+    FACTION_FLAG_AT_WAR       = 0x02,
+    FACTION_FLAG_HIDDEN       = 0x04,
+    FACTION_FLAG_HEADER       = 0x08,
+    FACTION_FLAG_PEACE_FORCED = 0x10,
+    FACTION_FLAG_INACTIVE     = 0x20,
+    FACTION_FLAG_UNKNOWN_40   = 0x40,
+    FACTION_FLAG_UNKNOWN_80   = 0x80,
+};
 
 struct FactionStanding {
     /* 0000 */ int32_t m_factionId;
@@ -46,7 +59,7 @@ struct FACTION : public TSHashObject<FACTION, HASHKEY_NONE> {
 class CGReputationInfo {
     public:
     static TSGrowableArray<const FactionRec*>* GetFactionChildren(int32_t faction);
-    static FactionStanding m_factionStandings[128];
+    static FactionStanding m_factionStandings[MAX_REPUTATION_FACTIONS];
     static const int32_t m_reactionThresholds[NUM_UNIT_REACTIONS + 1];
 
     static int32_t GetReactionThreshold(uint32_t rank) {

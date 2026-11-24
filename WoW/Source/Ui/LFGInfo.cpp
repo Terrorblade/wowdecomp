@@ -23,8 +23,30 @@
 #include "WoW/Source/Game/ValidateName.h"
 #include "Engine/Source/Os/Time.h"
 #include "WoW/Source/Ui/LFGHandler.h"
+#include "WoW/Source/DB/Rec/SoundEntriesRec.h"
 
 struct LFGJoinResultError {
+
+    enum RESULT : uint32_t {
+        ROLE_CHECK_FAILED_WITH_REASON = 1,
+        GROUP_FULL = 2,
+        NO_LFG_OBJECT = 4,
+        NO_SLOTS_PLAYER = 5,
+        NO_SLOTS_PARTY = 6,
+        MISMATCHED_SLOTS = 7,
+        PARTY_PLAYERS_FROM_DIFFERENT_REALMS = 8,
+        MEMBERS_NOT_PRESENT = 9,
+        GET_INFO_TIMEOUT = 10,
+        INVALID_SLOT = 11,
+        DESERTER_PLAYER = 12,
+        DESERTER_PARTY = 13,
+        RANDOM_COOLDOWN_PLAYER = 14,
+        RANDOM_COOLDOWN_PARTY = 15,
+        TOO_MANY_MEMBERS = 16,
+        CANT_USE_DUNGEONS = 17,
+        ROLE_CHECK_FAILED = 18,
+    };
+
     /* 0000 */ uint32_t m_result;
     /* 0004 */ UIErrors m_error;
 };
@@ -48,7 +70,7 @@ TSFixedArray<CGLookingForGroup::LFGEntryInfo> CGLookingForGroup::m_lfdEntries;
 TSFixedArray<CGLookingForGroup::LFGEntryInfo> CGLookingForGroup::m_lfrEntries;
 
 // STATIC: 0x00BEA820
-CGLookingForGroup::LFGEntryInfo CGLookingForGroup::m_unkBEA820[7];
+CGLookingForGroup::LFGEntryInfo CGLookingForGroup::m_unkBEA820[CGLookingForGroup::NUM_SORT_COLUMNS];
 
 // STATIC: 0x00BEA858
 LFGBootProposal CGLookingForGroup::m_bootProposal;
@@ -106,9 +128,9 @@ bool CGLookingForGroup::HasRaidDungeon(LFGInfo* info) {
     }
 
     for (LFGDungeonEntry* entry = info->m_dungeons.Head(); entry; entry = info->m_dungeons.Next(entry)) {
-        LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecord(entry->m_slot & 0xFFFFFF);
+        LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecord(entry->m_slot & CGLookingForGroup::SLOT_DUNGEON_ID_MASK);
 
-        if (rec && rec->m_typeID == 2) {
+        if (rec && rec->m_typeID == CGLookingForGroup::LFG_TYPE_RAID) {
             return true;
         }
     }
@@ -206,7 +228,7 @@ void CGLookingForGroup::UpdateLFDEntries() {
     for (int32_t i = 0; i < g_lfgDungeonsDB.m_numRecords; i++) {
         LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecordByIndex(i);
 
-        if (rec && (rec->m_flags & 0x2) && rec->m_typeID != 6 && !(rec->m_flags & 0x4)) {
+        if (rec && (rec->m_flags & LFG_DUNGEON_FLAG_LFD_LISTED) && rec->m_typeID != CGLookingForGroup::LFG_TYPE_RANDOM_DUNGEON && !(rec->m_flags & LFG_DUNGEON_FLAG_HOLIDAY)) {
             count++;
         }
     }
@@ -226,7 +248,7 @@ void CGLookingForGroup::UpdateLFDEntries() {
     for (int32_t i = 0; i < g_lfgDungeonsDB.m_numRecords; i++) {
         LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecordByIndex(i);
 
-        if (rec && (rec->m_flags & 0x2) && rec->m_typeID != 6 && !(rec->m_flags & 0x4)) {
+        if (rec && (rec->m_flags & LFG_DUNGEON_FLAG_LFD_LISTED) && rec->m_typeID != CGLookingForGroup::LFG_TYPE_RANDOM_DUNGEON && !(rec->m_flags & LFG_DUNGEON_FLAG_HOLIDAY)) {
             CGLookingForGroup::m_lfdEntries.m_data[index].m_id = rec->m_id;
             CGLookingForGroup::m_lfdEntries.m_data[index].m_order = rec->m_groupID;
             index++;
@@ -254,7 +276,7 @@ void CGLookingForGroup::UpdateLFREntries() {
     for (int32_t i = 0; i < g_lfgDungeonsDB.m_numRecords; i++) {
         LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecordByIndex(i);
 
-        if (rec && rec->m_typeID == 2) {
+        if (rec && rec->m_typeID == CGLookingForGroup::LFG_TYPE_RAID) {
             count++;
         }
     }
@@ -272,7 +294,7 @@ void CGLookingForGroup::UpdateLFREntries() {
     for (int32_t i = 0; i < g_lfgDungeonsDB.m_numRecords; i++) {
         LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecordByIndex(i);
 
-        if (rec && rec->m_typeID == 2) {
+        if (rec && rec->m_typeID == CGLookingForGroup::LFG_TYPE_RAID) {
             CGLookingForGroup::m_lfrEntries.m_data[index].m_id = rec->m_id;
             CGLookingForGroup::m_lfrEntries.m_data[index].m_order = rec->m_groupID;
             index++;
@@ -439,11 +461,11 @@ void CGLookingForGroup::InitializeGame() {
     CGLookingForGroup::m_proposal.m_completedMask = 0;
     CGLookingForGroup::m_proposal.m_silent = 0;
     memset(CGLookingForGroup::m_proposal.m_members, 0, sizeof(CGLookingForGroup::m_proposal.m_members));
-    CGLookingForGroup::m_roleCheckState = 0;
+    CGLookingForGroup::m_roleCheckState = CGLookingForGroup::ROLE_CHECK_NONE;
     CGLookingForGroup::m_roleCheckSlots.m_count = 0;
     CGLookingForGroup::m_roleCheckMembers.m_count = 0;
 
-    for (uint32_t i = 0; i < 7; i++) {
+    for (uint32_t i = 0; i < CGLookingForGroup::NUM_SORT_COLUMNS; i++) {
         CGLookingForGroup::m_unkBEA820[i].m_id = i;
         CGLookingForGroup::m_unkBEA820[i].m_order = 0;
     }
@@ -663,23 +685,23 @@ static void ClearSearchResults() {
 
 // STATIC: 0x00ACDDA8
 static const LFGJoinResultError s_joinResultErrors[17] = {
-    { 1, ERR_LFG_ROLE_CHECK_FAILED },
-    { 2, ERR_LFG_GROUP_FULL },
-    { 4, ERR_LFG_NO_LFG_OBJECT },
-    { 5, ERR_LFG_NO_SLOTS_PLAYER },
-    { 6, ERR_LFG_NO_SLOTS_PARTY },
-    { 7, ERR_LFG_MISMATCHED_SLOTS },
-    { 8, ERR_LFG_PARTY_PLAYERS_FROM_DIFFERENT_REALMS },
-    { 9, ERR_LFG_MEMBERS_NOT_PRESENT },
-    { 10, ERR_LFG_GET_INFO_TIMEOUT },
-    { 11, ERR_LFG_INVALID_SLOT },
-    { 12, ERR_LFG_DESERTER_PLAYER },
-    { 13, ERR_LFG_DESERTER_PARTY },
-    { 14, ERR_LFG_RANDOM_COOLDOWN_PLAYER },
-    { 15, ERR_LFG_RANDOM_COOLDOWN_PARTY },
-    { 16, ERR_LFG_TOO_MANY_MEMBERS },
-    { 17, ERR_LFG_CANT_USE_DUNGEONS },
-    { 18, ERR_LFG_ROLE_CHECK_FAILED },
+    { LFGJoinResultError::ROLE_CHECK_FAILED_WITH_REASON, ERR_LFG_ROLE_CHECK_FAILED },
+    { LFGJoinResultError::GROUP_FULL, ERR_LFG_GROUP_FULL },
+    { LFGJoinResultError::NO_LFG_OBJECT, ERR_LFG_NO_LFG_OBJECT },
+    { LFGJoinResultError::NO_SLOTS_PLAYER, ERR_LFG_NO_SLOTS_PLAYER },
+    { LFGJoinResultError::NO_SLOTS_PARTY, ERR_LFG_NO_SLOTS_PARTY },
+    { LFGJoinResultError::MISMATCHED_SLOTS, ERR_LFG_MISMATCHED_SLOTS },
+    { LFGJoinResultError::PARTY_PLAYERS_FROM_DIFFERENT_REALMS, ERR_LFG_PARTY_PLAYERS_FROM_DIFFERENT_REALMS },
+    { LFGJoinResultError::MEMBERS_NOT_PRESENT, ERR_LFG_MEMBERS_NOT_PRESENT },
+    { LFGJoinResultError::GET_INFO_TIMEOUT, ERR_LFG_GET_INFO_TIMEOUT },
+    { LFGJoinResultError::INVALID_SLOT, ERR_LFG_INVALID_SLOT },
+    { LFGJoinResultError::DESERTER_PLAYER, ERR_LFG_DESERTER_PLAYER },
+    { LFGJoinResultError::DESERTER_PARTY, ERR_LFG_DESERTER_PARTY },
+    { LFGJoinResultError::RANDOM_COOLDOWN_PLAYER, ERR_LFG_RANDOM_COOLDOWN_PLAYER },
+    { LFGJoinResultError::RANDOM_COOLDOWN_PARTY, ERR_LFG_RANDOM_COOLDOWN_PARTY },
+    { LFGJoinResultError::TOO_MANY_MEMBERS, ERR_LFG_TOO_MANY_MEMBERS },
+    { LFGJoinResultError::CANT_USE_DUNGEONS, ERR_LFG_CANT_USE_DUNGEONS },
+    { LFGJoinResultError::ROLE_CHECK_FAILED, ERR_LFG_ROLE_CHECK_FAILED },
 };
 
 // VERIFY: 5418061a manual
@@ -714,24 +736,24 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             DebugLog("LFGMessage: LFG_TELEPORT_DENIED - Reason: %u", reason);
 
             switch (reason) {
-                case 0:
-                case 5:
-                case 7:
+                case LFG_TELEPORT_DENIED_NONE:
+                case LFG_TELEPORT_DENIED_UNKNOWN_5:
+                case LFG_TELEPORT_DENIED_UNKNOWN_7:
                     break;
 
-                case 1:
+                case LFG_TELEPORT_DENIED_PLAYER_DEAD:
                     CGGameUI::DisplayError(ERR_PLAYER_DEAD);
                     break;
 
-                case 2:
+                case LFG_TELEPORT_DENIED_FALLING:
                     CGGameUI::DisplayError(ERR_NOT_WHILE_FALLING);
                     break;
 
-                case 4:
+                case LFG_TELEPORT_DENIED_FATIGUE:
                     CGGameUI::DisplayError(ERR_NOT_WHILE_FATIGUED);
                     break;
 
-                case 6:
+                case LFG_TELEPORT_DENIED_INVALID_LOCATION:
                     CGGameUI::DisplayError(ERR_INVALID_TELEPORT_LOCATION);
                     CGGameUI::DisplayError(ERR_CLIENT_LOCKED_OUT);
                     break;
@@ -810,7 +832,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             uint32_t slot = 0;
             msg->Get(slot);
             DebugLog("LFGMessage: LFG_OFFER_CONTINUE - Slot: %u", slot);
-            LfgDungeonsRec* dungeon = g_lfgDungeonsDB.GetRecord(slot & 0xFFFFFF);
+            LfgDungeonsRec* dungeon = g_lfgDungeonsDB.GetRecord(slot & CGLookingForGroup::SLOT_DUNGEON_ID_MASK);
 
             if (dungeon) {
                 FrameScript_SignalEvent(SCRIPT_EVENT_LFG_OFFER_CONTINUE, "%s%d%d", dungeon->m_name, dungeon->m_id, dungeon->m_typeID);
@@ -880,7 +902,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             CGLookingForGroup::ShowProposal(proposal.m_silent);
 
             if (declinedParty) {
-                SI2::PlayUISound(0x43BD);
+                SI2::PlayUISound(SOUND_ENTRY_ID_LFG_DENIED);
                 CGGameUI::DisplayError(ERR_LFG_PROPOSAL_DECLINED_PARTY);
                 proposal.m_dungeonId = 0;
                 proposal.m_state = 0;
@@ -890,7 +912,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 memset(proposal.m_members, 0, sizeof(proposal.m_members));
                 FrameScript_SignalEvent(SCRIPT_EVENT_LFG_PROPOSAL_FAILED, nullptr);
             } else if (declinedSelf) {
-                SI2::PlayUISound(0x43BD);
+                SI2::PlayUISound(SOUND_ENTRY_ID_LFG_DENIED);
                 CGGameUI::DisplayError(ERR_LFG_PROPOSAL_DECLINED_SELF);
                 proposal.Clear();
                 FrameScript_SignalEvent(SCRIPT_EVENT_LFG_PROPOSAL_FAILED, nullptr);
@@ -944,7 +966,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
             if (beginning) {
                 CGGameUI::DisplayError(ERR_LFG_ROLE_CHECK_INITIATED);
-                SI2::PlayUISound(0x43A6);
+                SI2::PlayUISound(SOUND_ENTRY_ID_LFG_DUNGEON_READY);
 
                 for (int32_t i = 0; i < memberCount; i++) {
                     LFGRoleCheckMember& member = CGLookingForGroup::m_roleCheckMembers.m_data[i];
@@ -965,13 +987,13 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
             if (localIndex < CGLookingForGroup::m_roleCheckMembers.Count() && !CGLookingForGroup::m_roleCheckMembers.m_data[localIndex].m_confirmed && CGLookingForGroup::m_roleCheckState == 2) {
                 FrameScript_SignalEvent(SCRIPT_EVENT_LFG_ROLE_CHECK_SHOW, nullptr);
-            } else if (CGLookingForGroup::m_roleCheckState == 5) {
-                SI2::PlayUISound(0x43BD);
+            } else if (CGLookingForGroup::m_roleCheckState == CGLookingForGroup::ROLE_CHECK_ABORTED) {
+                SI2::PlayUISound(SOUND_ENTRY_ID_LFG_DENIED);
                 CGGameUI::DisplayError(ERR_LFG_ROLE_CHECK_ABORTED);
                 FrameScript_SignalEvent(SCRIPT_EVENT_LFG_ROLE_CHECK_HIDE, nullptr);
             } else {
-                if (CGLookingForGroup::m_roleCheckState == 6) {
-                    SI2::PlayUISound(0x43BD);
+                if (CGLookingForGroup::m_roleCheckState == CGLookingForGroup::ROLE_CHECK_UNKNOWN_6) {
+                    SI2::PlayUISound(SOUND_ENTRY_ID_LFG_DENIED);
                 }
 
                 FrameScript_SignalEvent(SCRIPT_EVENT_LFG_ROLE_CHECK_HIDE, nullptr);
@@ -987,13 +1009,13 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             msg->Get(reason);
             DebugLog("LFGMessage: LFG_JOIN_RESULT - Result: %u, Reason: %u", result, reason);
 
-            if (result == 6) {
+            if (result == LFGJoinResultError::NO_SLOTS_PARTY) {
                 CGLookingForGroup::m_partyLockInfo.Clear();
                 CGLookingForGroup::ParsePartyInfo(msg);
                 CGLookingForGroup::m_partyLockInfo.m_valid = 1;
             }
 
-            if (result == 1) {
+            if (result == LFGJoinResultError::ROLE_CHECK_FAILED_WITH_REASON) {
                 if (reason == 3) {
                     CGGameUI::DisplayError(ERR_LFG_ROLE_CHECK_FAILED_TIMEOUT);
                     break;
@@ -1102,7 +1124,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
             if (info.m_lfgJoined) {
                 if (!current.m_lfgJoined) {
-                    SI2::PlayUISound(0x210E);
+                    SI2::PlayUISound(SOUND_ENTRY_ID_PVP_ENTER_QUEUE);
                     CGGameUI::DisplayError(CGLookingForGroup::HasRaidDungeon(&info) ? ERR_LFG_JOINED_LIST : ERR_LFG_JOINED_QUEUE);
                 } else if (!info.m_queued && current.m_queued) {
                     left = true;
@@ -1206,7 +1228,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
             if (info.m_lfgJoined) {
                 if (!current.m_lfgJoined && dungeonCount) {
-                    SI2::PlayUISound(0x210E);
+                    SI2::PlayUISound(SOUND_ENTRY_ID_PVP_ENTER_QUEUE);
                     CGGameUI::DisplayError(CGLookingForGroup::HasRaidDungeon(&info) ? ERR_LFG_JOINED_LIST : ERR_LFG_JOINED_QUEUE);
                 } else if (!info.m_queued && current.m_queued) {
                     left = true;
@@ -1447,11 +1469,11 @@ void CGLookingForGroup::ParseBlackList(CDataStore* msg, LFGLockInfo* lockInfo) {
 // VERIFY: 72ac9659 manual
 // OFFSET: 0x00559D40
 bool CGLookingForGroup::IsRandomDungeonUnlocked(const LfgDungeonsRec* rec) {
-    if (!(rec->m_flags & 0x4)) {
+    if (!(rec->m_flags & LFG_DUNGEON_FLAG_HOLIDAY)) {
         return false;
     }
 
-    uint32_t slot = (rec->m_id & 0xFFFFFF) | (rec->m_typeID << 24);
+    uint32_t slot = (rec->m_id & CGLookingForGroup::SLOT_DUNGEON_ID_MASK) | (rec->m_typeID << CGLookingForGroup::SLOT_TYPE_SHIFT);
 
     for (LFGDungeonEntry* entry = CGLookingForGroup::m_playerLockInfo.m_dungeons.Head(); entry; entry = CGLookingForGroup::m_playerLockInfo.m_dungeons.Next(entry)) {
         if (entry->m_slot == slot) {
@@ -1471,7 +1493,7 @@ void CGLookingForGroup::UpdateRandomDungeons() {
     for (int32_t i = 0; i < numRecords; i++) {
         LfgDungeonsRec* rec = i < 0 || i >= g_lfgDungeonsDB.m_numRecords ? nullptr : &g_lfgDungeonsDB.m_records[i];
 
-        if (rec->m_typeID == 6 || CGLookingForGroup::IsRandomDungeonUnlocked(rec)) {
+        if (rec->m_typeID == CGLookingForGroup::LFG_TYPE_RANDOM_DUNGEON || CGLookingForGroup::IsRandomDungeonUnlocked(rec)) {
             count++;
         }
     }
@@ -1481,11 +1503,11 @@ void CGLookingForGroup::UpdateRandomDungeons() {
 
     for (int32_t i = 0; i < numRecords; i++) {
         LfgDungeonsRec* rec = i < 0 || i >= g_lfgDungeonsDB.m_numRecords ? nullptr : &g_lfgDungeonsDB.m_records[i];
-        uint32_t slot = (rec->m_id & 0xFFFFFF) | (rec->m_typeID << 24);
+        uint32_t slot = (rec->m_id & CGLookingForGroup::SLOT_DUNGEON_ID_MASK) | (rec->m_typeID << CGLookingForGroup::SLOT_TYPE_SHIFT);
 
-        if (rec->m_typeID == 6) {
+        if (rec->m_typeID == CGLookingForGroup::LFG_TYPE_RANDOM_DUNGEON) {
             CGLookingForGroup::m_randomDungeons.m_data[index++] = slot;
-        } else if (rec->m_flags & 0x4) {
+        } else if (rec->m_flags & LFG_DUNGEON_FLAG_HOLIDAY) {
             for (LFGDungeonEntry* entry = CGLookingForGroup::m_playerLockInfo.m_dungeons.Head(); entry; entry = CGLookingForGroup::m_playerLockInfo.m_dungeons.Next(entry)) {
                 if (entry->m_slot == slot) {
                     if (!entry->m_locked) {
@@ -1504,23 +1526,23 @@ void CGLookingForGroup::UpdateRandomDungeons() {
 // VERIFY: 15a7a01d manual
 // OFFSET: 0x00559B70
 void CGLookingForGroup::SetLFGDungeon(uint32_t slot) {
-    uint32_t type = slot >> 24;
+    uint32_t type = slot >> CGLookingForGroup::SLOT_TYPE_SHIFT;
     bool clear = false;
 
-    if (type == 1 || type == 5) {
+    if (type == CGLookingForGroup::LFG_TYPE_DUNGEON || type == CGLookingForGroup::LFG_TYPE_HEROIC_DUNGEON) {
         for (LFGDungeonEntry* dungeon = CGLookingForGroup::m_localInfo.m_dungeons.Head(); dungeon; dungeon = CGLookingForGroup::m_localInfo.m_dungeons.Next(dungeon)) {
-            uint8_t dungeonType = static_cast<uint8_t>(dungeon->m_slot >> 24);
+            uint8_t dungeonType = static_cast<uint8_t>(dungeon->m_slot >> CGLookingForGroup::SLOT_TYPE_SHIFT);
 
-            if (dungeonType != 1 && dungeonType != 5) {
+            if (dungeonType != CGLookingForGroup::LFG_TYPE_DUNGEON && dungeonType != CGLookingForGroup::LFG_TYPE_HEROIC_DUNGEON) {
                 clear = true;
                 break;
             }
         }
-    } else if (type != 2 || CGPartyInfo::GetNumPartyMembers()) {
+    } else if (type != CGLookingForGroup::LFG_TYPE_RAID || CGPartyInfo::GetNumPartyMembers()) {
         clear = true;
     } else {
         for (LFGDungeonEntry* dungeon = CGLookingForGroup::m_localInfo.m_dungeons.Head(); dungeon; dungeon = CGLookingForGroup::m_localInfo.m_dungeons.Next(dungeon)) {
-            if (static_cast<uint8_t>(dungeon->m_slot >> 24) != 2) {
+            if (static_cast<uint8_t>(dungeon->m_slot >> CGLookingForGroup::SLOT_TYPE_SHIFT) != CGLookingForGroup::LFG_TYPE_RAID) {
                 clear = true;
                 break;
             }
@@ -1556,7 +1578,7 @@ bool CGLookingForGroup::IsSlotValidForAll(uint32_t slot) {
         }
     }
 
-    if ((slot & 0xFF000000) != 0x2000000 && CGLookingForGroup::m_partyLockInfo.m_valid) {
+    if ((slot & CGLookingForGroup::SLOT_TYPE_MASK) != (CGLookingForGroup::LFG_TYPE_RAID << CGLookingForGroup::SLOT_TYPE_SHIFT) && CGLookingForGroup::m_partyLockInfo.m_valid) {
         for (LFGLockInfo* member = CGLookingForGroup::m_partyLockInfo.m_members.Head(); member; member = CGLookingForGroup::m_partyLockInfo.m_members.Next(member)) {
             for (LFGDungeonEntry* entry = member->m_dungeons.Head(); entry; entry = member->m_dungeons.Next(entry)) {
                 if (entry->m_slot == slot) {
@@ -1576,7 +1598,7 @@ bool CGLookingForGroup::IsSlotValidForAll(uint32_t slot) {
 // VERIFY: 0a9ddc1b manual
 // OFFSET: 0x00559DA0
 static bool IsBetterRandomDungeon(const LfgDungeonsRec* candidate, const LfgDungeonsRec* best) {
-    if (!candidate || candidate->m_typeID != 6 || !CGLookingForGroup::IsSlotValidForAll(candidate->m_id & 0xFFFFFF | 0x6000000)) {
+    if (!candidate || candidate->m_typeID != CGLookingForGroup::LFG_TYPE_RANDOM_DUNGEON || !CGLookingForGroup::IsSlotValidForAll(candidate->m_id & CGLookingForGroup::SLOT_DUNGEON_ID_MASK | (CGLookingForGroup::LFG_TYPE_RANDOM_DUNGEON << CGLookingForGroup::SLOT_TYPE_SHIFT))) {
         return false;
     }
 
@@ -1608,7 +1630,7 @@ bool CGLookingForGroup::UpdateRandomDungeonBestChoice() {
     LfgDungeonsRec* best = nullptr;
 
     for (uint32_t i = 0; i < CGLookingForGroup::m_randomDungeons.m_count; i++) {
-        LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecord(CGLookingForGroup::m_randomDungeons.m_data[i] & 0xFFFFFF);
+        LfgDungeonsRec* rec = g_lfgDungeonsDB.GetRecord(CGLookingForGroup::m_randomDungeons.m_data[i] & CGLookingForGroup::SLOT_DUNGEON_ID_MASK);
 
         if (IsBetterRandomDungeon(rec, best)) {
             best = rec;
@@ -1618,7 +1640,7 @@ bool CGLookingForGroup::UpdateRandomDungeonBestChoice() {
     uint32_t previous = CGLookingForGroup::m_randomDungeonBestChoice;
 
     if (best) {
-        CGLookingForGroup::m_randomDungeonBestChoice = best->m_id & 0xFFFFFF | (best->m_typeID << 24);
+        CGLookingForGroup::m_randomDungeonBestChoice = best->m_id & CGLookingForGroup::SLOT_DUNGEON_ID_MASK | (best->m_typeID << CGLookingForGroup::SLOT_TYPE_SHIFT);
         return previous != CGLookingForGroup::m_randomDungeonBestChoice;
     }
 
@@ -1645,7 +1667,7 @@ static float s_commentSendTime;
 // OFFSET: 0x005539A0
 void CGLookingForGroup::SetLFGComment(const char* comment) {
     char scrubbed[256];
-    ScrubString(comment, scrubbed, 64, sizeof(scrubbed), 1);
+    ScrubString(comment, scrubbed, 64, sizeof(scrubbed), SCRUB_FLAG_TRUNCATE_NEWLINES);
     SStrCopy(CGLookingForGroup::m_localInfo.m_comment, scrubbed, sizeof(CGLookingForGroup::m_localInfo.m_comment));
 
     if (!CGLookingForGroup::m_localInfo.m_joined) {
@@ -1721,7 +1743,7 @@ int32_t Packet_SMSG_LFG_SEARCH_RESULTS(void* param, NETMESSAGE msgId, uint32_t t
     bool changed = false;
     msg->Get(s_searchType);
     msg->Get(s_searchID);
-    int32_t lfgID = (s_searchID & 0xFFFFFF) | (s_searchType << 24);
+    int32_t lfgID = (s_searchID & CGLookingForGroup::SLOT_DUNGEON_ID_MASK) | (s_searchType << CGLookingForGroup::SLOT_TYPE_SHIFT);
 
     if (lfgID != CGLookingForGroup::m_searchJoinedID) {
         msg->m_read = msg->m_size;

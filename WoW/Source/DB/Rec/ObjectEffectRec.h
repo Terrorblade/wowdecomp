@@ -6,6 +6,18 @@
 
 class SFileImpl;
 
+enum OBJECT_EFFECT_REC_TYPE : int32_t {
+    OBJECT_EFFECT_REC_TYPE_SOUND_KIT = 1,
+    OBJECT_EFFECT_REC_TYPE_UNKNOWN_2 = 2,
+};
+
+enum OBJECT_EFFECT_TRIGGER_TYPE : int32_t {
+    OBJECT_EFFECT_TRIGGER_ENTER = 1,
+    OBJECT_EFFECT_TRIGGER_LOOP = 2,
+    OBJECT_EFFECT_TRIGGER_EXIT = 3,
+    OBJECT_EFFECT_TRIGGER_EVENT = 4,
+};
+
 class ObjectEffectRec {
     public:
     static const int32_t s_numColumns = 12;

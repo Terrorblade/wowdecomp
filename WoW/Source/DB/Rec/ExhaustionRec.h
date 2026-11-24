@@ -6,6 +6,16 @@
 
 class SFileImpl;
 
+enum EXHAUSTION_ID : int32_t {
+    EXHAUSTION_RESTED          = 1,
+    EXHAUSTION_NORMAL          = 2,
+    EXHAUSTION_TIRED           = 3,
+    EXHAUSTION_TIRED_4         = 4,
+    EXHAUSTION_EXHAUSTED       = 5,
+    EXHAUSTION_REFER_A_FRIEND  = 6,
+    NUM_EXHAUSTION_STATES      = 7,
+};
+
 class ExhaustionRec {
     public:
     static const int32_t s_numColumns = 23;

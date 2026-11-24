@@ -9,6 +9,7 @@
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/C2Vector.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 namespace Input {
     // STATIC: 0x00B41828

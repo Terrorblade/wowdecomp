@@ -25,7 +25,7 @@ static SI2WaterSound s_waterSounds[1];
 // VERIFY: c873f424 manual
 // OFFSET: 0x004D20B0
 static void _ShiftNearestWaterSounds(int32_t index) {
-    for (int32_t i = sizeof(s_nearestWaterSounds) / sizeof(s_nearestWaterSounds[0]) - 2; i >= index; i--) {
+    for (int32_t i = static_cast<int32_t>(sizeof(s_nearestWaterSounds) / sizeof(s_nearestWaterSounds[0])) - 2; i >= index; i--) {
         s_nearestWaterSounds[i + 1].m_distanceSq = s_nearestWaterSounds[i].m_distanceSq;
         s_nearestWaterSounds[i + 1].m_position = s_nearestWaterSounds[i].m_position;
         s_nearestWaterSounds[i + 1].m_soundKitId = s_nearestWaterSounds[i].m_soundKitId;
@@ -135,7 +135,7 @@ int32_t SI2::HandleWaterSounds(const void* data, void* param) {
             continue;
         }
 
-        if (!(liquidType->m_flags & 0x80) || !entity || !World::QueryObjectInside(entity)) {
+        if (!(liquidType->m_flags & LIQUID_TYPE_FLAG_OUTDOOR_AMBIENCE_ONLY) || !entity || !World::QueryObjectInside(entity)) {
             C3Vector offset = results[i].m_offset;
             _AddNearestWaterSound(offset.x * offset.x + offset.y * offset.y, C3Vector(position.x + offset.x, position.y + offset.y, position.z + offset.z), liquidType);
         }
@@ -196,8 +196,8 @@ int32_t SI2::HandleWaterSounds(const void* data, void* param) {
             SE2SoundKitProperties properties;
             properties.ResetToDefaults();
             properties.m_fadeInTime = FADEINTIME;
-            properties.m_group = 2;
-            properties.m_loopMode = 1;
+            properties.m_group = SI2_SOUND_GROUP_AMBIENCE;
+            properties.m_loopMode = SE2_LOOP_MODE_LOOPING;
             SI2::PlaySoundKit(sound.m_soundKitId, &sound.m_position, &sound.m_object, &properties, 0, nullptr, 1, 0);
         } else if (sound.m_moved) {
             SI2::Set3DPosition(&sound.m_object, &sound.m_position);

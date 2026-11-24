@@ -11,6 +11,17 @@
 struct lua_State;
 
 struct MacroCommand {
+
+    enum TYPE : int32_t {
+        NONE = 0,
+        SHOW = 1,
+        CAST_OR_USE = 2,
+        CAST_OR_USE_RANDOM = 3,
+        CAST_SEQUENCE = 4,
+        EQUIP = 5,
+        EQUIP_TO_SLOT = 6,
+    };
+
     /* 0000 */ int32_t m_type;
     /* 0004 */ MacroSubstring m_text;
 };
@@ -42,6 +53,12 @@ class MACRONODE : public TSHashObject<MACRONODE, HASHKEY_NONE> {
 
 int32_t EvaluateMacroOptions(const char* start, const char* end, MacroSubstring* result, MacroSubstring* target);
 void MacroQueryCastSequence(MacroSubstring* text);
+constexpr uint32_t MACRO_SET_ACCOUNT = 0;
+constexpr uint32_t MACRO_SET_CHARACTER = 1;
+constexpr uint32_t NUM_MACRO_SETS = 2;
+constexpr uint32_t MAX_ACCOUNT_MACROS = 36;
+constexpr uint32_t MAX_CHARACTER_MACROS = 18;
+constexpr uint32_t NUM_SORTED_MACRO_SLOTS = NUM_MACRO_SETS * MAX_ACCOUNT_MACROS;
 
 class CGUIMacros {
     public:
@@ -50,9 +67,9 @@ class CGUIMacros {
     static uint32_t m_state;
     static const char* m_macroRunning;
     static MACRONODE* m_macroButton;
-    static uint32_t m_numMacros[2];
+    static uint32_t m_numMacros[NUM_MACRO_SETS];
     static int32_t m_saveMacros;
-    static uint32_t m_sortedMacros[72];
+    static uint32_t m_sortedMacros[NUM_SORTED_MACRO_SLOTS];
 
     static MACRONODE* FindMacro(const char* name);
     static void RemoveDynamicMacro(MACRONODE* macro);

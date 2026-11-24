@@ -40,7 +40,7 @@ void IEvtQueueRegister(EvtContext* context, EVENTID id, EVENTHANDLERFUNC handler
 
     TSExplicitList<EvtHandler, offsetof(EvtHandler, m_link)>& list = context->m_queueHandlerList[id];
 
-    EvtHandler* evtHandler = list.NewNode(0, 0, 0);
+    EvtHandler* evtHandler = list.NewNode(TSLIST_NEWNODE_UNLINKED, 0, 0);
     evtHandler->m_priority = priority;
     evtHandler->m_param = param;
     evtHandler->m_func = handler;
@@ -52,7 +52,7 @@ void IEvtQueueRegister(EvtContext* context, EVENTID id, EVENTHANDLERFUNC handler
         existing = list.Next(existing);
     }
 
-    list.LinkNode(evtHandler, 2, existing);
+    list.LinkNode(evtHandler, TSLIST_LINK_BEFORE, existing);
 }
 
 // VERIFY: ee77d145 auto
@@ -100,7 +100,7 @@ static void UpdateSyncKeyState(EvtContext* context, KEY key, EVENTID& id) {
             id = EVENT_ID_KEYDOWN_REPEATING;
         }
 
-        EvtKeyDown* newKeyDown = list.NewNode(2, 0, 0);
+        EvtKeyDown* newKeyDown = list.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         newKeyDown->m_key = key;
     }
 
@@ -198,7 +198,7 @@ void IEvtQueueDispatch(EvtContext* context, EVENTID id, const void* data) {
     EvtHandler* handler;
 
     while ((handler = list.Next(&marker)) != nullptr) {
-        list.LinkNode(&marker, 1, handler);
+        list.LinkNode(&marker, TSLIST_LINK_AFTER, handler);
 
         if (handler->m_marker) {
             continue;

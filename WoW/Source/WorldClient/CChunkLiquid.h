@@ -12,6 +12,8 @@
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Tempest/CAaSphere.h"
+#include "Engine/Source/Tempest/CRange.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 
 class CMapChunk;
 

@@ -108,7 +108,7 @@ void CGGMSurveyInfo::Submit() {
     GMSurveyCurrentSurveyRec* current = g_gmSurveyCurrentSurveyDB.GetRecord(s_locale);
     msg.Put(static_cast<uint32_t>(current ? current->m_gmsurveyID : 0));
 
-    for (uint32_t i = 0; i < 10; i++) {
+    for (uint32_t i = 0; i < NUM_GM_SURVEY_QUESTIONS; i++) {
         GMSurveyCurrentSurveyRec* currentSurvey = g_gmSurveyCurrentSurveyDB.GetRecord(s_locale);
         GMSurveySurveysRec* survey = g_gmSurveySurveysDB.GetRecord(currentSurvey ? currentSurvey->m_gmsurveyID : 0);
         int32_t questionId = survey ? survey->m_questionIds[i] : 0;

@@ -15,13 +15,13 @@
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 
 // STATIC: 0x00C20FA8
-uint8_t CGItemSocketInfo::m_gemContainerSlot[3];
+uint8_t CGItemSocketInfo::m_gemContainerSlot[MAX_NUM_SOCKETS];
 
 // STATIC: 0x00C20FB0
-WOWGUID CGItemSocketInfo::m_gemItemContainer[3];
+WOWGUID CGItemSocketInfo::m_gemItemContainer[MAX_NUM_SOCKETS];
 
 // STATIC: 0x00C20FC8
-WOWGUID CGItemSocketInfo::m_gemItems[3];
+WOWGUID CGItemSocketInfo::m_gemItems[MAX_NUM_SOCKETS];
 
 // STATIC: 0x00C20FE0
 WOWGUID CGItemSocketInfo::m_socketItem;
@@ -43,7 +43,7 @@ ItemStats_C* CGItemSocketInfo::GetSocketItemStats() {
 void CGItemSocketInfo::SetItem(WOWGUID item) {
     CGGameUI::UnlockItem(CGItemSocketInfo::m_socketItem);
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < MAX_NUM_SOCKETS; i++) {
         if (CGItemSocketInfo::m_gemItems[i]) {
             CGGameUI::UnlockItem(CGItemSocketInfo::m_gemItems[i]);
         }
@@ -72,7 +72,7 @@ void CGItemSocketInfo::SetItem(WOWGUID item) {
 // VERIFY: 21c9b3eb manual
 // OFFSET: 0x005C4780
 int32_t CGItemSocketInfo::SetGem(uint32_t slot, WOWGUID item, WOWGUID container, uint8_t containerSlot) {
-    if (slot >= 3 || !CGItemSocketInfo::m_socketItem || !CGItemSocketInfo::m_socketItemStats) {
+    if (slot >= MAX_NUM_SOCKETS || !CGItemSocketInfo::m_socketItem || !CGItemSocketInfo::m_socketItemStats) {
         return 0;
     }
 
@@ -139,19 +139,19 @@ int32_t CGItemSocketInfo::GemMatchesSocket(const ItemStats_C* item, const ItemSt
     int32_t type = properties->m_type;
     int32_t match = 0;
 
-    if ((type & 1) && (color & 1)) {
+    if ((type & SOCKET_COLOR_META) && (color & SOCKET_COLOR_META)) {
         match = 1;
     }
 
-    if ((type & 2) && (color & 2)) {
+    if ((type & SOCKET_COLOR_RED) && (color & SOCKET_COLOR_RED)) {
         match = 1;
     }
 
-    if ((type & 4) && (color & 4)) {
+    if ((type & SOCKET_COLOR_YELLOW) && (color & SOCKET_COLOR_YELLOW)) {
         match = 1;
     }
 
-    if ((type & 8) && (color & 8)) {
+    if ((type & SOCKET_COLOR_BLUE) && (color & SOCKET_COLOR_BLUE)) {
         return 1;
     }
 
@@ -161,7 +161,7 @@ int32_t CGItemSocketInfo::GemMatchesSocket(const ItemStats_C* item, const ItemSt
 // VERIFY: d9030c33 auto
 // OFFSET: 0x005C4470
 void CGItemSocketInfo::GetGemItemForSlot(uint32_t slot, WOWGUID& item, WOWGUID& container, uint8_t& containerSlot) {
-    if (slot >= 3) {
+    if (slot >= MAX_NUM_SOCKETS) {
         item = WOWGUID();
         container = WOWGUID();
         containerSlot = 0;
@@ -218,7 +218,7 @@ void CGItemSocketInfo::Accept() {
     msg.Put(static_cast<uint32_t>(CMSG_SOCKET_GEMS));
     msg.Put(CGItemSocketInfo::m_socketItem.m_guid);
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < MAX_NUM_SOCKETS; i++) {
         if (CGItemSocketInfo::m_gemItems[i]) {
             count++;
         }
@@ -284,7 +284,7 @@ void CGItemSocketInfo::RemoveItem(WOWGUID item) {
         return;
     }
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < MAX_NUM_SOCKETS; i++) {
         if (item == CGItemSocketInfo::m_gemItems[i]) {
             if (CGItemSocketInfo::m_socketItem.m_guid && CGItemSocketInfo::m_socketItemStats) {
                 CGItemSocketInfo::m_gemItems[i] = WOWGUID{ 0 };

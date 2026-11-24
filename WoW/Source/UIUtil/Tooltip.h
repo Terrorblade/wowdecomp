@@ -12,6 +12,8 @@
 #include "WoW/Common/WowTime.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/UIUtil/Types.h"
+#include "WoW/Common/ComponentCore/Types.h"
+#include "WoW/Source/DB/Rec/ItemSetRec.h"
 
 class CImVector;
 class CSimpleFontString;
@@ -47,7 +49,7 @@ class ItemLinkInfo {
     int32_t GetItemIdFromLink(const char* link);
 };
 
-extern const char* s_inventoryTypeTokens[29];
+extern const char* s_inventoryTypeTokens[INVTYPE_COUNT];
 
 class CGItemStatsSummary;
 class CGTalentGroup_C;
@@ -79,7 +81,7 @@ struct FrameStackInfo {
 struct ItemSetTooltipData {
     /* 0000 */ CGTooltip* m_tooltip;
     /* 0004 */ const ItemSetRec* m_set;
-    /* 0008 */ ItemNameCache_C* m_items [17];
+    /* 0008 */ ItemNameCache_C* m_items [NUM_ITEM_SET_ITEMS];
     /* 004C */ int32_t* m_equipped;
     /* 0050 */ uint8_t m_slotUsed [19];
 };
@@ -99,6 +101,76 @@ void TooltipQuestCallback(int32_t id, const WOWGUID& guid, void* param, bool suc
 void TooltipAchievementCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
 int32_t FormatString(const char* token, int32_t count, FRAMESCRIPT_GENDER gender, char* buffer, uint32_t size);
 int32_t TimeFractionBelow(float time, float fraction);
+
+enum ITEM_MOD_TYPE : int32_t {
+    ITEM_MOD_MANA = 0,
+    ITEM_MOD_HEALTH = 1,
+    ITEM_MOD_ENDURANCE = 2,
+    ITEM_MOD_AGILITY = 3,
+    ITEM_MOD_STRENGTH = 4,
+    ITEM_MOD_INTELLECT = 5,
+    ITEM_MOD_SPIRIT = 6,
+    ITEM_MOD_STAMINA = 7,
+    ITEM_MOD_ENERGY = 8,
+    ITEM_MOD_RAGE = 9,
+    ITEM_MOD_FOCUS = 10,
+    ITEM_MOD_WEAPON_RATING = 11,
+    ITEM_MOD_DEFENSE_SKILL_RATING = 12,
+    ITEM_MOD_DODGE_RATING = 13,
+    ITEM_MOD_PARRY_RATING = 14,
+    ITEM_MOD_BLOCK_RATING = 15,
+    ITEM_MOD_HIT_MELEE_RATING = 16,
+    ITEM_MOD_HIT_RANGED_RATING = 17,
+    ITEM_MOD_HIT_SPELL_RATING = 18,
+    ITEM_MOD_CRIT_MELEE_RATING = 19,
+    ITEM_MOD_CRIT_RANGED_RATING = 20,
+    ITEM_MOD_CRIT_SPELL_RATING = 21,
+    ITEM_MOD_HIT_TAKEN_MELEE_RATING = 22,
+    ITEM_MOD_HIT_TAKEN_RANGED_RATING = 23,
+    ITEM_MOD_HIT_TAKEN_SPELL_RATING = 24,
+    ITEM_MOD_CRIT_TAKEN_MELEE_RATING = 25,
+    ITEM_MOD_CRIT_TAKEN_RANGED_RATING = 26,
+    ITEM_MOD_CRIT_TAKEN_SPELL_RATING = 27,
+    ITEM_MOD_HASTE_MELEE_RATING = 28,
+    ITEM_MOD_HASTE_RANGED_RATING = 29,
+    ITEM_MOD_HASTE_SPELL_RATING = 30,
+    ITEM_MOD_HIT_RATING = 31,
+    ITEM_MOD_CRIT_RATING = 32,
+    ITEM_MOD_HIT_TAKEN_RATING = 33,
+    ITEM_MOD_CRIT_TAKEN_RATING = 34,
+    ITEM_MOD_RESILIENCE_RATING = 35,
+    ITEM_MOD_HASTE_RATING = 36,
+    ITEM_MOD_EXPERTISE_RATING = 37,
+    ITEM_MOD_ATTACK_POWER = 38,
+    ITEM_MOD_RANGED_ATTACK_POWER = 39,
+    ITEM_MOD_VERSATILITY = 40,
+    ITEM_MOD_SPELL_HEALING_DONE = 41,
+    ITEM_MOD_SPELL_DAMAGE_DONE = 42,
+    ITEM_MOD_MANA_REGENERATION = 43,
+    ITEM_MOD_ARMOR_PENETRATION_RATING = 44,
+    ITEM_MOD_SPELL_POWER = 45,
+    ITEM_MOD_HEALTH_REGEN = 46,
+    ITEM_MOD_SPELL_PENETRATION = 47,
+    ITEM_MOD_BLOCK_VALUE = 48,
+    NUM_ITEM_MOD_TYPES = 49,
+};
+
+enum ITEM_STAT_SUMMARY : int32_t {
+    STAT_SUMMARY_RESISTANCE = 0,
+    STAT_SUMMARY_ATTACK_POWER = 7,
+    STAT_SUMMARY_MELEE_ATTACK_POWER = 8,
+    STAT_SUMMARY_RANGED_ATTACK_POWER = 9,
+    STAT_SUMMARY_FERAL_ATTACK_POWER = 10,
+    STAT_SUMMARY_ITEM_MOD = 11,
+    STAT_SUMMARY_BLOCK_VALUE = 60,
+    STAT_SUMMARY_POWER_REGEN = 61,
+    STAT_SUMMARY_HEALTH_REGEN = 68,
+    STAT_SUMMARY_EMPTY_SOCKET_META = 69,
+    STAT_SUMMARY_EMPTY_SOCKET_RED = 70,
+    STAT_SUMMARY_EMPTY_SOCKET_YELLOW = 71,
+    STAT_SUMMARY_EMPTY_SOCKET_BLUE = 72,
+    NUM_STAT_SUMMARY = 73,
+};
 
 class CGTooltip : public CSimpleFrame {
     public:
@@ -249,11 +321,23 @@ static const int32_t NUM_CUSTOM_ITEM_MODS = NUM_ITEM_MODS - ITEM_MOD_FIRST_CUSTO
 
 class CGItemStatsSummary {
     public:
+    enum SUMMARY_FLAGS : uint32_t {
+        ITEM_SUMMARY_PARSED_NONE = 0,
+        ITEM_SUMMARY_PARSED_AURAS = 0x1,
+        ITEM_SUMMARY_PARSED_RANDOM_PROPERTIES = 0x2,
+        ITEM_SUMMARY_PARSED_WEAPON_DPS = 0x4,
+        ITEM_SUMMARY_PARSED_RESISTANCES = 0x8,
+        ITEM_SUMMARY_PARSED_NUM_GEMS = 0x10,
+        ITEM_SUMMARY_PARSED_BASIC_STATS = 0x20,
+        ITEM_SUMMARY_PARSED_BLOCK_VALUE = 0x40,
+        ITEM_SUMMARY_PARSED_SCALING_ITEM = 0x80,
+    };
+
     static int32_t GetItemComparison(CGTooltip* first, CGTooltip* second, CGItemStatsSummary* result);
     static char* GetCustomStatName(int32_t index, char* buffer, int32_t size);
 
     /* 0000 */ float m_dps;
-    /* 0004 */ int32_t m_stats[73];
+    /* 0004 */ int32_t m_stats[NUM_STAT_SUMMARY];
     /* 0128 */ uint32_t m_flags;
     /* 012C */ int32_t m_customStats[NUM_CUSTOM_ITEM_MODS];
 

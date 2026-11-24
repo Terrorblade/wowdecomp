@@ -193,7 +193,7 @@ ComSat::Sound::Manager::Manager(const ComSat::Initialization& init, ComSat::Allo
     this->m_currentFrame = 0;
     this->m_startTime = init.m_time;
     this->m_currentTime = init.m_time;
-    if (OsGetProcessorFeatures() & 4) {
+    if (OsGetProcessorFeatures() & OS_PROCESSOR_FEATURE_SSE) {
         this->m_codec = ComSat::Sound::CODEC::Create(init, allocator);
         int32_t bytesPerSecond = ComSat::Sound::CODECIPMR6000::s_sampleRate * ComSat::Sound::CODECIPMR6000::s_bitsPerSample / 8;
         this->m_framesPerSecond = static_cast<float>(bytesPerSecond) / ComSat::Sound::CODECIPMR6000::s_bytesPerFrame;
@@ -492,14 +492,14 @@ bool ComSat::Sound::Manager::IsRemoteTalkerMuted(uint8_t player, uint64_t talker
 
 // VERIFY: e3a12132 manual
 // OFFSET: 0x00882950
-bool ComSat::Sound::Manager::SetTalkerMuted(uint8_t player, uint64_t talker, ComSat::MuteSetting setting) {
+bool ComSat::Sound::Manager::SetTalkerMuted(uint8_t player, uint64_t talker, MuteSetting setting) {
     LocalPlayer* localPlayer;
     if (!this->m_localPlayers.Get(ComSat::MapKey<uint8_t>(player), localPlayer)) {
         return false;
     }
     uint32_t index;
-    bool mute = setting == ComSat::MUTE_SETTING_MUTE;
-    if ((setting == ComSat::MUTE_SETTING_TOGGLE && !localPlayer->m_mutedTalkers.Find(talker, index)) || mute) {
+    bool mute = setting == MUTE_SETTING_MUTE;
+    if ((setting == MUTE_SETTING_TOGGLE && !localPlayer->m_mutedTalkers.Find(talker, index)) || mute) {
         if (!localPlayer->m_mutedTalkers.Find(talker, index)) {
             localPlayer->m_mutedTalkers.PushBack(talker);
         }
@@ -521,14 +521,14 @@ bool ComSat::Sound::Manager::IsSessionMuted(uint8_t player, uint64_t session) {
 
 // VERIFY: d8c69071 manual
 // OFFSET: 0x00882A70
-bool ComSat::Sound::Manager::SetSessionMuted(uint8_t player, uint64_t session, ComSat::MuteSetting setting) {
+bool ComSat::Sound::Manager::SetSessionMuted(uint8_t player, uint64_t session, MuteSetting setting) {
     LocalPlayer* localPlayer;
     if (!this->m_localPlayers.Get(ComSat::MapKey<uint8_t>(player), localPlayer)) {
         return false;
     }
     uint32_t index;
-    bool mute = setting == ComSat::MUTE_SETTING_MUTE;
-    if ((setting == ComSat::MUTE_SETTING_TOGGLE && !localPlayer->m_mutedSessions.Find(session, index)) || mute) {
+    bool mute = setting == MUTE_SETTING_MUTE;
+    if ((setting == MUTE_SETTING_TOGGLE && !localPlayer->m_mutedSessions.Find(session, index)) || mute) {
         if (!localPlayer->m_mutedSessions.Find(session, index)) {
             localPlayer->m_mutedSessions.PushBack(session);
         }

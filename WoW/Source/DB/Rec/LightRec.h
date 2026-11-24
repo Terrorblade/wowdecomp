@@ -1,10 +1,17 @@
 #ifndef WOW_SOURCE_DB_REC_LIGHTREC_H
 #define WOW_SOURCE_DB_REC_LIGHTREC_H
 
+#include "Engine/Source/Tempest/CRange.h"
+
 #include <cstddef>
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_LIGHT_PARAMS = 8;
+
+enum LIGHT_ID : int32_t {
+    LIGHT_ID_DEFAULT = 1,
+};
 
 class LightRec {
     public:
@@ -17,7 +24,7 @@ class LightRec {
     /* 0008 */ float m_gameCoords [3];
     /* 0014 */ float m_gameFalloffStart;
     /* 0018 */ float m_gameFalloffEnd;
-    /* 001C */ int32_t m_lightParamsID [8];
+    /* 001C */ int32_t m_lightParamsID [NUM_LIGHT_PARAMS];
 
     LightRec();
     ~LightRec();

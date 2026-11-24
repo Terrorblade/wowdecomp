@@ -53,7 +53,7 @@ static int32_t Script_GetText(lua_State* L) {
     }
 
     if (lua_isnumber(L, 3)) {
-        ordinal = lua_tointeger(L, 3);
+        ordinal = static_cast<int32_t>(lua_tointeger(L, 3));
     }
 
     lua_pushstring(L, FrameScript_GetText(token, ordinal, gender));

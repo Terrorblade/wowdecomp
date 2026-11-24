@@ -13,12 +13,12 @@ static OsTimeManager* s_OsTimeMgr;
 // OFFSET: 0x0086AB30
 OsTimeManager::TimingMethod OsTimeManager::Calibrate() {
     if (!QueryPerformanceFrequency(reinterpret_cast<LARGE_INTEGER*>(&this->m_performanceFrequency))) {
-        this->m_timingTestError = 1;
+        this->m_timingTestError = TimingTestError_NoPerformanceCounter;
         return SystemMethod1;
     }
 
     if (!this->m_performanceFrequency) {
-        this->m_timingTestError = 2;
+        this->m_timingTestError = TimingTestError_ZeroFrequency;
         return SystemMethod1;
     }
 
@@ -30,7 +30,7 @@ OsTimeManager::TimingMethod OsTimeManager::Calibrate() {
     SetThreadPriority(thread, THREAD_PRIORITY_TIME_CRITICAL);
     OsSleep(0);
 
-    this->m_timingTestError = 0;
+    this->m_timingTestError = TimingTestError_None;
 
     DWORD tick = GetTickCount();
     DWORD startTick;
@@ -57,7 +57,7 @@ OsTimeManager::TimingMethod OsTimeManager::Calibrate() {
             QueryPerformanceCounter(&count);
 
             if (count.QuadPart <= lastCount) {
-                this->m_timingTestError = 4;
+                this->m_timingTestError = TimingTestError_NotMonotonic;
                 break;
             }
 
@@ -84,7 +84,7 @@ OsTimeManager::TimingMethod OsTimeManager::Calibrate() {
 
         int64_t elapsed = static_cast<int64_t>(static_cast<double>(endCount.QuadPart - startCount.QuadPart) / static_cast<double>(this->m_performanceFrequency) * 1000.0);
         if (abs(static_cast<int32_t>(endTick - static_cast<uint32_t>(elapsed) - startTick)) >= 5) {
-            this->m_timingTestError = 3;
+            this->m_timingTestError = TimingTestError_TickDrift;
         }
     }
 
@@ -192,7 +192,7 @@ OsTimeManager::OsTimeManager(OsTimeManager::TimingMethod method) {
     OsTimeManager::TimingMethod calibrated = this->Calibrate();
     if (method != BestAvailable && calibrated != method) {
         if (method == SystemMethod2 && calibrated == SystemMethod1) {
-            this->m_timingTestError = 5;
+            this->m_timingTestError = TimingTestError_MethodForced;
         }
 
         calibrated = method;

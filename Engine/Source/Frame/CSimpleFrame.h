@@ -13,6 +13,9 @@
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/CRect.h"
+#include "Engine/Source/FrameScript/FrameScript.h"
+#include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/lua-5.1/src/lua.h"
 
 class CBackdropGenerator;
 class CCharEvent;
@@ -41,6 +44,28 @@ class FrameScriptFunctionRef : public XMLNodeData {
 
 class CSimpleFrame : public CScriptRegion {
     public:
+    enum FrameFlags : uint32_t {
+        FRAME_TOPLEVEL = 0x1,
+        FRAME_OCCLUDED = 0x10,
+        FRAME_MOVABLE = 0x100,
+        FRAME_RESIZABLE = 0x200,
+        FRAME_DISABLED = 0x400,
+        FRAME_DEFER_PROTECTION_QUERY = 0x800,
+        FRAME_USER_PLACED = 0x1000,
+        FRAME_BEING_SCROLLED = 0x2000,
+        FRAME_SCROLL_CHILD = 0x4000,
+        FRAME_ALLOW_ATTRIBUTE_CHANGES = 0x8000,
+        FRAME_BUTTON_CONSTRUCTION_TAG = 0x10000,
+        FRAME_HIDE_SCRIPT_DEPTH = 0x40000,
+        FRAME_DONT_SAVE_POSITION = 0x80000,
+        FRAME_MOVABLE_OR_RESIZABLE_MASK = 0x300,
+    };
+
+    enum INITIALIZED_STATE : uint32_t {
+        STATE_INITIALIZED = 1,
+        STATE_DELETED = 3,
+    };
+
     static CDataAllocator s_allocator;
     static int32_t s_frameCount;
     static int32_t s_metatable;

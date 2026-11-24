@@ -31,6 +31,7 @@
 #include "WoW/Source/UIUtil/Camera.h"
 #include "WoW/Source/UIUtil/SmartScreenRect.h"
 #include "WoW/Source/Ui/WorldFrame.h"
+#include "Engine/Source/Tempest/Color.h"
 
 // STATIC: 0x00A41618
 static float s_critHeightCurve[3][4] = {
@@ -41,16 +42,16 @@ static float s_critHeightCurve[3][4] = {
 
 // STATIC: 0x00AF4748
 static WORLDTEXTTYPE s_worldTextTypes[NUM_WORLDTEXTTYPES] = {
-    { 2.0f, 150, 760, 1500, 0.018333333f, 0.018333333f, CImVector(0xFF, 0xFF, 0xFF, 0xFF) },
-    { 2.0f, 150, 90, 1500, 0.018333333f, 0.018333333f, CImVector(0xFF, 0xFF, 0xFF, 0xFF) },
-    { 0.0f, 150, 1000, 1500, 0.0f, 0.027499998f, CImVector(0xFF, 0xFF, 0xFF, 0xFF) },
-    { 2.0f, 150, 1000, 1500, 0.018333333f, 0.018333333f, CImVector(0xFF, 0xFF, 0xFF, 0xFF) },
+    { 2.0f, 150, 760, 1500, 0.018333333f, 0.018333333f, CImVector(COLOR_WHITE_BGRA) },
+    { 2.0f, 150, 90, 1500, 0.018333333f, 0.018333333f, CImVector(COLOR_WHITE_BGRA) },
+    { 0.0f, 150, 1000, 1500, 0.0f, 0.027499998f, CImVector(COLOR_WHITE_BGRA) },
+    { 2.0f, 150, 1000, 1500, 0.018333333f, 0.018333333f, CImVector(COLOR_WHITE_BGRA) },
     { 0.0f, 500, 2000, 4500, 0.018333333f, 0.018333333f, CImVector(0x8B, 0x00, 0x94, 0x80) },
     { 0.0f, 500, 2000, 4500, 0.018333333f, 0.018333333f, CImVector(0x0A, 0xCA, 0xE0, 0xFF) },
-    { 2.0f, 150, 760, 1500, 0.018333333f, 0.018333333f, CImVector(0x00, 0xFF, 0x00, 0xFF) },
-    { 0.0f, 150, 1000, 1500, 0.0f, 0.027499998f, CImVector(0x00, 0xFF, 0x00, 0xFF) },
-    { 6.0f, 150, 760, 1500, 0.027499998f, 0.027499998f, CImVector(0xFF, 0xFF, 0xFF, 0xFF) },
-    { 6.0f, 150, 760, 1500, 0.027499998f, 0.027499998f, CImVector(0x00, 0xFF, 0x00, 0xFF) },
+    { 2.0f, 150, 760, 1500, 0.018333333f, 0.018333333f, CImVector(COLOR_GREEN_BGRA) },
+    { 0.0f, 150, 1000, 1500, 0.0f, 0.027499998f, CImVector(COLOR_GREEN_BGRA) },
+    { 6.0f, 150, 760, 1500, 0.027499998f, 0.027499998f, CImVector(COLOR_WHITE_BGRA) },
+    { 6.0f, 150, 760, 1500, 0.027499998f, 0.027499998f, CImVector(COLOR_GREEN_BGRA) },
     { 2.0f, 150, 760, 1500, 0.018333333f, 0.018333333f, CImVector(0x00, 0x99, 0xFF, 0xFF) },
 };
 
@@ -146,7 +147,7 @@ void WORLDTEXTSTRING::RecreateString() {
     DDCToNDC(s_shadowOffset.x, s_shadowOffset.y, &shadow.x, &shadow.y);
 
     float extent;
-    GxuFontGetTextExtent(font, this->m_text, SStrLen(this->m_text), fontHeight, &extent, shadow.x, 1.0f, 0.0f, 0);
+    GxuFontGetTextExtent(font, this->m_text, static_cast<uint32_t>(SStrLen(this->m_text)), fontHeight, &extent, shadow.x, 1.0f, 0.0f, 0);
     float textHeight = GxuFontGetWrappedTextHeight(font, this->m_text, fontHeight, extent, shadow, 1.0f, 0.0f, 0);
 
     C3Vector position(0.0f, 0.0f, 1.0f);
@@ -374,7 +375,7 @@ bool WORLDTEXTSTRING::Update(uint32_t time) {
     uint32_t result = 0;
     worldFrame->GetScreenCoordinates(C3Vector(position), &screen, &result);
 
-    if (!(result & 0x1) || !(result & 0x4)) {
+    if (!(result & CGWorldFrame::SCREEN_BOUNDS_LEFT) || !(result & CGWorldFrame::SCREEN_BOUNDS_RIGHT)) {
         return false;
     }
 
@@ -488,7 +489,7 @@ void WorldTextRenderBatch() {
     g_theGxDevicePtr->RsSet(GxRs_Lighting, 0);
     g_theGxDevicePtr->RsSet(GxRs_Fog, 0);
     g_theGxDevicePtr->RsSet(GxRs_Culling, 0);
-    g_theGxDevicePtr->RsSet(GxRs_BlendingMode, 2);
+    g_theGxDevicePtr->RsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxUpdateAlphaRef(GxRs_AlphaRef);
 
     C44Matrix identity;

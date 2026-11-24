@@ -22,6 +22,20 @@ class XMLNode;
 
 class CSimpleTexture : public CSimpleRegion {
     public:
+
+    enum FlagBitIndices : int32_t {
+        FLAG_HORIZ_TILE_BIT_INDEX = 2,
+        FLAG_VERT_TILE_BIT_INDEX = 3,
+    };
+
+    enum TEXTURE_FLAGS : uint32_t {
+        FLAG_NONBLOCKING = 0x1,
+        FLAG_TEXCOORDS_DIRTY = 0x2,
+        FLAG_HORIZ_TILE = 0x4,
+        FLAG_VERT_TILE = 0x8,
+        FLAG_INITIALIZATION_MASK = 0xF,
+    };
+
     static CDataAllocator s_allocator;
     static int32_t s_count;
     static CGxShader* s_imageModePixelShaders[2];

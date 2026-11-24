@@ -6,6 +6,10 @@
 
 class SFileImpl;
 
+enum PET_PERSONALITY_ID : int32_t {
+    PET_PERSONALITY_ID_STANDARD = 1,
+};
+
 class PetPersonalityRec {
     public:
     static const int32_t s_numColumns = 24;

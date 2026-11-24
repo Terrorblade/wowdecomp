@@ -14,6 +14,7 @@
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/ArenaTeamInfo.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
+#include "Engine/Source/Tempest/Color.h"
 // STATIC: 0x00C0F7C8
 WOWGUID CGPetitionVendorInfo::m_vendor;
 
@@ -36,19 +37,19 @@ GuildPetitionInfo CGPetitionVendorInfo::m_petitionItems[10];
 uint32_t CGPetitionVendorInfo::m_arenaTeamSize;
 
 // STATIC: 0x00ACF7D8
-uint32_t CGPetitionVendorInfo::m_arenaBackgroundColor = 0xFFFFFFFF;
+uint32_t CGPetitionVendorInfo::m_arenaBackgroundColor = COLOR_WHITE_ARGB;
 
 // STATIC: 0x00ACF7DC
 uint32_t CGPetitionVendorInfo::m_arenaEmblemStyle = 0xFFFFFFFF;
 
 // STATIC: 0x00ACF7E0
-uint32_t CGPetitionVendorInfo::m_arenaEmblemColor = 0xFFFFFFFF;
+uint32_t CGPetitionVendorInfo::m_arenaEmblemColor = COLOR_WHITE_ARGB;
 
 // STATIC: 0x00ACF7E4
 uint32_t CGPetitionVendorInfo::m_arenaBorderStyle = 0xFFFFFFFF;
 
 // STATIC: 0x00ACF7E8
-uint32_t CGPetitionVendorInfo::m_arenaBorderColor = 0xFFFFFFFF;
+uint32_t CGPetitionVendorInfo::m_arenaBorderColor = COLOR_WHITE_ARGB;
 
 
 // VERIFY: 645b030e manual
@@ -121,7 +122,7 @@ void CGPetitionVendorInfo::BuyPetition(uint32_t index, const char* name) {
         return;
     }
 
-    if (CGPetitionVendorInfo::m_petitionItems[index].m_charterType == 1) {
+    if (CGPetitionVendorInfo::m_petitionItems[index].m_charterType == CGPetition::STATIC_TYPE_ARENA) {
         for (uint32_t i = 0; i < 3; i++) {
             ArenaTeam* team = CGArenaTeamInfo::GetArenaTeam(i);
 
@@ -139,7 +140,7 @@ void CGPetitionVendorInfo::BuyPetition(uint32_t index, const char* name) {
         }
     }
 
-    if (CGPetitionVendorInfo::m_petitionItems[index].m_charterType == 1) {
+    if (CGPetitionVendorInfo::m_petitionItems[index].m_charterType == CGPetition::STATIC_TYPE_ARENA) {
         int32_t level = player->m_unit->m_unitFieldLevel;
 
         if (level != 60 && level != 70 && level != 80) {

@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum ITEM_CLASS_FLAGS : int32_t {
+    ITEM_CLASS_FLAG_NONE   = 0x00000000,
+    ITEM_CLASS_FLAG_WEAPON = 0x00000001,
+};
+
 class ItemClassRec {
     public:
     static const int32_t s_numColumns = 20;

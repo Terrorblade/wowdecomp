@@ -199,7 +199,7 @@ int32_t CGRaidInfo::IsPlayerRaidOfficer(const WOWGUID& guid) {
 
     for (uint32_t i = 0; i < CGRaidInfo::m_numMembers; i++) {
         if (CGRaidInfo::m_members[i]->m_guid == guid) {
-            return CGRaidInfo::m_members[i]->m_rank > 0 || CGPartyInfo::m_leader == guid;
+            return CGRaidInfo::m_members[i]->m_rank > CGRaidMember::MEMBER || CGPartyInfo::m_leader == guid;
         }
     }
 
@@ -228,7 +228,7 @@ void CGRaidInfo::SetRaidTarget(uint32_t index, const WOWGUID& guid) {
 int32_t CGRaidInfo::IsPVPRaid() {
     MapRec* map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
 
-    if (map && map->m_instanceType == 3) {
+    if (map && map->m_instanceType == MAP_INSTANCE_TYPE_PVP_BATTLEFIELD) {
         return 1;
     }
 
@@ -337,7 +337,7 @@ CGPartyPetState* CGRaidInfo::GetRemotePetStats(const WOWGUID& guid) {
     for (uint32_t i = 0; i < sizeof(CGRaidInfo::m_members) / sizeof(CGRaidInfo::m_members[0]); i++) {
         CGRaidMember* member = CGRaidInfo::m_members[i];
 
-        if (member->m_guid && (member->m_stats.m_flags & 1) && member->m_stats.m_pet.m_guid == guid) {
+        if (member->m_guid && (member->m_stats.m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && member->m_stats.m_pet.m_guid == guid) {
             return &CGRaidInfo::m_members[i]->m_stats.m_pet;
         }
     }
@@ -366,7 +366,7 @@ int32_t CGRaidInfo::IsPetInRaid(const WOWGUID& guid, int32_t* index) {
             const WOWGUID& pet = player->m_unit->m_unitFieldCharm ? player->m_unit->m_unitFieldCharm : player->m_unit->m_unitFieldSummon;
             match = pet == guid;
         } else {
-            match = (member->m_stats.m_flags & 1) && member->m_stats.m_pet.m_guid == guid;
+            match = (member->m_stats.m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && member->m_stats.m_pet.m_guid == guid;
         }
 
         if (match) {
@@ -463,7 +463,7 @@ int32_t Packet_MSG_RAID_READY_CHECK_CONFIRM(void* param, NETMESSAGE msgId, uint3
 
                     if (name && initiator) {
                         SStrPrintf(buffer, sizeof(buffer), FrameScript_GetText("RAID_MEMBER_NOT_READY", -1, GENDER_NOT_APPLICABLE), name->m_name);
-                        CGChat::AddChatMessage(buffer, 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+                        CGChat::AddChatMessage(buffer, CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
                     }
                 }
 
@@ -472,7 +472,7 @@ int32_t Packet_MSG_RAID_READY_CHECK_CONFIRM(void* param, NETMESSAGE msgId, uint3
 
             member = CGRaidInfo::m_members[i];
 
-            if (pending || ((member->m_stats.m_flags & 0x1) && member->m_readyCheckPending)) {
+            if (pending || ((member->m_stats.m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && member->m_readyCheckPending)) {
                 pending = true;
 
                 if (found) {
@@ -503,7 +503,7 @@ int32_t Packet_MSG_RAID_READY_CHECK_CONFIRM(void* param, NETMESSAGE msgId, uint3
 
                     if (name) {
                         SStrPrintf(buffer, sizeof(buffer), FrameScript_GetText("RAID_MEMBER_NOT_READY", -1, GENDER_NOT_APPLICABLE), name->m_name);
-                        CGChat::AddChatMessage(buffer, 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+                        CGChat::AddChatMessage(buffer, CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
                     }
                 }
 
@@ -512,7 +512,7 @@ int32_t Packet_MSG_RAID_READY_CHECK_CONFIRM(void* param, NETMESSAGE msgId, uint3
 
             CGPartyMemberState* state = CGPartyInfo::m_members[i] ? &s_partyMemberStates[i] : nullptr;
 
-            if (pending || (state && (state->m_flags & 0x1) && i < 4 && CGRaidInfo::m_partyReadyCheckPending[i])) {
+            if (pending || (state && (state->m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && i < 4 && CGRaidInfo::m_partyReadyCheckPending[i])) {
                 pending = true;
 
                 if (found) {
@@ -580,13 +580,13 @@ int32_t Packet_MSG_RAID_READY_CHECK(void* param, NETMESSAGE msgId, uint32_t time
     CGRaidInfo::m_readyCheckTime = OsGetAsyncTimeMs() + 30000;
 
     if (initiator == ClntObjMgrGetActivePlayer()) {
-        CGChat::AddChatMessage(FrameScript_GetText("READY_CHECK_START", -1, GENDER_NOT_APPLICABLE), 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+        CGChat::AddChatMessage(FrameScript_GetText("READY_CHECK_START", -1, GENDER_NOT_APPLICABLE), CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
     }
 
     if (CGRaidInfo::m_numMembers) {
         CGRaidMember* self = CGRaidInfo::FindMemberByGuid(ClntObjMgrGetActivePlayer());
 
-        if (self && self->m_rank > 0) {
+        if (self && self->m_rank > CGRaidMember::MEMBER) {
             for (uint32_t i = 0; i < CGRaidInfo::m_numMembers; i++) {
                 CGRaidMember* member = CGRaidInfo::m_members[i];
 
@@ -654,7 +654,7 @@ void CGRaidInfo::RosterUpdateRefreshReadyCheck(uint32_t removed, WOWGUID leader)
 
         uint32_t i = 0;
 
-        while (i < count && !(CGRaidInfo::m_members[i]->m_readyCheckPending && (CGRaidInfo::m_members[i]->m_stats.m_flags & 0x1))) {
+        while (i < count && !(CGRaidInfo::m_members[i]->m_readyCheckPending && (CGRaidInfo::m_members[i]->m_stats.m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED))) {
             i++;
         }
 
@@ -669,7 +669,7 @@ void CGRaidInfo::RosterUpdateRefreshReadyCheck(uint32_t removed, WOWGUID leader)
         for (; i < CGPartyInfo::GetNumPartyMembers(); i++) {
             CGPartyMemberState* state = CGPartyInfo::GetMemberState(i);
 
-            if (state && (state->m_flags & 0x1) && CGRaidInfo::IsPartyMemberReadyCheckPending(i)) {
+            if (state && (state->m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && CGRaidInfo::IsPartyMemberReadyCheckPending(i)) {
                 break;
             }
         }
@@ -691,7 +691,7 @@ void CGRaidInfo::UpdateRoster(const WOWGUID* guids, const uint32_t* subgroups, c
     }
 
     if (count) {
-        CGTutorial::TriggerTutorial(45);
+        CGTutorial::TriggerTutorial(TUTORIAL_RAID_GROUPS);
     }
 
     uint32_t oldCount = CGRaidInfo::m_numMembers;
@@ -749,7 +749,7 @@ void CGRaidInfo::UpdateRoster(const WOWGUID* guids, const uint32_t* subgroups, c
                 fullNamePtr = fullName;
             }
 
-            CGAutoCompleteName::AddFlags(guids[i], 1, 0, fullNamePtr);
+            CGAutoCompleteName::AddFlags(guids[i], AUTOCOMPLETE_FLAG_IN_GROUP, 0, fullNamePtr);
             oldCount = CGRaidInfo::m_numMembers;
         }
 
@@ -772,7 +772,7 @@ void CGRaidInfo::UpdateRoster(const WOWGUID* guids, const uint32_t* subgroups, c
 
             if (name && ClntObjMgrGetActivePlayer()) {
                 CGGameUI::DisplayError(ERR_RAID_MEMBER_REMOVED_S, name->m_name);
-                CGAutoCompleteName::RemoveFlags(CGRaidInfo::m_members[j]->m_guid, 1);
+                CGAutoCompleteName::RemoveFlags(CGRaidInfo::m_members[j]->m_guid, AUTOCOMPLETE_FLAG_IN_GROUP);
             }
 
             oldCount = CGRaidInfo::m_numMembers;
@@ -796,7 +796,7 @@ void CGRaidInfo::UpdateRoster(const WOWGUID* guids, const uint32_t* subgroups, c
         previous[i].m_pending = member->m_readyCheckPending;
         previous[i].m_ready = member->m_readyCheckReady;
 
-        if (member->m_rank == 2) {
+        if (member->m_rank == CGRaidMember::LEADER) {
             leader = member->m_guid;
         }
     }
@@ -810,13 +810,13 @@ void CGRaidInfo::UpdateRoster(const WOWGUID* guids, const uint32_t* subgroups, c
         member->m_subgroup = subgroups[i];
         member->m_assignments = flags[i];
         member->m_groupRole = roles[i];
-        member->m_rank = member->m_guid == CGPartyInfo::m_leader ? 2 : flags[i] & 0x1;
+        member->m_rank = member->m_guid == CGPartyInfo::m_leader ? CGRaidMember::LEADER : flags[i] & 0x1;
         memcpy(&member->m_stats, &stats[i], sizeof(CGPartyMemberState));
 
         if (online[i]) {
-            member->m_stats.m_flags |= 0x1;
+            member->m_stats.m_flags |= CGPartyMemberState::MEMBER_FLAG_CONNECTED;
         } else {
-            member->m_stats.m_flags &= ~0x1;
+            member->m_stats.m_flags &= ~CGPartyMemberState::MEMBER_FLAG_CONNECTED;
         }
 
         uint32_t j = 0;
@@ -852,25 +852,25 @@ void CGRaidInfo::UpdateRoster(const WOWGUID* guids, const uint32_t* subgroups, c
             CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (pet) {
-                pet->UnregisterScript(512);
+                pet->UnregisterScript(CGUnit_C::SCRIPT_REGISTRATION_RAID_PET);
             } else {
                 CGGameUI::ClearTarget(petGuid, 1);
             }
         }
 
-        unit->UnregisterScript(256);
+        unit->UnregisterScript(CGUnit_C::SCRIPT_REGISTRATION_RAID);
     }
 
     for (uint32_t i = 0; i < addedCount; i++) {
         CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(added[i], TYPE_PLAYER, __FILE__, __LINE__));
 
         if (unit) {
-            unit->RegisterScript(256);
+            unit->RegisterScript(CGUnit_C::SCRIPT_REGISTRATION_RAID);
             const WOWGUID& petGuid = unit->m_unit->m_unitFieldCharm.m_guid ? unit->m_unit->m_unitFieldCharm : unit->m_unit->m_unitFieldSummon;
             CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (pet) {
-                pet->RegisterScript(512);
+                pet->RegisterScript(CGUnit_C::SCRIPT_REGISTRATION_RAID_PET);
             }
         } else {
             CDataStore msg;
@@ -986,7 +986,7 @@ int32_t CGRaidInfo::IsPlayerOrPetInRaid(const WOWGUID& guid) {
             if (pet == guid) {
                 return 1;
             }
-        } else if ((member->m_stats.m_flags & 1) && member->m_stats.m_pet.m_guid == guid) {
+        } else if ((member->m_stats.m_flags & CGPartyMemberState::MEMBER_FLAG_CONNECTED) && member->m_stats.m_pet.m_guid == guid) {
             return 1;
         }
     }
@@ -1055,15 +1055,15 @@ uint8_t CGRaidInfo::GetPartyAssignments(const WOWGUID& guid) {
 int32_t CGRaidInfo::GetPartyAssignments(lua_State* L, int32_t assignment) {
     uint8_t flag = 0;
 
-    if (assignment == 0) {
-        flag = 2;
-    } else if (assignment == 1) {
-        flag = 4;
+    if (assignment == CGPartyInfo::MAINTANK) {
+        flag = CGPartyInfo::MAIN_TANK;
+    } else if (assignment == CGPartyInfo::MAINASSIST) {
+        flag = CGPartyInfo::MAIN_ASSIST;
     }
 
     if (lua_isstring(L, 2)) {
         const char* name = lua_tolstring(L, 2, nullptr);
-        WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_PLAYER, 6, StringToBOOL(L, 3, 0), 3.4028235e38f, 0);
+        WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_PLAYER, UNIT_TARGET_RAID_MEMBER, StringToBOOL(L, 3, 0), 3.4028235e38f, 0);
 
         if (!guid) {
             CGGameUI::DisplayError(ERR_TARGET_NOT_IN_GROUP_S, name);
@@ -1097,7 +1097,7 @@ void CGRaidInfo::ClearRecruitAFriend(WOWGUID guid) {
     CGPartyMemberState* stats = CGRaidInfo::GetRemoteStats(guid);
 
     if (stats) {
-        stats->m_flags &= ~0x100;
+        stats->m_flags &= ~CGPartyMemberState::MEMBER_FLAG_REFER_A_FRIEND;
     }
 }
 
@@ -1130,7 +1130,7 @@ void CGRaidInfo::ClearRoster() {
         }
     }
 
-    CGAutoCompleteName::RemoveFlagsFromAllNodes(1);
+    CGAutoCompleteName::RemoveFlagsFromAllNodes(AUTOCOMPLETE_FLAG_IN_GROUP);
     FrameScript_SignalEvent(SCRIPT_EVENT_RAID_TARGET_UPDATE, nullptr);
     FrameScript_SignalEvent(SCRIPT_EVENT_PLAYER_ROLES_ASSIGNED, nullptr);
 }
@@ -1265,11 +1265,11 @@ void CGRaidInfo::CheckReadyCheckTime() {
     if (!first) {
         char text[512];
         SStrPrintf(text, sizeof(text), format, names);
-        CGChat::AddChatMessage(text, 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+        CGChat::AddChatMessage(text, CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
     } else if (!allReady) {
-        CGChat::AddChatMessage(FrameScript_GetText("READY_CHECK_FINISHED", -1, GENDER_NOT_APPLICABLE), 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+        CGChat::AddChatMessage(FrameScript_GetText("READY_CHECK_FINISHED", -1, GENDER_NOT_APPLICABLE), CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
     } else {
-        CGChat::AddChatMessage(FrameScript_GetText("READY_CHECK_ALL_READY", -1, GENDER_NOT_APPLICABLE), 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+        CGChat::AddChatMessage(FrameScript_GetText("READY_CHECK_ALL_READY", -1, GENDER_NOT_APPLICABLE), CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
     }
 
     CDataStore msg;

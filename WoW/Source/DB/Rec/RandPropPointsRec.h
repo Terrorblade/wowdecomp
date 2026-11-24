@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_RAND_PROP_POINTS = 5;
 
 class RandPropPointsRec {
     public:
@@ -13,9 +14,9 @@ class RandPropPointsRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t m_epic [5];
-    /* 0018 */ int32_t m_superior [5];
-    /* 002C */ int32_t m_good [5];
+    /* 0004 */ int32_t m_epic [NUM_RAND_PROP_POINTS];
+    /* 0018 */ int32_t m_superior [NUM_RAND_PROP_POINTS];
+    /* 002C */ int32_t m_good [NUM_RAND_PROP_POINTS];
 
     RandPropPointsRec();
     ~RandPropPointsRec();

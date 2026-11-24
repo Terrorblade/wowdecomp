@@ -6,6 +6,13 @@
 
 class SFileImpl;
 
+enum HOLIDAY_CALENDAR_FILTER_TYPE : int32_t {
+    HOLIDAY_CALENDAR_FILTER_NONE            = -1,
+    HOLIDAY_CALENDAR_FILTER_WEEKLY_HOLIDAYS = 0,
+    HOLIDAY_CALENDAR_FILTER_DARKMOON        = 1,
+    HOLIDAY_CALENDAR_FILTER_BATTLEGROUNDS   = 2,
+};
+
 class HolidaysRec {
     public:
     static const int32_t s_numColumns = 55;

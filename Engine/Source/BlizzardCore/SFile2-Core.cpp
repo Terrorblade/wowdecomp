@@ -745,7 +745,7 @@ int32_t STORMAPI SFileReadFile(SFileImpl* file, void* buffer, uint32_t count, ui
                 }
             }
 
-            SErrSetLastError(38);
+            SErrSetLastError(STORM_ERROR_HANDLE_EOF);
             Blizzard::Lock::MutexLeave(file->m_lock->m_mutex);
 
             return 0;
@@ -789,7 +789,7 @@ int32_t STORMAPI SFileReadFile(SFileImpl* file, void* buffer, uint32_t count, ui
                 }
             }
 
-            SErrSetLastError(38);
+            SErrSetLastError(STORM_ERROR_HANDLE_EOF);
             Blizzard::Lock::MutexLeave(file->m_lock->m_mutex);
 
             return result;
@@ -810,7 +810,7 @@ int32_t STORMAPI SFileReadFile(SFileImpl* file, void* buffer, uint32_t count, ui
             }
 
             if (read != count) {
-                SErrSetLastError(38);
+                SErrSetLastError(STORM_ERROR_HANDLE_EOF);
             }
 
             return read == count;
@@ -1404,7 +1404,7 @@ uint32_t System_SFile2::SoundCacheThread(void* param) {
         Blizzard::Lock::EventWaitForever(s_asyncOpenEvent);
 
         Blizzard::Lock::MutexEnter(s_asyncOpenLock);
-        int32_t count = s_asyncOpenQueue.size();
+        int32_t count = static_cast<int32_t>(s_asyncOpenQueue.size());
         Blizzard::Lock::MutexLeave(s_asyncOpenLock);
 
         while (count > 0 && !s_soundCacheStop) {
@@ -1417,7 +1417,7 @@ uint32_t System_SFile2::SoundCacheThread(void* param) {
             VerifyAndCacheFile(name.c_str());
 
             Blizzard::Lock::MutexEnter(s_asyncOpenLock);
-            count = s_asyncOpenQueue.size();
+            count = static_cast<int32_t>(s_asyncOpenQueue.size());
             Blizzard::Lock::MutexLeave(s_asyncOpenLock);
 
             Blizzard::Thread::Sleep(500);

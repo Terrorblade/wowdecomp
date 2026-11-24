@@ -16,6 +16,16 @@ class CMovementStatus;
 
 class CMovementShared : public CPassenger {
     public:
+
+    enum PLOT_MOVEMENT_FLAGS : uint32_t {
+        PLOT_NONE                = 0,
+        PLOT_FORWARD_BACKWARD    = 0x01,
+        PLOT_TURN                = 0x02,
+        PLOT_STRAFE              = 0x04,
+        PLOT_PITCH               = 0x08,
+        PLOT_ASCEND_DESCEND      = 0x10,
+    };
+
     void ResetFallOnControlLoss();
     void Disable();
     using CPassenger::GetPosition;

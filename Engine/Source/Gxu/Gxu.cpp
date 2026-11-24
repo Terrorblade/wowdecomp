@@ -8,6 +8,7 @@
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/CRect.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // VERIFY: 4c6a7536 manual
 // OFFSET: 0x006BF370

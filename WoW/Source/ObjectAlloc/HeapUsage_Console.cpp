@@ -69,5 +69,5 @@ void HeapUsageInitialize() {
     ConsoleCommandRegister("HeapUsage", HeapUsage, CATEGORY_GAME, nullptr);
     ConsoleCommandRegister("MemUsage", MemUsage, CATEGORY_GAME, nullptr);
     ConsoleCommandRegister("HeapUsage2", HeapUsage2, CATEGORY_GAME, nullptr);
-    s_cvHeapAllocTracking = CVar::Register("heapAllocTracking", "Enables/disables allocation tracking & dumping in SMemMalloc", 0, "1", ChangeHeapAllocTracking, CATEGORY_GAME, false, nullptr, false);
+    s_cvHeapAllocTracking = CVar::Register("heapAllocTracking", "Enables/disables allocation tracking & dumping in SMemMalloc", CVAR_NONE, "1", ChangeHeapAllocTracking, CATEGORY_GAME, false, nullptr, false);
 }

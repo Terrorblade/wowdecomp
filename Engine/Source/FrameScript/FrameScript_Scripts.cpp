@@ -91,7 +91,7 @@ static int32_t Script_strtrim(lua_State* L) {
 static int32_t Script_strsplit(lua_State* L) {
     const char* delimiters = luaL_checkstring(L, 1);
     const char* string = luaL_checkstring(L, 2);
-    int32_t limit = luaL_optinteger(L, 3, 0);
+    int32_t limit = static_cast<int32_t>(luaL_optinteger(L, 3, 0));
     lua_settop(L, 2);
 
     int32_t count = 0;
@@ -172,7 +172,7 @@ static int32_t Script_strreplace(lua_State* L) {
     const char* string = luaL_checklstring(L, 1, &length);
     const char* search = luaL_checklstring(L, 2, &searchLength);
     const char* replace = luaL_checklstring(L, 3, &replaceLength);
-    int32_t limit = luaL_optinteger(L, 4, 0);
+    int32_t limit = static_cast<int32_t>(luaL_optinteger(L, 4, 0));
 
     const char* source = string;
     int32_t count = 0;
@@ -503,15 +503,15 @@ static int32_t Script_time(lua_State* L) {
         lua_settop(L, 1);
 
         lua_getfield(L, -1, "sec");
-        ts.tm_sec = lua_isnumber(L, -1) ? lua_tointeger(L, -1) : 0;
+        ts.tm_sec = static_cast<int>(lua_isnumber(L, -1) ? lua_tointeger(L, -1) : 0);
         lua_pop(L, 1);
 
         lua_getfield(L, -1, "min");
-        ts.tm_min = lua_isnumber(L, -1) ? lua_tointeger(L, -1) : 0;
+        ts.tm_min = static_cast<int>(lua_isnumber(L, -1) ? lua_tointeger(L, -1) : 0);
         lua_pop(L, 1);
 
         lua_getfield(L, -1, "hour");
-        ts.tm_hour = lua_isnumber(L, -1) ? lua_tointeger(L, -1) : 12;
+        ts.tm_hour = static_cast<int>(lua_isnumber(L, -1) ? lua_tointeger(L, -1) : 12);
         lua_pop(L, 1);
 
         lua_getfield(L, -1, "day");
@@ -520,7 +520,7 @@ static int32_t Script_time(lua_State* L) {
             luaL_error(L, "field '%s' missing in date table", "day");
         }
 
-        ts.tm_mday = lua_tointeger(L, -1);
+        ts.tm_mday = static_cast<int>(lua_tointeger(L, -1));
         lua_pop(L, 1);
 
         lua_getfield(L, -1, "month");
@@ -529,7 +529,7 @@ static int32_t Script_time(lua_State* L) {
             luaL_error(L, "field '%s' missing in date table", "month");
         }
 
-        ts.tm_mon = lua_tointeger(L, -1) - 1;
+        ts.tm_mon = static_cast<int>(lua_tointeger(L, -1) - 1);
         lua_pop(L, 1);
 
         lua_getfield(L, -1, "year");
@@ -538,7 +538,7 @@ static int32_t Script_time(lua_State* L) {
             luaL_error(L, "field '%s' missing in date table", "year");
         }
 
-        ts.tm_year = lua_tointeger(L, -1) - 1900;
+        ts.tm_year = static_cast<int>(lua_tointeger(L, -1) - 1900);
         lua_pop(L, 1);
 
         lua_getfield(L, -1, "isdst");
@@ -682,7 +682,7 @@ static int32_t Script_strlenutf8(lua_State* L) {
         return 0;
     }
 
-    lua_pushnumber(L, SStrLenUTF8(lua_tostring(L, 1)));
+    lua_pushnumber(L, static_cast<lua_Number>(SStrLenUTF8(lua_tostring(L, 1))));
 
     return 1;
 }
@@ -694,7 +694,7 @@ static int32_t Script_debuglocals(lua_State* L) {
         return 0;
     }
 
-    int32_t level = lua_tonumber(L, 1);
+    int32_t level = static_cast<int32_t>(lua_tonumber(L, 1));
 
     if (level <= 0) {
         level = 1;

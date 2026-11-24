@@ -16,6 +16,7 @@
 #include "WoW/Source/WorldClient/MapRenderChunk.h"
 #include "WoW/Source/WorldClient/Types.h"
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 
 class C2Vector;
 class C44Matrix;
@@ -59,11 +60,21 @@ class CMapAreaEntry {
 };
 
 struct SMAreaInfo {
+
+    enum FLAGS : uint32_t {
+        F_HAS_ADT = 0x1,
+    };
+
     /* 0000 */ uint32_t m_flags;
     /* 0004 */ uint32_t m_unused;
 };
 
 struct SMDoodadDef {
+
+    enum FLAGS : uint16_t {
+        F_BIODOME = 0x1,
+    };
+
     /* 0000 */ uint32_t m_nameId;
     /* 0004 */ uint32_t m_uniqueId;
     /* 0008 */ C3Vector m_position;
@@ -73,6 +84,11 @@ struct SMDoodadDef {
 };
 
 struct SMMapObjDef {
+
+    enum FLAGS : uint16_t {
+        F_DESTROYABLE = 0x1,
+    };
+
     /* 0000 */ uint32_t m_nameId;
     /* 0004 */ uint32_t m_uniqueId;
     /* 0008 */ C3Vector m_position;
@@ -85,6 +101,12 @@ struct SMMapObjDef {
 };
 
 struct SMODoodadDef {
+
+    enum FLAGS : uint32_t {
+        NAME_INDEX_MASK = 0x00FFFFFF,
+        F_ACCEPT_PROJ_TEX = 0x01000000,
+    };
+
     /* 0000 */ uint32_t m_flags;
     /* 0004 */ C3Vector m_position;
     /* 0010 */ C4Quaternion m_orientation;
@@ -110,6 +132,13 @@ struct CMapFootprint {
 };
 
 class CMapObj;
+
+enum MAP_OBJECT_FUNC_FLAGS : uint32_t {
+    MAP_OBJECT_FUNC_NONE = 0x0,
+    MAP_OBJECT_FUNC_VISIBLE = 0x1,
+    MAP_OBJECT_FUNC_NEAR_CAMERA = 0x2,
+    MAP_OBJECT_FUNC_IN_SCENE = 0x4,
+};
 
 class CMapFootprintTexture {
     public:
@@ -409,6 +438,7 @@ class CMap {
 
     /* 0000 */ uint8_t unused_0000[180];
     /* 00B4 */ uint32_t unused_00B4;
+    static constexpr uint32_t DEPTH_TABLE_CNT = 2;
 };
 
 extern int32_t s_mapId;

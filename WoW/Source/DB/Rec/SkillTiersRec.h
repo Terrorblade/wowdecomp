@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_SKILL_TIERS = 16;
 
 class SkillTiersRec {
     public:
@@ -13,8 +14,8 @@ class SkillTiersRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t m_cost [16];
-    /* 0044 */ int32_t m_value [16];
+    /* 0004 */ int32_t m_cost [NUM_SKILL_TIERS];
+    /* 0044 */ int32_t m_value [NUM_SKILL_TIERS];
 
     SkillTiersRec();
     ~SkillTiersRec();

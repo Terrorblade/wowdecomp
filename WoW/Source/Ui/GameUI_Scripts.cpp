@@ -168,6 +168,7 @@
 #include "WoW/Source/DB/Rec/PaperDollItemFrameRec.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "GameVersion.h"
+#include "WoW/Source/DB/Rec/TotemCategoryRec.h"
 
 // STATIC: 0x00BD0CC4
 static CWOWClientStatus* s_loadAddOnStatus;
@@ -195,7 +196,7 @@ static int32_t Script_CancelTrade(lua_State* L) {
 // VERIFY: 64da4b3d auto
 // OFFSET: 0x00510A00
 static int32_t Script_ForceQuit(lua_State* L) {
-    ClientPostClose(0);
+    ClientPostClose(STARTUP_STRING_NONE);
     return 0;
 }
 
@@ -761,7 +762,7 @@ static int32_t Script_GetSummonConfirmAreaName(lua_State* L) {
 static int32_t Script_IsSubZonePVPPOI(lua_State* L) {
     const AreaTableRec* area = g_areaTableDB.GetRecord(CGGameUI::m_subzoneID);
 
-    if (area && (area->m_flags & 0x8000)) {
+    if (area && (area->m_flags & AREA_FLAG_PVP_POI)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -843,7 +844,7 @@ static int32_t Script_GetPVPTimer(lua_State* L) {
 int32_t Script_CanHearthAndResurrectFromArea(lua_State* L) {
     const AreaTableRec* area = g_areaTableDB.GetRecord(CGGameUI::m_areaID);
 
-    if (area && (area->m_flags & 0x8000000)) {
+    if (area && (area->m_flags & AREA_FLAG_HEARTH_AND_RESURRECT)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -1001,7 +1002,7 @@ static int32_t Script_GetBindLocation(lua_State* L) {
 static int32_t Script_IsPVPTimerRunning(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && (player->m_player->m_playerFlags & 0x40000)) {
+    if (player && (player->m_player->m_playerFlags & PLAYER_FLAG_PVP_TIMER_ACTIVE)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -1015,7 +1016,7 @@ static int32_t Script_IsPVPTimerRunning(lua_State* L) {
 static int32_t Script_ShowingHelm(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && !(player->m_player->m_playerFlags & 0x400)) {
+    if (player && !(player->m_player->m_playerFlags & PLAYER_FLAG_HIDE_HELM)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -1029,7 +1030,7 @@ static int32_t Script_ShowingHelm(lua_State* L) {
 static int32_t Script_ShowingCloak(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && !(player->m_player->m_playerFlags & 0x800)) {
+    if (player && !(player->m_player->m_playerFlags & PLAYER_FLAG_HIDE_CLOAK)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -1043,7 +1044,7 @@ static int32_t Script_ShowingCloak(lua_State* L) {
 static int32_t Script_GetTaxiBenchmarkMode(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && (player->m_player->m_playerFlags & 0x20000)) {
+    if (player && (player->m_player->m_playerFlags & PLAYER_FLAG_TAXI_BENCHMARK)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -1057,7 +1058,7 @@ static int32_t Script_GetTaxiBenchmarkMode(lua_State* L) {
 static int32_t Script_GetAllowLowLevelRaid(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && (player->m_player->m_playerFlags & 0x10000)) {
+    if (player && (player->m_player->m_playerFlags & PLAYER_FLAG_LOW_LEVEL_RAID_ENABLED)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -1072,7 +1073,7 @@ static int32_t Script_PartialPlayTime(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t partial;
 
-    if (player && (partial = (player->m_player->m_playerFlags & 0x1000) != 0)) {
+    if (player && (partial = (player->m_player->m_playerFlags & PLAYER_FLAG_PARTIAL_PLAY_TIME) != 0)) {
         lua_pushnumber(L, partial);
         return 1;
     }
@@ -1087,7 +1088,7 @@ static int32_t Script_NoPlayTime(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t none;
 
-    if (player && (none = (player->m_player->m_playerFlags & 0x2000) != 0)) {
+    if (player && (none = (player->m_player->m_playerFlags & PLAYER_FLAG_NO_PLAY_TIME) != 0)) {
         lua_pushnumber(L, none);
         return 1;
     }
@@ -1182,15 +1183,15 @@ static int32_t Script_AcceptGroup(lua_State* L) {
         uint32_t roles = 0;
 
         if (StringToBOOL(L, 1, 0)) {
-            roles = 2;
+            roles = ROLE_TANK;
         }
 
         if (StringToBOOL(L, 2, 0)) {
-            roles |= 4;
+            roles |= ROLE_HEALER;
         }
 
         if (StringToBOOL(L, 3, 0)) {
-            roles |= 8;
+            roles |= ROLE_DAMAGER;
         }
 
         CGPlayer_C::AcceptGroup(roles);
@@ -1223,7 +1224,7 @@ static int32_t Script_CanMapChangeDifficulty(lua_State* L) {
 
     const MapRec* map = g_mapDB.GetRecord(mapId);
 
-    if (map && (map->m_flags & 0x100)) {
+    if (map && (map->m_flags & MAP_FLAG_DYNAMIC_DIFFICULTY)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -1486,7 +1487,7 @@ static int32_t Script_GetCVarInfo(lua_State* L) {
 
     CVar* var = CVar::LookupRegistered(lua_tolstring(L, 1, nullptr));
 
-    if (!var || (var->m_flags & 0x40)) {
+    if (!var || (var->m_flags & CVAR_HIDDEN)) {
         lua_pushnil(L);
         lua_pushnil(L);
         lua_pushnil(L);
@@ -1497,13 +1498,13 @@ static int32_t Script_GetCVarInfo(lua_State* L) {
     lua_pushstring(L, var->m_stringValue.m_str);
     lua_pushstring(L, var->m_defaultValue.m_str);
 
-    if (var->m_flags & 0x10) {
+    if (var->m_flags & CVAR_SCOPE_ACCOUNT) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (var->m_flags & 0x20) {
+    if (var->m_flags & CVAR_SCOPE_CHARACTER) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1624,7 +1625,7 @@ static int32_t Script_GetCVar(lua_State* L) {
 
     CVar* var = CVar::LookupRegistered(lua_tolstring(L, 1, nullptr));
 
-    if (!var || (var->m_flags & 0x40)) {
+    if (!var || (var->m_flags & CVAR_HIDDEN)) {
         lua_pushnil(L);
         return 1;
     }
@@ -1643,7 +1644,7 @@ static int32_t Script_GetCVarBool(lua_State* L) {
 
     CVar* var = CVar::LookupRegistered(lua_tolstring(L, 1, nullptr));
 
-    if (var && !(var->m_flags & 0x40) && StringToBOOL(var->m_stringValue.m_str)) {
+    if (var && !(var->m_flags & CVAR_HIDDEN) && StringToBOOL(var->m_stringValue.m_str)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1662,7 +1663,7 @@ static int32_t Script_GetCVarDefault(lua_State* L) {
 
     CVar* var = CVar::LookupRegistered(lua_tolstring(L, 1, nullptr));
 
-    if (!var || (var->m_flags & 0x40)) {
+    if (!var || (var->m_flags & CVAR_HIDDEN)) {
         luaL_error(L, "Couldn't find CVar named '%s'", lua_tolstring(L, 1, nullptr));
         return 0;
     }
@@ -1748,7 +1749,7 @@ static int32_t Script_SetCVar(lua_State* L) {
     const char* name = lua_tolstring(L, 1, nullptr);
     CVar* var = CVar::LookupRegistered(name);
 
-    if (!var || (var->m_flags & 0x40)) {
+    if (!var || (var->m_flags & CVAR_HIDDEN)) {
         luaL_error(L, "Couldn't find CVar named '%s'", name);
         return 0;
     }
@@ -1758,8 +1759,8 @@ static int32_t Script_SetCVar(lua_State* L) {
         return 0;
     }
 
-    if ((var->m_flags & 0x8) && !CSimpleTop::GetInstance()->m_allowProtectedActions) {
-        CGGameUI::ShowBlockedActionFeedback(nullptr, 2);
+    if ((var->m_flags & CVAR_PROTECTED) && !CSimpleTop::GetInstance()->m_allowProtectedActions) {
+        CGGameUI::ShowBlockedActionFeedback(nullptr, BLOCKED_ACTION_BLOCKED_IN_COMBAT);
         return 0;
     }
 
@@ -1941,7 +1942,7 @@ static int32_t Script_IsInInstance(lua_State* L) {
 
     if (!map) {
         lua_pushnil(L);
-        lua_pushstring(L, s_instanceTypeTokens[0]);
+        lua_pushstring(L, s_instanceTypeTokens[MAP_INSTANCE_TYPE_NOT_INSTANCED]);
         return 2;
     }
 
@@ -1999,11 +2000,11 @@ static int32_t Script_GetZonePVPInfo(lua_State* L) {
 
     const char* type = nullptr;
 
-    if (flags & 0x800) {
+    if (flags & AREA_FLAG_NO_PVP) {
         type = "sanctuary";
-    } else if (flags & 0x80) {
+    } else if (flags & AREA_FLAG_FREE_FOR_ALL_PVP) {
         type = "arena";
-    } else if (flags & 0x1000000) {
+    } else if (flags & AREA_FLAG_COMBAT_ZONE) {
         type = "combat";
     }
 
@@ -2019,10 +2020,10 @@ static int32_t Script_GetZonePVPInfo(lua_State* L) {
         return 2;
     }
 
-    int32_t contested = (flags & 0x40000) != 0;
+    int32_t contested = (flags & AREA_FLAG_CONTESTED) != 0;
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (!area || !player || (!s_isPvPRealm && !(area->m_flags & 0x10))) {
+    if (!area || !player || (!s_isPvPRealm && !(area->m_flags & AREA_FLAG_ENEMIES_PVP_FLAGGED))) {
         return 0;
     }
 
@@ -2094,7 +2095,7 @@ static int32_t Script_SetUIVisibility(lua_State* L) {
 // OFFSET: 0x0051AC90
 static int32_t Script_CancelLogout(lua_State* L) {
     if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
-        CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
+        CGGameUI::ShowBlockedActionFeedback(nullptr, BLOCKED_ACTION_BLOCKED);
         return 0;
     }
 
@@ -2158,7 +2159,7 @@ static int32_t Script_DestroyTotem(lua_State* L) {
     int32_t slot = static_cast<int32_t>(lua_tonumber(L, 1));
 
     if (static_cast<uint32_t>(slot - 1) > 3) {
-        luaL_error(L, "Totem slot must be in range of 1 to %d", 4);
+        luaL_error(L, "Totem slot must be in range of 1 to %d", MAX_TOTEMS);
         return 0;
     }
 
@@ -2182,7 +2183,7 @@ static int32_t Script_ArenaTeamInviteByName(lua_State* L) {
         return 0;
     }
 
-    if (SStrLen(playerName) > 48) {
+    if (SStrLen(playerName) > MAX_PLAYER_NAME_LENGTH) {
         luaL_error(L, "Name too long");
         return 0;
     }
@@ -2322,8 +2323,8 @@ static int32_t Script_GetTotemInfo(lua_State* L) {
 
     uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (slot > 3) {
-        luaL_error(L, "Totem slot must be in range of 1 to %d", 4);
+    if (slot >= MAX_TOTEMS) {
+        luaL_error(L, "Totem slot must be in range of 1 to %d", MAX_TOTEMS);
         return 0;
     }
 
@@ -2345,24 +2346,24 @@ static int32_t Script_GetTotemInfo(lua_State* L) {
         int32_t category = 0;
 
         switch (slot) {
-            case 0:
-                category = 4;
+            case TOTEM_SLOT_FIRE:
+                category = TOTEM_CATEGORY_FIRE_TOTEM;
                 break;
 
-            case 1:
-                category = 2;
+            case TOTEM_SLOT_EARTH:
+                category = TOTEM_CATEGORY_EARTH_TOTEM;
                 break;
 
-            case 2:
-                category = 5;
+            case TOTEM_SLOT_WATER:
+                category = TOTEM_CATEGORY_WATER_TOTEM;
                 break;
 
-            case 3:
-                category = 3;
+            case TOTEM_SLOT_AIR:
+                category = TOTEM_CATEGORY_AIR_TOTEM;
                 break;
         }
 
-        found = player->m_bag.FindTotemCategory(category, 8);
+        found = player->m_bag.FindTotemCategory(category, BAG_SEARCH_BANK);
     }
 
     lua_pushboolean(L, found);
@@ -2396,7 +2397,7 @@ static int32_t Script_GetInstanceInfo(lua_State* L) {
 
     if (!map) {
         lua_pushnil(L);
-        lua_pushstring(L, s_instanceTypeTokens[0]);
+        lua_pushstring(L, s_instanceTypeTokens[MAP_INSTANCE_TYPE_NOT_INSTANCED]);
         lua_pushnumber(L, 0.0);
         lua_pushstring(L, "");
         lua_pushnumber(L, 0.0);
@@ -2422,7 +2423,7 @@ static int32_t Script_GetInstanceInfo(lua_State* L) {
 
     lua_pushnumber(L, CGPartyInfo::m_dynamicDifficulty);
     map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
-    lua_pushboolean(L, map && (map->m_flags & 0x100));
+    lua_pushboolean(L, map && (map->m_flags & MAP_FLAG_DYNAMIC_DIFFICULTY));
     return 7;
 }
 
@@ -2449,7 +2450,7 @@ static int32_t Script_GetRestState(lua_State* L) {
 // OFFSET: 0x0051B960
 static int32_t Script_GetXPExhaustion(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
-    ExhaustionRec* rested = g_exhaustionDB.GetRecord(1);
+    ExhaustionRec* rested = g_exhaustionDB.GetRecord(EXHAUSTION_RESTED);
 
     if (!player || !rested || player->m_player->m_playerBytes2[3] != 1) {
         lua_pushnil(L);
@@ -2585,7 +2586,7 @@ static int32_t Script_GetItemCooldown(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -2644,7 +2645,7 @@ static int32_t Script_GetItemInfo(lua_State* L) {
     char name[1024];
     CGItem_C::BuildItemName(name, sizeof(name), itemId, linkInfo.m_randomPropertiesId);
     lua_pushstring(L, name);
-    lua_pushstring(L, CGTooltip::CreateItemLink(itemId, stats->m_quality, linkInfo.m_enchants[0], reinterpret_cast<const int32_t*>(&linkInfo.m_enchants[2]), linkInfo.m_randomPropertiesId, linkInfo.m_propertySeed));
+    lua_pushstring(L, CGTooltip::CreateItemLink(itemId, stats->m_quality, linkInfo.m_enchants[CGItemData::PERMANENT], reinterpret_cast<const int32_t*>(&linkInfo.m_enchants[CGItemData::SOCKET_1]), linkInfo.m_randomPropertiesId, linkInfo.m_propertySeed));
     lua_pushnumber(L, static_cast<int32_t>(stats->m_quality));
     lua_pushnumber(L, static_cast<int32_t>(stats->m_itemLevel));
     lua_pushnumber(L, static_cast<int32_t>(stats->m_requiredLevel));
@@ -2685,13 +2686,13 @@ static int32_t Script_GetItemSpell(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
 
     CGItem_C* item = CGActionBar::FindUseEnchantItemPtr(itemId);
-    int32_t spellId = item ? item->GetEnchantmentSpell(0) : CGItem_C::GetUseSpell(itemId);
+    int32_t spellId = item ? item->GetEnchantmentSpell(SPELL_EFFECT_NONE) : CGItem_C::GetUseSpell(itemId);
 
     if (g_spellDB.GetRecord(spellId, &spell)) {
         lua_pushstring(L, spell.m_name);
@@ -2741,9 +2742,9 @@ static int32_t Script_StopCinematic(lua_State* L) {
 // VERIFY: 8266a857 manual
 // OFFSET: 0x00525A90
 static int32_t Script_TargetNearest(lua_State* L) {
-    if (CGUIMacros::IsActionAllowed(5)) {
-        TargetNearestEnemy(StringToBOOL(L, 1, 0), 0);
-        CGUIMacros::m_state &= ~0x20u;
+    if (CGUIMacros::IsActionAllowed(UI_ACTION_TARGET_NEAREST)) {
+        TargetNearestEnemy(StringToBOOL(L, 1, 0), UNIT_TARGET_ANY);
+        CGUIMacros::m_state &= ~UI_ACTION_MASK_TARGET_NEAREST;
     }
 
     return 0;
@@ -2752,9 +2753,9 @@ static int32_t Script_TargetNearest(lua_State* L) {
 // VERIFY: 54ce30e6 manual
 // OFFSET: 0x00525AD0
 static int32_t Script_TargetNearestEnemy(lua_State* L) {
-    if (CGUIMacros::IsActionAllowed(5)) {
-        TargetNearestEnemy(StringToBOOL(L, 1, 0), 1);
-        CGUIMacros::m_state &= ~0x20u;
+    if (CGUIMacros::IsActionAllowed(UI_ACTION_TARGET_NEAREST)) {
+        TargetNearestEnemy(StringToBOOL(L, 1, 0), UNIT_TARGET_ENEMY);
+        CGUIMacros::m_state &= ~UI_ACTION_MASK_TARGET_NEAREST;
     }
 
     return 0;
@@ -2763,9 +2764,9 @@ static int32_t Script_TargetNearestEnemy(lua_State* L) {
 // VERIFY: 32d545fd manual
 // OFFSET: 0x00525B10
 static int32_t Script_TargetNearestEnemyPlayer(lua_State* L) {
-    if (CGUIMacros::IsActionAllowed(5)) {
-        TargetNearestEnemy(StringToBOOL(L, 1, 0), 2);
-        CGUIMacros::m_state &= ~0x20u;
+    if (CGUIMacros::IsActionAllowed(UI_ACTION_TARGET_NEAREST)) {
+        TargetNearestEnemy(StringToBOOL(L, 1, 0), UNIT_TARGET_ENEMY_PLAYER);
+        CGUIMacros::m_state &= ~UI_ACTION_MASK_TARGET_NEAREST;
     }
 
     return 0;
@@ -2774,9 +2775,9 @@ static int32_t Script_TargetNearestEnemyPlayer(lua_State* L) {
 // VERIFY: bcf021cd manual
 // OFFSET: 0x00525B50
 static int32_t Script_TargetNearestFriend(lua_State* L) {
-    if (CGUIMacros::IsActionAllowed(5)) {
-        TargetNearestEnemy(StringToBOOL(L, 1, 0), 3);
-        CGUIMacros::m_state &= ~0x20u;
+    if (CGUIMacros::IsActionAllowed(UI_ACTION_TARGET_NEAREST)) {
+        TargetNearestEnemy(StringToBOOL(L, 1, 0), UNIT_TARGET_FRIEND);
+        CGUIMacros::m_state &= ~UI_ACTION_MASK_TARGET_NEAREST;
     }
 
     return 0;
@@ -2785,9 +2786,9 @@ static int32_t Script_TargetNearestFriend(lua_State* L) {
 // VERIFY: 04298fa1 manual
 // OFFSET: 0x00525B90
 static int32_t Script_TargetNearestFriendPlayer(lua_State* L) {
-    if (CGUIMacros::IsActionAllowed(5)) {
-        TargetNearestEnemy(StringToBOOL(L, 1, 0), 4);
-        CGUIMacros::m_state &= ~0x20u;
+    if (CGUIMacros::IsActionAllowed(UI_ACTION_TARGET_NEAREST)) {
+        TargetNearestEnemy(StringToBOOL(L, 1, 0), UNIT_TARGET_FRIEND_PLAYER);
+        CGUIMacros::m_state &= ~UI_ACTION_MASK_TARGET_NEAREST;
     }
 
     return 0;
@@ -2796,14 +2797,14 @@ static int32_t Script_TargetNearestFriendPlayer(lua_State* L) {
 // VERIFY: b149bc61 auto
 // OFFSET: 0x00525BD0
 static int32_t Script_TargetNearestPartyMember(lua_State* L) {
-    TargetNearestEnemy(StringToBOOL(L, 1, 0), 5);
+    TargetNearestEnemy(StringToBOOL(L, 1, 0), UNIT_TARGET_PARTY_MEMBER);
     return 0;
 }
 
 // VERIFY: 3be6e022 auto
 // OFFSET: 0x00525C00
 static int32_t Script_TargetNearestRaidMember(lua_State* L) {
-    TargetNearestEnemy(StringToBOOL(L, 1, 0), 6);
+    TargetNearestEnemy(StringToBOOL(L, 1, 0), UNIT_TARGET_RAID_MEMBER);
     return 0;
 }
 
@@ -2856,10 +2857,10 @@ static int32_t Script_GetCursorInfo(lua_State* L) {
                 lua_pushstring(L, "companion");
                 lua_pushnumber(L, CGSpellBook::FindCompanionSlotByID(spellId, type) + 1);
 
-                if (type == 0) {
+                if (type == COMPANION_TYPE_CRITTER) {
                     lua_pushstring(L, "CRITTER");
                 } else {
-                    if (type != 1) {
+                    if (type != COMPANION_TYPE_MOUNT) {
                         lua_pushstring(L, "UNKNOWN");
                         SErrDisplayAppFatalMessage("", "", 0);
                     }
@@ -2952,7 +2953,7 @@ static int32_t Script_AutoEquipCursorItem(lua_State* L) {
 static int32_t Script_HasKey(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (player && player->m_bag.FindItemOfBagFamily(0x100, 79)) {
+    if (player && player->m_bag.FindItemOfBagFamily(ITEM_BAG_FAMILY_MASK_KEYS, inventoryFlags | BAG_SEARCH_BANK | BAG_SEARCH_KEYRING)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -2991,7 +2992,7 @@ static int32_t Script_GetTitleName(lua_State* L) {
 
     int32_t maskId = static_cast<int32_t>(lua_tonumber(L, 1));
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
-    int32_t gender = player ? player->m_player->m_playerBytes3[0] : 0;
+    int32_t gender = player ? player->m_player->m_playerBytes3[0] : UNITSEX_MALE;
     char title[256];
     title[0] = 0;
     CharTitlesRec* rec = nullptr;
@@ -3009,7 +3010,7 @@ static int32_t Script_GetTitleName(lua_State* L) {
         return 0;
     }
 
-    if (gender == 1) {
+    if (gender == UNITSEX_FEMALE) {
         SStrCopy(title, *rec->m_name1 ? rec->m_name1 : rec->m_name, sizeof(title));
     } else {
         SStrCopy(title, *rec->m_name ? rec->m_name : rec->m_name1, sizeof(title));
@@ -3052,7 +3053,7 @@ static int32_t Script_SitStandOrDescendStart(lua_State* L) {
 
     DescendStart();
 
-    if (player->m_movement->m_flags & 0x2000000) {
+    if (player->m_movement->m_flags & MOVEMENTFLAG_FLYING) {
         return 0;
     }
 
@@ -3340,7 +3341,7 @@ static int32_t RegisterCVar(lua_State* L, uint32_t flags) {
 // VERIFY: e614a034 auto
 // OFFSET: 0x0050FF30
 static int32_t Script_RegisterCVar(lua_State* L) {
-    return RegisterCVar(L, 0);
+    return RegisterCVar(L, CVAR_NONE);
 }
 
 // VERIFY: b5349b75 auto
@@ -3481,7 +3482,7 @@ static int32_t Script_GetItemFamily(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -3502,7 +3503,7 @@ static int32_t Script_IsCurrentItem(lua_State* L) {
     int32_t itemId;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else {
         if (!lua_isstring(L, 1)) {
             lua_pushnil(L);
@@ -3527,7 +3528,7 @@ static int32_t Script_IsEquippableItem(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -3816,7 +3817,7 @@ static int32_t Script_GetNumDeclensionSets(lua_State* L) {
     const char* name = lua_tolstring(L, 1, nullptr);
 
     if (lua_isnumber(L, 2)) {
-        int32_t value = lua_tointeger(L, 2);
+        int32_t value = static_cast<int32_t>(lua_tointeger(L, 2));
 
         for (int32_t i = 0; i < 3; i++) {
             if (s_unitSexValues[i] == value) {
@@ -3842,7 +3843,7 @@ static int32_t Script_DeclineName(lua_State* L) {
     const char* name = lua_tolstring(L, 1, nullptr);
 
     if (lua_isnumber(L, 2)) {
-        int32_t value = lua_tointeger(L, 2);
+        int32_t value = static_cast<int32_t>(lua_tointeger(L, 2));
 
         for (int32_t i = 0; i < 3; i++) {
             if (s_unitSexValues[i] == value) {
@@ -3852,21 +3853,21 @@ static int32_t Script_DeclineName(lua_State* L) {
         }
     }
 
-    char declensions[5][1024];
+    char declensions[NUM_DECLENSIONS][1024];
 
     if (GetNameDeclensions(s_locale, declensions[0], name, sex, static_cast<int32_t>(lua_tonumber(L, 3)) - 1)) {
-        for (uint32_t i = 0; i < 5; i++) {
+        for (uint32_t i = 0; i < NUM_DECLENSIONS; i++) {
             lua_pushstring(L, declensions[i]);
         }
 
-        return 5;
+        return NUM_DECLENSIONS;
     }
 
-    for (uint32_t i = 0; i < 5; i++) {
+    for (uint32_t i = 0; i < NUM_DECLENSIONS; i++) {
         lua_pushnil(L);
     }
 
-    return 5;
+    return NUM_DECLENSIONS;
 }
 
 // VERIFY: 7075ea82 auto
@@ -3972,7 +3973,7 @@ static int32_t Script_ResurrectHasSickness(lua_State* L) {
 // VERIFY: 89a5aed4 auto
 // OFFSET: 0x00515A00
 static int32_t Script_ResurrectHasTimer(lua_State* L) {
-    if (CGBattlefieldInfo::m_instanceType == 4 || !CGPlayer_C::s_resurrectOfferUseTimer) {
+    if (CGBattlefieldInfo::m_instanceType == MAP_INSTANCE_TYPE_ARENA_BATTLEFIELD || !CGPlayer_C::s_resurrectOfferUseTimer) {
         lua_pushnil(L);
         return 1;
     }
@@ -3996,7 +3997,7 @@ static int32_t Script_GuildSetMOTD(lua_State* L) {
     motd[0] = 0;
 
     if (text && *text) {
-        ScrubString(text, motd, 129, sizeof(motd), 1);
+        ScrubString(text, motd, 129, sizeof(motd), SCRUB_FLAG_TRUNCATE_NEWLINES);
     }
 
     msg.PutString(motd);
@@ -4131,7 +4132,7 @@ static int32_t Script_GetItemUniqueness(lua_State* L) {
         return 0;
     }
 
-    if (stats->m_flags[0] & 0x80000) {
+    if (stats->m_flags[0] & ITEM_FLAG_UNIQUE_EQUIPPABLE) {
         lua_pushnumber(L, -1.0);
         lua_pushnumber(L, 1.0);
         return 2;
@@ -4160,7 +4161,7 @@ static int32_t Script_GetItemIcon(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -4185,16 +4186,16 @@ static int32_t Script_IsHelpfulItem(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
 
     CGItem_C* item = CGActionBar::FindUseEnchantItemPtr(itemId);
-    int32_t spellId = item ? item->GetEnchantmentSpell(0) : CGItem_C::GetUseSpell(itemId);
+    int32_t spellId = item ? item->GetEnchantmentSpell(SPELL_EFFECT_NONE) : CGItem_C::GetUseSpell(itemId);
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(spellId, &spell) && SpellRec::IsHelpfulOrHarmful(&spell) == 1) {
+    if (g_spellDB.GetRecord(spellId, &spell) && SpellRec::IsHelpfulOrHarmful(&spell) == SPELL_DISPOSITION_HELPFUL) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -4209,16 +4210,16 @@ static int32_t Script_IsHarmfulItem(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
 
     CGItem_C* item = CGActionBar::FindUseEnchantItemPtr(itemId);
-    int32_t spellId = item ? item->GetEnchantmentSpell(0) : CGItem_C::GetUseSpell(itemId);
+    int32_t spellId = item ? item->GetEnchantmentSpell(SPELL_EFFECT_NONE) : CGItem_C::GetUseSpell(itemId);
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(spellId, &spell) && SpellRec::IsHelpfulOrHarmful(&spell) == 2) {
+    if (g_spellDB.GetRecord(spellId, &spell) && SpellRec::IsHelpfulOrHarmful(&spell) == SPELL_DISPOSITION_HARMFUL) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -4233,7 +4234,7 @@ static int32_t Script_IsConsumableItem(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -4246,10 +4247,10 @@ static int32_t Script_IsConsumableItem(lua_State* L) {
         return 1;
     }
 
-    if (stats->m_inventoryType != 24 && stats->m_inventoryType != 25) {
+    if (stats->m_inventoryType != INVTYPE_AMMO && stats->m_inventoryType != INVTYPE_THROWN) {
         uint32_t i;
 
-        for (i = 0; i < 5; i++) {
+        for (i = 0; i < NUM_ITEM_SPELLS; i++) {
             if (!stats->m_spellId[i] || stats->m_spellTrigger[i]) {
                 continue;
             }
@@ -4262,7 +4263,7 @@ static int32_t Script_IsConsumableItem(lua_State* L) {
 
             int32_t reagents = 0;
 
-            for (uint32_t j = 0; j < 8; j++) {
+            for (uint32_t j = 0; j < NUM_SPELL_REAGENTS; j++) {
                 if (spell.m_reagent[j] && spell.m_reagentCount[j] > 0) {
                     reagents = 1;
                     break;
@@ -4274,7 +4275,7 @@ static int32_t Script_IsConsumableItem(lua_State* L) {
             }
         }
 
-        if (i >= 5) {
+        if (i >= NUM_ITEM_SPELLS) {
             lua_pushnil(L);
             return 1;
         }
@@ -4290,7 +4291,7 @@ static int32_t GetItemSpell(int32_t itemId) {
     CGItem_C* item = CGActionBar::FindUseEnchantItemPtr(itemId);
 
     if (item) {
-        return item->GetEnchantmentSpell(0);
+        return item->GetEnchantmentSpell(SPELL_EFFECT_NONE);
     }
 
     return CGItem_C::GetUseSpell(itemId);
@@ -4302,7 +4303,7 @@ static int32_t Script_IsDressableItem(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -4320,7 +4321,7 @@ static int32_t Script_IsDressableItem(lua_State* L) {
         return 1;
     }
 
-    for (uint32_t i = 0; i < 5; i++) {
+    for (uint32_t i = 0; i < NUM_ITEM_SPELLS; i++) {
         if (!stats->m_spellId[i]) {
             continue;
         }
@@ -4340,8 +4341,8 @@ static int32_t Script_IsDressableItem(lua_State* L) {
         int32_t learnedId = spell.m_effectTriggerSpell[0];
 
         if (!learnedId) {
-            for (uint32_t j = 0; j < 5; j++) {
-                if (stats->m_spellTrigger[j] == 6) {
+            for (uint32_t j = 0; j < NUM_ITEM_SPELLS; j++) {
+                if (stats->m_spellTrigger[j] == ITEM_SPELL_TRIGGER_LEARN_SPELL) {
                     learnedId = stats->m_spellId[j];
                     break;
                 }
@@ -4500,7 +4501,7 @@ static int32_t Script_EquipCursorItem(lua_State* L) {
             return 0;
         }
 
-        if (container == player->m_obj->m_guid && sourceSlot < 19) {
+        if (container == player->m_obj->m_guid && sourceSlot < INVSLOT_BAG0) {
             CGGameUI::ClearCursor(1, 1);
             return 0;
         }
@@ -4583,7 +4584,7 @@ static int32_t Script_InviteUnit(lua_State* L) {
         return 0;
     }
 
-    if (SStrLen(name) > 48) {
+    if (SStrLen(name) > MAX_PLAYER_NAME_LENGTH) {
         luaL_error(L, "Name too long");
         return 0;
     }
@@ -4614,7 +4615,7 @@ static int32_t Script_UninviteUnit(lua_State* L) {
     }
 
     if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
-        CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
+        CGGameUI::ShowBlockedActionFeedback(nullptr, BLOCKED_ACTION_BLOCKED);
         return 0;
     }
 
@@ -4624,7 +4625,7 @@ static int32_t Script_UninviteUnit(lua_State* L) {
     scrubbed[0] = 0;
 
     if (reason && *reason) {
-        ScrubString(reason, scrubbed, 64, sizeof(scrubbed), 1);
+        ScrubString(reason, scrubbed, 64, sizeof(scrubbed), SCRUB_FLAG_TRUNCATE_NEWLINES);
     }
 
     WOWGUID guid;
@@ -4719,7 +4720,7 @@ static int32_t Script_ConfirmSummon(lua_State* L) {
 
     uint32_t flags = player->m_unit->m_unitFieldFlags;
 
-    if ((flags & 0x40000) || (flags & 0x800000) || (flags & 0x400000) || (flags & 0x80000)) {
+    if ((flags & UNIT_FLAG_STUNNED) || (flags & UNIT_FLAG_FLEEING) || (flags & UNIT_FLAG_CONFUSED) || (flags & UNIT_FLAG_IN_COMBAT)) {
         return 0;
     }
 
@@ -4899,7 +4900,7 @@ static int32_t Script_GetItemGem(lua_State* L) {
         ItemLinkInfo link;
         link.Clear();
         link.GetItemIdFromLink(text);
-        enchantId = link.m_enchants[index + 2];
+        enchantId = link.m_enchants[index + CGItemData::SOCKET_1];
     } else {
         CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
@@ -4945,7 +4946,7 @@ static int32_t Script_GetItemCount(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -4975,10 +4976,10 @@ static int32_t Script_GetItemCount(lua_State* L) {
                 int32_t charges = item ? item->GetUsableSpellCharges() : CGItem_C::NumBaseCharges(itemId);
 
                 if (charges < 0) {
-                    total = player->GetBag()->GetItemTypeCharges(itemId, 0);
+                    total = player->GetBag()->GetItemTypeCharges(itemId, BAG_SEARCH_NONE);
                 }
 
-                int32_t spellId = item ? item->GetEnchantmentSpell(0) : CGItem_C::GetUseSpell(itemId);
+                int32_t spellId = item ? item->GetEnchantmentSpell(SPELL_EFFECT_NONE) : CGItem_C::GetUseSpell(itemId);
                 int32_t uses = Spell_C_GetSpellReagentUses(spellId);
 
                 if (uses) {
@@ -5002,7 +5003,7 @@ static int32_t Script_IsUsableItem(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -5011,7 +5012,7 @@ static int32_t Script_IsUsableItem(lua_State* L) {
     bool noMana = false;
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (player && itemId && player->m_bag.GetItemTypeCount(itemId, 0) && !Spell_C_NeedsCooldownEvent(itemId)) {
+    if (player && itemId && player->m_bag.GetItemTypeCount(itemId, BAG_SEARCH_NONE) && !Spell_C_NeedsCooldownEvent(itemId)) {
         WOWGUID none = WOWGUID();
         ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, none, nullptr, nullptr, false);
         bool check = true;
@@ -5019,7 +5020,7 @@ static int32_t Script_IsUsableItem(lua_State* L) {
         if (stats) {
             MapRec* map = g_mapDB.GetRecord(CGGameUI::m_iCurrentMapID);
 
-            if (map && map->m_instanceType == 4 && !(stats->m_flags[0] & 0x200000)) {
+            if (map && map->m_instanceType == MAP_INSTANCE_TYPE_ARENA_BATTLEFIELD && !(stats->m_flags[0] & ITEM_FLAG_IGNORE_DEFAULT_ARENA_RESTRICTIONS)) {
                 CGItem_C* item = CGActionBar::FindUseEnchantItemPtr(itemId);
                 uint32_t cooldown;
                 uint32_t categoryCooldown;
@@ -5134,9 +5135,9 @@ static int32_t Script_IsEquippedItem(lua_State* L) {
         CGItem_C* item;
 
         if (lua_isnumber(L, 1)) {
-            item = player->m_bag.FindItemOfType(lua_tointeger(L, 1), 1);
+            item = player->m_bag.FindItemOfType(static_cast<int32_t>(lua_tointeger(L, 1)), BAG_SEARCH_EQUIPMENT);
         } else {
-            item = player->m_bag.FindItemByFullName(lua_tolstring(L, 1, nullptr), 1);
+            item = player->m_bag.FindItemByFullName(lua_tolstring(L, 1, nullptr), BAG_SEARCH_EQUIPMENT);
         }
 
         if (item) {
@@ -5162,9 +5163,9 @@ static int32_t Script_IsEquippedItemType(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player) {
-        int32_t inventoryType = -1;
+        int32_t inventoryType = INVTYPE_INVALID;
 
-        for (int32_t i = 0; i < 29; i++) {
+        for (int32_t i = 0; i < INVTYPE_COUNT; i++) {
             if (!SStrCmpI(type, s_inventoryTypeTokens[i], STORM_MAX_STR) || !SStrCmpUTF8I(type, FrameScript_GetText(s_inventoryTypeTokens[i], -1, GENDER_NOT_APPLICABLE), STORM_MAX_STR)) {
                 inventoryType = i;
                 break;
@@ -5175,10 +5176,10 @@ static int32_t Script_IsEquippedItemType(lua_State* L) {
         uint32_t slot;
         CGItem_C* item;
 
-        if (inventoryType > 0) {
-            item = player->m_bag.FindItem(&CanEquipInSlotCallback, &inventoryType, container, slot, 1);
+        if (inventoryType > INVTYPE_NON_EQUIP) {
+            item = player->m_bag.FindItem(&CanEquipInSlotCallback, &inventoryType, container, slot, BAG_SEARCH_EQUIPMENT);
         } else {
-            item = player->m_bag.FindItem(&FindItemClassTypeCallback, const_cast<char*>(type), container, slot, 1);
+            item = player->m_bag.FindItem(&FindItemClassTypeCallback, const_cast<char*>(type), container, slot, BAG_SEARCH_EQUIPMENT);
         }
 
         if (item) {
@@ -5197,7 +5198,7 @@ static int32_t Script_ItemHasRange(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -5229,7 +5230,7 @@ static int32_t Script_IsItemInRange(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -5265,9 +5266,9 @@ static int32_t Script_UseItemByName(lua_State* L) {
         CGItem_C* item;
 
         if (lua_isnumber(L, 1)) {
-            item = player->m_bag.FindItemOfType(lua_tointeger(L, 1), 0);
+            item = player->m_bag.FindItemOfType(static_cast<int32_t>(lua_tointeger(L, 1)), BAG_SEARCH_NONE);
         } else {
-            item = player->m_bag.FindItemByFullName(lua_tolstring(L, 1, nullptr), 0);
+            item = player->m_bag.FindItemByFullName(lua_tolstring(L, 1, nullptr), BAG_SEARCH_NONE);
         }
 
         if (item) {
@@ -5297,10 +5298,10 @@ static int32_t Script_EquipItemByName(lua_State* L) {
 
     if (!lua_isnumber(L, 2) && !lua_isstring(L, 2)) {
         if (lua_isnumber(L, 1)) {
-            item = player->m_bag.FindItemOfType(lua_tointeger(L, 1), container, slot, 6);
+            item = player->m_bag.FindItemOfType(static_cast<int32_t>(lua_tointeger(L, 1)), container, slot, BAG_SEARCH_BAG_SLOTS | BAG_SEARCH_BACKPACK);
 
             if (!container) {
-                item = player->m_bag.FindItemOfType(lua_tointeger(L, 1), container, slot, 0);
+                item = player->m_bag.FindItemOfType(static_cast<int32_t>(lua_tointeger(L, 1)), container, slot, BAG_SEARCH_NONE);
             }
         } else {
             item = player->m_bag.GetItemIdByName(lua_tolstring(L, 1, nullptr), container, slot, 6);
@@ -5314,7 +5315,7 @@ static int32_t Script_EquipItemByName(lua_State* L) {
             return 0;
         }
 
-        if (item && !(item->m_itemFlags & 0x1) && (player->m_bag.m_guid != container || slot > 18)) {
+        if (item && !(item->m_itemFlags & CGItem_C::ITEM_CLIENT_LOCKED) && (player->m_bag.m_guid != container || slot > EQUIPPED_LAST)) {
             player->AutoEquipItem(container, slot, 0);
         }
 
@@ -5347,15 +5348,15 @@ static int32_t Script_EquipItemByName(lua_State* L) {
         }
     }
 
-    if (dstSlot > 18) {
+    if (dstSlot > EQUIPPED_LAST) {
         luaL_error(L, "EquipItemByName(): Invalid inventory dstSlot");
     }
 
     if (lua_isnumber(L, 1)) {
-        item = player->m_bag.FindItemOfType(lua_tointeger(L, 1), container, slot, 6);
+        item = player->m_bag.FindItemOfType(static_cast<int32_t>(lua_tointeger(L, 1)), container, slot, BAG_SEARCH_BAG_SLOTS | BAG_SEARCH_BACKPACK);
 
         if (!item) {
-            item = player->m_bag.FindItemOfType(lua_tointeger(L, 1), container, slot, 0);
+            item = player->m_bag.FindItemOfType(static_cast<int32_t>(lua_tointeger(L, 1)), container, slot, BAG_SEARCH_NONE);
         }
     } else {
         item = player->m_bag.GetItemIdByName(lua_tolstring(L, 1, nullptr), container, slot, 6);
@@ -5369,7 +5370,7 @@ static int32_t Script_EquipItemByName(lua_State* L) {
         return 0;
     }
 
-    if ((item->m_itemFlags & 0x1) || (player->m_bag.m_guid == container && slot == dstSlot)) {
+    if ((item->m_itemFlags & CGItem_C::ITEM_CLIENT_LOCKED) || (player->m_bag.m_guid == container && slot == dstSlot)) {
         return 0;
     }
 
@@ -5442,7 +5443,7 @@ static int32_t Script_GameMovieFinished(lua_State* L) {
 // OFFSET: 0x005222E0
 static int32_t Script_ReloadUI(lua_State* L) {
     if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
-        CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
+        CGGameUI::ShowBlockedActionFeedback(nullptr, BLOCKED_ACTION_BLOCKED);
         return 0;
     }
 
@@ -5469,7 +5470,7 @@ static int32_t Script_DeleteCursorItem(lua_State* L) {
     uint8_t bag = player->FindSlotIndex(CGGameUI::m_cursorItemContainer);
     CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPE_ITEM, __FILE__, __LINE__));
 
-    if (object && (object->GetItemStaticFlags(0) & 0x20)) {
+    if (object && (object->GetItemStaticFlags(0) & ITEM_FLAG_NO_USER_DESTROY)) {
         CGGameUI::DisplayError(ERR_ITEM_CANT_BE_DESTROYED);
         return 0;
     }
@@ -5497,10 +5498,10 @@ static int32_t Script_DeleteCursorItem(lua_State* L) {
 // OFFSET: 0x005224C0
 static int32_t Script_FollowUnit(lua_State* L) {
     const char* name = lua_tolstring(L, 1, nullptr);
-    WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_PLAYER, 3, StringToBOOL(L, 2, 0), FLT_MAX, 0);
+    WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_PLAYER, UNIT_TARGET_FRIEND, StringToBOOL(L, 2, 0), FLT_MAX, 0);
 
     if (!guid) {
-        guid = CGGameUI::ClosestObjectMatch(name, TYPE_UNIT, 0, StringToBOOL(L, 2, 0), FLT_MAX, 0);
+        guid = CGGameUI::ClosestObjectMatch(name, TYPE_UNIT, UNIT_TARGET_ANY, StringToBOOL(L, 2, 0), FLT_MAX, 0);
     }
 
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
@@ -5680,7 +5681,7 @@ static int32_t Script_SetCurrentTitle(lua_State* L) {
     }
 
     if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
-        CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
+        CGGameUI::ShowBlockedActionFeedback(nullptr, BLOCKED_ACTION_BLOCKED);
         return 0;
     }
 
@@ -5724,7 +5725,7 @@ static int32_t Script_PickupItem(lua_State* L) {
     int32_t itemId = 0;
 
     if (lua_isnumber(L, 1)) {
-        itemId = lua_tointeger(L, 1);
+        itemId = static_cast<int32_t>(lua_tointeger(L, 1));
     } else if (lua_isstring(L, 1)) {
         itemId = GetItemIDByName(lua_tolstring(L, 1, nullptr));
     }
@@ -5750,7 +5751,7 @@ static int32_t Script_StartAttack(lua_State* L) {
 
     if (token && *token) {
         if (!Script_GetGUIDFromToken(token, guid, false)) {
-            guid = CGGameUI::ClosestObjectMatch(token, TYPE_UNIT, 1, StringToBOOL(L, 2, 0), FLT_MAX, 1);
+            guid = CGGameUI::ClosestObjectMatch(token, TYPE_UNIT, UNIT_TARGET_ENEMY, StringToBOOL(L, 2, 0), FLT_MAX, 1);
         }
 
         hasTarget = 1;
@@ -5813,7 +5814,7 @@ static int32_t Script_SummonFriend(lua_State* L) {
     int32_t error = CGPlayer_C::CanSummonFriend(guid);
 
     if (!player || error) {
-        if (error != 9 && error != 13) {
+        if (error != CGPlayer_C::RAF_RESULT_UI_TARGET_NOT_IN_GROUP && error != CGPlayer_C::RAF_RESULT_UI_SUMMON_OFFLINE) {
             BroadcastUIError(error, nullptr);
             return 0;
         }
@@ -5860,12 +5861,12 @@ static int32_t Script_EndRefund(lua_State* L) {
 
     int32_t type = static_cast<int32_t>(lua_tonumber(L, 1));
 
-    if (type == 1) {
+    if (type == END_REFUND_TYPE_ITEM_SPELL) {
         CGGameUI::CastItemSpell(CGGameUI::m_lastItemSpellTarget, 1);
         return 0;
     }
 
-    if (type == 2) {
+    if (type == END_REFUND_TYPE_SOCKET) {
         CGItemSocketInfo::Accept();
     }
 
@@ -5913,7 +5914,7 @@ static void TargetIfValid(const WOWGUID& guid) {
 static int32_t Script_TargetUnit(lua_State* L) {
     const char* name = lua_tolstring(L, 1, nullptr);
     int32_t exact = StringToBOOL(L, 2, 0);
-    WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_UNIT, 0, exact, FLT_MAX, 1);
+    WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_UNIT, UNIT_TARGET_ANY, exact, FLT_MAX, 1);
 
     if (guid) {
         TargetIfValid(guid);
@@ -5930,11 +5931,11 @@ static int32_t Script_TargetDirectionEnemy(lua_State* L) {
         return 0;
     }
 
-    if (CGUIMacros::IsActionAllowed(5)) {
+    if (CGUIMacros::IsActionAllowed(UI_ACTION_TARGET_NEAREST)) {
         float facing = static_cast<float>(lua_tonumber(L, 1));
         float angle = static_cast<float>(lua_isnumber(L, 2) ? lua_tonumber(L, 2) : 0.0);
-        CGGameUI::TargetDirection(facing, angle, 1);
-        CGUIMacros::m_state &= ~0x20u;
+        CGGameUI::TargetDirection(facing, angle, UNIT_TARGET_ENEMY);
+        CGUIMacros::m_state &= ~UI_ACTION_MASK_TARGET_NEAREST;
     }
 
     return 0;
@@ -5948,11 +5949,11 @@ static int32_t Script_TargetDirectionFriend(lua_State* L) {
         return 0;
     }
 
-    if (CGUIMacros::IsActionAllowed(5)) {
+    if (CGUIMacros::IsActionAllowed(UI_ACTION_TARGET_NEAREST)) {
         float facing = static_cast<float>(lua_tonumber(L, 1));
         float angle = static_cast<float>(lua_isnumber(L, 2) ? lua_tonumber(L, 2) : 0.0);
-        CGGameUI::TargetDirection(facing, angle, 3);
-        CGUIMacros::m_state &= ~0x20u;
+        CGGameUI::TargetDirection(facing, angle, UNIT_TARGET_FRIEND);
+        CGUIMacros::m_state &= ~UI_ACTION_MASK_TARGET_NEAREST;
     }
 
     return 0;
@@ -5990,7 +5991,7 @@ static int32_t Script_TargetLastFriend(lua_State* L) {
 static int32_t Script_AssistUnit(lua_State* L) {
     const char* name = lua_tolstring(L, 1, nullptr);
     int32_t exact = StringToBOOL(L, 2, 0);
-    WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_UNIT, 0, exact, FLT_MAX, 0);
+    WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_UNIT, UNIT_TARGET_ANY, exact, FLT_MAX, 0);
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
@@ -6030,7 +6031,7 @@ static int32_t Script_SetDungeonDifficulty(lua_State* L) {
 
     uint32_t difficulty = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
 
-    if (difficulty > 1) {
+    if (difficulty > DUNGEON_DIFFICULTY_HEROIC) {
         return 0;
     }
 
@@ -6065,7 +6066,7 @@ static int32_t Script_SetRaidDifficulty(lua_State* L) {
 
     uint32_t difficulty = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
 
-    if (difficulty > 3) {
+    if (difficulty > RAID_DIFFICULTY_25MAN_HEROIC) {
         return 0;
     }
 
@@ -6103,13 +6104,13 @@ static int32_t Script_InteractUnit(lua_State* L) {
     WOWGUID guid;
 
     if (SStrCmpI(token, "mouseover", STORM_MAX_STR)) {
-        guid = CGGameUI::ClosestObjectMatch(token, TYPE_OBJECT, 0, StringToBOOL(L, 2, 0), FLT_MAX, 0);
+        guid = CGGameUI::ClosestObjectMatch(token, TYPE_OBJECT, UNIT_TARGET_ANY, StringToBOOL(L, 2, 0), FLT_MAX, 0);
     } else {
         guid = CGGameUI::m_currentObjectTrack;
     }
 
     if (lua_tainted) {
-        CGGameUI::ShowBlockedActionFeedback(nullptr, 0);
+        CGGameUI::ShowBlockedActionFeedback(nullptr, BLOCKED_ACTION_FORBIDDEN);
         return 0;
     }
 

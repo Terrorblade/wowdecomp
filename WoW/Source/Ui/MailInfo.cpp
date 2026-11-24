@@ -212,43 +212,43 @@ int32_t Packet_SMSG_SEND_MAIL_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
         return 1;
     }
 
-    if (result == 1) {
+    if (result == CGMailInfo::INVENTORY_ERROR) {
         msg->Get(inventoryError);
-    } else if (action == 2 && (!result || result == 21)) {
+    } else if (action == CGMailInfo::ACTION_TAKE_ITEM && (!result || result == CGMailInfo::ATTACHMENT_EXPIRED)) {
         msg->Get(itemGuid);
         msg->Get(itemCount);
     }
 
-    if (action == 2 && result) {
+    if (action == CGMailInfo::ACTION_TAKE_ITEM && result) {
         CGMailInfo::m_autoLooting = nullptr;
     }
 
     switch (result) {
-        case 0: {
+        case CGMailInfo::SUCCESS: {
             switch (action) {
-                case 0: {
+                case CGMailInfo::ACTION_SEND: {
                     CGGameUI::DisplayError(ERR_MAIL_SENT);
                     CGMailInfo::ClearSendMail(true);
                     break;
                 }
 
-                case 1: {
+                case CGMailInfo::ACTION_TAKE_MONEY: {
                     CGMailInfo::RemoveMoney(messageID);
                     break;
                 }
 
-                case 2: {
+                case CGMailInfo::ACTION_TAKE_ITEM: {
                     CGMailInfo::RemoveItem(messageID, itemGuid);
                     break;
                 }
 
-                case 3:
-                case 4: {
+                case CGMailInfo::ACTION_REMOVE_UNKNOWN_3:
+                case CGMailInfo::ACTION_REMOVE_UNKNOWN_4: {
                     CGMailInfo::RemoveMail(messageID);
                     break;
                 }
 
-                case 5: {
+                case CGMailInfo::ACTION_COPY: {
                     CGMailInfo::SetMailCopied(messageID);
                     break;
                 }
@@ -257,66 +257,66 @@ int32_t Packet_SMSG_SEND_MAIL_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
             break;
         }
 
-        case 1: {
+        case CGMailInfo::INVENTORY_ERROR: {
             CGGameUI::DisplayError(static_cast<UIErrors>(GetDisplayErrorByInventoryError(inventoryError)));
             break;
         }
 
-        case 2: {
+        case CGMailInfo::TO_SELF: {
             CGGameUI::DisplayError(ERR_MAIL_TO_SELF);
             break;
         }
 
-        case 3: {
+        case CGMailInfo::NOT_ENOUGH_MONEY: {
             CGGameUI::DisplayError(ERR_NOT_ENOUGH_MONEY);
             break;
         }
 
-        case 4: {
+        case CGMailInfo::TARGET_NOT_FOUND: {
             CGGameUI::DisplayError(ERR_MAIL_TARGET_NOT_FOUND);
             break;
         }
 
-        case 5: {
+        case CGMailInfo::WRONG_FACTION: {
             CGGameUI::DisplayError(ERR_PLAYER_WRONG_FACTION);
             break;
         }
 
-        case 14: {
+        case CGMailInfo::RESTRICTED_ACCOUNT: {
             CGGameUI::DisplayError(ERR_RESTRICTED_ACCOUNT);
             break;
         }
 
-        case 15: {
+        case CGMailInfo::REACHED_CAP: {
             CGGameUI::DisplayError(ERR_MAIL_REACHED_CAP);
             break;
         }
 
-        case 16: {
+        case CGMailInfo::WRAPPED_COD: {
             CGGameUI::DisplayError(ERR_MAIL_WRAPPED_COD);
             break;
         }
 
-        case 17: {
+        case CGMailInfo::SQUELCHED: {
             CGGameUI::DisplayError(ERR_USER_SQUELCHED);
             break;
         }
 
-        case 18: {
+        case CGMailInfo::TOO_MANY_ATTACHMENTS: {
             CGGameUI::DisplayError(ERR_MAIL_TOO_MANY_ATTACHMENTS);
             break;
         }
 
-        case 19: {
+        case CGMailInfo::INVALID_ATTACHMENT: {
             CGGameUI::DisplayError(ERR_MAIL_INVALID_ATTACHMENT);
             break;
         }
 
-        case 20: {
+        case CGMailInfo::NO_DISPLAY_ERROR: {
             break;
         }
 
-        case 21: {
+        case CGMailInfo::ATTACHMENT_EXPIRED: {
             CGGameUI::DisplayError(ERR_MAIL_ATTACHMENT_EXPIRED);
             CGMailInfo::RemoveItem(messageID, itemGuid);
             break;
@@ -333,7 +333,7 @@ int32_t Packet_SMSG_SEND_MAIL_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
         CGMailInfo::m_sendPending = 0;
     }
 
-    if (!result && action == 2 && CGMailInfo::m_autoLooting) {
+    if (!result && action == CGMailInfo::ACTION_TAKE_ITEM && CGMailInfo::m_autoLooting) {
         MailboxMessageInfo* message = CGMailInfo::m_autoLooting;
         CGMailInfo::m_autoLooting = nullptr;
         CGMailInfo::ProcessAutoLootAttachments(message);
@@ -459,9 +459,9 @@ int32_t Packet_SMSG_MAIL_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
 
         message->m_invoiceItemID = 0;
         message->m_invoiceRandomPropertiesID = 0;
-        message->m_invoiceType = -1;
+        message->m_invoiceType = CGMailInfo::UNSET;
 
-        if (!type && FriendList::s_friendList->IsIgnored(message->m_sender, true) && !(message->m_flags & 0x20A)) {
+        if (!type && FriendList::s_friendList->IsIgnored(message->m_sender, true) && !(message->m_flags & MailboxMessageInfo::RETURN_BLOCKED_MASK)) {
             CDataStore reply;
 
             if (GetNumAttachments(message) || message->m_money) {
@@ -487,10 +487,10 @@ int32_t Packet_SMSG_MAIL_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t tim
                 message->m_stationery = stationery ? stationery->m_id : 0;
             }
 
-            if (type == 2) {
+            if (type == MAIL_MESSAGE_TYPE_AUCTION) {
                 SStrCopy(message->m_invoiceSubject, message->m_subject, sizeof(message->m_invoiceSubject));
                 CGMailInfo::ParseInboxSubject(message);
-            } else if (type == 5) {
+            } else if (type == MAIL_MESSAGE_TYPE_CALENDAR) {
                 message->m_sender.m_guid = SStrToInt64(message->m_subject);
                 const char* separator = SStrChr(message->m_subject, ':');
                 SStrCopy(message->m_invoiceSubject, separator ? separator + 1 : "", sizeof(message->m_invoiceSubject));
@@ -534,7 +534,7 @@ void CGMailInfo::InitializeGame() {
         CGMailInfo::m_stationeries.m_data[i] = static_cast<StationeryInfo*>(SMemAlloc(sizeof(StationeryInfo), __FILE__, __LINE__, 0));
         CGMailInfo::m_stationeries.m_data[i]->m_id = rec->m_id;
         CGMailInfo::m_stationeries.m_data[i]->m_itemID = rec->m_itemID;
-        CGMailInfo::m_stationeries.m_data[i]->m_isDefault = rec->m_flags & 1;
+        CGMailInfo::m_stationeries.m_data[i]->m_isDefault = rec->m_flags & StationeryRec::DEFAULT;
         CGMailInfo::m_stationeries.m_data[i]->m_itemGUID = WOWGUID{ 0 };
     }
 
@@ -570,7 +570,7 @@ void CGMailInfo::UpdateRecentSenders() {
         for (j = 0; j < CGMailInfo::m_numInboxItems; j++) {
             MailboxMessageInfo* message = CGMailInfo::m_inbox.m_data[j];
 
-            if (message->m_flags & 0x1) {
+            if (message->m_flags & MailboxMessageInfo::READ) {
                 continue;
             }
 
@@ -587,7 +587,7 @@ void CGMailInfo::UpdateRecentSenders() {
             sender.m_timeLeft = 0.0f;
             sender.m_guid = WOWGUID();
             sender.m_entry = 0;
-            sender.m_messageType = 0;
+            sender.m_messageType = MAIL_MESSAGE_TYPE_NORMAL;
             sender.m_stationery = 0;
             changed = true;
         }
@@ -644,7 +644,7 @@ void CGMailInfo::SetMailCopied(uint32_t messageID) {
         MailboxMessageInfo* message = CGMailInfo::m_inbox.m_data[i];
 
         if (message->m_messageID == static_cast<int32_t>(messageID)) {
-            message->m_flags |= 0x4;
+            message->m_flags |= MailboxMessageInfo::COPIED;
             FrameScript_SignalEvent(SCRIPT_EVENT_MAIL_INBOX_UPDATE, nullptr);
             return;
         }
@@ -731,7 +731,7 @@ static void InboxAuctionItemQueryCallback(int32_t id, const WOWGUID& guid, void*
 // VERIFY: 5312eb4e manual
 // OFFSET: 0x0056F520
 void CGMailInfo::ParseInboxSubject(MailboxMessageInfo* message) {
-    if (message->m_messageType == 2) {
+    if (message->m_messageType == MAIL_MESSAGE_TYPE_AUCTION) {
         int32_t itemID = SStrToInt(message->m_invoiceSubject);
         const char* field = SStrChr(message->m_invoiceSubject, ':');
         uint32_t type = 0;
@@ -780,33 +780,33 @@ void CGMailInfo::ParseInboxSubject(MailboxMessageInfo* message) {
         const char* format;
 
         switch (type) {
-            case 0: {
+            case CGMailInfo::OUTBID: {
                 format = FrameScript_GetText("AUCTION_OUTBID_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE);
                 break;
             }
 
-            case 1: {
+            case CGMailInfo::BUYER: {
                 format = FrameScript_GetText("AUCTION_WON_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE);
                 break;
             }
 
-            case 2: {
+            case CGMailInfo::SELLER: {
                 format = FrameScript_GetText("AUCTION_SOLD_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE);
                 break;
             }
 
-            case 3: {
+            case CGMailInfo::EXPIRED: {
                 format = FrameScript_GetText("AUCTION_EXPIRED_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE);
                 break;
             }
 
-            case 4:
-            case 5: {
+            case CGMailInfo::REMOVED:
+            case CGMailInfo::REMOVED_UNKNOWN_5: {
                 format = FrameScript_GetText("AUCTION_REMOVED_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE);
                 break;
             }
 
-            case 6: {
+            case CGMailInfo::SELLER_TEMP_INVOICE: {
                 format = FrameScript_GetText("AUCTION_INVOICE_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE);
                 break;
             }
@@ -823,7 +823,7 @@ void CGMailInfo::ParseInboxSubject(MailboxMessageInfo* message) {
             message->m_subject[0] = '\0';
         }
 
-        if (type == 1 || type == 2 || type == 6) {
+        if (type == CGMailInfo::BUYER || type == CGMailInfo::SELLER || type == CGMailInfo::SELLER_TEMP_INVOICE) {
             message->m_invoiceItemID = itemID;
             message->m_invoiceRandomPropertiesID = randomPropertiesID;
             message->m_invoiceType = type;
@@ -833,10 +833,10 @@ void CGMailInfo::ParseInboxSubject(MailboxMessageInfo* message) {
         return;
     }
 
-    if (message->m_messageType == 5) {
+    if (message->m_messageType == MAIL_MESSAGE_TYPE_CALENDAR) {
         const char* format;
 
-        if (message->m_flags & 0x100) {
+        if (message->m_flags & MailboxMessageInfo::CALENDAR_INVITE_REMOVED) {
             format = FrameScript_GetText("CALENDAR_INVITE_REMOVED_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE);
         } else {
             format = FrameScript_GetText("CALENDAR_EVENT_REMOVED_MAIL_SUBJECT", -1, GENDER_NOT_APPLICABLE);
@@ -868,7 +868,7 @@ void CGMailInfo::RemoveMoney(uint32_t messageID) {
     CGMailInfo::m_inbox.m_data[i]->m_money = 0;
     MailboxMessageInfo* message = CGMailInfo::m_inbox.m_data[i];
 
-    if ((message->m_messageType == 2 || (message->m_flags & 0x8) || (!SStrLen(message->m_body) && !message->m_mailTemplateID)) && !message->m_deletePending && !message->m_money && !GetNumAttachments(message)) {
+    if ((message->m_messageType == MAIL_MESSAGE_TYPE_AUCTION || (message->m_flags & MailboxMessageInfo::COD_PAYMENT) || (!SStrLen(message->m_body) && !message->m_mailTemplateID)) && !message->m_deletePending && !message->m_money && !GetNumAttachments(message)) {
         CDataStore msg;
         msg.Put(static_cast<uint32_t>(CMSG_MAIL_DELETE));
         msg.Put(CGMailInfo::m_object.m_guid);
@@ -921,7 +921,7 @@ void CGMailInfo::RemoveItem(uint32_t messageID, uint32_t itemGuid) {
     memset(attachment, 0, sizeof(*attachment));
     message->m_cod = 0;
 
-    if ((message->m_messageType == 2 || (message->m_flags & 0x8) || (!SStrLen(message->m_body) && !message->m_mailTemplateID)) && !message->m_deletePending && !message->m_money && !GetNumAttachments(message)) {
+    if ((message->m_messageType == MAIL_MESSAGE_TYPE_AUCTION || (message->m_flags & MailboxMessageInfo::COD_PAYMENT) || (!SStrLen(message->m_body) && !message->m_mailTemplateID)) && !message->m_deletePending && !message->m_money && !GetNumAttachments(message)) {
         CDataStore msg;
         msg.Put(static_cast<uint32_t>(CMSG_MAIL_DELETE));
         msg.Put(CGMailInfo::m_object.m_guid);
@@ -946,7 +946,7 @@ bool CGMailInfo::CanComplain(uint32_t index) {
     }
 
     MailboxMessageInfo* message = CGMailInfo::m_inbox.m_data[index];
-    return message && !message->m_messageType && !(message->m_flags & 0x2) && message->m_stationery != 61 && message->m_sender != player->m_obj->m_guid && !FriendList::s_friendList->IsFriend(message->m_sender);
+    return message && !message->m_messageType && !(message->m_flags & MailboxMessageInfo::RETURNED) && message->m_stationery != 61 && message->m_sender != player->m_obj->m_guid && !FriendList::s_friendList->IsFriend(message->m_sender);
 }
 
 // VERIFY: 56c85263 auto
@@ -969,7 +969,7 @@ void CGMailInfo::Complain(uint32_t index) {
     }
 
     if (FriendList::s_friendList->IsComplained(message->m_sender)) {
-        CGChat::AddChatMessage(FrameScript_GetText("COMPLAINT_ADDED", -1, GENDER_NOT_APPLICABLE), 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+        CGChat::AddChatMessage(FrameScript_GetText("COMPLAINT_ADDED", -1, GENDER_NOT_APPLICABLE), CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
         return;
     }
 
@@ -1004,7 +1004,7 @@ void CGMailInfo::UpdateStationeryList() {
 
     for (uint32_t i = 0; i < CGMailInfo::m_stationeries.m_count; i++) {
         StationeryRec* rec = g_stationeryDB.GetRecord(CGMailInfo::m_stationeries.m_data[i]->m_id);
-        CGItem_C* item = player->m_bag.FindItemOfType(rec->m_itemID, 0);
+        CGItem_C* item = player->m_bag.FindItemOfType(rec->m_itemID, BAG_SEARCH_NONE);
         CGMailInfo::m_stationeries.m_data[i]->m_itemGUID = item ? item->m_obj->m_guid : WOWGUID{ 0 };
 
         if (CGMailInfo::m_stationeries.m_data[i]->m_isDefault || CGMailInfo::m_stationeries.m_data[i]->m_itemGUID) {
@@ -1035,7 +1035,7 @@ int32_t CGMailInfo::SetSendMoney(uint32_t money) {
 // VERIFY: e2b77feb manual
 // OFFSET: 0x0056FE30
 void CGMailInfo::MarkAsRead(uint32_t index) {
-    if (index >= CGMailInfo::m_numInboxItems || (CGMailInfo::m_inbox.m_data[index]->m_flags & 0x1)) {
+    if (index >= CGMailInfo::m_numInboxItems || (CGMailInfo::m_inbox.m_data[index]->m_flags & MailboxMessageInfo::READ)) {
         return;
     }
 
@@ -1045,14 +1045,14 @@ void CGMailInfo::MarkAsRead(uint32_t index) {
     msg.Put(static_cast<uint32_t>(CGMailInfo::m_inbox.m_data[index]->m_messageID));
     msg.Finalize();
     ClientServices::Send2(&msg);
-    CGMailInfo::m_inbox.m_data[index]->m_flags |= 0x1;
+    CGMailInfo::m_inbox.m_data[index]->m_flags |= MailboxMessageInfo::READ;
     CGMailInfo::UpdateRecentSenders();
 
     if (fabs(CGMailInfo::m_nextMailTime) < 0.00000023841858f) {
         uint32_t i;
 
         for (i = 0; i < CGMailInfo::m_numInboxItems; i++) {
-            if (!(CGMailInfo::m_inbox.m_data[i]->m_flags & 0x1)) {
+            if (!(CGMailInfo::m_inbox.m_data[i]->m_flags & MailboxMessageInfo::READ)) {
                 break;
             }
         }
@@ -1101,12 +1101,12 @@ bool CGMailInfo::AddItemToOutgoingMail(uint32_t index, WOWGUID item, WOWGUID con
     }
 
     if (object->IsBound()) {
-        if (stats->m_bonding == 4) {
+        if (stats->m_bonding == ITEM_BINDING_QUEST) {
             CGGameUI::DisplayError(ERR_MAIL_QUEST_ITEM);
             return false;
         }
 
-        if (!(stats->m_flags[0] & 0x8000000)) {
+        if (!(stats->m_flags[0] & ITEM_FLAG_IS_BOUND_TO_ACCOUNT)) {
             CGGameUI::DisplayError(ERR_MAIL_BOUND_ITEM);
             return false;
         }
@@ -1117,7 +1117,7 @@ bool CGMailInfo::AddItemToOutgoingMail(uint32_t index, WOWGUID item, WOWGUID con
         return false;
     }
 
-    if ((object->GetItemStaticFlags(0) & 0x10000) || object->m_item->m_itemFieldDuration || stats->m_holidayId) {
+    if ((object->GetItemStaticFlags(0) & ITEM_FLAG_REAL_DURATION) || object->m_item->m_itemFieldDuration || stats->m_holidayId) {
         CGGameUI::DisplayError(ERR_MAIL_LIMITED_DURATION_ITEM);
         return false;
     }
@@ -1379,8 +1379,8 @@ bool CGMailInfo::IsSendItem(WOWGUID item) {
 // OFFSET: 0x0056D960
 const char* GetSenderName(int32_t entry, int32_t type, WOWGUID guid, int32_t stationery) {
     switch (type) {
-        case 0:
-        case 5: {
+        case MAIL_MESSAGE_TYPE_NORMAL:
+        case MAIL_MESSAGE_TYPE_CALENDAR: {
             if (stationery == 61) {
                 return FrameScript_GetText("GM_EMAIL_NAME", -1, GENDER_NOT_APPLICABLE);
             }
@@ -1389,7 +1389,7 @@ const char* GetSenderName(int32_t entry, int32_t type, WOWGUID guid, int32_t sta
             return name ? name->m_name : nullptr;
         }
 
-        case 2: {
+        case MAIL_MESSAGE_TYPE_AUCTION: {
             AuctionHouseRec* auctionHouse = g_auctionHouseDB.GetRecord(entry);
 
             if (auctionHouse) {
@@ -1399,7 +1399,7 @@ const char* GetSenderName(int32_t entry, int32_t type, WOWGUID guid, int32_t sta
             break;
         }
 
-        case 3: {
+        case MAIL_MESSAGE_TYPE_CREATURE: {
             WOWGUID none = WOWGUID();
             CreatureStats_C* stats = g_creatureDBCache.GetRecord(entry, none, &SenderNameQueryCallback, nullptr, true);
 
@@ -1410,7 +1410,7 @@ const char* GetSenderName(int32_t entry, int32_t type, WOWGUID guid, int32_t sta
             break;
         }
 
-        case 4: {
+        case MAIL_MESSAGE_TYPE_GAMEOBJECT: {
             WOWGUID none = WOWGUID();
             GameObjectStats_C* stats = g_gameObjectDBCache.GetRecord(entry, none, &SenderNameQueryCallback, nullptr, true);
 
@@ -1463,7 +1463,7 @@ int32_t Packet_MSG_QUERY_NEXT_MAIL_TIME(void* param, NETMESSAGE msgId, uint32_t 
         sender.m_timeLeft = 0.0f;
         sender.m_guid = WOWGUID();
         sender.m_entry = 0;
-        sender.m_messageType = 0;
+        sender.m_messageType = MAIL_MESSAGE_TYPE_NORMAL;
         sender.m_stationery = 0;
     }
 

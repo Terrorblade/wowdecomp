@@ -1,5 +1,6 @@
 
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <cstdlib>
 #include <cstring>
 #include "Engine/Source/ComSat/ComSatNetwork.h"
@@ -22,11 +23,13 @@ void ComSat::Network::Address::SetAddress(const char* address) {
             char host[128];
             strcpy(host, address);
             host[colon - address] = '\0';
-            this->m_ip = inet_addr(host);
+            in_addr parsed;
+            this->m_ip = inet_pton(AF_INET, host, &parsed) == 1 ? parsed.s_addr : INADDR_NONE;
             this->m_port = htons(static_cast<u_short>(strtol(colon + 1, nullptr, 10)));
         }
     } else {
-        this->m_ip = inet_addr(address);
+        in_addr parsed;
+        this->m_ip = inet_pton(AF_INET, address, &parsed) == 1 ? parsed.s_addr : INADDR_NONE;
     }
 }
 

@@ -6,6 +6,15 @@
 
 class SFileImpl;
 
+enum SKILL_LINE_CATEGORY_ID : int32_t {
+    SKILL_LINE_CATEGORY_SECONDARY_SKILLS = 9,
+    SKILL_LINE_CATEGORY_PROFESSIONS = 11,
+};
+
+enum SKILL_LINE_ID : int32_t {
+    SKILL_LINE_COMPANIONS = 778,
+};
+
 class SkillLineRec {
     public:
     static const int32_t s_numColumns = 56;

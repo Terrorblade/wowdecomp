@@ -56,9 +56,9 @@ int32_t MODIFIEDCLICK::SetBinding(BINDING_SET set, const char* binding) {
     }
 
     if (set) {
-        this->m_data[set].m_flags &= ~1u;
+        this->m_data[set].m_flags &= ~MODIFIEDCLICK_DATA::DEFAULT;
     } else {
-        this->m_data[set].m_flags |= 1u;
+        this->m_data[set].m_flags |= MODIFIEDCLICK_DATA::DEFAULT;
     }
 
     this->m_data[set].m_button = button;

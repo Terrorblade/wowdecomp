@@ -1,10 +1,9 @@
 #include "HoT/Character/UnitFixes.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/Object/Types.h"
 
 namespace HoT::UnitFixes {
-
-static const uint32_t UNIT_FLAG2_REGENERATE_POWER = 0x800;
 
 void PredictFocusRegen(CGUnit_C* unit, uint32_t elapsed) {
     if (!unit || unit->m_obj->m_guid != ClntObjMgrGetActivePlayer()) {

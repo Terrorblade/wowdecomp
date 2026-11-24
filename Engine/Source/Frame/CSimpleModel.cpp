@@ -320,7 +320,7 @@ void CSimpleModel::SetModel(const char* fileName) {
     CM2Model* model = nullptr;
 
     if (fileName && *fileName) {
-        model = this->GetScene()->CreateModel(fileName, 1);
+        model = this->GetScene()->CreateModel(fileName, CM2Model::INSTANCE_DISABLE_DEPTH_SORT_AND_CHILD_INHERITANCE);
     }
 
     this->SetModel(model);
@@ -554,7 +554,7 @@ void CSimpleModel::OnModelLoaded(CM2Model* model) {
 void CSimpleModel::OnFrameRender(CRenderBatch* batch, uint32_t layer) {
     this->CSimpleFrame::OnFrameRender(batch, layer);
 
-    if (this->m_model && layer == 2) {
+    if (this->m_model && layer == DRAWLAYER_ARTWORK) {
         batch->QueueCallback(&CSimpleModel::RenderModel, this);
     }
 }
@@ -570,15 +570,15 @@ void CSimpleModel::OnLayerUpdate(float elapsedSec) {
         CM2Model* model = this->m_model;
 
         if (model->m_attachParent) {
-            model->m_fFlags |= 0x80;
+            model->m_fFlags |= M2_ATTACHED_DRAW_ENABLED;
         } else {
-            model->m_fFlags |= 0x8;
+            model->m_fFlags |= M2_DRAW_ENABLED;
         }
 
         if (model->m_attachParent) {
-            model->m_fFlags |= 0x20000;
+            model->m_fFlags |= M2_ATTACHED_PARTICLES_ENABLED;
         } else {
-            model->m_fFlags |= 0x10000;
+            model->m_fFlags |= M2_PARTICLES_ENABLED;
         }
     }
 

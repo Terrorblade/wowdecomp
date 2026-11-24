@@ -7,6 +7,11 @@
 
 class CDataStore;
 
+enum DANCEMOVE_TYPE : uint8_t {
+    DANCEMOVE_TYPE_DIRECT = 0,
+    DANCEMOVE_TYPE_FALLBACK = 1,
+};
+
 struct DANCEMOVE {
     /* 0000 */ int16_t m_moveId;
     /* 0002 */ uint8_t m_chance;

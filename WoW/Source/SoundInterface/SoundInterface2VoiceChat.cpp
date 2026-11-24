@@ -10,6 +10,7 @@
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
+#include "WoW/Source/Client.h"
 
 // STATIC: 0x00B2D9E4
 static SI2LoopbackCapture s_loopbackCapture;
@@ -153,22 +154,22 @@ int32_t SI2::VoiceChat_GetCurrentMicrophoneSignalLevel() {
 // OFFSET: 0x00986680
 int32_t SI2::VoiceChat_CreateChatSound(SE2SoundKitObject* object, SEStreamCallbacks* callbacks, int32_t chatSystem) {
     if (!SE2::IsChatSoundInitialized()) {
-        return 17;
+        return SI2_ERR_SOUND_DISABLED;
     }
 
     object->m_sound.CreateChatSound(callbacks, chatSystem);
-    return 0;
+    return SI2_OK;
 }
 
 // VERIFY: 73c312f2 auto
 // OFFSET: 0x009866B0
 int32_t SI2::VoiceChat_Play(SE2SoundKitObject* object) {
     if (!SE2::IsChatSoundInitialized()) {
-        return 17;
+        return SI2_ERR_SOUND_DISABLED;
     }
 
     object->m_sound.Play();
-    return 0;
+    return SI2_OK;
 }
 
 // VERIFY: eec71328 auto
@@ -182,7 +183,7 @@ static void MonitorCallback(float* data, uint32_t count) {
 // VERIFY: e6a66d96 auto
 // OFFSET: 0x00986700
 void SI2::VoiceChat_InitCapture(float sampleRate) {
-    if (CmdLineGetBool(static_cast<CMDOPT>(26))) {
+    if (CmdLineGetBool(static_cast<CMDOPT>(CMD_NO_SOUND))) {
         return;
     }
 
@@ -382,11 +383,11 @@ void SI2::VoiceChat_PlayLoopbackSound() {
     userData->m_name = "<Voice Chat Loopback Sound>";
     userData->m_soundKitId = 0;
     userData->m_def = nullptr;
-    userData->m_group = 3;
+    userData->m_group = SI2_SOUND_GROUP_CINEMATIC;
 
     s_loopbackSound.m_sound.SetUserData(userData);
     s_loopbackSound.m_sound.SetFinishedCallback(SI2::SoundFinished, nullptr);
-    s_loopbackSound.m_sound.SetChannelGroup(SI2::s_channelGroupNames[userData->m_group], userData->m_group != 3);
+    s_loopbackSound.m_sound.SetChannelGroup(SI2::s_channelGroupNames[userData->m_group], userData->m_group != SI2_SOUND_GROUP_CINEMATIC);
     SE2::AttachMonitorDSP(&s_loopbackSound.m_sound);
     s_loopbackSound.m_sound.Play();
 }

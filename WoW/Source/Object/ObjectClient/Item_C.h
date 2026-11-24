@@ -7,6 +7,8 @@
 #include "WoW/Source/Object/Item.h"
 #include "WoW/Source/Object/ObjectClient/Object_C.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
+#include "WoW/Common/ComponentCore/Types.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 
 class CClientObjCreate;
 class CImVector;
@@ -26,10 +28,18 @@ struct ITEMBYNAME : public TSHashObject<ITEMBYNAME, HASHKEY_UTF8I> {
 
 int32_t GetItemIDByName(const char* name);
 
-extern const uint32_t s_inventoryTypeSlots[29];
+extern const uint32_t s_inventoryTypeSlots[INVTYPE_COUNT];
 
 class CGItem_C : public CGObject_C, public CGItem {
     public:
+
+    enum ITEM_CLIENT_FLAGS : uint32_t {
+        ITEM_CLIENT_NONE                     = 0x00000000u,
+        ITEM_CLIENT_LOCKED                   = 0x00000001u,
+        ITEM_CLIENT_STATS_INITIALIZED        = 0x00000002u,
+        ITEM_CLIENT_PURCHASE_DATA_PENDING    = 0x00000004u,
+    };
+
     static void Initialize();
     static void Shutdown();
     struct ItemPurchaseData {
@@ -53,8 +63,9 @@ class CGItem_C : public CGObject_C, public CGItem {
     /* 00DC */ TSList<void> m_itemMirrorLists [58];
     /* 0394 */ uint32_t m_itemFlags;
     /* 0398 */ CGUnitVirtualItem m_virtualItem;
+    static constexpr int32_t NUM_ITEM_ENCHANTMENTS = CGItemData::NUM_ENCHANTMENTS;
     /* 03A0 */ uint32_t m_expirationTime;
-    /* 03A4 */ uint32_t m_enchantmentExpiration [12];
+    /* 03A4 */ uint32_t m_enchantmentExpiration [NUM_ITEM_ENCHANTMENTS];
     /* 03D4 */ ItemPurchaseData* m_itemPurchaseData;
     /* 03D8 */ const ItemGroupSoundsRec* m_groupSounds;
     /* 03DC */ uint8_t unused_03DC [4];

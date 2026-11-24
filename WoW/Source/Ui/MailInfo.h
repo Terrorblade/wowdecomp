@@ -9,6 +9,14 @@
 class CDataStore;
 struct lua_State;
 
+enum MAIL_MESSAGE_TYPE : int32_t {
+    MAIL_MESSAGE_TYPE_NORMAL = 0,
+    MAIL_MESSAGE_TYPE_AUCTION = 2,
+    MAIL_MESSAGE_TYPE_CREATURE = 3,
+    MAIL_MESSAGE_TYPE_GAMEOBJECT = 4,
+    MAIL_MESSAGE_TYPE_CALENDAR = 5,
+};
+
 struct MailSenderInfo {
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ int32_t m_entry;
@@ -42,6 +50,17 @@ struct MailAttachmentInfo {
 };
 
 struct MailboxMessageInfo {
+
+    enum FLAGS : uint32_t {
+        READ = 0x1,
+        RETURNED = 0x2,
+        COPIED = 0x4,
+        COD_PAYMENT = 0x8,
+        CALENDAR_INVITE_REMOVED = 0x100,
+        UNKNOWN_200 = 0x200,
+        RETURN_BLOCKED_MASK = 0x20A,
+    };
+
     /* 0000 */ int32_t m_messageID;
     /* 0004 */ int32_t m_messageType;
     /* 0008 */ WOWGUID m_sender;
@@ -74,6 +93,44 @@ struct SendMailItem {
 
 class CGMailInfo {
     public:
+
+    enum INVOICE_TYPE : int32_t {
+        UNSET = -1,
+        OUTBID = 0,
+        BUYER = 1,
+        SELLER = 2,
+        EXPIRED = 3,
+        REMOVED = 4,
+        REMOVED_UNKNOWN_5 = 5,
+        SELLER_TEMP_INVOICE = 6,
+    };
+
+    enum COMMAND_ACTION : uint32_t {
+        ACTION_SEND = 0,
+        ACTION_TAKE_MONEY = 1,
+        ACTION_TAKE_ITEM = 2,
+        ACTION_REMOVE_UNKNOWN_3 = 3,
+        ACTION_REMOVE_UNKNOWN_4 = 4,
+        ACTION_COPY = 5,
+    };
+
+    enum COMMAND_RESULT : uint32_t {
+        SUCCESS = 0,
+        INVENTORY_ERROR = 1,
+        TO_SELF = 2,
+        NOT_ENOUGH_MONEY = 3,
+        TARGET_NOT_FOUND = 4,
+        WRONG_FACTION = 5,
+        RESTRICTED_ACCOUNT = 14,
+        REACHED_CAP = 15,
+        WRAPPED_COD = 16,
+        SQUELCHED = 17,
+        TOO_MANY_ATTACHMENTS = 18,
+        INVALID_ATTACHMENT = 19,
+        NO_DISPLAY_ERROR = 20,
+        ATTACHMENT_EXPIRED = 21,
+    };
+
     static SendMailItem m_sendItems[16];
     static uint8_t m_lockSendItems;
     static uint32_t m_sendPending;

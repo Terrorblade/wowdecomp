@@ -13,6 +13,7 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/Source/MachineState.h"
+#include "Engine/Source/Os/Win64/WinVersion.h"
 
 #define STORM_FACILITY 0x510
 #define SERR_STRING_BASE 0x5100
@@ -596,7 +597,7 @@ int32_t STORMAPI SErrGetErrorStr(uint32_t errorcode, char* buffer, uint32_t buff
 // OFFSET: 0x00771B80
 void STORMAPI SErrRegisterHandler(int32_t (STORMAPI* handler)(uint32_t, const char*, const char*, int32_t, const char*)) {
     InternalEnterCriticalSection(&s_critsect);
-    s_handlerlist.NewNode(1, 0, 0x8000000)->handler = handler;
+    s_handlerlist.NewNode(TSLIST_LINK_AFTER, 0, 0x8000000)->handler = handler;
     InternalLeaveCriticalSection(&s_critsect);
 }
 
@@ -874,8 +875,9 @@ int32_t STORMAPI SErrDisplayError(uint32_t errorcode, const char* filename, int3
     }
 
     DWORD processexitcode;
+    OSVERSIONINFOEXW version;
 
-    if (!(GetVersion() & 0x80000000) || !GetExitCodeProcess(GetCurrentProcess(), &processexitcode) || processexitcode == STILL_ACTIVE) {
+    if ((OsGetWindowsVersion(&version) && version.dwPlatformId == VER_PLATFORM_WIN32_NT) || !GetExitCodeProcess(GetCurrentProcess(), &processexitcode) || processexitcode == STILL_ACTIVE) {
         TerminateProcess(GetCurrentProcess(), exitcode);
     }
 

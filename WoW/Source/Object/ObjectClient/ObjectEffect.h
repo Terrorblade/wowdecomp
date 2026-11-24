@@ -7,6 +7,7 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
+#include "WoW/Source/Object/ObjectClient/Types.h"
 
 class CGObject_C;
 class CObjectEffectDef;
@@ -81,9 +82,27 @@ struct ObjectEffectAnimState {
 
 class CObjectEffectModifier {
     public:
-    static float (*s_inputFuncs[2])(CObjectEffectManager* manager);
-    static float (*s_mapFuncs[2])(float input, const float* params);
-    static void (*s_outputFuncs[2])(CObjectEffect* effect, float value);
+    enum INPUT_TYPE : int32_t {
+        INPUT_NONE = 0,
+        INPUT_SPEED = 1,
+        NUM_INPUT_TYPES,
+    };
+
+    enum MAP_TYPE : int32_t {
+        MAP_NONE = 0,
+        MAP_LINEAR = 1,
+        NUM_MAP_TYPES,
+    };
+
+    enum OUTPUT_TYPE : int32_t {
+        OUTPUT_NONE = 0,
+        OUTPUT_PITCH = 1,
+        NUM_OUTPUT_TYPES,
+    };
+
+    static float (*s_inputFuncs[NUM_INPUT_TYPES])(CObjectEffectManager* manager);
+    static float (*s_mapFuncs[NUM_MAP_TYPES])(float input, const float* params);
+    static void (*s_outputFuncs[NUM_OUTPUT_TYPES])(CObjectEffect* effect, float value);
 
     static float InputNone(CObjectEffectManager* manager);
     static float InputSpeed(CObjectEffectManager* manager);

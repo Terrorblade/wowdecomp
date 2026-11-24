@@ -1246,7 +1246,7 @@ FLAC_API FLAC__bool FLAC__metadata_object_vorbiscomment_replace_comment(FLAC__St
 		if(0 == eq)
 			return false; /* double protection */
 
-		field_name_length = eq-entry.entry;
+		field_name_length = (unsigned int)(eq-entry.entry);
 
 		if((i = vorbiscomment_find_entry_from_(object, 0, (const char *)entry.entry, field_name_length)) >= 0) {
 			unsigned index = (unsigned)i;
@@ -1305,7 +1305,7 @@ FLAC_API FLAC__bool FLAC__metadata_object_vorbiscomment_entry_from_name_value_pa
 	{
 		const size_t nn = strlen(field_name);
 		const size_t nv = strlen(field_value);
-		entry->length = nn + 1 /*=*/ + nv;
+		entry->length = (FLAC__uint32)(nn + 1 /*=*/ + nv);
 		if(0 == (entry->entry = (FLAC__byte*)malloc(entry->length+1)))
 			return false;
 		memcpy(entry->entry, field_name, nn);
@@ -1353,7 +1353,9 @@ FLAC_API FLAC__bool FLAC__metadata_object_vorbiscomment_entry_matches(const FLAC
 	FLAC__ASSERT(0 != entry.entry && entry.length > 0);
 	{
 		const FLAC__byte *eq = (FLAC__byte*)memchr(entry.entry, '=', entry.length);
-#if defined _MSC_VER || defined __BORLANDC__ || defined __MINGW32__ || defined __EMX__
+#if defined _MSC_VER
+#define FLAC__STRNCASECMP _strnicmp
+#elif defined __BORLANDC__ || defined __MINGW32__ || defined __EMX__
 #define FLAC__STRNCASECMP strnicmp
 #else
 #define FLAC__STRNCASECMP strncasecmp
@@ -1367,12 +1369,12 @@ FLAC_API int FLAC__metadata_object_vorbiscomment_find_entry_from(const FLAC__Str
 {
 	FLAC__ASSERT(0 != field_name);
 
-	return vorbiscomment_find_entry_from_(object, offset, field_name, strlen(field_name));
+	return vorbiscomment_find_entry_from_(object, offset, field_name, (unsigned int)(strlen(field_name)));
 }
 
 FLAC_API int FLAC__metadata_object_vorbiscomment_remove_entry_matching(FLAC__StreamMetadata *object, const char *field_name)
 {
-	const unsigned field_name_length = strlen(field_name);
+	const unsigned field_name_length = (unsigned)strlen(field_name);
 	unsigned i;
 
 	FLAC__ASSERT(0 != object);
@@ -1394,7 +1396,7 @@ FLAC_API int FLAC__metadata_object_vorbiscomment_remove_entries_matching(FLAC__S
 {
 	FLAC__bool ok = true;
 	unsigned matching = 0;
-	const unsigned field_name_length = strlen(field_name);
+	const unsigned field_name_length = (unsigned)strlen(field_name);
 	int i;
 
 	FLAC__ASSERT(0 != object);
@@ -1707,7 +1709,7 @@ FLAC_API FLAC__bool FLAC__metadata_object_picture_set_mime_type(FLAC__StreamMeta
 
 	/* do the copy first so that if we fail we leave the object untouched */
 	if(copy) {
-		if(!copy_bytes_((FLAC__byte**)(&object->data.picture.mime_type), (FLAC__byte*)mime_type, new_length+1))
+		if(!copy_bytes_((FLAC__byte**)(&object->data.picture.mime_type), (FLAC__byte*)mime_type, (unsigned int)(new_length+1)))
 			return false;
 	}
 	else {
@@ -1717,8 +1719,8 @@ FLAC_API FLAC__bool FLAC__metadata_object_picture_set_mime_type(FLAC__StreamMeta
 	if(0 != old)
 		free(old);
 
-	object->length -= old_length;
-	object->length += new_length;
+	object->length -= (unsigned int)(old_length);
+	object->length += (unsigned int)(new_length);
 	return true;
 }
 
@@ -1737,7 +1739,7 @@ FLAC_API FLAC__bool FLAC__metadata_object_picture_set_description(FLAC__StreamMe
 
 	/* do the copy first so that if we fail we leave the object untouched */
 	if(copy) {
-		if(!copy_bytes_(&object->data.picture.description, description, new_length+1))
+		if(!copy_bytes_(&object->data.picture.description, description, (unsigned int)(new_length+1)))
 			return false;
 	}
 	else {
@@ -1747,8 +1749,8 @@ FLAC_API FLAC__bool FLAC__metadata_object_picture_set_description(FLAC__StreamMe
 	if(0 != old)
 		free(old);
 
-	object->length -= old_length;
-	object->length += new_length;
+	object->length -= (unsigned int)(old_length);
+	object->length += (unsigned int)(new_length);
 	return true;
 }
 

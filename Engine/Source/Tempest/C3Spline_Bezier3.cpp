@@ -5,6 +5,7 @@
 #include "Engine/Source/Tempest/C34Matrix.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CMath.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00AC3778
 static const C44Matrix s_bezier3Basis(-1.0f, 3.0f, -3.0f, 1.0f, 3.0f, -6.0f, 3.0f, 0.0f, -3.0f, 3.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f);

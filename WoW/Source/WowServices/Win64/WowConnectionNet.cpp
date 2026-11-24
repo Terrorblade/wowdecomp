@@ -106,19 +106,19 @@ void WowConnectionNet::PlatformRun() {
                 uint32_t flags = 0;
 
                 if (networkEvents.lNetworkEvents & (FD_READ | FD_ACCEPT | FD_CLOSE)) {
-                    flags = 2;
+                    flags = SERVICE_READS;
                 }
 
                 if (networkEvents.lNetworkEvents & (FD_WRITE | FD_CONNECT | FD_CLOSE)) {
-                    flags |= 1;
+                    flags |= SERVICE_WRITES;
                 }
 
                 if (connection->m_connState == WOWC_DISCONNECTING) {
-                    flags |= 8;
+                    flags |= SERVICE_DISCONNECT;
                 }
 
                 if (WowConnection::s_lagTestDelayMin || WowConnection::s_lagTestDelayMax) {
-                    flags |= 3;
+                    flags |= SERVICE_WRITES | SERVICE_READS;
                     timeout = 10;
                 } else {
                     timeout = 500;

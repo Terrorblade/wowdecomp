@@ -6,6 +6,7 @@
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
+#include "WoW/Common/Types.h"
 
 // STATIC: 0x00DCEAF8
 static int32_t s_vocalErrorSounds[NUM_VOCALUISOUNDS];
@@ -18,7 +19,7 @@ static SE2SoundKitObject s_vocalErrorObject;
 void SI2::InitVocalErrorSounds(int32_t race, uint32_t sex) {
     memset(s_vocalErrorSounds, 0, sizeof(s_vocalErrorSounds));
 
-    if (sex > 1) {
+    if (sex > UNITSEX_FEMALE) {
         return;
     }
 
@@ -47,11 +48,11 @@ void SI2::PlayVocalErrorSound(int32_t error) {
     int32_t soundKitId = s_vocalErrorSounds[error];
     SE2SoundKitProperties properties;
     properties.ResetToDefaults();
-    properties.m_group = 7;
+    properties.m_group = SI2_SOUND_GROUP_VOCAL_ERROR;
 
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (player && player->m_unit->m_unitFieldBytes0[1] == 6) {
+    if (player && player->m_unit->m_unitFieldBytes0[1] == CLASS_DEATH_KNIGHT) {
         properties.m_useDspChain = 1;
         SI2::DK_GetPlayerFilterName(player, properties.m_dspChainName, sizeof(properties.m_dspChainName));
     }

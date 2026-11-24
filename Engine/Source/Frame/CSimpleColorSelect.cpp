@@ -25,6 +25,7 @@
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "WoW/Source/Ui/TabardModelFrame.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00B2CDB0
 int32_t CSimpleColorSelect::s_metatable = LUA_NOREF;
@@ -478,7 +479,7 @@ void CSimpleColorSelect::SetColorWheelTexture(CSimpleTexture* texture) {
 
                     if (distanceSq <= 64 * 64) {
                         C3Vector rgb;
-                        C3Vector hsv((atan2(static_cast<double>(y), static_cast<double>(x)) + 3.1415927f) * 57.29578f, sqrt(static_cast<double>(distanceSq)) * 0.015625f, 1.0f);
+                        C3Vector hsv(static_cast<float>((atan2(static_cast<double>(y), static_cast<double>(x)) + 3.1415927f) * 57.29578f), static_cast<float>(sqrt(static_cast<double>(distanceSq)) * 0.015625f), 1.0f);
                         HSVtoRGB(hsv, rgb);
                         color = rgb;
                     }

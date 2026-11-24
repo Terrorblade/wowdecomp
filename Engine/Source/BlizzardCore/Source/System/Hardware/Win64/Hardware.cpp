@@ -6,6 +6,14 @@
 #include "Engine/Source/BlizzardCore/Source/System/Hardware/Hardware.h"
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
 
+enum : uint32_t {
+    CPUID_1_EDX_TSC = 0x10,
+    CPUID_1_EDX_MMX = 0x800000,
+    CPUID_1_EDX_SSE = 0x2000000,
+    CPUID_1_EDX_SSE2 = 0x4000000,
+    CPUID_80000001_EDX_3DNOW = 0x80000000,
+};
+
 // STATIC: 0x00B33FDC
 Blizzard::Hardware::ProcessorFeatures System_Hardware::s_processorFeatures;
 
@@ -95,52 +103,52 @@ void System_Hardware::InitProcessorFeatures() {
     CPUIDInfo info;
 
     if (ReadCPUID(&info)) {
-        if (info.m_leaf1Edx & 0x10) {
-            features = 0x1;
+        if (info.m_leaf1Edx & CPUID_1_EDX_TSC) {
+            features = PROCESSOR_FEATURE_TSC;
         }
 
-        if (info.m_leaf1Edx & 0x800000) {
-            features |= 0x2;
+        if (info.m_leaf1Edx & CPUID_1_EDX_MMX) {
+            features |= PROCESSOR_FEATURE_MMX;
         }
 
-        if (info.m_leaf1Edx & 0x2000000) {
-            features |= 0x4;
+        if (info.m_leaf1Edx & CPUID_1_EDX_SSE) {
+            features |= PROCESSOR_FEATURE_SSE;
         }
 
-        if (info.m_ext1Edx & 0x80000000) {
-            features |= 0x8;
+        if (info.m_ext1Edx & CPUID_80000001_EDX_3DNOW) {
+            features |= PROCESSOR_FEATURE_3DNOW;
         }
 
         const char* vendors = "GenuineIntel" "AuthenticAMD" "CyrixInstead" "CentaurHalls";
         const char* vendor = reinterpret_cast<const char*>(info.m_vendor);
 
         if (!strncmp(vendor, vendors, 12)) {
-            s_processorFeatures.m_vendor = 1;
+            s_processorFeatures.m_vendor = PROCESSOR_VENDOR_INTEL;
 
-            if (info.m_leaf1Edx & 0x4000000) {
-                features |= 0x10;
+            if (info.m_leaf1Edx & CPUID_1_EDX_SSE2) {
+                features |= PROCESSOR_FEATURE_SSE2;
             }
 
             if (info.m_maxLeaf >= 4) {
                 uint8_t cores = static_cast<uint8_t>(info.m_leaf4Eax >> 26);
 
                 if (cores) {
-                    s_processorFeatures.m_features = features | 0x40;
+                    s_processorFeatures.m_features = features | PROCESSOR_FEATURE_MULTICORE;
                     s_processorFeatures.m_coreCount = cores + 1;
                     return;
                 }
             }
         } else if (!strncmp(vendor, vendors + 12, 12)) {
-            s_processorFeatures.m_vendor = 2;
+            s_processorFeatures.m_vendor = PROCESSOR_VENDOR_AMD;
 
-            if (info.m_leaf1Edx & 0x4000000) {
-                features |= 0x10;
+            if (info.m_leaf1Edx & CPUID_1_EDX_SSE2) {
+                features |= PROCESSOR_FEATURE_SSE2;
             }
 
             uint8_t cores = static_cast<uint8_t>(info.m_ext8Ecx);
 
             if (cores) {
-                s_processorFeatures.m_features = features | 0x40;
+                s_processorFeatures.m_features = features | PROCESSOR_FEATURE_MULTICORE;
                 s_processorFeatures.m_coreCount = cores + 1;
                 return;
             }

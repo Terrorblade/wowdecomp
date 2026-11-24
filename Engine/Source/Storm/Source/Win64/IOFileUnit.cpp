@@ -26,7 +26,7 @@ static HANDLE OpenFileHandle(const IOFileParam* param) {
 
 // OFFSET: 0x00779F50
 static uint32_t OsPathGetRootChars(const char* path) {
-    uint32_t length = SStrLen(path);
+    uint32_t length = static_cast<uint32_t>(SStrLen(path));
 
     if (length < 2) {
         return 0;
@@ -274,7 +274,7 @@ bool IOUnbufferedFileUnit::Flush() {
 bool IOUnbufferedFileUnit::SetFileSize(int64_t size) {
     this->m_size = size;
 
-    return this->m_unit->SetFileSize((size + this->m_alignMask) & ~this->m_alignMask);
+    return this->m_unit->SetFileSize((size + this->m_alignMask) & ~static_cast<int64_t>(this->m_alignMask));
 }
 
 // OFFSET: 0x0077A1E0

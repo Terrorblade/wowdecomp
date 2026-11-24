@@ -15,7 +15,33 @@
 
 bool CanReadNumBytes(CDataStore& msg, uint32_t bytes);
 
+enum GRUNT_COMMAND : uint8_t {
+    CMD_AUTH_LOGON_CHALLENGE = 0x00,
+    CMD_AUTH_LOGON_PROOF = 0x01,
+    CMD_AUTH_RECONNECT_CHALLENGE = 0x02,
+    CMD_AUTH_RECONNECT_PROOF = 0x03,
+    CMD_SURVEY_RESULT = 0x04,
+    CMD_REALM_LIST = 0x10,
+    CMD_XFER_INITIATE = 0x30,
+    CMD_XFER_DATA = 0x31,
+    CMD_XFER_ACCEPT = 0x32,
+    CMD_XFER_RESUME = 0x33,
+    CMD_XFER_CANCEL = 0x34,
+};
+
+enum GRUNT_SECURITY_FLAGS : uint8_t {
+    GRUNT_SECURITY_PIN = 0x1,
+    GRUNT_SECURITY_MATRIX = 0x2,
+    GRUNT_SECURITY_TOKEN = 0x4,
+};
+
+enum SERVER_LINK_TYPE : uint32_t {
+    SERVER_LINK_GRUNT = 0,
+    SERVER_LINK_BATTLENET = 1,
+};
+
 namespace Grunt {
+
 struct CdKey {
     struct Info {
         /* 0000 */ uint16_t m_keyLength;
@@ -55,8 +81,8 @@ class ClientResponse {
     virtual void GetTokenInfo(bool* enabled, char* token) = 0;
     virtual bool GetCdKeys(Grunt::CdKey& cdKey) = 0;
     virtual void GetFileStatus(const char* fileName, uint64_t size, const uint8_t* md5) = 0;
-    virtual void LogonResult(Grunt::Result result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) = 0;
-    virtual void ReconnectResult(Grunt::Result result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) = 0;
+    virtual void LogonResult(GRUNT_RESULT result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) = 0;
+    virtual void ReconnectResult(GRUNT_RESULT result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) = 0;
     virtual void FileData(const uint8_t* data, uint32_t size) = 0;
     virtual void RealmListResult(CDataStore* msg) = 0;
     virtual LOGIN_STATE NextSecurityState(LOGIN_STATE state) = 0;
@@ -113,6 +139,16 @@ class Timer {
 
 class ClientLink : public WowConnectionResponse, public Grunt::Pending, public Grunt::Timer::Event {
     public:
+    enum CLIENT_STATE : int32_t {
+        STATE_DISCONNECTED = 0,
+        STATE_CONNECTING = 1,
+        STATE_CONNECTED = 2,
+        STATE_AUTH_CHALLENGE_PENDING = 3,
+        STATE_LOGON_VERSION_PROOF_PENDING = 4,
+        STATE_RECONNECT_VERSION_PROOF_PENDING = 5,
+        STATE_ONLINE = 6,
+    };
+
     struct Logon {
         /* 0000 */ const char* m_accountName;
         /* 0004 */ const char* m_password;
@@ -263,6 +299,11 @@ class ServerResponse {
 
 class ServerLink : public WowConnectionResponse, public Grunt::Pending, public Grunt::Timer::Event {
     public:
+    enum SERVER_STATE : int32_t {
+        SERVER_STATE_NONE = 0,
+        SERVER_STATE_CONNECTED = 3,
+    };
+
     struct Feature {
         /* 0000 */ uint32_t m_id;
         /* 0004 */ uint32_t m_version;

@@ -287,7 +287,7 @@ static int32_t Script_SetBlinkSpeed(lua_State* L) {
         return 0;
     }
 
-    editBox->m_cursorBlinkSpeed = lua_tonumber(L, 2);
+    editBox->m_cursorBlinkSpeed = static_cast<float>(lua_tonumber(L, 2));
     return 0;
 }
 
@@ -418,10 +418,10 @@ static int32_t Script_SetTextInsets(lua_State* L) {
         return 0;
     }
 
-    float bottom = lua_tonumber(L, 5);
-    float top = lua_tonumber(L, 4);
-    float right = lua_tonumber(L, 3);
-    float left = lua_tonumber(L, 2);
+    float bottom = static_cast<float>(lua_tonumber(L, 5));
+    float top = static_cast<float>(lua_tonumber(L, 4));
+    float right = static_cast<float>(lua_tonumber(L, 3));
+    float left = static_cast<float>(lua_tonumber(L, 2));
     float ddcBottom = NDCToDDCWidth(bottom / (CoordinateGetAspectCompensation() * 1024.0f));
     float ddcTop = NDCToDDCWidth(top / (CoordinateGetAspectCompensation() * 1024.0f));
     float ddcRight = NDCToDDCWidth(right / (CoordinateGetAspectCompensation() * 1024.0f));
@@ -520,7 +520,7 @@ static int32_t Script_GetMaxLetters(lua_State* L) {
 // OFFSET: 0x009766A0
 static int32_t Script_GetNumLetters(lua_State* L) {
     CSimpleEditBox* editBox = static_cast<CSimpleEditBox*>(FrameScript_GetObjectThis(L, CSimpleEditBox::GetObjectType()));
-    int32_t letters = editBox->m_editBoxFlags & 0x20 ? SStrLenUTF8(editBox->m_text) : editBox->GetLenToNum(0, editBox->m_textLength);
+    int32_t letters = static_cast<int32_t>(editBox->m_editBoxFlags & 0x20 ? SStrLenUTF8(editBox->m_text) : editBox->GetLenToNum(0, editBox->m_textLength));
     lua_pushnumber(L, letters);
     return 1;
 }
@@ -625,7 +625,7 @@ static int32_t Script_GetCursorPosition(lua_State* L) {
 // OFFSET: 0x00976A70
 static int32_t Script_GetUTF8CursorPosition(lua_State* L) {
     CSimpleEditBox* editBox = static_cast<CSimpleEditBox*>(FrameScript_GetObjectThis(L, CSimpleEditBox::GetObjectType()));
-    lua_pushnumber(L, SStrLenUTF8(editBox->m_text, editBox->m_cursorPos));
+    lua_pushnumber(L, static_cast<lua_Number>(SStrLenUTF8(editBox->m_text, editBox->m_cursorPos)));
     return 1;
 }
 

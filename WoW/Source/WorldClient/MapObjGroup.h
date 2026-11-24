@@ -45,9 +45,26 @@ namespace World {
     class TriData;
 }
 
+enum WORLD_TRI_QUERY_STATUS : int32_t {
+    TRI_QUERY_STATUS_NONE = 0,
+    TRI_QUERY_STATUS_OVERFLOW = 1,
+};
+
+enum WORLD_TRI_POOL_LIMITS : int32_t {
+    TRI_QUERY_BATCH_CAPACITY = 32,
+    TRI_QUERY_MATRIX_CAPACITY = 32,
+    TRI_QUERY_INDEX_CAPACITY = 0xC000,
+    TRI_QUERY_FACE_INDEX_CAPACITY = 0x4000,
+};
+
 struct BspQuery {
-    static uint16_t testFaces[8192];
-    static uint16_t hitFaces[8192];
+
+    enum QueryLimits : int32_t {
+        MAX_FACES = 8192,
+    };
+
+    static uint16_t testFaces[BspQuery::MAX_FACES];
+    static uint16_t hitFaces[BspQuery::MAX_FACES];
     static uint32_t testFaceSub;
     static uint32_t hitFaceSub;
 
@@ -133,6 +150,40 @@ class CMapObjOccluder {
 
 class CMapObjGroup {
     public:
+    enum LiquidQueryLimits : int32_t {
+        LIQUID_CULL_VERTEX_LIMIT = 0x2000,
+    };
+
+    enum MOGP_FLAGS : uint32_t {
+        F_HAS_BSP_TREE = 0x1,
+        F_HAS_VERTEX_COLORS = 0x4,
+        F_EXTERIOR = 0x8,
+        F_EXTERIOR_LIT = 0x40,
+        F_UNREACHABLE = 0x80,
+        F_SHOW_EXTERIOR_SKY = 0x100,
+        F_HAS_LIGHT_REFS = 0x200,
+        F_UNKNOWN_0x400 = 0x400,
+        F_HAS_DOODAD_REFS = 0x800,
+        F_HAS_LIQUID = 0x1000,
+        F_UNKNOWN_0x2000 = 0x2000,
+        F_ALWAYS_DRAW = 0x10000,
+        F_HAS_MORI_MORB = 0x20000,
+        F_USE_SKYBOX = 0x40000,
+        F_USE_ALTERNATE_LIQUID_TYPE = 0x80000,
+        F_UNKNOWN_0x400000 = 0x400000,
+        F_HAS_EXTRA_COLOR_VERTICES = 0x1000000,
+        F_HAS_SECOND_TEXTURE_COORDS = 0x2000000,
+        F_EXTERIOR_CLASSIFICATION_MASK = F_EXTERIOR | F_EXTERIOR_LIT,
+    };
+
+    enum RUNTIME_FLAGS : uint32_t {
+        LOADED = 1,
+        TRANS_VERTEX_ATTENUATION_HANDLED = 0x2,
+        ALL_BATCHES_OPAQUE = 0x4,
+        EXTENDED_VERTEX_FORMAT = 0x8,
+        RUNTIME_STATE_MASK = 0xF,
+    };
+
     bool QueryLighting(const C3Vector& point, uint16_t face, CImVector* color, uint8_t* flag);
     struct VertArray {
         /* 0000 */ TSLink<VertArray> m_link;
@@ -290,6 +341,14 @@ struct SMOGroupHeader {
 };
 
 struct SMOLTile {
+
+    enum FLAGS : uint8_t {
+        LIQUID_TYPE_MASK = 0x0F,
+        LIQUID_TYPE_NONE = 0x0F,
+        FISHABLE_MASK = 0x40,
+        SHARED_MASK = 0x80,
+    };
+
     /* 0000 */ uint8_t m_flags;
 };
 

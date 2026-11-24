@@ -1,6 +1,8 @@
 #ifndef WOW_SOURCE_OBJECT_OBJECTCLIENT_VISIBLEITEM_C_H
 #define WOW_SOURCE_OBJECT_OBJECTCLIENT_VISIBLEITEM_C_H
 
+#include "WoW/Common/ComponentCore/Types.h"
+
 #include <cstddef>
 #include <cstdint>
 

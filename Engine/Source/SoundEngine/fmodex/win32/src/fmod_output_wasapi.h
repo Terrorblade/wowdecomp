@@ -10,6 +10,7 @@
 #include "fmod_os_misc.h"
 
 // 0x0600 is Vista (safe since WASAPI output mode is only available on Vista)
+#undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0601
 #include <Windows.h>
 

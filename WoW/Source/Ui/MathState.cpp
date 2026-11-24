@@ -14,6 +14,7 @@
 #include "WoW/Source/Ui/PaperDollInfoFrame.h"
 #include "WoW/Source/Ui/PetInfo.h"
 #include "WoW/Source/Ui/QuestTextParser.h"
+#include "Engine/Source/Os/TimeManager.h"
 #include <cmath>
 #include <cstdlib>
 
@@ -61,7 +62,7 @@ static const char* s_mathDelimiters = "()[]^*/%+-#,> ";
 // OFFSET: 0x00576B10
 static void EmitMathOp(MathState* state, uint32_t op) {
     if (state->m_numOps >= 128) {
-        state->m_status = 1;
+        state->m_status = MathState::STATUS_ERROR;
         return;
     }
 
@@ -77,14 +78,14 @@ static uint8_t LookupMathFunction(const char* name, int32_t* argCount) {
     }
 
     *argCount = 0;
-    return 0;
+    return MATHOP_CONSTANT;
 }
 
 // VERIFY: 924c0932 auto
 // OFFSET: 0x00576B50
 static uint8_t LookupMathVariable(const char* name) {
     if (!name || !*name) {
-        return 0;
+        return MATHOP_CONSTANT;
     }
 
     for (uint32_t i = 0; i < sizeof(s_mathVariables) / sizeof(s_mathVariables[0]); i++) {
@@ -93,7 +94,7 @@ static uint8_t LookupMathVariable(const char* name) {
         }
     }
 
-    return 0;
+    return MATHOP_CONSTANT;
 }
 
 // VERIFY: 217b88e2 auto
@@ -102,7 +103,7 @@ uint32_t MathState::AddIntArg(int32_t value) {
     uint32_t index = this->m_numIntArgs;
 
     if (index >= 64) {
-        this->m_status = 1;
+        this->m_status = STATUS_ERROR;
         return index;
     }
 
@@ -160,7 +161,7 @@ int32_t MathState::Expect(const char* expected, int32_t* pos) {
     int32_t length;
 
     if (!this->NextToken(token, pos, &length) || SStrCmpI(token, expected, STORM_MAX_STR)) {
-        this->m_status = 1;
+        this->m_status = STATUS_ERROR;
         return 0;
     }
 
@@ -216,7 +217,7 @@ int32_t MathState::CompilePrimary(int32_t pos) {
 
         if (token[1] == '<') {
             if (this->m_numVariables >= 32) {
-                this->m_status = 1;
+                this->m_status = STATUS_ERROR;
                 return pos;
             }
 
@@ -236,7 +237,7 @@ int32_t MathState::CompilePrimary(int32_t pos) {
 
             for (int32_t i = argCount - 1; i; i--) {
                 if (!this->NextToken(separator, &pos, &length) || SStrCmpI(separator, ",", STORM_MAX_STR)) {
-                    this->m_status = 1;
+                    this->m_status = STATUS_ERROR;
                 }
 
                 pos = this->CompileSum(pos);
@@ -272,12 +273,12 @@ int32_t MathState::CompilePrimary(int32_t pos) {
     }
 
     if (!isdigit(first) && first != '.') {
-        this->m_status = 1;
+        this->m_status = STATUS_ERROR;
         return pos;
     }
 
     if (this->m_numConstants >= 64) {
-        this->m_status = 1;
+        this->m_status = STATUS_ERROR;
         return pos;
     }
 
@@ -421,7 +422,7 @@ void MathState::ExecuteFunction(uint32_t op, MathStack* stack) {
         }
 
         default:
-            this->m_status = 1;
+            this->m_status = STATUS_ERROR;
             result = 0.0f;
             break;
     }
@@ -486,7 +487,7 @@ void MathState::ExecuteOperator(uint32_t op, MathStack* stack) {
 
         default:
             result = 0.0f;
-            this->m_status = 1;
+            this->m_status = STATUS_ERROR;
             break;
     }
 
@@ -548,12 +549,12 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
                 float radius = 0.0f;
                 uint32_t index = op < MATHOP_RADIUS_1_UPPER ? op - MATHOP_RADIUS_1 : op - MATHOP_RADIUS_1_UPPER;
 
-                if (index < 3) {
+                if (index < NUM_SPELL_EFFECTS) {
                     SpellRadiusRec* rec = g_spellRadiusDB.GetRecord(spell->m_effectRadiusIndex[index]);
 
                     if (rec) {
                         radius = rec->m_radius;
-                        Spell_C_ModifySpellValue(spell, radius, 6);
+                        Spell_C_ModifySpellValue(spell, radius, SPELLMOD_RADIUS);
                     }
                 }
 
@@ -563,7 +564,7 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
 
             case MATHOP_DURATION:
             case MATHOP_DURATION_UPPER:
-                value = Spell_C_GetDuration(spell, parsePet, parseUnit, noModifiers, 1) * 0.001f;
+                value = Spell_C_GetDuration(spell, parsePet, parseUnit, noModifiers, 1) * TIME_SECONDS_PER_MILLISECOND_FLOAT;
                 break;
 
             case MATHOP_POWER_COST:
@@ -607,9 +608,9 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
                 int32_t targets = 0;
                 uint32_t index = op < MATHOP_CHAIN_TARGETS_1_UPPER ? op - MATHOP_CHAIN_TARGETS_1 : op - MATHOP_CHAIN_TARGETS_1_UPPER;
 
-                if (index < 3) {
+                if (index < NUM_SPELL_EFFECTS) {
                     targets = spell->m_effectChainTargets[index];
-                    Spell_C_ModifySpellValue(spell, targets, 17);
+                    Spell_C_ModifySpellValue(spell, targets, SPELLMOD_JUMP_TARGETS);
                 }
 
                 value = static_cast<float>(targets);
@@ -624,14 +625,14 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
             case MATHOP_AURA_PERIOD_3_UPPER: {
                 int32_t period = 0;
 
-                if (spell->m_procTypeMask & 1) {
+                if (spell->m_procTypeMask & SpellRec::PROC_HEARTBEAT) {
                     period = 5000;
                 } else {
                     uint32_t index = op < MATHOP_AURA_PERIOD_1_UPPER ? op - MATHOP_AURA_PERIOD_1 : op - MATHOP_AURA_PERIOD_1_UPPER;
 
-                    if (index < 3) {
+                    if (index < NUM_SPELL_EFFECTS) {
                         period = spell->m_effectAuraPeriod[index];
-                        Spell_C_ModifySpellValue(spell, period, 19);
+                        Spell_C_ModifySpellValue(spell, period, SPELLMOD_ACTIVATION_TIME);
                     }
                 }
 
@@ -642,7 +643,7 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
             case MATHOP_PROC_CHANCE:
             case MATHOP_PROC_CHANCE_UPPER: {
                 int32_t chance = spell->m_procChance;
-                Spell_C_ModifySpellValue(spell, chance, 18);
+                Spell_C_ModifySpellValue(spell, chance, SPELLMOD_CHANCE_OF_SUCCESS);
                 value = static_cast<float>(chance);
                 break;
             }
@@ -650,7 +651,7 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
             case MATHOP_PROC_CHARGES:
             case MATHOP_PROC_CHARGES_UPPER: {
                 int32_t charges = spell->m_procCharges;
-                Spell_C_ModifySpellValue(spell, charges, 4);
+                Spell_C_ModifySpellValue(spell, charges, SPELLMOD_CHARGES);
                 value = static_cast<float>(charges);
                 break;
             }
@@ -663,7 +664,7 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
             case MATHOP_POINTS_PER_COMBO_3_UPPER: {
                 uint32_t index = op < MATHOP_POINTS_PER_COMBO_1_UPPER ? op - MATHOP_POINTS_PER_COMBO_1 : op - MATHOP_POINTS_PER_COMBO_1_UPPER;
 
-                if (index < 3) {
+                if (index < NUM_SPELL_EFFECTS) {
                     value = spell->m_effectPointsPerCombo[index];
                 }
 
@@ -688,9 +689,9 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
             case MATHOP_AMPLITUDE_3_UPPER: {
                 uint32_t index = op < MATHOP_AMPLITUDE_1_UPPER ? op - MATHOP_AMPLITUDE_1 : op - MATHOP_AMPLITUDE_1_UPPER;
 
-                if (index < 3) {
+                if (index < NUM_SPELL_EFFECTS) {
                     float amplitude = spell->m_effectAmplitude[index];
-                    Spell_C_ModifySpellValue(spell, amplitude, 27);
+                    Spell_C_ModifySpellValue(spell, amplitude, SPELLMOD_VALUE_MULTIPLIER);
                     value = amplitude;
                 }
 
@@ -710,7 +711,7 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
             case MATHOP_CHAIN_AMPLITUDE_3_UPPER: {
                 uint32_t index = op < MATHOP_CHAIN_AMPLITUDE_1_UPPER ? op - MATHOP_CHAIN_AMPLITUDE_1 : op - MATHOP_CHAIN_AMPLITUDE_1_UPPER;
 
-                if (index < 3) {
+                if (index < NUM_SPELL_EFFECTS) {
                     value = spell->m_effectChainAmplitude[index];
                 }
 
@@ -725,7 +726,7 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
             case MATHOP_MISC_VALUE_3_UPPER: {
                 uint32_t index = op < MATHOP_CHAIN_AMPLITUDE_1_UPPER ? op - MATHOP_CHAIN_AMPLITUDE_1 : op - MATHOP_CHAIN_AMPLITUDE_1_UPPER;
 
-                if (index < 3) {
+                if (index < NUM_SPELL_EFFECTS) {
                     value = static_cast<float>(spell->m_effectMiscValue[index]);
                 }
 
@@ -819,17 +820,17 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
 
             case MATHOP_MAIN_HAND_SPEED:
             case MATHOP_MAIN_HAND_SPEED_UPPER:
-                value = static_cast<float>(player->m_unit->m_unitFieldBaseattacktime[0]) * 0.001f;
+                value = static_cast<float>(player->m_unit->m_unitFieldBaseattacktime[0]) * TIME_SECONDS_PER_MILLISECOND_FLOAT;
                 break;
 
             case MATHOP_OFF_HAND_SPEED:
             case MATHOP_OFF_HAND_SPEED_UPPER:
-                value = static_cast<float>(player->m_unit->m_unitFieldBaseattacktime[1]) * 0.001f;
+                value = static_cast<float>(player->m_unit->m_unitFieldBaseattacktime[1]) * TIME_SECONDS_PER_MILLISECOND_FLOAT;
                 break;
 
             case MATHOP_RANGED_SPEED:
             case MATHOP_RANGED_SPEED_UPPER:
-                value = static_cast<float>(player->m_unit->m_unitFieldRangedattacktime) * 0.001f;
+                value = static_cast<float>(player->m_unit->m_unitFieldRangedattacktime) * TIME_SECONDS_PER_MILLISECOND_FLOAT;
                 break;
 
             case MATHOP_LEVEL:
@@ -844,9 +845,9 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
 
             case MATHOP_SPELL_POWER:
             case MATHOP_SPELL_POWER_UPPER: {
-                int32_t bonus = player->GetModDamageDonePos(1) + player->GetModDamageDoneNeg(1);
+                int32_t bonus = player->GetModDamageDonePos(SPELL_SCHOOL_HOLY) + player->GetModDamageDoneNeg(SPELL_SCHOOL_HOLY);
 
-                for (uint32_t school = 2; school <= 6; school++) {
+                for (uint32_t school = SPELL_SCHOOL_FIRE; school <= SPELL_SCHOOL_ARCANE; school++) {
                     if (bonus >= player->GetModDamageDonePos(school) + player->GetModDamageDoneNeg(school)) {
                         bonus = player->GetModDamageDonePos(school) + player->GetModDamageDoneNeg(school);
                     }
@@ -917,9 +918,9 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
             case MATHOP_BONUS_COEFFICIENT_3_UPPER: {
                 uint32_t index = op < MATHOP_BONUS_COEFFICIENT_1_UPPER ? op - MATHOP_BONUS_COEFFICIENT_1 : op - MATHOP_BONUS_COEFFICIENT_1_UPPER;
 
-                if (index < 3) {
+                if (index < NUM_SPELL_EFFECTS) {
                     float coefficient = spell->m_effectBonusCoefficient[index];
-                    Spell_C_ModifySpellValue(spell, coefficient, 24);
+                    Spell_C_ModifySpellValue(spell, coefficient, SPELLMOD_BONUS_MULTIPLIER);
                     value = coefficient;
                 }
 
@@ -928,7 +929,7 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
 
             default:
                 value = 0.0f;
-                this->m_status = 1;
+                this->m_status = STATUS_ERROR;
                 break;
         }
     }
@@ -952,13 +953,13 @@ float MathState::Evaluate(const SpellRec* spell, int32_t spellLevel, int32_t sca
         uint8_t op = this->m_ops[i];
 
         if (stack.m_top <= 0 || (op == MATHOP_SPELL && i + 1 >= this->m_numOps)) {
-            this->m_status = 1;
+            this->m_status = STATUS_ERROR;
             return 0.0f;
         }
 
         if (op == MATHOP_SPELL) {
             if (!g_spellDB.GetRecord(QuestTextParser::Spell_C_SpellGetSpellIDForDifficulty(*intArg++), &loaded)) {
-                this->m_status = 1;
+                this->m_status = STATUS_ERROR;
                 return 0.0f;
             }
 
@@ -1009,7 +1010,7 @@ float MathState::Evaluate(const SpellRec* spell, int32_t spellLevel, int32_t sca
 
     float result = 0.0f;
 
-    if (this->m_status == 2) {
+    if (this->m_status == STATUS_OK) {
         result = stack.m_values[stack.m_top];
     }
 

@@ -59,6 +59,12 @@
 
 #include "private/metadata.h"
 
+#if defined _MSC_VER
+#define strdup _strdup
+#define unlink _unlink
+#define chmod _chmod
+#endif
+
 #include "FLAC/assert.h"
 #include "FLAC/stream_decoder.h"
 
@@ -2721,7 +2727,7 @@ FLAC__bool write_metadata_block_data_picture_cb_(FLAC__IOHandle handle, FLAC__IO
 
 	len = FLAC__STREAM_METADATA_PICTURE_MIME_TYPE_LENGTH_LEN/8;
 	slen = strlen(block->mime_type);
-	pack_uint32_(slen, buffer, len);
+	pack_uint32_((FLAC__uint32)(slen), buffer, len);
 	if(write_cb(buffer, 1, len, handle) != len)
 		return false;
 	if(write_cb(block->mime_type, 1, slen, handle) != slen)
@@ -2729,7 +2735,7 @@ FLAC__bool write_metadata_block_data_picture_cb_(FLAC__IOHandle handle, FLAC__IO
 
 	len = FLAC__STREAM_METADATA_PICTURE_DESCRIPTION_LENGTH_LEN/8;
 	slen = strlen((const char *)block->description);
-	pack_uint32_(slen, buffer, len);
+	pack_uint32_((FLAC__uint32)(slen), buffer, len);
 	if(write_cb(buffer, 1, len, handle) != len)
 		return false;
 	if(write_cb(block->description, 1, slen, handle) != slen)
@@ -3083,7 +3089,7 @@ FLAC__bool copy_n_bytes_from_file_(FILE *file, FILE *tempfile, off_t bytes, FLAC
 			*status = FLAC__METADATA_SIMPLE_ITERATOR_STATUS_WRITE_ERROR;
 			return false;
 		}
-		bytes -= n;
+		bytes -= (off_t)(n);
 	}
 
 	return true;
@@ -3105,7 +3111,7 @@ FLAC__bool copy_n_bytes_from_file_cb_(FLAC__IOHandle handle, FLAC__IOCallback_Re
 			*status = FLAC__METADATA_SIMPLE_ITERATOR_STATUS_WRITE_ERROR;
 			return false;
 		}
-		bytes -= n;
+		bytes -= (off_t)(n);
 	}
 
 	return true;

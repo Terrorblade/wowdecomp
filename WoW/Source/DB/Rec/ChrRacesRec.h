@@ -8,6 +8,14 @@ class SFileImpl;
 
 class ChrRacesRec {
     public:
+
+    enum RACE_FLAGS : int32_t {
+        NON_PLAYABLE = 0x1,
+        BARE_FEET = 0x2,
+        CAN_MOUNT = 0x4,
+        HAS_BALD = 0x8,
+    };
+
     static const int32_t s_numColumns = 69;
     static const int32_t s_rowSize = 276;
     static const bool s_generatedID = false;

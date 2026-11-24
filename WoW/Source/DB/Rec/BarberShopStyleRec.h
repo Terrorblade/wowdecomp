@@ -6,6 +6,14 @@
 
 class SFileImpl;
 
+enum BARBER_SHOP_STYLE_TYPE : int32_t {
+    BARBER_SHOP_HAIR_STYLE  = 0,
+    BARBER_SHOP_HAIR_COLOR  = 1,
+    BARBER_SHOP_FACIAL_HAIR = 2,
+    BARBER_SHOP_SKIN_COLOR  = 3,
+    NUM_BARBER_SHOP_STYLE_TYPES = 4,
+};
+
 class BarberShopStyleRec {
     public:
     static const int32_t s_numColumns = 40;

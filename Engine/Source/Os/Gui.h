@@ -7,6 +7,16 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/CiRect.h"
 
+enum : uint32_t {
+    OSGUI_FILTER_LETTERS = 0x1,
+    OSGUI_FILTER_DIGITS = 0x2,
+    OSGUI_FILTER_SIGN = 0x4,
+    OSGUI_FILTER_DECIMAL_POINT = 0x8,
+    OSGUI_FILTER_SPACE = 0x10,
+    OSGUI_FILTER_UNDERSCORE = 0x20,
+    OSGUI_FILTER_PRINTABLE_ASCII = 0x40,
+};
+
 enum : int32_t {
     OSGUI_MESSAGE_STYLE_OK = 0,
     OSGUI_MESSAGE_STYLE_OKCANCEL = 1,
@@ -67,6 +77,29 @@ struct OsGuiTreeItemParams {
 
 class COsControl {
     public:
+    enum TYPE : int32_t {
+        TYPE_BUTTON = 0,
+        TYPE_IMAGE_BUTTON = 1,
+        TYPE_STATIC_TEXT = 2,
+        TYPE_STATIC_IMAGE = 3,
+        TYPE_EDIT_BOX = 4,
+        TYPE_COMBO_BOX = 5,
+        TYPE_LIST_BOX = 6,
+        TYPE_CHECKBOX = 7,
+        TYPE_PROGRESS_BAR = 8,
+        TYPE_TRACK_BAR = 9,
+        TYPE_TREE_VIEW = 10,
+        TYPE_TEXT_BUTTON = 11,
+        TYPE_STATIC_BOX = 12,
+        TYPE_UP_DOWN = 13,
+        TYPE_RADIO_BUTTON = 14,
+        TYPE_TAB_CONTROL = 15,
+        TYPE_LIST_VIEW = 16,
+        TYPE_TOOLBAR = 17,
+        TYPE_SCROLL_BAR = 18,
+        TYPE_DIVIDER = 19,
+    };
+
     /* 0004 */ uint32_t m_flags;
     /* 0008 */ COsDialog* m_dialog;
     /* 000C */ int16_t m_id;

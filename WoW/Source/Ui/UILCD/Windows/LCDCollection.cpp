@@ -20,7 +20,7 @@ CLCDCollection::~CLCDCollection() {
 // VERIFY: 65a7d5fb manual
 // OFFSET: 0x0095B850
 bool CLCDCollection::AddObject(CLCDBase* object) {
-    CLCDBASE_NODE* node = this->m_Objects.NewNode(2, 0, 0);
+    CLCDBASE_NODE* node = this->m_Objects.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_pObject = object;
     return true;
 }

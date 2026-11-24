@@ -27,7 +27,7 @@ TEXTEMOTELOOKUP::TEXTEMOTELOOKUP() {
 int32_t SI2::GetTextEmoteSoundID(uint32_t emotesTextId, uint32_t race, uint32_t sex) {
     TEXTEMOTELOOKUP* lookup;
 
-    if (emotesTextId < s_textEmoteLookupById.Count() && (lookup = s_textEmoteLookupById[emotesTextId]) != nullptr && race < 22 && sex < 2) {
+    if (emotesTextId < s_textEmoteLookupById.Count() && (lookup = s_textEmoteLookupById[emotesTextId]) != nullptr && race < NUM_RACES + 1 && sex < UNITSEX_NONE) {
         return lookup->m_soundIds[race][sex];
     }
 
@@ -40,7 +40,7 @@ int32_t SI2::GetTextEmoteSoundIndex(uint32_t emotesTextId, uint32_t race, uint32
     TEXTEMOTELOOKUP* lookup;
     int32_t soundKitId;
 
-    if (emotesTextId < s_textEmoteLookupById.Count() && (lookup = s_textEmoteLookupById[emotesTextId]) != nullptr && race < 22 && sex < 2) {
+    if (emotesTextId < s_textEmoteLookupById.Count() && (lookup = s_textEmoteLookupById[emotesTextId]) != nullptr && race < NUM_RACES + 1 && sex < UNITSEX_NONE) {
         soundKitId = lookup->m_soundIds[race][sex];
     } else {
         soundKitId = 0;
@@ -53,7 +53,7 @@ int32_t SI2::GetTextEmoteSoundIndex(uint32_t emotesTextId, uint32_t race, uint32
     }
 
     int32_t index = 0;
-    def->SelectFile(2, &index, -1, 5);
+    def->SelectFile(SE2_FILE_SELECT_WEIGHTED_CYCLE, &index, -1, 5);
     return index;
 }
 
@@ -99,7 +99,7 @@ void SI2::InitEmoteSounds() {
             (*slot)->m_emotesTextId = rec->m_emotesTextID;
         }
 
-        if (static_cast<uint32_t>(rec->m_raceID) < 22 && static_cast<uint32_t>(rec->m_sexID) < 2) {
+        if (static_cast<uint32_t>(rec->m_raceID) < NUM_RACES + 1 && static_cast<uint32_t>(rec->m_sexID) < 2) {
             (*slot)->m_soundIds[rec->m_raceID][rec->m_sexID] = rec->m_soundID;
         }
     }

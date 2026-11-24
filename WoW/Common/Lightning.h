@@ -21,6 +21,18 @@ struct LightningJoint {
 
 class CLightning {
     public:
+    enum RUNTIME_FLAGS : int32_t {
+        FLAG_NONE = 0,
+        FLAG_JOINTS_INITIALIZED = 0x1,
+        FLAG_VISIBLE = 0x2,
+        FLAG_FLICKER_OFF = 0x4,
+        FLAG_INITIAL_PULSE_WRAP = 0x8,
+        FLAG_SOURCE_ENDPOINT = 0x10,
+        FLAG_DESTINATION_ENDPOINT = 0x20,
+        FLAG_RESET_MASK = 0x5,
+        FLAG_ENDPOINT_MASK = 0x30,
+    };
+
     static uint32_t DecodeChainEffectsID(uint32_t id);
 
     /* 0000 */ C3Vector m_srcPos;
@@ -69,6 +81,10 @@ class CLightning {
 
 class CLightningManager {
     public:
+    enum : uint32_t {
+        BADBOLT = 0xFFFFFFFF,
+    };
+
     /* 0000 */ TSGrowableArray<CLightning*> m_bolts;
     /* 0010 */ TSGrowableArray<uint32_t> m_freeList;
 

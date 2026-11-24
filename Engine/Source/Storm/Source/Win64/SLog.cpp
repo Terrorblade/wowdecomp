@@ -31,7 +31,7 @@ static uint32_t PathGetRootChars(const char* path) {
         return 1;
     }
 
-    uint32_t length = SStrLen(path);
+    uint32_t length = static_cast<uint32_t>(SStrLen(path));
 
     if (length < 2) {
         return 0;
@@ -154,7 +154,7 @@ static void OutputTime(_LOG* logptr, int32_t show) {
         SYSTEMTIME systime;
         GetLocalTime(&systime);
         wsprintfA(timestr, "%u/%u %02u:%02u:%02u.%03u  ", systime.wMonth, systime.wDay, systime.wHour, systime.wMinute, systime.wSecond, systime.wMilliseconds);
-        timestrlen = SStrLen(timestr);
+        timestrlen = static_cast<uint32_t>(SStrLen(timestr));
     }
 
     if (show) {
@@ -445,7 +445,7 @@ void STORMAPI SLogVWrite(HSLOG log, const char* format, va_list arglist) {
         OutputTime(logptr, 1);
         OutputIndent(logptr);
         SStrVPrintf(&logptr->buffer[logptr->bufferused], sizeof(logptr->buffer) - logptr->bufferused, format, arglist);
-        logptr->bufferused += SStrLen(&logptr->buffer[logptr->bufferused]);
+        logptr->bufferused += static_cast<uint32_t>(SStrLen(&logptr->buffer[logptr->bufferused]));
         OutputReturn(logptr);
 
         if (g_opt.echotooutputdebugstring) {

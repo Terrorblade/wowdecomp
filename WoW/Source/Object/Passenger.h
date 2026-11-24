@@ -13,6 +13,13 @@ class C44Matrix;
 #pragma pack(push, 4)
 class CPassenger {
     public:
+
+    enum : uint8_t {
+        PASSENGER_NONE = 0,
+        PASSENGER_MOVEMENT = 0x1,
+        PASSENGER_QUATERNION_FACING = 0x2,
+    };
+
     /* 0000 */ TSLink<void> m_link;
     /* 0008 */ WOWGUID m_transportGuid;
     /* 0010 */ C3Vector m_position;

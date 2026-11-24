@@ -9,6 +9,13 @@ class CAaBox;
 class CGxTex;
 class CImVector;
 
+enum PROJECT_TEX_FLAGS : uint32_t {
+    PROJECT_TEX_NONE = 0x0,
+    PROJECT_TEX_DOODADS = 0x1,
+    PROJECT_TEX_MATERIAL_COLOR = 0x2,
+    PROJECT_TEX_ALL_FACES = 0x4,
+};
+
 namespace ProjectTex {
     void Render2d(const CAaBox& box, const CImVector& color, const C44Matrix* matrix, float fade, uint32_t a5, uint32_t a6, float polygonOffset);
 }

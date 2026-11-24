@@ -186,7 +186,7 @@ void CGQuestPOIFrame::RenderCallback(void* param) {
 void CGQuestPOIFrame::OnFrameRender(CRenderBatch* batch, uint32_t layer) {
     CSimpleFrame::OnFrameRender(batch, layer);
 
-    if (layer == 3) {
+    if (layer == DRAWLAYER_ARTWORK_OVERLAY) {
         batch->QueueCallback(CGQuestPOIFrame::RenderCallback, this);
     }
 }
@@ -701,12 +701,12 @@ void CGQuestPOIFrame::Render() {
     g_theGxDevicePtr->RsPush();
     GxRsSet(GxRs_ColorOp0, GxTexOp_Mod);
     GxRsSet(GxRs_AlphaOp0, GxTexOp_Mod);
-    GxRsSet(GxRs_ColorWrite, 15);
+    GxRsSet(GxRs_ColorWrite, GxColorWrite_All);
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Lighting, 0);
     GxRsSet(GxRs_Culling, 0);
     GxRsSet(GxRs_DepthTest, 0);
-    GxRsSet(GxRs_BlendingMode, 2);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     GxRsSet(GxRs_Multisample, 0);
     GxRsSet(GxRs_Texture0, fillTexture);

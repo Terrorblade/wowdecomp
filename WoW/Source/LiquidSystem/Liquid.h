@@ -23,6 +23,14 @@ class CTexture;
 class LiquidMaterialRec;
 class LiquidTypeRec;
 
+enum PROC_TEXTURE : int32_t {
+    PROC_TEXTURE_UNKNOWN_0 = 0,
+    PROC_TEXTURE_WMO_WATER = 1,
+    PROC_TEXTURE_RIVER_DEPTH = 2,
+    PROC_TEXTURE_OCEAN_DEPTH = 3,
+    NUM_PROC_TEXTURES = 4,
+};
+
 namespace Liquid {
     class CInstance;
     class CMaterialSettings;
@@ -247,15 +255,23 @@ namespace Liquid {
     };
 
     class CMaterialSettings {
+
+        enum : uint32_t {
+            INT_CNT = 4,
+            FLOAT_CNT = 18,
+            TEXTURE_CNT = 6,
+            MAX_TEXNAME_LEN = 128,
+        };
+
         public:
-        /* 0000 */ char m_textureNames[6][128];
+        /* 0000 */ char m_textureNames[TEXTURE_CNT][MAX_TEXNAME_LEN];
         /* 0300 */ CImVector m_colors[2];
-        /* 0308 */ int32_t m_ints[4];
-        /* 0318 */ float m_floats[18];
+        /* 0308 */ int32_t m_ints[INT_CNT];
+        /* 0318 */ float m_floats[FLOAT_CNT];
         /* 0360 */ int32_t m_transparent;
-        /* 0364 */ int32_t m_texturesReady[6];
-        /* 037C */ TSGrowableArray<CTexture*> m_textures[6];
-        /* 03DC */ TSGrowableArray<CTexture*> m_pendingTextures[6];
+        /* 0364 */ int32_t m_texturesReady[TEXTURE_CNT];
+        /* 037C */ TSGrowableArray<CTexture*> m_textures[TEXTURE_CNT];
+        /* 03DC */ TSGrowableArray<CTexture*> m_pendingTextures[TEXTURE_CNT];
 
         CMaterialSettings();
         ~CMaterialSettings();
@@ -340,6 +356,7 @@ namespace Liquid {
     extern int32_t s_useCameraRelativeCoords;
     extern int32_t s_settingsBankRefCount;
     extern int32_t s_materialBankRefCount;
+
     extern uint8_t s_unk_D43B48[4];
     extern CTexture* s_unk_D43B4C;
     extern CTexture* s_unk_D43B50[32];

@@ -11,6 +11,16 @@ class CRect;
 
 class CFramePoint {
     public:
+
+    enum POINT_FLAGS : uint32_t {
+        FLAG_NONE = 0,
+        FLAG_ABSOLUTE_COORDINATES = 1,
+        FLAG_READING_RELATIVE_RECT = 2,
+        FLAG_CHANGED_DURING_READ = 4,
+        FLAG_UNUSED = 8,
+        FLAG_BUSY_CHANGED_MASK = 6,
+    };
+
     static float UNDEFINED;
     static CDataAllocator s_framePointHeap;
 

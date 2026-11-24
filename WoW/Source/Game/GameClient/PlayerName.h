@@ -19,6 +19,15 @@ struct WORLDTEXTSTRING;
 
 class PLAYERNAMEDESC {
     public:
+
+    enum NAME_FLAGS : uint32_t {
+        NAME_REGENERATE = 0x1,
+        COLOR_UPDATE = 0x2,
+        INITIAL_DIRTY = 3,
+        OBJECT_NAME = 0x4,
+        SHOWING = 0x8,
+    };
+
     /* 0000 */ TSLink<PLAYERNAMEDESC> m_link;
     /* 0008 */ CGxString* m_string;
     /* 000C */ CImVector m_color;

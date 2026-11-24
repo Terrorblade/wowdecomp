@@ -4,15 +4,25 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/Game/Types.h"
 
 class CDataStore;
+constexpr uint32_t MAX_PLAYER_NAME_LENGTH = 48;
 
 class NameCache {
     public:
+
+    enum QUERY_RESULT : uint8_t {
+        QUERY_RESULT_OK = 0,
+        QUERY_RESULT_UNKNOWN_1 = 1,
+        QUERY_RESULT_RETRY = 2,
+        QUERY_RESULT_PLACEHOLDER = 3,
+    };
+
     static const uint32_t s_cacheVersion = 4;
 
     struct DeclinedNames {
-        /* 0000 */ char m_names[5][64];
+        /* 0000 */ char m_names[NUM_DECLENSIONS][64];
     };
 
     /* 0000 */ char m_name[48];

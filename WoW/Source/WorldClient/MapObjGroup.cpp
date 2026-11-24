@@ -22,6 +22,7 @@
 #include "WoW/Source/WorldClient/MapObjDef.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Services/AsyncFile.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00AEEE58
 VBBList CMapObjGroup::vertexVBList;
@@ -33,10 +34,10 @@ VBBList CMapObjGroup::indexVBList;
 TSExplicitList<CMapObjGroup::VertArray, offsetof(CMapObjGroup::VertArray, m_link)> CMapObjGroup::s_freeVertArrays;
 
 // STATIC: 0x00D25BF8
-uint16_t BspQuery::testFaces[8192];
+uint16_t BspQuery::testFaces[BspQuery::MAX_FACES];
 
 // STATIC: 0x00D29BF8
-uint16_t BspQuery::hitFaces[8192];
+uint16_t BspQuery::hitFaces[BspQuery::MAX_FACES];
 
 // STATIC: 0x00D2DBF8
 uint32_t BspQuery::testFaceSub;
@@ -60,16 +61,16 @@ uint32_t World::TriData::indexCursor;
 uint32_t World::TriData::matrixPoolCount;
 
 // STATIC: 0x00CB7540
-uint16_t World::TriData::faceIndexPool[0x4000];
+uint16_t World::TriData::faceIndexPool[TRI_QUERY_FACE_INDEX_CAPACITY];
 
 // STATIC: 0x00CBF540
-uint16_t World::TriData::indexPool[0xC000];
+uint16_t World::TriData::indexPool[TRI_QUERY_INDEX_CAPACITY];
 
 // STATIC: 0x00CD8080
-World::TriData::Batch World::TriData::batches[32];
+World::TriData::Batch World::TriData::batches[TRI_QUERY_BATCH_CAPACITY];
 
 // STATIC: 0x00CD7880
-C44Matrix World::TriData::matrixPool[32];
+C44Matrix World::TriData::matrixPool[TRI_QUERY_MATRIX_CAPACITY];
 
 struct SpanRange {
     /* 0000 */ int32_t m_min;
@@ -282,7 +283,7 @@ void LiquidSoundQuery::VisitSpan(int32_t x0, int32_t x1, int32_t y) {
     const SMOLiquidVert* vert = &this->m_verts[x0 + y * (this->m_width + 1)];
 
     for (int32_t x = x0; x <= x1; x++, tile++, vert++) {
-        if ((tile->m_flags & 0xF) == 0xF) {
+        if ((tile->m_flags & SMOLTile::LIQUID_TYPE_MASK) == SMOLTile::LIQUID_TYPE_NONE) {
             continue;
         }
 
@@ -322,13 +323,13 @@ void BspQuery_Segment::operator()(uint16_t face) {
     }
 
     uint8_t materialId = this->m_faces[face].m_materialId;
-    uint16_t ignoreMask = (materialId == 0xFF || !this->m_materials[materialId].m_blendMode) ? 0x200 : 0x100;
+    uint16_t ignoreMask = (materialId == 0xFF || !this->m_materials[materialId].m_blendMode) ? SMOPoly::IGNORE_OPAQUE : SMOPoly::IGNORE_BLENDED;
 
     if (this->m_faceIgnoreFlags & ignoreMask) {
         return;
     }
 
-    if (BspQuery::testFaceSub >= 0x2000) {
+    if (BspQuery::testFaceSub >= BspQuery::MAX_FACES) {
         if (this->m_overflowFlags) {
             *this->m_overflowFlags |= 1;
         }
@@ -337,7 +338,7 @@ void BspQuery_Segment::operator()(uint16_t face) {
     }
 
     BspQuery::testFaces[BspQuery::testFaceSub++] = face;
-    this->m_faces[face].m_flags |= 0x80;
+    this->m_faces[face].m_flags |= SMOPoly::F_COLLIDE_HIT;
 
     float t = 0.0f;
 
@@ -450,13 +451,13 @@ bool BspQuery_Segment::GetFaceIndicesUsingCache(const CAaBsp& aaBsp, const CAaBs
             continue;
         }
 
-        uint16_t ignoreMask = (poly.m_materialId == 0xFF || !this->m_materials[poly.m_materialId].m_blendMode) ? 0x200 : 0x100;
+        uint16_t ignoreMask = (poly.m_materialId == 0xFF || !this->m_materials[poly.m_materialId].m_blendMode) ? SMOPoly::IGNORE_OPAQUE : SMOPoly::IGNORE_BLENDED;
 
         if (ignore & ignoreMask) {
             continue;
         }
 
-        if (BspQuery::testFaceSub >= 0x2000) {
+        if (BspQuery::testFaceSub >= BspQuery::MAX_FACES) {
             if (this->m_overflowFlags) {
                 *this->m_overflowFlags |= 1;
             }
@@ -465,7 +466,7 @@ bool BspQuery_Segment::GetFaceIndicesUsingCache(const CAaBsp& aaBsp, const CAaBs
         }
 
         BspQuery::testFaces[BspQuery::testFaceSub++] = face;
-        poly.m_flags |= 0x80;
+        poly.m_flags |= SMOPoly::F_COLLIDE_HIT;
 
         const uint16_t* verts = &digest->m_faceVertexIndices[3 * i];
 
@@ -509,7 +510,7 @@ void CMapObjGroup::AsyncFailedCallback(CAsyncObject* object) {
 BspQuery::~BspQuery() {
     while (BspQuery::testFaceSub) {
         BspQuery::testFaceSub--;
-        this->m_faces[BspQuery::testFaces[BspQuery::testFaceSub]].m_flags &= ~0x80;
+        this->m_faces[BspQuery::testFaces[BspQuery::testFaceSub]].m_flags &= ~SMOPoly::F_COLLIDE_HIT;
     }
 
     BspQuery::hitFaceSub = 0;
@@ -519,8 +520,8 @@ BspQuery::~BspQuery() {
 // VERIFY: 8fcd1fbd auto
 // OFFSET: 0x007C7710
 World::TriData::Batch* __stdcall World::TriData::AllocBatch(uint32_t indexCount, uint32_t faceCount) {
-    if (World::TriData::nBatches + 1 >= 32 || indexCount + World::TriData::indexCursor >= 0xC000 || faceCount + World::TriData::faceIndexCursor >= 0x4000) {
-        World::TriData::statusFlags |= 1;
+    if (World::TriData::nBatches + 1 >= TRI_QUERY_BATCH_CAPACITY || indexCount + World::TriData::indexCursor >= TRI_QUERY_INDEX_CAPACITY || faceCount + World::TriData::faceIndexCursor >= TRI_QUERY_FACE_INDEX_CAPACITY) {
+        World::TriData::statusFlags |= TRI_QUERY_STATUS_OVERFLOW;
         return nullptr;
     }
 
@@ -562,7 +563,7 @@ BspQuery_Segment::BspQuery_Segment(SMOPoly* faces, C3Vector* vertexList, uint16_
     this->m_ray.origin = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_ray.dir = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_materials = materials;
-    this->m_faceIgnoreFlags = faceIgnoreFlags | 0x80;
+    this->m_faceIgnoreFlags = faceIgnoreFlags | SMOPoly::F_COLLIDE_HIT;
     this->unused_0054 = CMap::s_useSSE;
     this->m_ray.origin = seg.b;
     this->m_ray.dir = C3Vector(seg.t.x - seg.b.x, seg.t.y - seg.b.y, seg.t.z - seg.b.z);
@@ -582,7 +583,7 @@ BspQuery_Segment::BspQuery_Segment(SMOPoly* faces, C3Vector* vertexList, uint16_
 // VERIFY: c85c398d manual
 // OFFSET: 0x007C7AE0
 void CMapObjGroup::GetTrisFromQuery(World::TriData* triData, BspQuery* query, CMapObjDef* mapObjDef, uint32_t statusFlags) {
-    if (CWorld::enables & Enable_ShowQuery) {
+    if (CWorld::enables & Enable_CollisionDebug) {
         for (uint32_t i = 0; i < BspQuery::testFaceSub; i++) {
             uint32_t base = 3 * BspQuery::testFaces[i];
             C3Vector c = this->m_vertexList[this->m_indices[base + 2]] * mapObjDef->m_mat;
@@ -610,7 +611,7 @@ void CMapObjGroup::GetTrisFromQuery(World::TriData* triData, BspQuery* query, CM
 
     uint32_t hitCount = BspQuery::hitFaceSub;
 
-    if (!hitCount || hitCount > 8192) {
+    if (!hitCount || hitCount > BspQuery::MAX_FACES) {
         return;
     }
 
@@ -624,8 +625,8 @@ void CMapObjGroup::GetTrisFromQuery(World::TriData* triData, BspQuery* query, CM
 
     uint16_t* indices;
 
-    if (World::TriData::indexCursor + 3 * BspQuery::hitFaceSub >= 0xC000) {
-        World::TriData::statusFlags |= 1;
+    if (World::TriData::indexCursor + 3 * BspQuery::hitFaceSub >= TRI_QUERY_INDEX_CAPACITY) {
+        World::TriData::statusFlags |= TRI_QUERY_STATUS_OVERFLOW;
         indices = nullptr;
     } else {
         indices = &World::TriData::indexPool[World::TriData::indexCursor];
@@ -634,8 +635,8 @@ void CMapObjGroup::GetTrisFromQuery(World::TriData* triData, BspQuery* query, CM
 
     uint16_t* faceIndices;
 
-    if (World::TriData::faceIndexCursor + BspQuery::hitFaceSub >= 0x4000) {
-        World::TriData::statusFlags |= 1;
+    if (World::TriData::faceIndexCursor + BspQuery::hitFaceSub >= TRI_QUERY_FACE_INDEX_CAPACITY) {
+        World::TriData::statusFlags |= TRI_QUERY_STATUS_OVERFLOW;
         faceIndices = nullptr;
     } else {
         faceIndices = &World::TriData::faceIndexPool[World::TriData::faceIndexCursor];
@@ -943,9 +944,9 @@ int32_t CMapObjGroup::FindLiquidType() {
     int32_t count = this->m_liquidTiles.x * this->m_liquidTiles.y;
 
     for (int32_t i = 0; i < count; i++) {
-        uint8_t type = this->m_liquidTileList[i].m_flags & 0xF;
+        uint8_t type = this->m_liquidTileList[i].m_flags & SMOLTile::LIQUID_TYPE_MASK;
 
-        if (type != 0xF) {
+        if (type != SMOLTile::LIQUID_TYPE_NONE) {
             return type + 1;
         }
     }
@@ -956,7 +957,7 @@ int32_t CMapObjGroup::FindLiquidType() {
 // VERIFY: f0e93fe5 auto
 // OFFSET: 0x007C9BC0
 void CMapObjGroup::Init() {
-    this->m_unkLoadedFlag &= ~0xF;
+    this->m_unkLoadedFlag &= ~CMapObjGroup::RUNTIME_STATE_MASK;
     this->unused_0190 = 0.0f;
     this->m_flags = 0;
     this->m_bbox.b = C3Vector(0.0f, 0.0f, 0.0f);
@@ -998,7 +999,7 @@ void CMapObjGroup::SetVertexVB() {
     EGxVertexBufferFormat format = GxVBF_PNCT;
     uint32_t vertexSize = sizeof(CGxVertexPNCT);
 
-    if (this->m_unkLoadedFlag & 0x8) {
+    if (this->m_unkLoadedFlag & CMapObjGroup::EXTENDED_VERTEX_FORMAT) {
         format = GxVBF_PNC2T2;
         vertexSize = sizeof(CGxVertexPNC2T2);
     }
@@ -1047,9 +1048,9 @@ bool CMapObjGroup::GetTris(const C3Segment& seg, float* dist, uint32_t flags, ui
     bspQuery.m_aaBsp = &this->m_cAaBspNodePtr1;
     bspQuery.m_f = &query;
     bspQuery.GetFaceIndices(0, seg, this->m_cAaBspNodePtr1.m_aaBox);
-    this->GetTrisFromQuery(triData, &query, mapObjDef, 0);
+    this->GetTrisFromQuery(triData, &query, mapObjDef, TRI_QUERY_STATUS_NONE);
 
-    if ((flags & 0x30000) && (this->m_flags & 0x1000)) {
+    if ((flags & WORLD_QUERY_LIQUID_MASK) && (this->m_flags & CMapObjGroup::F_HAS_LIQUID)) {
         this->VectorIntersectLiquid(seg, dist, flags, triData, mapObjDef);
     }
 
@@ -1239,7 +1240,7 @@ bool CMapObjGroup::QueryLiquid(const C3Vector& pos, int32_t* liquidType, float* 
         return false;
     }
 
-    if ((this->m_liquidTileList[tile.y * this->m_liquidTiles.x + tile.x].m_flags & 0xF) == 0xF) {
+    if ((this->m_liquidTileList[tile.y * this->m_liquidTiles.x + tile.x].m_flags & SMOLTile::LIQUID_TYPE_MASK) == SMOLTile::LIQUID_TYPE_NONE) {
         return false;
     }
 
@@ -1277,7 +1278,7 @@ uint32_t CMapObjGroup::GetNumSharedTiles() {
 
     for (int32_t y = 0; y < this->m_liquidTiles.y; y++) {
         for (int32_t x = 0; x < this->m_liquidTiles.x; x++) {
-            if ((tile->m_flags & 0xF) != 0xF && (tile->m_flags & 0x80)) {
+            if ((tile->m_flags & SMOLTile::LIQUID_TYPE_MASK) != SMOLTile::LIQUID_TYPE_NONE && (tile->m_flags & SMOLTile::SHARED_MASK)) {
                 count++;
             }
 
@@ -1390,7 +1391,7 @@ void VBBList::FreeVBB(VBBList_Block* block) {
 // OFFSET: 0x007CBB30
 void VBBList::AssignBlock(VBBList_Block* block, VBBList_Block** slot, uint32_t itemSize, uint32_t itemCount) {
     VBBList_Block* rest = this->AllocBlock();
-    this->unk_001C.LinkNode(rest, 1, block);
+    this->unk_001C.LinkNode(rest, TSLIST_LINK_AFTER, block);
     rest->Set(1, block->m_capacity - itemSize * (itemCount + 1), itemSize * (itemCount + 1) + block->m_offset);
     block->Set(itemSize, itemCount + 1, block->m_offset);
     block->m_listHead = slot;
@@ -1444,11 +1445,11 @@ void VBBList::AllocVBB(VBBList_Block** slot, uint32_t itemSize, uint32_t itemCou
 // OFFSET: 0x007CBCB0
 void CMapObjGroup::AllocVB() {
     if (!this->m_vertsBlock) {
-        uint32_t vertexSize = (this->m_unkLoadedFlag & 0x8) ? sizeof(CGxVertexPNC2T2) : sizeof(CGxVertexPNCT);
+        uint32_t vertexSize = (this->m_unkLoadedFlag & CMapObjGroup::EXTENDED_VERTEX_FORMAT) ? sizeof(CGxVertexPNC2T2) : sizeof(CGxVertexPNCT);
         CMapObjGroup::vertexVBList.AllocVBB(&this->m_vertsBlock, vertexSize, this->m_vertexListCount);
     }
 
-    if (!CShaderEffect::s_enableShaders && (this->m_parent->m_header->m_flags & 0x2) && this->m_colorVertexList && this->m_transparencyBatchesCount && !this->m_transparencyVertsBlock) {
+    if (!CShaderEffect::s_enableShaders && (this->m_parent->m_header->m_flags & SMOHeader::UNIFIED_RENDER) && this->m_colorVertexList && this->m_transparencyBatchesCount && !this->m_transparencyVertsBlock) {
         uint32_t count = this->m_batchList[this->m_transparencyBatchesCount - 1].m_vertexEnd + 1;
         CMapObjGroup::vertexVBList.AllocVBB(&this->m_transparencyVertsBlock, GxVertexSize(GxVBF_PNCT), count);
     }
@@ -1559,7 +1560,7 @@ void CMapObjGroup::Clear() {
         occluder = next;
     }
 
-    this->m_unkLoadedFlag &= ~1u;
+    this->m_unkLoadedFlag &= ~CMapObjGroup::LOADED;
 }
 
 // VERIFY: ed59eece manual
@@ -1571,19 +1572,19 @@ CMapObjGroup::~CMapObjGroup() {
 // VERIFY: 0c68f770 auto
 // OFFSET: 0x007D7310
 int32_t CMapObjGroup::GetLiquidType(uint32_t groupLiquid) {
-    if (groupLiquid < 21 && groupLiquid) {
+    if (groupLiquid < NUM_BASIC_LIQUID_TYPES && groupLiquid) {
         switch ((groupLiquid - 1) & 3) {
-            case 0:
-                return (this->m_flags & 0x80000) ? 14 : 13;
+            case LIQUID_BASIC_TYPE_WATER:
+                return (this->m_flags & CMapObjGroup::F_USE_ALTERNATE_LIQUID_TYPE) ? LIQUID_TYPE_WMO_OCEAN : LIQUID_TYPE_WMO_WATER;
 
-            case 1:
-                return 14;
+            case LIQUID_BASIC_TYPE_OCEAN:
+                return LIQUID_TYPE_WMO_OCEAN;
 
-            case 2:
-                return 19;
+            case LIQUID_BASIC_TYPE_MAGMA:
+                return LIQUID_TYPE_WMO_MAGMA;
 
-            case 3:
-                return 20;
+            case LIQUID_BASIC_TYPE_SLIME:
+                return LIQUID_TYPE_WMO_SLIME;
         }
     }
 
@@ -1759,7 +1760,7 @@ bool CMapObjGroup::VectorIntersectLiquidTiles(const C3Segment& seg, float* t, ui
         uint32_t tileX = tiles[0];
         uint32_t tileY = tiles[1];
 
-        if ((this->m_liquidTileList[tileY * this->m_liquidTiles.x + tileX].m_flags & 0xF) != 0xF) {
+        if ((this->m_liquidTileList[tileY * this->m_liquidTiles.x + tileX].m_flags & SMOLTile::LIQUID_TYPE_MASK) != SMOLTile::LIQUID_TYPE_NONE) {
             uint32_t base = tileX + tileY * this->m_liquidVerts.x;
 
             for (uint32_t j = 0; j < 2; j++) {
@@ -2022,7 +2023,7 @@ bool CMapObjGroup::GetLiquidTris(const CAaBox& box, uint32_t flags, World::TriDa
                     }
 
                     for (uint32_t k = 0; k < 3; k++) {
-                        uint16_t index = (tileVert - this->m_liquidVertArray->m_verts.m_data) + vertTris[j][k];
+                        uint16_t index = static_cast<uint16_t>((tileVert - this->m_liquidVertArray->m_verts.m_data) + vertTris[j][k]);
                         indices[batch->m_indexCount++] = index;
                         batch->m_minVertexIndex = batch->m_minVertexIndex < index ? batch->m_minVertexIndex : index;
                         batch->m_maxVertexIndex = batch->m_maxVertexIndex > index ? batch->m_maxVertexIndex : index;
@@ -2162,7 +2163,7 @@ bool CMapObjGroup::GetLiquidTris(const CFrustum& frustum, uint32_t flags, World:
                     }
 
                     for (uint32_t k = 0; k < 3; k++) {
-                        uint16_t index = (tileVert - this->m_liquidVertArray->m_verts.m_data) + vertTris[j][k];
+                        uint16_t index = static_cast<uint16_t>((tileVert - this->m_liquidVertArray->m_verts.m_data) + vertTris[j][k]);
                         indices[batch->m_indexCount++] = index;
                         batch->m_minVertexIndex = batch->m_minVertexIndex < index ? batch->m_minVertexIndex : index;
                         batch->m_maxVertexIndex = batch->m_maxVertexIndex > index ? batch->m_maxVertexIndex : index;
@@ -2228,7 +2229,7 @@ void BspQuery_Volume<CAaBox>::operator()(uint16_t face) {
         return;
     }
 
-    if (BspQuery::testFaceSub >= 0x2000) {
+    if (BspQuery::testFaceSub >= BspQuery::MAX_FACES) {
         if (this->m_overflowFlags) {
             *this->m_overflowFlags |= 1;
         }
@@ -2237,7 +2238,7 @@ void BspQuery_Volume<CAaBox>::operator()(uint16_t face) {
     }
 
     BspQuery::testFaces[BspQuery::testFaceSub++] = face;
-    this->m_faces[face].m_flags |= 0x80;
+    this->m_faces[face].m_flags |= SMOPoly::F_COLLIDE_HIT;
     const uint16_t* indices = &this->m_indices[3 * face];
 
     if (!TriangleOutsideAaBox(this->m_volume, &this->m_vertexList[indices[0]], &this->m_vertexList[indices[1]], &this->m_vertexList[indices[2]])) {
@@ -2305,7 +2306,7 @@ bool BspQuery_Volume<CAaBox>::GetFaceIndicesUsingCache(const CAaBsp& aaBsp, cons
             continue;
         }
 
-        if (BspQuery::testFaceSub >= 0x2000) {
+        if (BspQuery::testFaceSub >= BspQuery::MAX_FACES) {
             if (this->m_overflowFlags) {
                 *this->m_overflowFlags |= 1;
             }
@@ -2314,7 +2315,7 @@ bool BspQuery_Volume<CAaBox>::GetFaceIndicesUsingCache(const CAaBsp& aaBsp, cons
         }
 
         BspQuery::testFaces[BspQuery::testFaceSub++] = face;
-        this->m_faces[face].m_flags |= 0x80;
+        this->m_faces[face].m_flags |= SMOPoly::F_COLLIDE_HIT;
         const uint16_t* verts = &digest->m_faceVertexIndices[3 * i];
 
         if (!(outcodes[verts[0]] & outcodes[verts[1]] & outcodes[verts[2]] & 0x3F)) {
@@ -2329,21 +2330,21 @@ bool BspQuery_Volume<CAaBox>::GetFaceIndicesUsingCache(const CAaBsp& aaBsp, cons
 // OFFSET: 0x007CB7B0
 bool CMapObjGroup::GetTris(const CAaBox& box, uint32_t flags, uint16_t faceIgnoreFlags, World::TriData* triData, CMapObjDef* mapObjDef) {
     uint32_t batchCount = World::TriData::nBatches;
-    int32_t overflow = 0;
+    int32_t overflow = TRI_QUERY_STATUS_NONE;
     BspQuery_Volume<CAaBox> query;
     query.m_overflowFlags = &overflow;
     query.m_faces = this->m_polyList;
     query.m_vertexList = this->m_vertexList;
     query.m_indices = this->m_indices;
     query.m_volume = &box;
-    query.m_faceIgnoreFlags = faceIgnoreFlags | 0x80;
+    query.m_faceIgnoreFlags = faceIgnoreFlags | SMOPoly::F_COLLIDE_HIT;
     CAaBsp_Query_AaBox<BspQuery_Volume<CAaBox>> bspQuery;
     bspQuery.m_aaBsp = &this->m_cAaBspNodePtr1;
     bspQuery.m_f = &query;
     bspQuery.GetFaceIndices(0, box, this->m_cAaBspNodePtr1.m_aaBox);
     this->GetTrisFromQuery(triData, &query, mapObjDef, overflow);
 
-    if (flags & 0x30000) {
+    if (flags & WORLD_QUERY_LIQUID_MASK) {
         this->GetLiquidTris(box, flags, triData, mapObjDef);
     }
 
@@ -2365,7 +2366,7 @@ bool CMapObjGroup::Intersect(C3Segment& seg, float* dist, uint32_t flags, uint16
         hit = true;
     }
 
-    if ((flags & 0x30000) && (this->m_flags & 0x1000) && this->VectorIntersectLiquid(seg, dist, flags, nullptr, nullptr)) {
+    if ((flags & WORLD_QUERY_LIQUID_MASK) && (this->m_flags & CMapObjGroup::F_HAS_LIQUID) && this->VectorIntersectLiquid(seg, dist, flags, nullptr, nullptr)) {
         *hitIndex = 0;
         hit = true;
     }
@@ -2461,7 +2462,7 @@ bool CMapObjGroup::QueryLighting(const C3Vector& point, uint16_t face, CImVector
     uint32_t b = 2 * color->b;
     CMapObj* parent = this->m_parent;
 
-    if (parent->m_header->m_flags & 0x2) {
+    if (parent->m_header->m_flags & SMOHeader::UNIFIED_RENDER) {
         r += parent->m_argbColor.r;
         g += parent->m_argbColor.g;
         b += parent->m_argbColor.b;
@@ -2470,7 +2471,7 @@ bool CMapObjGroup::QueryLighting(const C3Vector& point, uint16_t face, CImVector
     color->r = r >= 0xFF ? 0xFF : static_cast<uint8_t>(r);
     color->g = g >= 0xFF ? 0xFF : static_cast<uint8_t>(g);
     color->b = b >= 0xFF ? 0xFF : static_cast<uint8_t>(b);
-    *flag = this->m_polyList[face].m_flags & 0x1;
+    *flag = this->m_polyList[face].m_flags & SMOPoly::F_TRANSITION;
     return true;
 }
 
@@ -2499,7 +2500,7 @@ void BspQuery_Volume<CWFrustum>::operator()(uint16_t face) {
         return;
     }
 
-    if (BspQuery::testFaceSub >= 0x2000) {
+    if (BspQuery::testFaceSub >= BspQuery::MAX_FACES) {
         if (this->m_overflowFlags) {
             *this->m_overflowFlags |= 1;
         }
@@ -2508,7 +2509,7 @@ void BspQuery_Volume<CWFrustum>::operator()(uint16_t face) {
     }
 
     BspQuery::testFaces[BspQuery::testFaceSub++] = face;
-    this->m_faces[face].m_flags |= 0x80;
+    this->m_faces[face].m_flags |= SMOPoly::F_COLLIDE_HIT;
     const uint16_t* indices = &this->m_indices[3 * face];
 
     if (!QueryCull(this->m_volume, &this->m_vertexList[indices[0]], &this->m_vertexList[indices[1]], &this->m_vertexList[indices[2]])) {
@@ -2521,15 +2522,15 @@ void BspQuery_Volume<CWFrustum>::operator()(uint16_t face) {
 bool CMapObjGroup::GetTris(const CWFrustum& frustum, uint32_t flags, uint16_t faceIgnoreFlags, World::TriData* triData, CMapObjDef* mapObjDef) {
     uint32_t batchCount = World::TriData::nBatches;
 
-    if (flags & 0xF0) {
-        int32_t overflow = 0;
+    if (flags & WORLD_QUERY_WMO_MASK) {
+        int32_t overflow = TRI_QUERY_STATUS_NONE;
         BspQuery_Volume<CWFrustum> query;
         query.m_overflowFlags = &overflow;
         query.m_faces = this->m_polyList;
         query.m_vertexList = this->m_vertexList;
         query.m_indices = this->m_indices;
         query.m_volume = &frustum;
-        query.m_faceIgnoreFlags = faceIgnoreFlags | 0x80;
+        query.m_faceIgnoreFlags = faceIgnoreFlags | SMOPoly::F_COLLIDE_HIT;
         CAaBox box = CAaBox::Bounding(frustum.corners, 8);
         CAaBsp_Query_AaBox<BspQuery_Volume<CWFrustum>> bspQuery;
         bspQuery.m_aaBsp = &this->m_cAaBspNodePtr1;
@@ -2538,7 +2539,7 @@ bool CMapObjGroup::GetTris(const CWFrustum& frustum, uint32_t flags, uint16_t fa
         this->GetTrisFromQuery(triData, &query, mapObjDef, overflow);
     }
 
-    if (flags & 0x30000) {
+    if (flags & WORLD_QUERY_LIQUID_MASK) {
         this->GetLiquidTris(frustum, flags, triData, mapObjDef);
     }
 

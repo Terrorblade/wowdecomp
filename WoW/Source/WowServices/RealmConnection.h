@@ -16,15 +16,28 @@ struct REALM_INFO;
 
 class CHARACTER_INFO {
     public:
+    enum RecordLimits : int32_t {
+        NAME_BYTE_CAPACITY = 48,
+        INVENTORY_DISPLAY_SLOT_COUNT = 23,
+    };
+
+    enum CustomizationFlags : uint32_t {
+        CUSTOMIZE_FLAG_APPEARANCE = 0x1,
+        CUSTOMIZE_FLAG_FACTION_CHANGE = 0x10000,
+        CUSTOMIZE_FLAG_RACE_CHANGE = 0x100000,
+        CUSTOMIZE_RACE_OR_FACTION_MASK = 0x110000,
+        CUSTOMIZE_RETAIN_MASK = 0xFFEEFFFE,
+    };
+
     /* 0000 */ WOWGUID m_guid;
-    /* 0008 */ char m_name [48];
+    /* 0008 */ char m_name [CHARACTER_INFO::NAME_BYTE_CAPACITY];
     /* 0038 */ uint32_t m_mapID;
     /* 003C */ uint32_t m_zoneID;
     /* 0040 */ uint32_t m_guildID;
     /* 0044 */ C3Vector m_position;
-    /* 0050 */ uint32_t m_inventoryItemDisplayID [23];
-    /* 00AC */ uint32_t m_inventoryItemType [23];
-    /* 0108 */ uint32_t m_inventoryItemVisualID [23];
+    /* 0050 */ uint32_t m_inventoryItemDisplayID [CHARACTER_INFO::INVENTORY_DISPLAY_SLOT_COUNT];
+    /* 00AC */ uint32_t m_inventoryItemType [CHARACTER_INFO::INVENTORY_DISPLAY_SLOT_COUNT];
+    /* 0108 */ uint32_t m_inventoryItemVisualID [CHARACTER_INFO::INVENTORY_DISPLAY_SLOT_COUNT];
     /* 0164 */ uint32_t m_petDisplayInfoID;
     /* 0168 */ uint32_t m_petExperienceLevel;
     /* 016C */ uint32_t m_petCreatureFamilyID;
@@ -45,6 +58,28 @@ class CHARACTER_INFO {
 
 class RealmConnection : public NetClient {
     public:
+    enum CharacterListLimits : int32_t {
+        CHARACTER_ENUM_COUNT_LIMIT = 10,
+    };
+
+    enum : int32_t {
+        BILLING_TYPE_UNKNOWN_0 = 0,
+        BILLING_TYPE_UNKNOWN_1 = 1,
+        BILLING_TYPE_UNKNOWN_2 = 2,
+        BILLING_TYPE_UNKNOWN_3 = 3,
+        BILLING_TYPE_UNKNOWN_4 = 4,
+    };
+
+    enum : uint8_t {
+        BILLING_FLAGS_NONE = 0,
+        BILLING_FLAG_UNKNOWN_1 = 0x2,
+        BILLING_FLAG_UNKNOWN_2 = 0x4,
+        BILLING_FLAG_UNKNOWN_3 = 0x8,
+        BILLING_FLAG_UNKNOWN_4 = 0x10,
+        BILLING_FLAG_UNKNOWN_5 = 0x20,
+        BILLING_PLAN_MASK = 0x16,
+    };
+
     struct REALMCONNECTIONNODE : public TSLinkedNode<RealmConnection::REALMCONNECTIONNODE> {
         /* 0008 */ RealmConnection* m_connection;
 

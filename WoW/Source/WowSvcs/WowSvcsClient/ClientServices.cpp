@@ -36,6 +36,7 @@
 #include "WoW/Source/WowServices/LoginResponse.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/AccountData.h"
 #include "GameVersion.h"
+#include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/Types.h"
 
 // STATIC: 0x00AD91F0
 static const char* s_errorTokens[] = {
@@ -245,143 +246,143 @@ static void LogConnectionStatus(WOWCS_OPS op, int32_t errorCode, int32_t initiat
     }
 
     switch (errorCode) {
-        case 0:
+        case RESPONSE_SUCCESS:
             SStrCopy(errorText, "RESPONSE_SUCCESS", sizeof(errorText));
             break;
 
-        case 1:
+        case RESPONSE_FAILURE:
             SStrCopy(errorText, "RESPONSE_FAILURE", sizeof(errorText));
             break;
 
-        case 2:
+        case RESPONSE_CANCELLED:
             SStrCopy(errorText, "RESPONSE_CANCELLED", sizeof(errorText));
             break;
 
-        case 3:
+        case RESPONSE_DISCONNECTED:
             SStrCopy(errorText, "RESPONSE_DISCONNECTED", sizeof(errorText));
             break;
 
-        case 4:
+        case RESPONSE_FAILED_TO_CONNECT:
             SStrCopy(errorText, "RESPONSE_FAILED_TO_CONNECT", sizeof(errorText));
             break;
 
-        case 5:
+        case RESPONSE_CONNECTED:
             SStrCopy(errorText, "RESPONSE_CONNECTED", sizeof(errorText));
             break;
 
-        case 6:
+        case RESPONSE_VERSION_MISMATCH:
             SStrCopy(errorText, "RESPONSE_VERSION_MISMATCH", sizeof(errorText));
             break;
 
-        case 7:
+        case CSTATUS_CONNECTING:
             SStrCopy(errorText, "CSTATUS_CONNECTING", sizeof(errorText));
             break;
 
-        case 8:
+        case CSTATUS_NEGOTIATING_SECURITY:
             SStrCopy(errorText, "CSTATUS_NEGOTIATING_SECURITY", sizeof(errorText));
             break;
 
-        case 9:
+        case CSTATUS_NEGOTIATION_COMPLETE:
             SStrCopy(errorText, "CSTATUS_NEGOTIATION_COMPLETE", sizeof(errorText));
             break;
 
-        case 10:
+        case CSTATUS_NEGOTIATION_FAILED:
             SStrCopy(errorText, "CSTATUS_NEGOTIATION_FAILED", sizeof(errorText));
             break;
 
-        case 11:
+        case CSTATUS_AUTHENTICATING:
             SStrCopy(errorText, "CSTATUS_AUTHENTICATING", sizeof(errorText));
             break;
 
-        case 12:
+        case AUTH_OK:
             SStrCopy(errorText, "AUTH_OK", sizeof(errorText));
             break;
 
-        case 13:
+        case AUTH_FAILED:
             SStrCopy(errorText, "AUTH_FAILED", sizeof(errorText));
             break;
 
-        case 14:
+        case AUTH_REJECT:
             SStrCopy(errorText, "AUTH_REJECT", sizeof(errorText));
             break;
 
-        case 15:
+        case AUTH_BAD_SERVER_PROOF:
             SStrCopy(errorText, "AUTH_BAD_SERVER_PROOF", sizeof(errorText));
             break;
 
-        case 16:
+        case AUTH_UNAVAILABLE:
             SStrCopy(errorText, "AUTH_UNAVAILABLE", sizeof(errorText));
             break;
 
-        case 17:
+        case AUTH_SYSTEM_ERROR:
             SStrCopy(errorText, "AUTH_SYSTEM_ERROR", sizeof(errorText));
             break;
 
-        case 18:
+        case AUTH_BILLING_ERROR:
             SStrCopy(errorText, "AUTH_BILLING_ERROR", sizeof(errorText));
             break;
 
-        case 19:
+        case AUTH_BILLING_EXPIRED:
             SStrCopy(errorText, "AUTH_BILLING_EXPIRED", sizeof(errorText));
             break;
 
-        case 20:
+        case AUTH_VERSION_MISMATCH:
             SStrCopy(errorText, "AUTH_VERSION_MISMATCH", sizeof(errorText));
             break;
 
-        case 21:
+        case AUTH_UNKNOWN_ACCOUNT:
             SStrCopy(errorText, "AUTH_UNKNOWN_ACCOUNT", sizeof(errorText));
             break;
 
-        case 22:
+        case AUTH_INCORRECT_PASSWORD:
             SStrCopy(errorText, "AUTH_INCORRECT_PASSWORD", sizeof(errorText));
             break;
 
-        case 23:
+        case AUTH_SESSION_EXPIRED:
             SStrCopy(errorText, "AUTH_SESSION_EXPIRED", sizeof(errorText));
             break;
 
-        case 24:
+        case AUTH_SERVER_SHUTTING_DOWN:
             SStrCopy(errorText, "AUTH_SERVER_SHUTTING_DOWN", sizeof(errorText));
             break;
 
-        case 25:
+        case AUTH_ALREADY_LOGGING_IN:
             SStrCopy(errorText, "AUTH_ALREADY_LOGGING_IN", sizeof(errorText));
             break;
 
-        case 26:
+        case AUTH_LOGIN_SERVER_NOT_FOUND:
             SStrCopy(errorText, "AUTH_LOGIN_SERVER_NOT_FOUND", sizeof(errorText));
             break;
 
-        case 27:
+        case AUTH_WAIT_QUEUE:
             SStrCopy(errorText, "AUTH_WAIT_QUEUE", sizeof(errorText));
             break;
 
-        case 35:
+        case REALM_LIST_IN_PROGRESS:
             SStrCopy(errorText, "REALM_LIST_IN_PROGRESS", sizeof(errorText));
             break;
 
-        case 36:
+        case REALM_LIST_SUCCESS:
             SStrCopy(errorText, "REALM_LIST_SUCCESS", sizeof(errorText));
             break;
 
-        case 37:
+        case REALM_LIST_FAILED:
             SStrCopy(errorText, "REALM_LIST_FAILED", sizeof(errorText));
             break;
 
-        case 38:
+        case REALM_LIST_INVALID:
             SStrCopy(errorText, "REALM_LIST_INVALID", sizeof(errorText));
             break;
 
-        case 39:
+        case REALM_LIST_REALM_NOT_FOUND:
             SStrCopy(errorText, "REALM_LIST_REALM_NOT_FOUND", sizeof(errorText));
             break;
 
-        case 74:
+        case CHAR_DELETE_FAILED_GUILD_LEADER:
             SStrCopy(errorText, "CHAR_DELETE_FAILED_GUILD_LEADER", sizeof(errorText));
             break;
 
-        case 75:
+        case CHAR_DELETE_FAILED_ARENA_CAPTAIN:
             SStrCopy(errorText, "CHAR_DELETE_FAILED_ARENA_CAPTAIN", sizeof(errorText));
             break;
 
@@ -423,7 +424,7 @@ void ClientServices::LoadCDKey() {
 
     SArchive* archive;
 
-    if (!SFile::OpenArchive("Data\\base.MPQ", 100, 0x800, &archive) || !archive) {
+    if (!SFile::OpenArchive("Data\\base.MPQ", 100, ARCHIVE_FLAG_INITIALIZE_TABLES_ON_OPEN, &archive) || !archive) {
         return;
     }
 
@@ -523,7 +524,7 @@ void ClientServices::ClearMessageHandler(NETMESSAGE msgId) {
 // OFFSET: 0x006B0DC0
 const char* ClientServices::GetSelectedRealmName() {
     if (!ClientServices::s_realmNameVar) {
-        ClientServices::s_realmNameVar = CVar::Register("realmName", "Last realm connected to", 0, "", nullptr, CATEGORY_NET, false, nullptr, false);
+        ClientServices::s_realmNameVar = CVar::Register("realmName", "Last realm connected to", CVAR_NONE, "", nullptr, CATEGORY_NET, false, nullptr, false);
     }
 
     return ClientServices::s_realmNameVar->m_stringValue.m_str;
@@ -802,8 +803,8 @@ int32_t SendBugOpcode(uint32_t suggestion, const char* text) {
         }
     }
 
-    uint32_t infoSize = SStrLen(info) + 1;
-    uint32_t textSize = SStrLen(text) + 1;
+    uint32_t infoSize = static_cast<uint32_t>(SStrLen(info) + 1);
+    uint32_t textSize = static_cast<uint32_t>(SStrLen(text) + 1);
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_BUG));
     msg.Put(suggestion);
@@ -839,24 +840,24 @@ void ClientServices::Logon(const char* username, const char* password) {
 
     if (ClientServices::s_decorateAccountName->m_intValue) {
         switch (s_locale) {
-            case 0:
-            case 7:
+            case LOCALE_en_US:
+            case LOCALE_es_MX:
                 SStrPrintf(accountName, sizeof(accountName), s_region == 3 ? "%s#EU" : "%s#US", username);
                 break;
 
-            case 1:
+            case LOCALE_ko_KR:
                 SStrPrintf(accountName, sizeof(accountName), "%s#KR", username);
                 break;
 
-            case 2:
-            case 3:
-            case 6:
-            case 8:
+            case LOCALE_fr_FR:
+            case LOCALE_de_DE:
+            case LOCALE_es_ES:
+            case LOCALE_ru_RU:
                 SStrPrintf(accountName, sizeof(accountName), "%s#EU", username);
                 break;
 
-            case 4:
-            case 5:
+            case LOCALE_zh_CN:
+            case LOCALE_zh_TW:
                 SStrPrintf(accountName, sizeof(accountName), "%s#CN", username);
                 break;
 
@@ -908,7 +909,7 @@ void ClientServices::SendPacket(CDataStore* msg) {
 // OFFSET: 0x004D9FE0
 int32_t ClientServices::GetLoginServerType() {
     if (!ClientServices::LoginConnection()) {
-        return 0;
+        return LOGIN_SERVER_GRUNT;
     }
 
     return ClientServices::LoginConnection()->GetLoginServerType();
@@ -1078,7 +1079,7 @@ bool ClientServices::SetSelectedRealmInfo(int32_t force) {
         REALM_INFO* realm = &response->m_realmList.m_data[i];
 
         if (!SStrCmpUTF8I(realm->m_realmName, ClientServices::GetSelectedRealmName(), STORM_MAX_STR)) {
-            if (!(realm->m_flags & 0x1) || force) {
+            if (!(realm->m_flags & REALM_FLAG_INVALID) || force) {
                 ClientServices::m_selectRealmInfoValid = true;
                 memcpy(&ClientServices::m_selectRealmInfo, realm, sizeof(ClientServices::m_selectRealmInfo));
                 return true;
@@ -1452,7 +1453,7 @@ void ClientConnection::HandleLogoutComplete() {
     this->m_loggingOut = 0;
 
     if (this->m_quitAfterLogout) {
-        ClientPostClose(0);
+        ClientPostClose(STARTUP_STRING_NONE);
     }
 }
 
@@ -1618,35 +1619,35 @@ void ClientConnection::HandleCharacterLoginFailed(uint8_t result) {
     }
 
     switch (result) {
-        case 1:
+        case ClientConnection::LOGIN_FAILURE_UI_NO_WORLD:
             this->Cancel(CHAR_LOGIN_NO_WORLD);
             break;
 
-        case 2:
+        case ClientConnection::LOGIN_FAILURE_UI_DUPLICATE_CHARACTER:
             this->Cancel(CHAR_LOGIN_DUPLICATE_CHARACTER);
             break;
 
-        case 3:
+        case ClientConnection::LOGIN_FAILURE_UI_NO_INSTANCES:
             this->Cancel(CHAR_LOGIN_NO_INSTANCES);
             break;
 
-        case 4:
+        case ClientConnection::LOGIN_FAILURE_UI_DISABLED:
             this->Cancel(CHAR_LOGIN_DISABLED);
             break;
 
-        case 5:
+        case ClientConnection::LOGIN_FAILURE_UI_NO_CHARACTER:
             this->Cancel(CHAR_LOGIN_NO_CHARACTER);
             break;
 
-        case 6:
+        case ClientConnection::LOGIN_FAILURE_UI_LOCKED_FOR_TRANSFER:
             this->Cancel(CHAR_LOGIN_LOCKED_FOR_TRANSFER);
             break;
 
-        case 7:
+        case ClientConnection::LOGIN_FAILURE_UI_LOCKED_BY_BILLING:
             this->Cancel(CHAR_LOGIN_LOCKED_BY_BILLING);
             break;
 
-        case 8:
+        case ClientConnection::LOGIN_FAILURE_UI_LOCKED_BY_MOBILE_AH:
             this->Cancel(CHAR_LOGIN_LOCKED_BY_MOBILE_AH);
             break;
 

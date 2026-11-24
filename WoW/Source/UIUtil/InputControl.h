@@ -32,6 +32,14 @@ class CFocusEvent;
 
 class CGInputControl {
     public:
+
+    enum JOYSTICK_MOUSE_FLAGS : int32_t {
+        JOYSTICK_MOUSE_NONE = 0,
+        JOYSTICK_MOUSE_ACTIVE = 0x1,
+        JOYSTICK_MOUSE_ALLOWED = 0x2,
+        JOYSTICK_MOUSE_INITIAL_FLAGS = 3,
+    };
+
     void SetMouselookOverrideBindings();
     void CameraTurnPlayer(uint32_t time, float facing);
     void SetPlayerPitch(CGUnit_C* unit, uint32_t time, float pitch);

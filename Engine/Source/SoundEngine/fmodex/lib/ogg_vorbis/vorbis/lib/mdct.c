@@ -56,7 +56,7 @@ int FMOD_mdct_init(mdct_lookup *lookup,int n){
   DATA_TYPE *T=_ogg_malloc(sizeof(*T)*(n+n/4));
   int i;
   int n2=n>>1;
-  int log2n=lookup->log2n=rint(log((float)n)/log(2.f));
+  int log2n=lookup->log2n=(int)(rint(log((float)n)/log(2.f)));
 
   if (!bitrev || !T)
   {
@@ -70,14 +70,14 @@ int FMOD_mdct_init(mdct_lookup *lookup,int n){
 /* trig lookups... */
 
   for(i=0;i<n/4;i++){
-    T[i*2]=FLOAT_CONV(cos((M_PI/n)*(4*i)));
-    T[i*2+1]=FLOAT_CONV(-sin((M_PI/n)*(4*i)));
-    T[n2+i*2]=FLOAT_CONV(cos((M_PI/(2*n))*(2*i+1)));
-    T[n2+i*2+1]=FLOAT_CONV(sin((M_PI/(2*n))*(2*i+1)));
+    T[i*2]=(float)(FLOAT_CONV(cos((M_PI/n)*(4*i))));
+    T[i*2+1]=(float)(FLOAT_CONV(-sin((M_PI/n)*(4*i))));
+    T[n2+i*2]=(float)(FLOAT_CONV(cos((M_PI/(2*n))*(2*i+1))));
+    T[n2+i*2+1]=(float)(FLOAT_CONV(sin((M_PI/(2*n))*(2*i+1))));
   }
   for(i=0;i<n/8;i++){
-    T[n+i*2]=FLOAT_CONV(cos((M_PI/n)*(4*i+2))*.5);
-    T[n+i*2+1]=FLOAT_CONV(-sin((M_PI/n)*(4*i+2))*.5);
+    T[n+i*2]=(float)(FLOAT_CONV(cos((M_PI/n)*(4*i+2))*.5));
+    T[n+i*2+1]=(float)(FLOAT_CONV(-sin((M_PI/n)*(4*i+2))*.5));
   }
 
   /* bitreverse lookup... */

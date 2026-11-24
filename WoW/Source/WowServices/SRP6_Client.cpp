@@ -14,13 +14,13 @@ int32_t SRP6_Client::BeginAuthentication(const char* accountName, const char* pa
 
     SHA1_CONTEXT context;
     SHA1_Init(&context);
-    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(accountName), strlen(accountName));
+    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(accountName), static_cast<uint32_t>(strlen(accountName)));
     SHA1_Final(this->m_accountNameHash, &context);
 
     SHA1_Init(&context);
-    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(accountName), strlen(accountName));
+    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(accountName), static_cast<uint32_t>(strlen(accountName)));
     SHA1_Update(&context, reinterpret_cast<const uint8_t*>(":"), 1);
-    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(password), strlen(password));
+    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(password), static_cast<uint32_t>(strlen(password)));
     SHA1_Final(this->m_credentialsHash, &context);
 
     return 0;

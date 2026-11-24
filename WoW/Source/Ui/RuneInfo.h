@@ -2,12 +2,24 @@
 #define WOW_SOURCE_UI_RUNEINFO_H
 
 #include <cstdint>
+constexpr int32_t NUM_INITIAL_RUNES = 6;
+constexpr int32_t RUNE_BASE_COOLDOWN_MS = 10000;
+constexpr float RUNE_BASE_COOLDOWN_MS_FLOAT = 10000.0f;
 
 class CDataStore;
 class SpellRec;
 
 class CGRuneInfo {
     public:
+
+    enum RUNE_TYPE : int32_t {
+        RUNE_TYPE_BLOOD = 0,
+        RUNE_TYPE_UNHOLY = 1,
+        RUNE_TYPE_FROST = 2,
+        RUNE_TYPE_DEATH = 3,
+        NUM_RUNE_TYPES = 4,
+    };
+
     static void LeaveWorld();
     static int32_t m_runes[8];
     static void ConvertRune(uint8_t rune, uint8_t type);

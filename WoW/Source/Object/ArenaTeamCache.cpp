@@ -1,5 +1,6 @@
 #include "ArenaTeamCache.h"
 #include "Engine/Source/Base/CDataStore.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: ca1384a9 auto
 // OFFSET: 0x0098D1B0

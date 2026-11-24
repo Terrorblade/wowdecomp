@@ -11,6 +11,14 @@
 
 class WowConnectionNet {
     public:
+
+    enum SERVICE_FLAGS : uint32_t {
+        SERVICE_WRITES = 0x1,
+        SERVICE_READS = 0x2,
+        SERVICE_EXCEPTIONS = 0x4,
+        SERVICE_DISCONNECT = 0x8,
+    };
+
     // Not packed like the 32-bit original: that put m_lock's mutex at an odd offset, which faults on arm64.
     struct WORKER {
         /* 0000 */ WowConnectionNet* m_owner;

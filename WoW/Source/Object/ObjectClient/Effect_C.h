@@ -38,6 +38,37 @@ enum UNITEFFECTSPECIALS : int32_t {
 
 class CEffect {
     public:
+
+    enum EFFECT_FLAGS : uint32_t {
+        EFFECT_NONE                                  = 0x00000000u,
+        EFFECT_SOUND_LOOPING                         = 0x00000001u,
+        EFFECT_WORLD_SPACE                           = 0x00000002u,
+        EFFECT_FREEZE_ANIMATION                      = 0x00000004u,
+        EFFECT_LOOT_ART                              = 0x00000008u,
+        EFFECT_PLAY_CAMERA_SHAKE                     = 0x00000010u,
+        EFFECT_CALLBACK_LIFETIME                     = 0x00000020u,
+        EFFECT_PRECAST                               = 0x00000040u,
+        EFFECT_SET_SPECIAL_IDLE                      = 0x00000080u,
+        EFFECT_DESTROY_PENDING                       = 0x00000100u,
+        EFFECT_SCALE_TO_TARGET                       = 0x00000200u,
+        EFFECT_SUPPRESS_SOUND                        = 0x00000400u,
+        EFFECT_POST_INITIALIZED                      = 0x00000800u,
+        EFFECT_AURA_ANIMATION                        = 0x00001000u,
+        EFFECT_USE_SUPPLIED_POSITION                 = 0x00002000u,
+        EFFECT_FOLLOW_SOURCE_POSITION                = 0x00004000u,
+        EFFECT_FIXED_FACING                          = 0x00008000u,
+        EFFECT_ATTACHMENT_OFFSET                     = 0x00010000u,
+        EFFECT_PERSIST_ON_PARTIAL_CLEAR              = 0x00020000u,
+        EFFECT_LIGHTNING_ENDPOINT                  = 0x00040000u,
+        EFFECT_ITEM_VISUAL                           = 0x00080000u,
+        EFFECT_SOUND_ONLY                            = 0x00100000u,
+        EFFECT_DETACHED_SOUND                        = 0x00200000u,
+        EFFECT_IGNORE_EMISSION_DISTANCE              = 0x00400000u,
+        EFFECT_MOUNT_AURA                            = 0x00800000u,
+        EFFECT_RAW_ANIMATION_ID                      = 0x01000000u,
+        EFFECT_IGNORE_PARENT_EFFECTIVE_ALPHA         = 0x02000000u,
+    };
+
     void ApplyItemVisual();
     static void ApplyItemVisualByItemId(int32_t id, const WOWGUID& guid, void* param, bool success);
     static void MountTransitionCacheCB(int32_t id, const WOWGUID& guid, void* param, bool success);

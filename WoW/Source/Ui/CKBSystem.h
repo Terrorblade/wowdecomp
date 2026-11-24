@@ -2,6 +2,7 @@
 #define WOW_SOURCE_UI_CKBSYSTEM_H
 
 #include "Engine/Source/Base/DynamicString.h"
+#include "WoW/Source/Net/Types.h"
 
 extern CDynamicString s_motd;
 extern CDynamicString s_serverStatus;

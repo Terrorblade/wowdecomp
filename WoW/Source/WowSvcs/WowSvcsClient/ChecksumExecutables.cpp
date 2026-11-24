@@ -4,6 +4,12 @@
 #include "Engine/Source/Os/OsVersionHash.h"
 #include "WoW/Source/WowServices/HMAC.h"
 
+enum CHECKSUM_FILE_TYPE : int32_t {
+    CHECKSUM_FILE_NONE = 0,
+    CHECKSUM_FILE_ON_DISK = 1,
+    CHECKSUM_FILE_LOADED = 2,
+};
+
 struct ChecksumFile {
     /* 0000 */ const char* m_path;
     /* 0004 */ int32_t m_type;
@@ -21,7 +27,7 @@ void ChecksumExecutables(const uint8_t* challenge, uint32_t challengeLength, uin
     for (uint32_t i = 0; i < sizeof(s_files) / sizeof(s_files[0]); i++) {
         if (s_files[i].m_type) {
             IOsVersionHashCallback2<HMAC<SHA1>> callback(&hmac);
-            IOsVersionChecksum(callback, s_files[i].m_path, s_files[i].m_type == 2);
+            IOsVersionChecksum(callback, s_files[i].m_path, s_files[i].m_type == CHECKSUM_FILE_LOADED);
         }
     }
 

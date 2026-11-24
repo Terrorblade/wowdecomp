@@ -39,7 +39,7 @@ static const uint32_t s_auctionEntryWireSize = 148;
 static const AuctionSortCriteria* s_activeSortCriteria;
 
 // STATIC: 0x00A394BC
-static const uint32_t s_depositRunTimes[3] = { 720, 1440, 2880 };
+static const uint32_t s_depositRunTimes[CGAuctionHouse::NUM_RUN_TIMES] = { CGAuctionHouse::RUN_TIME_SHORT, CGAuctionHouse::RUN_TIME_DEFAULT, CGAuctionHouse::RUN_TIME_LONG };
 
 // STATIC: 0x00C0E740
 uint32_t CGAuctionHouse::m_multisellRemaining;
@@ -108,10 +108,10 @@ int32_t CGAuctionHouse::m_selectedOwnedItem = -1;
 int32_t CGAuctionHouse::m_selectedBidItem = -1;
 
 // STATIC: 0x00C0E728
-uint32_t CGAuctionHouse::m_lastQueryTime[3];
+uint32_t CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::NUM_LIST_TYPES];
 
 // STATIC: 0x00C0E734
-int32_t CGAuctionHouse::m_queryPending[3];
+int32_t CGAuctionHouse::m_queryPending[CGAuctionHouse::NUM_LIST_TYPES];
 
 // STATIC: 0x00C0F3F4
 uint8_t CGAuctionHouse::m_sellItemSlot;
@@ -208,12 +208,12 @@ void CGAuctionHouse::EnterWorld() {
         FrameScript_SignalEvent(SCRIPT_EVENT_NEW_AUCTION_UPDATE, nullptr);
     }
 
-    CGAuctionHouse::m_lastQueryTime[0] = 0;
-    CGAuctionHouse::m_lastQueryTime[1] = 0;
-    CGAuctionHouse::m_lastQueryTime[2] = 0;
-    CGAuctionHouse::m_queryPending[0] = 0;
-    CGAuctionHouse::m_queryPending[1] = 0;
-    CGAuctionHouse::m_queryPending[2] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BROWSE_LIST] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BIDDER_LIST] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::OWNER_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::BROWSE_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::BIDDER_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] = 0;
     CGAuctionHouse::m_auctioneer = WOWGUID();
     CGAuctionHouse::m_auctionHouseID = 0;
     CGAuctionHouse::m_browseList.m_count = 0;
@@ -252,7 +252,7 @@ void CGAuctionHouse::GetSellItem(WOWGUID* item, WOWGUID* container, uint8_t* slo
 // VERIFY: dc362496 manual
 // OFFSET: 0x0059A2F0
 bool CGAuctionHouse::CanSendQuery(int32_t type) {
-    if (type >= 3 || CGAuctionHouse::m_queryPending[type] > 0) {
+    if (type >= CGAuctionHouse::NUM_LIST_TYPES || CGAuctionHouse::m_queryPending[type] > 0) {
         return false;
     }
 
@@ -474,37 +474,37 @@ void CGAuctionHouse::SetBidSortCriteria(int32_t column, bool reverse) {
 // OFFSET: 0x0059A7C0
 const char* CGAuctionHouse::SortTypeToName(int32_t column) {
     switch (column) {
-        case 0:
+        case AuctionSortCriteria::LEVEL:
             return "level";
 
-        case 1:
+        case AuctionSortCriteria::QUALITY:
             return "quality";
 
-        case 2:
+        case AuctionSortCriteria::BUYOUT_THEN_BID:
             return "buyoutthenbid";
 
-        case 3:
+        case AuctionSortCriteria::DURATION:
             return "duration";
 
-        case 4:
+        case AuctionSortCriteria::BID_STATUS:
             return "status";
 
-        case 5:
+        case AuctionSortCriteria::NAME:
             return "name";
 
-        case 6:
+        case AuctionSortCriteria::MIN_BID_BUYOUT:
             return "minbidbuyout";
 
-        case 7:
+        case AuctionSortCriteria::SELLER:
             return "seller";
 
-        case 8:
+        case AuctionSortCriteria::BID:
             return "bid";
 
-        case 9:
+        case AuctionSortCriteria::QUANTITY:
             return "quantity";
 
-        case 10:
+        case AuctionSortCriteria::BUYOUT:
             return "buyout";
 
         default:
@@ -516,57 +516,57 @@ const char* CGAuctionHouse::SortTypeToName(int32_t column) {
 // OFFSET: 0x0059A850
 bool AuctionSortToColumnIndex(const char* name, int32_t* column) {
     if (!SStrCmpI(name, "quality", STORM_MAX_STR)) {
-        *column = 1;
+        *column = AuctionSortCriteria::QUALITY;
         return true;
     }
 
     if (!SStrCmpI(name, "level", STORM_MAX_STR)) {
-        *column = 0;
+        *column = AuctionSortCriteria::LEVEL;
         return true;
     }
 
     if (!SStrCmpI(name, "duration", STORM_MAX_STR)) {
-        *column = 3;
+        *column = AuctionSortCriteria::DURATION;
         return true;
     }
 
     if (!SStrCmpI(name, "status", STORM_MAX_STR)) {
-        *column = 4;
+        *column = AuctionSortCriteria::BID_STATUS;
         return true;
     }
 
     if (!SStrCmpI(name, "bid", STORM_MAX_STR)) {
-        *column = 8;
+        *column = AuctionSortCriteria::BID;
         return true;
     }
 
     if (!SStrCmpI(name, "name", STORM_MAX_STR)) {
-        *column = 5;
+        *column = AuctionSortCriteria::NAME;
         return true;
     }
 
     if (!SStrCmpI(name, "minbidbuyout", STORM_MAX_STR)) {
-        *column = 6;
+        *column = AuctionSortCriteria::MIN_BID_BUYOUT;
         return true;
     }
 
     if (!SStrCmpI(name, "seller", STORM_MAX_STR)) {
-        *column = 7;
+        *column = AuctionSortCriteria::SELLER;
         return true;
     }
 
     if (!SStrCmpI(name, "buyoutthenbid", STORM_MAX_STR)) {
-        *column = 2;
+        *column = AuctionSortCriteria::BUYOUT_THEN_BID;
         return true;
     }
 
     if (!SStrCmpI(name, "quantity", STORM_MAX_STR)) {
-        *column = 9;
+        *column = AuctionSortCriteria::QUANTITY;
         return true;
     }
 
     if (!SStrCmpI(name, "buyout", STORM_MAX_STR)) {
-        *column = 10;
+        *column = AuctionSortCriteria::BUYOUT;
         return true;
     }
 
@@ -577,17 +577,17 @@ bool AuctionSortToColumnIndex(const char* name, int32_t* column) {
 // OFFSET: 0x0059A9D0
 bool CGAuctionHouse::TableNameToType(const char* name, int32_t* type) {
     if (!SStrCmpI(name, "list", STORM_MAX_STR)) {
-        *type = 0;
+        *type = CGAuctionHouse::BROWSE_LIST;
         return true;
     }
 
     if (!SStrCmpI(name, "owner", STORM_MAX_STR)) {
-        *type = 2;
+        *type = CGAuctionHouse::OWNER_LIST;
         return true;
     }
 
     if (!SStrCmpI(name, "bidder", STORM_MAX_STR)) {
-        *type = 1;
+        *type = CGAuctionHouse::BIDDER_LIST;
         return true;
     }
 
@@ -742,7 +742,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return levelA >= levelB ? 1 : -1;
         }
 
-        case 1: {
+        case AuctionSortCriteria::QUALITY: {
             if (!statsA || !statsB || statsA->m_quality == statsB->m_quality) {
                 return 0;
             }
@@ -750,7 +750,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return statsA->m_quality < statsB->m_quality ? 1 : -1;
         }
 
-        case 2: {
+        case AuctionSortCriteria::BUYOUT_THEN_BID: {
             uint32_t bidA = a->m_bid ? a->m_bid : a->m_minBid;
             uint32_t bidB = b->m_bid ? b->m_bid : b->m_minBid;
             uint32_t buyoutA = a->m_buyout ? a->m_buyout : bidA;
@@ -767,7 +767,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return bidA >= bidB ? 1 : -1;
         }
 
-        case 3: {
+        case AuctionSortCriteria::DURATION: {
             if (a->m_sold != b->m_sold) {
                 return a->m_sold <= b->m_sold ? 1 : -1;
             }
@@ -779,23 +779,23 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return a->m_expireTime >= b->m_expireTime ? 1 : -1;
         }
 
-        case 4: {
+        case AuctionSortCriteria::BID_STATUS: {
             int32_t statusA;
 
             if (a->m_bidder == ClntObjMgrGetActivePlayer()) {
-                statusA = 2;
+                statusA = CGAuctionHouse::ACTIVE_PLAYER_MATCH;
             } else if (a->m_bidder) {
-                statusA = 1;
+                statusA = CGAuctionHouse::OTHER_BIDDER;
             } else {
-                statusA = 0;
+                statusA = CGAuctionHouse::NO_BIDDER;
             }
 
-            int32_t statusB = 0;
+            int32_t statusB = CGAuctionHouse::NO_BIDDER;
 
             if (b->m_bidder == ClntObjMgrGetActivePlayer()) {
-                statusB = 2;
+                statusB = CGAuctionHouse::ACTIVE_PLAYER_MATCH;
             } else if (b->m_bidder) {
-                statusB = 1;
+                statusB = CGAuctionHouse::OTHER_BIDDER;
             }
 
             if (statusA == statusB) {
@@ -805,7 +805,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return statusA < statusB ? 1 : -1;
         }
 
-        case 5: {
+        case AuctionSortCriteria::NAME: {
             if (!statsA || !statsB) {
                 return 0;
             }
@@ -813,7 +813,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return SStrSortUTF8I(statsA->GetName(0) ? statsA->GetName(0) : "", statsB->GetName(0) ? statsB->GetName(0) : "", STORM_MAX_STR);
         }
 
-        case 6: {
+        case AuctionSortCriteria::MIN_BID_BUYOUT: {
             uint32_t bidA = a->m_bid ? a->m_bid : a->m_minBid;
             uint32_t bidB = b->m_bid ? b->m_bid : b->m_minBid;
             uint32_t buyoutA = a->m_buyout ? a->m_buyout : bidA;
@@ -826,7 +826,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return buyoutA >= buyoutB ? 1 : -1;
         }
 
-        case 7: {
+        case AuctionSortCriteria::SELLER: {
             if (nameA && nameB) {
                 return SStrCmp(nameA->m_name, nameB->m_name, STORM_MAX_STR);
             }
@@ -838,7 +838,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return a->m_owner.m_guid < b->m_owner.m_guid ? -1 : 1;
         }
 
-        case 8: {
+        case AuctionSortCriteria::BID: {
             uint32_t bidA = a->m_bid ? a->m_bid : a->m_minBid;
             uint32_t bidB = b->m_bid ? b->m_bid : b->m_minBid;
 
@@ -849,7 +849,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return bidA >= bidB ? 1 : -1;
         }
 
-        case 9: {
+        case AuctionSortCriteria::QUANTITY: {
             if (a->m_count == b->m_count) {
                 return 0;
             }
@@ -857,7 +857,7 @@ static int32_t CompareSortColumn(int32_t column, const AuctionItemInfo* a, const
             return a->m_count >= b->m_count ? 1 : -1;
         }
 
-        case 10: {
+        case AuctionSortCriteria::BUYOUT: {
             if (a->m_buyout == b->m_buyout) {
                 return 0;
             }
@@ -1096,7 +1096,7 @@ void AuctionOwnedItemQueryCallback(int32_t id, const WOWGUID& guid, void* param,
         }
     }
 
-    if (!CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[2] <= 0) {
+    if (!CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] <= 0) {
         SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     }
@@ -1109,7 +1109,7 @@ void AuctionOwnedSoldItemQueryCallback(int32_t id, const WOWGUID& guid, void* pa
         CGAuctionHouse::m_pendingSoldItems--;
     }
 
-    if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[2] <= 0) {
+    if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] <= 0) {
         SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     }
@@ -1132,7 +1132,7 @@ void AuctionBidItemQueryCallback(int32_t id, const WOWGUID& guid, void* param, b
 // VERIFY: 45fce788 manual
 // OFFSET: 0x0059CC50
 void CGAuctionHouse::GetOwnerList() {
-    if (!CGAuctionHouse::m_canGetOwnerList || !CGAuctionHouse::CanSendQuery(2)) {
+    if (!CGAuctionHouse::m_canGetOwnerList || !CGAuctionHouse::CanSendQuery(CGAuctionHouse::OWNER_LIST)) {
         return;
     }
 
@@ -1149,20 +1149,20 @@ void CGAuctionHouse::GetOwnerList() {
     salesMsg.Finalize();
     ClientServices::Send2(&salesMsg);
 
-    CGAuctionHouse::m_queryPending[2] += 2;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] += 2;
 
-    if (CGAuctionHouse::m_queryPending[2] < 0) {
-        CGAuctionHouse::m_queryPending[2] = 0;
+    if (CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] < 0) {
+        CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] = 0;
     }
 
-    CGAuctionHouse::m_lastQueryTime[2] = OsGetAsyncTimeMs();
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::OWNER_LIST] = OsGetAsyncTimeMs();
     CGAuctionHouse::m_canGetOwnerList = 0;
 }
 
 // VERIFY: 8157fca2 manual
 // OFFSET: 0x0059CD90
 void RequestListPendingSales() {
-    if (!CGAuctionHouse::CanSendQuery(2)) {
+    if (!CGAuctionHouse::CanSendQuery(CGAuctionHouse::OWNER_LIST)) {
         return;
     }
 
@@ -1172,11 +1172,11 @@ void RequestListPendingSales() {
     msg.Finalize();
     ClientServices::Send2(&msg);
 
-    if (++CGAuctionHouse::m_queryPending[2] < 0) {
-        CGAuctionHouse::m_queryPending[2] = 0;
+    if (++CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] < 0) {
+        CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] = 0;
     }
 
-    CGAuctionHouse::m_lastQueryTime[2] = OsGetAsyncTimeMs();
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::OWNER_LIST] = OsGetAsyncTimeMs();
 }
 
 // VERIFY: 07dc7173 manual
@@ -1207,11 +1207,11 @@ void BidderListItems(int32_t page) {
     msg.Finalize();
     ClientServices::Send2(&msg);
 
-    if (++CGAuctionHouse::m_queryPending[1] < 0) {
-        CGAuctionHouse::m_queryPending[1] = 0;
+    if (++CGAuctionHouse::m_queryPending[CGAuctionHouse::BIDDER_LIST] < 0) {
+        CGAuctionHouse::m_queryPending[CGAuctionHouse::BIDDER_LIST] = 0;
     }
 
-    CGAuctionHouse::m_lastQueryTime[1] = OsGetAsyncTimeMs();
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BIDDER_LIST] = OsGetAsyncTimeMs();
     CGAuctionHouse::m_canGetBidderList = 0;
     CGAuctionHouse::m_lastBidderPage = page;
 }
@@ -1267,10 +1267,10 @@ bool CGAuctionHouse::IsSellItemValid(CGItem_C* item, int32_t showError) {
     } else if (stats->m_spellId[0] && item->m_item->m_itemFieldSpellCharges[0] != stats->m_spellCharges[0]) {
         error = ERR_AUCTION_USED_CHARGES;
     } else if (item->IsBound()) {
-        error = stats->m_bonding != 4 ? ERR_AUCTION_BOUND_ITEM : ERR_AUCTION_QUEST_ITEM;
+        error = stats->m_bonding != ITEM_BINDING_QUEST ? ERR_AUCTION_BOUND_ITEM : ERR_AUCTION_QUEST_ITEM;
     } else if (item->GetItemStaticFlags(0) & ITEM_FLAG_CONJURED) {
         error = ERR_AUCTION_CONJURED_ITEM;
-    } else if (((item->GetItemStaticFlags(0) & 0x10000) && static_cast<int32_t>(stats->m_duration) > 0) || stats->m_holidayId) {
+    } else if (((item->GetItemStaticFlags(0) & ITEM_FLAG_REAL_DURATION) && static_cast<int32_t>(stats->m_duration) > 0) || stats->m_holidayId) {
         error = ERR_AUCTION_LIMITED_DURATION_ITEM;
     } else if (item->m_item->m_itemFieldDuration) {
         error = ERR_AUCTION_LIMITED_DURATION_ITEM;
@@ -1300,11 +1300,11 @@ bool CGAuctionHouse::IsSellItemValid(CGItem_C* item, int32_t showError) {
 // VERIFY: d1664376 manual
 // OFFSET: 0x0059E160
 int32_t Packet_SMSG_AUCTION_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    if (--CGAuctionHouse::m_queryPending[0] < 0) {
-        CGAuctionHouse::m_queryPending[0] = 0;
+    if (--CGAuctionHouse::m_queryPending[CGAuctionHouse::BROWSE_LIST] < 0) {
+        CGAuctionHouse::m_queryPending[CGAuctionHouse::BROWSE_LIST] = 0;
     }
 
-    CGAuctionHouse::m_lastQueryTime[0] = OsGetAsyncTimeMs();
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BROWSE_LIST] = OsGetAsyncTimeMs();
 
     if (CGAuctionHouse::m_pendingBrowseItems) {
         CGAuctionHouse::m_pendingBrowseItems = 0;
@@ -1382,11 +1382,11 @@ int32_t Packet_SMSG_AUCTION_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t 
 // VERIFY: 143f6b55 manual
 // OFFSET: 0x0059E480
 int32_t Packet_SMSG_AUCTION_OWNER_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    if (--CGAuctionHouse::m_queryPending[2] < 0) {
-        CGAuctionHouse::m_queryPending[2] = 0;
+    if (--CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] < 0) {
+        CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] = 0;
     }
 
-    CGAuctionHouse::m_lastQueryTime[2] = OsGetAsyncTimeMs();
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::OWNER_LIST] = OsGetAsyncTimeMs();
 
     uint32_t kept = 0;
 
@@ -1466,7 +1466,7 @@ int32_t Packet_SMSG_AUCTION_OWNER_LIST_RESULT(void* param, NETMESSAGE msgId, uin
     msg->Get(CGAuctionHouse::m_numTotalOwned);
     msg->Get(reinterpret_cast<uint32_t&>(CGAuctionHouse::m_desiredDelayTime));
 
-    if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[2] <= 0) {
+    if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] <= 0) {
         SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     }
@@ -1477,18 +1477,18 @@ int32_t Packet_SMSG_AUCTION_OWNER_LIST_RESULT(void* param, NETMESSAGE msgId, uin
 // VERIFY: 2b014930 manual
 // OFFSET: 0x0059E880
 int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    if (--CGAuctionHouse::m_queryPending[2] < 0) {
-        CGAuctionHouse::m_queryPending[2] = 0;
+    if (--CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] < 0) {
+        CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] = 0;
     }
 
-    CGAuctionHouse::m_lastQueryTime[2] = OsGetAsyncTimeMs();
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::OWNER_LIST] = OsGetAsyncTimeMs();
 
     uint32_t kept = 0;
 
     for (uint32_t i = 0; i < CGAuctionHouse::m_ownerList.Count(); i++) {
         AuctionItemInfo* auction = &CGAuctionHouse::m_ownerList.m_data[i];
 
-        if (auction->m_sold == 1) {
+        if (auction->m_sold == AuctionItemInfo::SOLD) {
             if (CGAuctionHouse::m_pendingSoldItems) {
                 g_itemDBCache.CancelCallback(auction->m_itemID, AuctionOwnedSoldItemQueryCallback, nullptr);
             }
@@ -1535,7 +1535,7 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
         uint32_t action;
         uint32_t auctionId;
 
-        if (ParseAuctionMailSubject(subject, &itemId, &randomPropertyId, &action, &auctionId) != 4 || action != 2) {
+        if (ParseAuctionMailSubject(subject, &itemId, &randomPropertyId, &action, &auctionId) != 4 || action != CGMailInfo::SELLER) {
             continue;
         }
 
@@ -1568,10 +1568,10 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
         auction->m_minBid = 0;
         auction->m_minIncrement = 0;
         auction->m_buyout = buyout;
-        auction->m_expireTime = now - static_cast<int64_t>(daysLeft * -86400000.0);
+        auction->m_expireTime = static_cast<uint32_t>(now - static_cast<int64_t>(daysLeft * -86400000.0));
         auction->m_bidder.m_guid = buyer;
         auction->m_bid = bid;
-        auction->m_sold = 1;
+        auction->m_sold = AuctionItemInfo::SOLD;
 
         WOWGUID none = WOWGUID();
 
@@ -1582,7 +1582,7 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
         index++;
     }
 
-    if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[2] <= 0) {
+    if (!CGAuctionHouse::m_pendingOwnedItems && !CGAuctionHouse::m_pendingSoldItems && CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] <= 0) {
         SortAuctionList(CGAuctionHouse::m_ownerList, CGAuctionHouse::m_ownedSortCriteria);
         FrameScript_SignalEvent(SCRIPT_EVENT_AUCTION_OWNED_LIST_UPDATE, nullptr);
     }
@@ -1593,11 +1593,11 @@ int32_t Packet_SMSG_AUCTION_LIST_PENDING_SALES(void* param, NETMESSAGE msgId, ui
 // VERIFY: 6dc0db61 manual
 // OFFSET: 0x0059ECD0
 int32_t Packet_SMSG_AUCTION_BIDDER_LIST_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    if (--CGAuctionHouse::m_queryPending[1] < 0) {
-        CGAuctionHouse::m_queryPending[1] = 0;
+    if (--CGAuctionHouse::m_queryPending[CGAuctionHouse::BIDDER_LIST] < 0) {
+        CGAuctionHouse::m_queryPending[CGAuctionHouse::BIDDER_LIST] = 0;
     }
 
-    CGAuctionHouse::m_lastQueryTime[1] = OsGetAsyncTimeMs();
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BIDDER_LIST] = OsGetAsyncTimeMs();
 
     if (CGAuctionHouse::m_pendingBidItems) {
         CGAuctionHouse::m_pendingBidItems = 0;
@@ -1681,12 +1681,12 @@ int32_t Packet_SMSG_AUCTION_BIDDER_LIST_RESULT(void* param, NETMESSAGE msgId, ui
 void CGAuctionHouse::SetAuctioneer(WOWGUID auctioneer, int32_t auctionHouseID) {
     CGGameUI::SetInteractTarget(auctioneer);
     CGAuctionHouse::m_auctionHouseID = auctionHouseID;
-    CGAuctionHouse::m_lastQueryTime[0] = 0;
-    CGAuctionHouse::m_lastQueryTime[1] = 0;
-    CGAuctionHouse::m_lastQueryTime[2] = 0;
-    CGAuctionHouse::m_queryPending[0] = 0;
-    CGAuctionHouse::m_queryPending[1] = 0;
-    CGAuctionHouse::m_queryPending[2] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BROWSE_LIST] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BIDDER_LIST] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::OWNER_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::BROWSE_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::BIDDER_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] = 0;
     CGAuctionHouse::m_canGetOwnerList = 1;
     CGAuctionHouse::m_canGetBidderList = 1;
     CGAuctionHouse::m_auctioneer = auctioneer;
@@ -1858,7 +1858,7 @@ int32_t FindItemForAuction(WOWGUID item, uint32_t count) {
 
     WOWGUID container;
     uint32_t slot;
-    return player->m_bag.FindItem(FindSellItemsCallback, &find, container, slot, 70) ? CGAuctionHouse::m_numSellItems : 0;
+    return player->m_bag.FindItem(FindSellItemsCallback, &find, container, slot, BAG_SEARCH_BAG_SLOTS | BAG_SEARCH_BACKPACK | BAG_SEARCH_KEYRING) ? CGAuctionHouse::m_numSellItems : 0;
 }
 
 // VERIFY: f69c4580 manual
@@ -1878,7 +1878,7 @@ int32_t FindSellableItems(int32_t itemId) {
 
     WOWGUID container;
     uint32_t slot;
-    player->m_bag.FindItem(FindSellItemsCallback, &find, container, slot, 70);
+    player->m_bag.FindItem(FindSellItemsCallback, &find, container, slot, BAG_SEARCH_BAG_SLOTS | BAG_SEARCH_BACKPACK | BAG_SEARCH_KEYRING);
     return find.m_total;
 }
 
@@ -1917,7 +1917,7 @@ int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32
         return 1;
     }
 
-    if (result == 1) {
+    if (result == CGAuctionHouse::INVENTORY_ERROR) {
         msg->Get(inventoryError);
     }
 
@@ -1936,7 +1936,7 @@ int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32
                 CGGameUI::DisplayError(ERR_AUCTION_STARTED);
                 CGAuctionHouse::m_canGetOwnerList = 1;
                 CGAuctionHouse::GetOwnerList();
-            } else if (action == 2) {
+            } else if (action == CGAuctionHouse::PLACE_BID) {
                 uint32_t minIncrement = 0;
                 msg->Get(minIncrement);
                 CGGameUI::DisplayError(ERR_AUCTION_BID_PLACED);
@@ -1968,7 +1968,7 @@ int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32
                 emote.Put(static_cast<uint32_t>(3));
                 emote.Finalize();
                 ClientServices::Send2(&emote);
-            } else if (action == 1) {
+            } else if (action == CGAuctionHouse::CANCEL_AUCTION) {
                 CGGameUI::DisplayError(ERR_AUCTION_REMOVED);
                 CGMailInfo::ReceivedMail(0.0f);
                 CGAuctionHouse::AuctionItemExpired(auctionID);
@@ -1977,19 +1977,19 @@ int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32
             return 1;
         }
 
-        case 1:
+        case CGAuctionHouse::INVENTORY_ERROR:
             CGGameUI::DisplayError(static_cast<UIErrors>(GetDisplayErrorByInventoryError(inventoryError)));
             return 1;
 
-        case 3:
+        case CGAuctionHouse::NOT_ENOUGH_MONEY:
             CGGameUI::DisplayError(ERR_NOT_ENOUGH_MONEY);
             return 1;
 
-        case 4:
+        case CGAuctionHouse::ITEM_NOT_FOUND:
             CGGameUI::DisplayError(ERR_ITEM_NOT_FOUND);
             return 1;
 
-        case 5: {
+        case CGAuctionHouse::HIGHER_BID: {
             WOWGUID bidder;
             uint32_t bid = 0;
             uint32_t minIncrement = 0;
@@ -2035,15 +2035,15 @@ int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32
             return 1;
         }
 
-        case 7:
+        case CGAuctionHouse::BID_INCREMENT:
             CGGameUI::DisplayError(ERR_AUCTION_BID_INCREMENT);
             return 1;
 
-        case 10:
+        case CGAuctionHouse::BID_OWN_AUCTION:
             CGGameUI::DisplayError(ERR_AUCTION_BID_OWN);
             return 1;
 
-        case 13:
+        case CGAuctionHouse::RESTRICTED_ACCOUNT:
             CGGameUI::DisplayError(ERR_RESTRICTED_ACCOUNT);
             return 1;
 
@@ -2284,12 +2284,12 @@ void CGAuctionHouse::InitializeGame() {
     CGAuctionHouse::m_bidderList.SetCount(0);
     CGAuctionHouse::m_browseList.SetCount(0);
     CGAuctionHouse::m_lastGetAllTime = 0;
-    CGAuctionHouse::m_lastQueryTime[0] = 0;
-    CGAuctionHouse::m_lastQueryTime[1] = 0;
-    CGAuctionHouse::m_lastQueryTime[2] = 0;
-    CGAuctionHouse::m_queryPending[0] = 0;
-    CGAuctionHouse::m_queryPending[1] = 0;
-    CGAuctionHouse::m_queryPending[2] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BROWSE_LIST] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::BIDDER_LIST] = 0;
+    CGAuctionHouse::m_lastQueryTime[CGAuctionHouse::OWNER_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::BROWSE_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::BIDDER_LIST] = 0;
+    CGAuctionHouse::m_queryPending[CGAuctionHouse::OWNER_LIST] = 0;
     CGAuctionHouse::m_numOutbidItems = 0;
 
     CGAuctionHouse::m_outbidItems.SetCount(8);
@@ -2302,38 +2302,38 @@ void CGAuctionHouse::InitializeGame() {
         CGAuctionHouse::m_listSortCriteria[i].m_valid = 0;
     }
 
-    CGAuctionHouse::SetBrowseSortCriteria(3, false);
-    CGAuctionHouse::SetBrowseSortCriteria(8, false);
-    CGAuctionHouse::SetBrowseSortCriteria(9, true);
-    CGAuctionHouse::SetBrowseSortCriteria(6, false);
-    CGAuctionHouse::SetBrowseSortCriteria(5, false);
-    CGAuctionHouse::SetBrowseSortCriteria(0, true);
-    CGAuctionHouse::SetBrowseSortCriteria(1, false);
+    CGAuctionHouse::SetBrowseSortCriteria(AuctionSortCriteria::DURATION, false);
+    CGAuctionHouse::SetBrowseSortCriteria(AuctionSortCriteria::BID, false);
+    CGAuctionHouse::SetBrowseSortCriteria(AuctionSortCriteria::QUANTITY, true);
+    CGAuctionHouse::SetBrowseSortCriteria(AuctionSortCriteria::MIN_BID_BUYOUT, false);
+    CGAuctionHouse::SetBrowseSortCriteria(AuctionSortCriteria::NAME, false);
+    CGAuctionHouse::SetBrowseSortCriteria(AuctionSortCriteria::LEVEL, true);
+    CGAuctionHouse::SetBrowseSortCriteria(AuctionSortCriteria::QUALITY, false);
 
     for (uint32_t i = 0; i < 12; i++) {
         CGAuctionHouse::m_ownedSortCriteria[i].m_valid = 0;
     }
 
-    CGAuctionHouse::SetOwnedSortCriteria(9, true);
-    CGAuctionHouse::SetOwnedSortCriteria(8, false);
-    CGAuctionHouse::SetOwnedSortCriteria(5, false);
-    CGAuctionHouse::SetOwnedSortCriteria(0, true);
-    CGAuctionHouse::SetOwnedSortCriteria(1, false);
-    CGAuctionHouse::SetOwnedSortCriteria(4, false);
-    CGAuctionHouse::SetOwnedSortCriteria(3, false);
+    CGAuctionHouse::SetOwnedSortCriteria(AuctionSortCriteria::QUANTITY, true);
+    CGAuctionHouse::SetOwnedSortCriteria(AuctionSortCriteria::BID, false);
+    CGAuctionHouse::SetOwnedSortCriteria(AuctionSortCriteria::NAME, false);
+    CGAuctionHouse::SetOwnedSortCriteria(AuctionSortCriteria::LEVEL, true);
+    CGAuctionHouse::SetOwnedSortCriteria(AuctionSortCriteria::QUALITY, false);
+    CGAuctionHouse::SetOwnedSortCriteria(AuctionSortCriteria::BID_STATUS, false);
+    CGAuctionHouse::SetOwnedSortCriteria(AuctionSortCriteria::DURATION, false);
 
     for (uint32_t i = 0; i < 12; i++) {
         CGAuctionHouse::m_bidSortCriteria[i].m_valid = 0;
     }
 
-    CGAuctionHouse::SetBidSortCriteria(9, false);
-    CGAuctionHouse::SetBidSortCriteria(5, false);
-    CGAuctionHouse::SetBidSortCriteria(0, true);
-    CGAuctionHouse::SetBidSortCriteria(1, false);
-    CGAuctionHouse::SetBidSortCriteria(6, false);
-    CGAuctionHouse::SetBidSortCriteria(4, false);
-    CGAuctionHouse::SetBidSortCriteria(8, false);
-    CGAuctionHouse::SetBidSortCriteria(3, false);
+    CGAuctionHouse::SetBidSortCriteria(AuctionSortCriteria::QUANTITY, false);
+    CGAuctionHouse::SetBidSortCriteria(AuctionSortCriteria::NAME, false);
+    CGAuctionHouse::SetBidSortCriteria(AuctionSortCriteria::LEVEL, true);
+    CGAuctionHouse::SetBidSortCriteria(AuctionSortCriteria::QUALITY, false);
+    CGAuctionHouse::SetBidSortCriteria(AuctionSortCriteria::MIN_BID_BUYOUT, false);
+    CGAuctionHouse::SetBidSortCriteria(AuctionSortCriteria::BID_STATUS, false);
+    CGAuctionHouse::SetBidSortCriteria(AuctionSortCriteria::BID, false);
+    CGAuctionHouse::SetBidSortCriteria(AuctionSortCriteria::DURATION, false);
 }
 
 // VERIFY: 93924a65 manual
@@ -2360,7 +2360,7 @@ void CGAuctionHouse::ShutdownGame() {
 // VERIFY: c943a21b manual
 // OFFSET: 0x0076DDE0
 uint32_t CalculateAuctionDeposit(uint32_t depositRate, uint32_t sellPrice, uint32_t runTime) {
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < CGAuctionHouse::NUM_RUN_TIMES; i++) {
         if (runTime == s_depositRunTimes[i]) {
             uint32_t deposit = static_cast<uint32_t>(static_cast<int64_t>(static_cast<float>(depositRate * sellPrice / 100) * runTime * 0.0041666669f));
             return deposit < 100 ? 100 : deposit;

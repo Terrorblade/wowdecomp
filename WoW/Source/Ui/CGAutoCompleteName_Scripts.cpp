@@ -18,7 +18,7 @@ static int32_t Script_GetAutoCompleteResults(lua_State* L) {
     int32_t cursor;
 
     if (!lua_isnumber(L, 5) || (cursor = static_cast<int32_t>(lua_tonumber(L, 5))) < 0 || cursor > static_cast<int32_t>(SStrLenUTF8(text))) {
-        cursor = SStrLenUTF8(text);
+        cursor = static_cast<int32_t>(SStrLenUTF8(text));
     }
 
     bool allowFullMatch = lua_toboolean(L, 6) != 0;

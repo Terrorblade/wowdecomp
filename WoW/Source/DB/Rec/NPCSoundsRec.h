@@ -1,6 +1,8 @@
 #ifndef WOW_SOURCE_DB_REC_NPCSOUNDSREC_H
 #define WOW_SOURCE_DB_REC_NPCSOUNDSREC_H
 
+#include "WoW/Source/Object/ObjectClient/Types.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -13,7 +15,7 @@ class NPCSoundsRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t m_soundID [4];
+    /* 0004 */ int32_t m_soundID [NUM_NPCSOUNDS];
 
     NPCSoundsRec();
     ~NPCSoundsRec();

@@ -290,7 +290,7 @@ vorbis_look_residue *FMOD_res0_look(vorbis_dsp_state *vd,
     }
   }
 
-  look->partvals=rint(pow((float)look->parts,(float)dim));
+  look->partvals=(int)(rint(pow((float)look->parts,(float)dim)));
 
   look->stages=maxstage;
   look->decodemap=_ogg_malloc(look->partvals*sizeof(*look->decodemap));

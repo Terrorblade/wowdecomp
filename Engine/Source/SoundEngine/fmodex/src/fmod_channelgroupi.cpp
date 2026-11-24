@@ -1470,7 +1470,7 @@ FMOD_RESULT ChannelGroupI::getChannel(int index, Channel **channel)
     {
         if (count == index)
         {
-            *channel = (Channel *)((ChannelI *)current->getData())->mHandleCurrent;
+            *channel = (Channel *)(size_t)((ChannelI *)current->getData())->mHandleCurrent;
             return FMOD_OK;
         }
 

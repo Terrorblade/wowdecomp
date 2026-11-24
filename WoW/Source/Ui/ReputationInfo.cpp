@@ -21,7 +21,7 @@
 #include "WoW/Source/Ui/GameUI.h"
 
 // STATIC: 0x00C22B70
-FactionStanding CGReputationInfo::m_factionStandings[128];
+FactionStanding CGReputationInfo::m_factionStandings[MAX_REPUTATION_FACTIONS];
 
 // STATIC: 0x00C23370
 FactionHeader* CGReputationInfo::m_headers[64];
@@ -172,7 +172,7 @@ uint32_t CGReputationInfo::AddFactionHeader(int32_t factionId) {
 static bool IsFactionPeaceForced(int32_t faction) {
     FactionRec* rec = g_factionDB.GetRecord(faction);
 
-    if (rec && static_cast<uint32_t>(rec->m_reputationIndex) <= 127) {
+    if (rec && static_cast<uint32_t>(rec->m_reputationIndex) < MAX_REPUTATION_FACTIONS) {
         return (CGReputationInfo::m_factionStandings[rec->m_reputationIndex].m_flags >> 4) & 1;
     }
 
@@ -185,7 +185,7 @@ bool CGReputationInfo::IsFactionInactive(uint32_t index) {
     int32_t factionId = index < CGReputationInfo::m_numFactions ? CGReputationInfo::m_factionList.m_data[index]->m_factionId : 0;
     FactionRec* faction = g_factionDB.GetRecord(factionId);
 
-    if (faction && static_cast<uint32_t>(faction->m_reputationIndex) <= 127) {
+    if (faction && static_cast<uint32_t>(faction->m_reputationIndex) < MAX_REPUTATION_FACTIONS) {
         return (CGReputationInfo::m_factionStandings[faction->m_reputationIndex].m_flags >> 5) & 1;
     }
 
@@ -197,7 +197,7 @@ bool CGReputationInfo::IsFactionInactive(uint32_t index) {
 UNIT_REACTION CGReputationInfo::GetFactionStandingReaction(int32_t faction) {
     FactionRec* rec = g_factionDB.GetRecord(faction);
 
-    if (!rec || static_cast<uint32_t>(rec->m_reputationIndex) > 127) {
+    if (!rec || static_cast<uint32_t>(rec->m_reputationIndex) >= MAX_REPUTATION_FACTIONS) {
         return UNIT_REACTION_NEUTRAL;
     }
 
@@ -248,7 +248,7 @@ bool CGReputationInfo::GetForcedReaction(int32_t faction, UNIT_REACTION* reactio
 bool CGReputationInfo::IsAtWar(int32_t faction) {
     FactionRec* rec = g_factionDB.GetRecord(faction);
 
-    if (rec && static_cast<uint32_t>(rec->m_reputationIndex) <= 127) {
+    if (rec && static_cast<uint32_t>(rec->m_reputationIndex) < MAX_REPUTATION_FACTIONS) {
         return (CGReputationInfo::m_factionStandings[rec->m_reputationIndex].m_flags >> 1) & 1;
     }
 
@@ -270,7 +270,7 @@ int32_t CGReputationInfo::AddVisibleFaction(uint32_t repListId, int32_t announce
 
     FactionListEntry* entry = CGReputationInfo::m_factionList.m_data[CGReputationInfo::m_numFactions];
     entry->m_repListId = repListId;
-    entry->m_factionId = repListId > 127 ? 0 : CGReputationInfo::m_factionStandings[repListId].m_factionId;
+    entry->m_factionId = repListId >= MAX_REPUTATION_FACTIONS ? 0 : CGReputationInfo::m_factionStandings[repListId].m_factionId;
     entry->m_isHeader = (CGReputationInfo::m_factionStandings[repListId].m_flags >> 3) & 1;
 
     FactionRec* faction = g_factionDB.GetRecord(entry->m_factionId);
@@ -320,17 +320,17 @@ void CGReputationInfo::SetAtWar(int32_t faction, bool atWar) {
 
     uint32_t index = rec->m_reputationIndex;
 
-    if (index > 127) {
+    if (index >= MAX_REPUTATION_FACTIONS) {
         return;
     }
 
-    if (!atWar && player && (player->m_unit->m_unitFieldFlags & 0x80000)) {
+    if (!atWar && player && (player->m_unit->m_unitFieldFlags & UNIT_FLAG_IN_COMBAT)) {
         CGGameUI::DisplayError(ERR_NOT_IN_COMBAT);
         return;
     }
 
     uint8_t flags = CGReputationInfo::m_factionStandings[index].m_flags;
-    CGReputationInfo::m_factionStandings[index].m_flags = (!atWar || (flags & 0x10)) ? flags & ~2 : flags | 2;
+    CGReputationInfo::m_factionStandings[index].m_flags = (!atWar || (flags & FACTION_FLAG_PEACE_FORCED)) ? flags & ~FACTION_FLAG_AT_WAR : flags | FACTION_FLAG_AT_WAR;
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_SET_FACTION_AT_WAR));
     msg.Put(index);
@@ -380,7 +380,7 @@ static bool FactionHasReputationForPlayer(const FactionRec* faction) {
     uint8_t classId = player->m_unit->m_unitFieldBytes0[1];
     uint8_t race = player->m_unit->m_unitFieldBytes0[0];
 
-    for (uint32_t i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < NUM_FACTION_REPUTATION_ENTRIES; i++) {
         int32_t raceMask = faction->m_reputationRaceMask[i];
         int32_t classMask = faction->m_reputationClassMask[i];
 
@@ -545,7 +545,7 @@ void CGReputationInfo::SortFactions() {
         }
 
         FactionRec* faction = g_factionDB.GetRecord(entry->m_factionId);
-        int32_t parent = faction && static_cast<uint32_t>(faction->m_reputationIndex) <= 127 && (CGReputationInfo::m_factionStandings[faction->m_reputationIndex].m_flags & 0x20) ? -1 : entry->m_parent;
+        int32_t parent = faction && static_cast<uint32_t>(faction->m_reputationIndex) < MAX_REPUTATION_FACTIONS && (CGReputationInfo::m_factionStandings[faction->m_reputationIndex].m_flags & FACTION_FLAG_INACTIVE) ? -1 : entry->m_parent;
 
         for (uint32_t h = 0; h < CGReputationInfo::m_numHeaders; h++) {
             if (parent == CGReputationInfo::m_headers[h]->m_factionId) {
@@ -660,14 +660,14 @@ void CGReputationInfo::SetFactionInactive(int32_t faction, bool inactive) {
 
     uint32_t index = rec->m_reputationIndex;
 
-    if (index > 127) {
+    if (index >= MAX_REPUTATION_FACTIONS) {
         return;
     }
 
     if (inactive) {
-        CGReputationInfo::m_factionStandings[index].m_flags |= 0x20;
+        CGReputationInfo::m_factionStandings[index].m_flags |= FACTION_FLAG_INACTIVE;
     } else {
-        CGReputationInfo::m_factionStandings[index].m_flags &= ~0x20;
+        CGReputationInfo::m_factionStandings[index].m_flags &= ~FACTION_FLAG_INACTIVE;
     }
 
     CDataStore msg;
@@ -743,7 +743,7 @@ void CGReputationInfo::EnterWorld() {
         i--;
         FactionRec* faction = i >= 0 && i < g_factionDB.m_numRecords ? &g_factionDB.m_records[i] : nullptr;
 
-        if (static_cast<uint32_t>(faction->m_reputationIndex) > 127) {
+        if (static_cast<uint32_t>(faction->m_reputationIndex) >= MAX_REPUTATION_FACTIONS) {
             continue;
         }
 
@@ -760,7 +760,7 @@ void CGReputationInfo::EnterWorld() {
 
         CGReputationInfo::m_factionStandings[faction->m_reputationIndex].m_factionId = faction->m_id;
 
-        for (uint32_t k = 0; k < 4; k++) {
+        for (uint32_t k = 0; k < NUM_FACTION_REPUTATION_ENTRIES; k++) {
             int32_t raceMask = faction->m_reputationRaceMask[k];
             int32_t classMask = faction->m_reputationClassMask[k];
 
@@ -778,7 +778,7 @@ void CGReputationInfo::EnterWorld() {
 
             CGReputationInfo::m_factionStandings[faction->m_reputationIndex].m_base = faction->m_reputationBase[k];
 
-            if (CGReputationInfo::m_factionStandings[faction->m_reputationIndex].m_flags & 0x1) {
+            if (CGReputationInfo::m_factionStandings[faction->m_reputationIndex].m_flags & FACTION_FLAG_VISIBLE) {
                 CGReputationInfo::AddVisibleFaction(faction->m_reputationIndex, 0);
             }
         }
@@ -849,7 +849,7 @@ int32_t Packet_SMSG_SET_FACTION_ATWAR(void* param, NETMESSAGE msgId, uint32_t ti
     }
 
     uint8_t current = CGReputationInfo::m_factionStandings[repListId].m_flags;
-    CGReputationInfo::m_factionStandings[repListId].m_flags = (flags & 0x2) ? (current | 0x2) : (current & ~0x2);
+    CGReputationInfo::m_factionStandings[repListId].m_flags = (flags & FACTION_FLAG_AT_WAR) ? (current | FACTION_FLAG_AT_WAR) : (current & ~FACTION_FLAG_AT_WAR);
     FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_FACTION, nullptr);
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
@@ -904,9 +904,9 @@ int32_t Packet_SMSG_SET_FACTION_VISIBLE(void* param, NETMESSAGE msgId, uint32_t 
 
     uint8_t flags = CGReputationInfo::m_factionStandings[repListId].m_flags;
 
-    if (!(flags & 0x1)) {
+    if (!(flags & FACTION_FLAG_VISIBLE)) {
         CGReputationInfo::AddVisibleFaction(repListId, 1);
-        CGReputationInfo::m_factionStandings[repListId].m_flags = flags | 0x1;
+        CGReputationInfo::m_factionStandings[repListId].m_flags = flags | FACTION_FLAG_VISIBLE;
         CGReputationInfo::SortFactions();
     }
 
@@ -964,13 +964,13 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
         uint8_t flags = CGReputationInfo::m_factionStandings[repListId].m_flags;
         int32_t logMode = 0;
 
-        if (flags & 0x40) {
-            logMode = (flags & 0x4) ? 2 : 1;
-        } else if (i == 0 && !(flags & 0x4)) {
+        if (flags & FACTION_FLAG_UNKNOWN_40) {
+            logMode = (flags & FACTION_FLAG_HIDDEN) ? 2 : 1;
+        } else if (i == 0 && !(flags & FACTION_FLAG_HIDDEN)) {
             logMode = 1;
         }
 
-        int32_t factionId = (repListId >= 0 && repListId < 128) ? CGReputationInfo::m_factionStandings[repListId].m_factionId : 0;
+        int32_t factionId = (repListId >= 0 && repListId < MAX_REPUTATION_FACTIONS) ? CGReputationInfo::m_factionStandings[repListId].m_factionId : 0;
         UNIT_REACTION oldReaction = CGReputationInfo::GetFactionStandingReaction(factionId);
         int32_t oldStanding = CGReputationInfo::m_factionStandings[repListId].m_standing;
 
@@ -978,14 +978,14 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
             CGReputationInfo::m_factionStandings[repListId].m_standing = standing;
 
             if (logMode) {
-                CGChat::LogFactionChanged((repListId >= 0 && repListId < 128) ? CGReputationInfo::m_factionStandings[repListId].m_factionId : 0, standing - oldStanding, logMode == 2, bonus);
+                CGChat::LogFactionChanged((repListId >= 0 && repListId < MAX_REPUTATION_FACTIONS) ? CGReputationInfo::m_factionStandings[repListId].m_factionId : 0, standing - oldStanding, logMode == 2, bonus);
             }
         }
 
         UNIT_REACTION newReaction = CGReputationInfo::GetFactionStandingReaction(factionId);
 
-        if (!(flags & 0x5)) {
-            flags |= 0x1;
+        if (!(flags & (FACTION_FLAG_VISIBLE | FACTION_FLAG_HIDDEN))) {
+            flags |= FACTION_FLAG_VISIBLE;
 
             if (CGReputationInfo::AddVisibleFaction(repListId, 1)) {
                 newlyVisible = true;
@@ -993,15 +993,15 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
         }
 
         if (newReaction < UNIT_REACTION_UNFRIENDLY) {
-            flags |= 0x2;
+            flags |= FACTION_FLAG_AT_WAR;
         } else if (newReaction > oldReaction) {
-            flags &= ~0x2;
+            flags &= ~FACTION_FLAG_AT_WAR;
         }
 
         uint8_t& storedFlags = CGReputationInfo::m_factionStandings[repListId].m_flags;
 
         if (flags != storedFlags) {
-            if ((flags ^ storedFlags) & 0x2) {
+            if ((flags ^ storedFlags) & FACTION_FLAG_AT_WAR) {
                 updateReaction = true;
             }
 
@@ -1010,7 +1010,7 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
         }
 
         if (newReaction != oldReaction) {
-            if (!(flags & 0x4) && (!(flags & 0x8) || (flags & 0x80))) {
+            if (!(flags & FACTION_FLAG_HIDDEN) && (!(flags & FACTION_FLAG_HEADER) || (flags & FACTION_FLAG_UNKNOWN_80))) {
                 if (!newlyVisible) {
                     CGChat::LogReactionChanged(factionId, newReaction);
                 }
@@ -1044,12 +1044,12 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
         CEffect* effect = memory ? new (memory) CEffect() : nullptr;
         WOWGUID guid = player->m_obj->m_guid;
         effect->AddSpecialEffect(SPECIALEFFECT_REPUTATION, guid, CGObject_C::EffectOnceHandler);
-        effect->m_flags |= 0x20;
+        effect->m_flags |= CEffect::EFFECT_CALLBACK_LIFETIME;
         effect->Release();
     }
 
     if (player && static_cast<int32_t>(player->m_unit->m_unitFieldLevel) >= 10) {
-        CGTutorial::TriggerTutorial(15);
+        CGTutorial::TriggerTutorial(TUTORIAL_REPUTATION);
     }
 
     FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_FACTION, nullptr);
@@ -1061,7 +1061,7 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
 int32_t GetRepListRepValue(int32_t faction) {
     FactionRec* rec = g_factionDB.GetRecord(faction);
 
-    if (!rec || static_cast<uint32_t>(rec->m_reputationIndex) > 127) {
+    if (!rec || static_cast<uint32_t>(rec->m_reputationIndex) >= MAX_REPUTATION_FACTIONS) {
         return 0;
     }
 

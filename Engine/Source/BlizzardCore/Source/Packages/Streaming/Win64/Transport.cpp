@@ -254,7 +254,7 @@ bool Blizzard::Streaming::Transport::MD5_Data(std::string* out, std::string* dat
             uint32_t next = position + md5Size + 32;
 
             if (next > data->size()) {
-                length = data->size() - position - 32;
+                length = static_cast<uint32_t>(data->size() - position - 32);
             }
 
             chunk = data->substr(position, length);
@@ -266,14 +266,14 @@ bool Blizzard::Streaming::Transport::MD5_Data(std::string* out, std::string* dat
             uint32_t hashPosition = blockEnd + hashOffset;
 
             if (blockEnd + hashOffset + 32 > data->size()) {
-                hashPosition = data->size() - 32;
+                hashPosition = static_cast<uint32_t>(data->size() - 32);
             }
 
             Blizzard::Util::Digest<16> expected;
             expected.FromHexString(data->substr(hashPosition, 32).c_str());
 
             Blizzard::Util::MD5 md5;
-            md5.Process(chunk.c_str(), chunk.size());
+            md5.Process(chunk.c_str(), static_cast<uint32_t>(chunk.size()));
 
             Blizzard::Util::Digest<16> actual;
             md5.Finish(actual.m_data);

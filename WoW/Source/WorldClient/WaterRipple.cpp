@@ -21,6 +21,7 @@
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/WorldClient/MapObjGroup.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 enum WaterRippleLimits : uint32_t {
     NUM_PLAYER_RIPPLES = 32,
@@ -118,14 +119,14 @@ void CMap::RenderWaterRipples() {
         ripple = next;
     }
 
-    if (!vertexCounts[0] && !vertexCounts[1]) {
+    if (!vertexCounts[CWaterRipple::SPLASH] && !vertexCounts[CWaterRipple::WAKE]) {
         return;
     }
 
     float polygonOffset = CWorldParam::cvar_footstepBias->m_floatValue * 0.0009765774f;
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 3);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Add);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     GxRsSet(GxRs_Fog, 0);
     GxRsSet(GxRs_DepthWrite, 0);
@@ -329,7 +330,7 @@ void CWaterRipple::InitRipple(const C3Vector& pos, float rotation, float size, f
     World::TriData::matrixPoolCount = 0;
     World::TriData triData;
 
-    if (!World::GetTris(box, &triData, 0x20000)) {
+    if (!World::GetTris(box, &triData, WORLD_QUERY_LIQUID)) {
         return;
     }
 

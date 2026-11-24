@@ -17,6 +17,7 @@
 #include "WoW/Source/Ui/ChatFrame.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Ui/MinimapFrame.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00A12FD0
 static const int32_t s_questGreenRange[20] = { 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
@@ -138,7 +139,7 @@ void CGGossipInfo::SetGossipText(int32_t textId) {
 
     float total = 0.0f;
 
-    for (uint32_t i = 0; i < 8; i++) {
+    for (uint32_t i = 0; i < NUM_NPC_TEXT_ENTRIES; i++) {
         if (text->m_text[i][female]) {
             total += text->m_probability[i];
         }
@@ -149,7 +150,7 @@ void CGGossipInfo::SetGossipText(int32_t textId) {
     float sum = 0.0f;
     uint32_t index;
 
-    for (index = 0; index < 8; index++) {
+    for (index = 0; index < NUM_NPC_TEXT_ENTRIES; index++) {
         if (text->m_text[index][female]) {
             sum += text->m_probability[index];
 
@@ -168,7 +169,7 @@ void CGGossipInfo::SetGossipText(int32_t textId) {
 
     uint32_t emoteCount = 0;
 
-    while (emoteCount < 3 && text->m_emote[index][emoteCount]) {
+    while (emoteCount < NUM_NPC_TEXT_EMOTES && text->m_emote[index][emoteCount]) {
         emoteCount++;
     }
 
@@ -526,7 +527,7 @@ int32_t Packet_SMSG_GOSSIP_POI(void* param, NETMESSAGE msgId, uint32_t time, CDa
         return 1;
     }
 
-    MinimapSetDynamicPOI(1, flags, x, y, icon, importance, name);
+    MinimapSetDynamicPOI(DYNAMIC_POI_GOSSIP, flags, x, y, icon, importance, name);
     return 1;
 }
 

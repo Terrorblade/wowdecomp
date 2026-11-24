@@ -520,7 +520,7 @@ static int32_t Packet_SMSG_UPDATE_ACCOUNT_DATA(void* param, NETMESSAGE msgId, ui
 // VERIFY: d11d72c6 auto
 // OFFSET: 0x006B9900
 void AccountDataInitializeBasicSystem() {
-    s_cvSynchronizeSettings = CVar::Register("synchronizeSettings", "Whether client settings should be stored on the server", 0, "1", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
+    s_cvSynchronizeSettings = CVar::Register("synchronizeSettings", "Whether client settings should be stored on the server", CVAR_NONE, "1", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
     ClientServices::SetMessageHandler(SMSG_ACCOUNT_DATA_TIMES, Packet_SMSG_ACCOUNT_DATA_TIMES, nullptr);
     ClientServices::SetMessageHandler(SMSG_UPDATE_ACCOUNT_DATA, Packet_SMSG_UPDATE_ACCOUNT_DATA, nullptr);
     ClientServices::SetMessageHandler(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, Packet_SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, nullptr);
@@ -540,7 +540,7 @@ void AccountDataShutdownBasicSystem() {
 // OFFSET: 0x006B9970
 void AccountDataInitialize(bool global) {
     for (uint32_t i = 0; i < sizeof(s_accountData) / sizeof(s_accountData[0]); i++) {
-        CVar::Register(s_accountData[i].m_cvarName, nullptr, 0, "1", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
+        CVar::Register(s_accountData[i].m_cvarName, nullptr, CVAR_NONE, "1", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
     }
 
     for (uint32_t i = 0; i < sizeof(s_accountData) / sizeof(s_accountData[0]); i++) {

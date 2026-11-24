@@ -38,6 +38,11 @@ class CSimpleRender {
 
 class CSimpleFontString : public CSimpleRegion, public CSimpleFontable {
     public:
+    enum MAX_LINES_BITS : uint32_t {
+        MAX_LINES_MASK = 0xFFFFFF,
+        MAX_LINES_LOAD_XML_FONT = 0x1000000,
+    };
+
     static CDataAllocator s_allocator;
     static int32_t s_metatable;
     static int32_t s_objectType;

@@ -5,10 +5,19 @@
 #include <cstdint>
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/C3Vector.h"
+#include "Engine/Source/Tempest/CRange.h"
+#include "WoW/Source/SoundInterface/Types.h"
 
 class SE2SoundKitObject;
 class SI2AdvancedSound;
 class SoundEntriesAdvancedRec;
+
+enum SI2_DUCK_CATEGORY : int32_t {
+    SI2_DUCK_SFX = 0,
+    SI2_DUCK_MUSIC = 1,
+    SI2_DUCK_AMBIENCE = 2,
+    SI2_DUCK_COUNT = 3
+};
 
 class SI2AdvancedSound {
     public:
@@ -36,7 +45,7 @@ class SI2AdvancedSound {
     /* 0060 */ int32_t m_intervalMin;
     /* 0064 */ int32_t m_intervalMax;
     /* 0068 */ int32_t m_volumeSliderCategory;
-    /* 006C */ float m_duck[3];
+    /* 006C */ float m_duck[SI2_DUCK_COUNT];
     /* 0078 */ float m_innerRadiusOfInfluence;
     /* 007C */ float m_outerRadiusOfInfluence;
     /* 0080 */ int32_t m_inRange;
@@ -59,7 +68,7 @@ class SI2AdvancedSound {
 class SuppressorSound : public TSLinkedNode<SuppressorSound> {
     public:
     /* 0008 */ SI2AdvancedSound* m_sound;
-    /* 000C */ float m_volume[3];
+    /* 000C */ float m_volume[SI2_DUCK_COUNT];
     /* 0018 */ float m_distance;
     /* 001C */ int32_t m_fadeTime;
 

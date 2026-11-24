@@ -712,7 +712,7 @@ void CodecMPEG::dct64(float *out0,float *out1,float *samples)
 {
     float b1[32], b2[32];
 	{
-		register float *costab = gPnts[0];
+		float *costab = gPnts[0];
 
 		b1[0x00] = samples[0x00] + samples[0x1F];
 		b1[0x1F] = (samples[0x00] - samples[0x1F]) * costab[0x0];
@@ -763,7 +763,7 @@ void CodecMPEG::dct64(float *out0,float *out1,float *samples)
 		b1[0x10] = (samples[0x0F] - samples[0x10]) * costab[0xF];
 	}
 	{
-		register float *costab = gPnts[1];
+		float *costab = gPnts[1];
 
 		b2[0x00] = b1[0x00] + b1[0x0F]; 
 		b2[0x0F] = (b1[0x00] - b1[0x0F]) * costab[0];
@@ -801,7 +801,7 @@ void CodecMPEG::dct64(float *out0,float *out1,float *samples)
 	}
 
 	{
-		register float *costab = gPnts[2];
+		float *costab = gPnts[2];
 
 		b1[0x00] = b2[0x00] + b2[0x07];
 		b1[0x07] = (b2[0x00] - b2[0x07]) * costab[0];
@@ -841,8 +841,8 @@ void CodecMPEG::dct64(float *out0,float *out1,float *samples)
 	}
 
 	{
-		register float const cos0 = gPnts[3][0];
-		register float const cos1 = gPnts[3][1];
+		float const cos0 = gPnts[3][0];
+		float const cos1 = gPnts[3][1];
 
 		b2[0x00] = b1[0x00] + b1[0x03];
 		b2[0x03] = (b1[0x00] - b1[0x03]) * cos0;
@@ -886,7 +886,7 @@ void CodecMPEG::dct64(float *out0,float *out1,float *samples)
 	}
 
 	{
-		register float const cos0 = gPnts[4][0];
+		float const cos0 = gPnts[4][0];
 
 		b1[0x00] = b2[0x00] + b2[0x01];
 		b1[0x01] = (b2[0x00] - b2[0x01]) * cos0;
@@ -1025,7 +1025,7 @@ void CodecMPEG::dct64(float *out0,float *out1,float *samples)
 
 FMOD_RESULT CodecMPEG::synthC(float *b0, int bo1, int channelskip, signed short *samples)
 {
-    register int j;
+    int j;
     float *window = FMOD_Mpeg_DecWin + 16 - bo1;
 
     for (j=16;j;j--,b0+=0x10,window+=0x20,samples+=channelskip)

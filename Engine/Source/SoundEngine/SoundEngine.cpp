@@ -1171,7 +1171,7 @@ void SE2::StopAllSounds(const char* channelGroup, float fadeOutTime) {
         return;
     }
 
-    int32_t index = group - s_channelGroups.Ptr();
+    int32_t index = static_cast<int32_t>(group - s_channelGroups.Ptr());
 
     s_soundListCritSect.Enter();
 
@@ -1210,19 +1210,19 @@ void SE2::SetSoundGroupMaxAudibleBehavior(FMOD::SoundGroup* soundGroup, int32_t 
     FMOD_RESULT result;
 
     switch (behavior) {
-        case 0:
+        case SE2_MAX_AUDIBLE_MUTE:
             result = soundGroup->setMaxAudibleBehavior(FMOD_SOUNDGROUP_BEHAVIOR_MUTE);
             SE_ERRCHECK(result);
             result = soundGroup->setMuteFadeSpeed(muteFadeSpeed);
             SE_ERRCHECK(result);
             break;
 
-        case 1:
+        case SE2_MAX_AUDIBLE_STEAL_LOWEST:
             result = soundGroup->setMaxAudibleBehavior(FMOD_SOUNDGROUP_BEHAVIOR_STEALLOWEST);
             SE_ERRCHECK(result);
             break;
 
-        case 2:
+        case SE2_MAX_AUDIBLE_FAIL:
             result = soundGroup->setMaxAudibleBehavior(FMOD_SOUNDGROUP_BEHAVIOR_FAIL);
             SE_ERRCHECK(result);
             break;
@@ -1470,7 +1470,7 @@ SESoundInternal::SESoundInternal() {
     this->m_pitch = 1.0f;
     this->m_randomStart = 0;
     this->m_software = 0;
-    this->m_priority = -1;
+    this->m_priority = SE2_PRIORITY_UNSET;
     this->m_coneOrientation.x = 0.0f;
     this->m_coneOrientation.y = 0.0f;
     this->m_coneOrientation.z = 0.0f;
@@ -1844,7 +1844,7 @@ void SEFileSound::CompleteNonBlockingLoad() {
         }
     }
 
-    if (static_cast<uint32_t>(this->m_priority) != 128 && static_cast<uint32_t>(this->m_priority) <= 256 && this->m_channel) {
+    if (static_cast<uint32_t>(this->m_priority) != SE2_PRIORITY_DEFAULT && static_cast<uint32_t>(this->m_priority) <= SE2_PRIORITY_MAX && this->m_channel) {
         result = this->m_channel->setPriority(this->m_priority);
 
         if (result != FMOD_OK) {
@@ -2236,7 +2236,7 @@ void SESound::AttachToObject(uint64_t guid) {
 // OFFSET: 0x0087A7E0
 void SESound::SetChannelGroup(const char* name, bool childOfMaster) {
     if (s_initialized && this->m_internal && name) {
-        this->m_internal->m_channelGroup = FindOrCreateChannelGroup(name, true, childOfMaster) - s_channelGroups.Ptr();
+        this->m_internal->m_channelGroup = static_cast<int32_t>(FindOrCreateChannelGroup(name, true, childOfMaster) - s_channelGroups.Ptr());
         this->m_internal->UpdateVolume();
     }
 }
@@ -2622,7 +2622,7 @@ static void KillVirtualSounds() {
                 bool isVirtual = false;
                 fileSound->m_channel->isVirtual(&isVirtual);
 
-                if (fileSound->m_priority == 128 || fileSound->m_priority == -1) {
+                if (fileSound->m_priority == SE2_PRIORITY_DEFAULT || fileSound->m_priority == SE2_PRIORITY_UNSET) {
                     bool isPlaying = false;
                     fileSound->m_channel->isPlaying(&isPlaying);
 
@@ -2631,8 +2631,8 @@ static void KillVirtualSounds() {
                         fileSound->m_channel->getMode(&mode);
 
                         if (!(mode & FMOD_LOOP_NORMAL)) {
-                            fileSound->m_priority = 127;
-                            fileSound->m_channel->setPriority(127);
+                            fileSound->m_priority = SE2_PRIORITY_PLAYING;
+                            fileSound->m_channel->setPriority(SE2_PRIORITY_PLAYING);
                         }
                     }
                 }
@@ -3568,9 +3568,9 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
         static CVar* s_outputQuality = CVar::Lookup("Sound_OutputQuality");
 
         if (s_outputQuality) {
-            if (s_outputQuality->m_intValue == 0) {
+            if (s_outputQuality->m_intValue == SE2_OUTPUT_QUALITY_LOW) {
                 sampleRate = 22050;
-            } else if (s_outputQuality->m_intValue == 1) {
+            } else if (s_outputQuality->m_intValue == SE2_OUTPUT_QUALITY_MEDIUM) {
                 sampleRate = 44100;
             }
         }
@@ -3578,7 +3578,7 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
         FMOD_DSP_RESAMPLER resampler = FMOD_DSP_RESAMPLER_LINEAR;
 
         if (s_outputQuality) {
-            resampler = static_cast<FMOD_DSP_RESAMPLER>(s_outputQuality->m_intValue == 2);
+            resampler = static_cast<FMOD_DSP_RESAMPLER>(s_outputQuality->m_intValue == SE2_OUTPUT_QUALITY_HIGH);
         }
 
         // STATIC: 0x00D43950
@@ -3588,10 +3588,10 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
             SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -###########################################################################################");
             SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# NOTICE:   Using Mix Mode 2.");
 
-            if (s_enableMixMode2->m_intValue == 2) {
+            if (s_enableMixMode2->m_intValue == SE2_MIX_MODE_PCM24) {
                 SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# 2 PCM24");
                 SE_ERRCHECK(s_system->setSoftwareFormat(sampleRate, FMOD_SOUND_FORMAT_PCM24, 0, 0, resampler));
-            } else if (s_enableMixMode2->m_intValue == 3) {
+            } else if (s_enableMixMode2->m_intValue == SE2_MIX_MODE_PCM32) {
                 SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# 3 PCM32");
                 SE_ERRCHECK(s_system->setSoftwareFormat(sampleRate, FMOD_SOUND_FORMAT_PCM32, 0, 0, resampler));
             } else {
@@ -3886,9 +3886,9 @@ void SE2::InitCapture(int32_t* outputDriverIndex, const char* outputDriverName, 
         static CVar* s_outputQuality = CVar::Lookup("Sound_OutputQuality");
 
         if (s_outputQuality) {
-            if (s_outputQuality->m_intValue == 0) {
+            if (s_outputQuality->m_intValue == SE2_OUTPUT_QUALITY_LOW) {
                 outputRate = 22050;
-            } else if (s_outputQuality->m_intValue == 1) {
+            } else if (s_outputQuality->m_intValue == SE2_OUTPUT_QUALITY_MEDIUM) {
                 outputRate = 44100;
             }
         }
@@ -3896,7 +3896,7 @@ void SE2::InitCapture(int32_t* outputDriverIndex, const char* outputDriverName, 
         FMOD_DSP_RESAMPLER resampler = FMOD_DSP_RESAMPLER_LINEAR;
 
         if (s_outputQuality) {
-            resampler = static_cast<FMOD_DSP_RESAMPLER>(s_outputQuality->m_intValue == 2);
+            resampler = static_cast<FMOD_DSP_RESAMPLER>(s_outputQuality->m_intValue == SE2_OUTPUT_QUALITY_HIGH);
         }
 
         CVar* enableMixMode2 = CVar::Lookup("Sound_EnableMixMode2");
@@ -3905,10 +3905,10 @@ void SE2::InitCapture(int32_t* outputDriverIndex, const char* outputDriverName, 
             SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -###########################################################################################");
             SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# NOTICE:   Using Mix Mode 2.");
 
-            if (enableMixMode2->m_intValue == 2) {
+            if (enableMixMode2->m_intValue == SE2_MIX_MODE_PCM24) {
                 SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# 2 PCM24");
                 SE_ERRCHECK(s_system->setSoftwareFormat(outputRate, FMOD_SOUND_FORMAT_PCM24, 0, 0, resampler));
-            } else if (enableMixMode2->m_intValue == 3) {
+            } else if (enableMixMode2->m_intValue == SE2_MIX_MODE_PCM32) {
                 SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# 3 PCM32");
                 SE_ERRCHECK(s_system->setSoftwareFormat(outputRate, FMOD_SOUND_FORMAT_PCM32, 0, 0, resampler));
             } else {

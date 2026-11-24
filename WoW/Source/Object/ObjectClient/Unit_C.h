@@ -21,6 +21,11 @@
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "WoW/Source/Game/GameClient/WTOBJECT.h"
+#include "Engine/Source/Base/Types.h"
+#include "Engine/Source/Model2/M2Model.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
+#include "WoW/Source/DB/Rec/SpellVisualKitRec.h"
+#include "WoW/Source/Object/CreatureStats.h"
 
 enum UNIT_FACING_CONSTANTS : uint32_t {
     NUM_SAVED_FACING_DELTAS = 4,
@@ -104,6 +109,24 @@ struct QUESTGIVEREMOTEQUEUE {
 };
 
 struct DelayedSpellVisualKit {
+
+    enum ACTIVATION_TYPE : int32_t {
+        WAIT_FOR_BEAM = 0,
+        SCHEDULED = 1,
+    };
+
+    enum TIMING : int32_t {
+        BEAM_WAIT_TIMEOUT_MS = 10000,
+    };
+
+    enum DELAY_FLAGS : uint32_t {
+        HAS_POSITION = 0x1,
+        PLAY_ANIM = 0x2,
+        HARMFUL = 0x4,
+        IN_USE = 0x8,
+        PLAY_ANIM_OR_HARMFUL = 0x6,
+    };
+
     /* 0000 */ int32_t m_spellId;
     /* 0004 */ int32_t m_kitId;
     /* 0008 */ int32_t m_kitType;
@@ -120,6 +143,15 @@ struct UnitThreatHandle {
 };
 
 struct UnitThreat : public UnitThreatHandle, public TSHashObject<UnitThreat, CHashKeyGUID> {
+
+    enum THREAT_STATUS : uint8_t {
+        THREAT_STATUS_NONE = 0,
+        THREAT_STATUS_LOW = 1,
+        THREAT_STATUS_HIGH = 2,
+        THREAT_STATUS_TANKING_INSECURE = 3,
+        THREAT_STATUS_TANKING_SECURE = 4,
+    };
+
     /* 0028 */ uint8_t m_status;
     /* 0029 */ uint8_t m_percent;
     /* 002A */ uint8_t unused_002A[2];
@@ -145,8 +177,20 @@ class CGUnitVirtualItem {
 };
 
 class UnitBloodRec;
+
+enum SKINNING_TYPE : uint32_t {
+    SKINNING_TYPE_LEATHER = 0,
+    SKINNING_TYPE_HERB = 1,
+    SKINNING_TYPE_ROCK = 2,
+    SKINNING_TYPE_BOLTS = 3,
+    NUM_SKINNING_TYPES = 4,
+};
+constexpr float NPC_INTERACT_DISTANCE = 4.0f;
+
 class CGUnit_C : public CGObject_C, public CGUnit {
     public:
+    static constexpr uint32_t AUTO_AMMO_INVENTORY_TYPE = 30;
+
     int32_t InitializeExtendedDisplay(CGPlayer_C* player, int32_t hasDisplayInfo);
     void ApplyComponentItemsFromEffects();
     void AddHandItem(int32_t hand);
@@ -182,6 +226,33 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     static void ClearNamePlateFocus();
     static void SetNamePlateFocus(const C2Vector& position);
     static void NamePlateClearAll();
+
+    enum SCRIPT_REGISTRATION_FLAGS : uint32_t {
+        SCRIPT_REGISTRATION_NONE = 0x0,
+        SCRIPT_REGISTRATION_PLAYER = 0x1,
+        SCRIPT_REGISTRATION_PET = 0x2,
+        SCRIPT_REGISTRATION_PARTY = 0x10,
+        SCRIPT_REGISTRATION_PARTY_PET = 0x20,
+        SCRIPT_REGISTRATION_RAID = 0x100,
+        SCRIPT_REGISTRATION_RAID_PET = 0x200,
+        SCRIPT_REGISTRATION_TARGET = 0x1000,
+        SCRIPT_REGISTRATION_FOCUS = 0x2000,
+        SCRIPT_REGISTRATION_ARENA = 0x4000,
+    };
+
+    enum NAMEPLATE_FLAGS : uint32_t {
+        NAMEPLATE_FLAG_RESORT_ALL = 0x1,
+        NAMEPLATE_FLAG_UPDATE_LEVELS = 0x2,
+        NAMEPLATE_FLAG_UPDATE_COLOR = 0x4,
+    };
+
+    enum TRACKING_FLAGS : uint32_t {
+        TRACKING_FLAG_NONE = 0x0,
+        TRACKING_FLAG_SELF_MOVE = 0x1,
+        TRACKING_FLAG_FACING_REACHED = 0x2,
+        TRACKING_FLAG_PITCH_REACHED = 0x4,
+    };
+
     static WOWGUID s_activeMover;
     static uint32_t s_trackingType;
     static float s_trackingFacing;
@@ -372,7 +443,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     /* 0C50 */ TSCGrowableArray<AuraData, 16> m_auras;
     /* 0DD4 */ TSCGrowableArray<SortedAuraInfo, 16> m_sortedAuras [2];
     /* 0EDC */ TSCGrowableArray<uint32_t, 16> m_handItemSpellIds;
-    /* 0F20 */ uint8_t m_auraEffectMask [40];
+    /* 0F20 */ uint8_t m_auraEffectMask [(TOTAL_AURAS + 7) / 8];
     /* 0F48 */ TSGrowableArray<DelayedSpellVisualKit> m_delayedSpellVisualKits;
     /* 0F58 */ uint32_t m_lightningSequence;
     /* 0F5C */ CVehicle_C* m_vehicle;
@@ -384,7 +455,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     /* 0F74 */ uint32_t m_missileTrajectoryEnd;
     /* 0F78 */ uint8_t m_missileTrajectoryReleased;
     /* 0F7C */ uint32_t m_wheelMask;
-    /* 0F80 */ float m_wheelAngles [8];
+    /* 0F80 */ float m_wheelAngles [NUM_WHEEL_KEY_BONES];
     /* 0FA0 */ uint32_t m_lastWheelUpdateTime;
     /* 0FA4 */ int32_t m_specialIdleAnim;
     /* 0FA8 */ CM2Model* m_precastMissileModel;
@@ -1098,7 +1169,7 @@ int32_t Packet_SplineMoveEffect(void* param, NETMESSAGE msgId, uint32_t time, CD
 int32_t Packet_SplineSpeedChange(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 int32_t Packet_ThreatUpdate(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 
-extern int32_t g_environmentalDamageVisualKits[6];
+extern int32_t g_environmentalDamageVisualKits[NUM_ENVIRONMENTAL_DAMAGE_TYPES];
 int32_t GetAnimBehaviorId(uint32_t animId);
 int32_t IsBirthAnim(uint32_t animId);
 int32_t IsSubmergedDeathAnim(uint32_t animId);

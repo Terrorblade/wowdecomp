@@ -133,20 +133,20 @@ static int32_t Script_GetSkillLineInfo(lua_State* L) {
                 }
 
                 if (hand < 3) {
-                    int32_t bonus = static_cast<int32_t>(lrintf(player->GetCombatRatingPct(0) - 0.5f));
+                    int32_t bonus = static_cast<int32_t>(lrintf(player->GetCombatRatingPct(CR_WEAPON_SKILL) - 0.5f));
 
                     if (hand == 0) {
-                        bonus = static_cast<int32_t>(lrintf(player->GetCombatRatingPct(20) - 0.5f)) + bonus;
+                        bonus = static_cast<int32_t>(lrintf(player->GetCombatRatingPct(CR_WEAPON_SKILL_MAINHAND) - 0.5f)) + bonus;
                     } else if (hand == 1) {
-                        bonus = static_cast<int32_t>(lrintf(player->GetCombatRatingPct(21) - 0.5f)) + bonus;
+                        bonus = static_cast<int32_t>(lrintf(player->GetCombatRatingPct(CR_WEAPON_SKILL_OFFHAND) - 0.5f)) + bonus;
                     } else if (hand == 2) {
-                        bonus = bonus + static_cast<int32_t>(lrintf(player->GetCombatRatingPct(22) - 0.5f));
+                        bonus = bonus + static_cast<int32_t>(lrintf(player->GetCombatRatingPct(CR_WEAPON_SKILL_RANGED) - 0.5f));
                     }
 
                     value += bonus;
                 }
 
-                if (info->m_flags & 0x400) {
+                if (info->m_flags & SKILL_RACE_CLASS_FLAG_SINGLE_RANK) {
                     maxRank = 1;
 
                     if (value > 1) {
@@ -159,7 +159,7 @@ static int32_t Script_GetSkillLineInfo(lua_State* L) {
                 lua_pushnumber(L, player->GetSkillModifier(skillIndex));
                 lua_pushnumber(L, maxRank);
 
-                if (step && (info->m_flags & 0x20)) {
+                if (step && (info->m_flags & SKILL_RACE_CLASS_FLAG_ABANDONABLE)) {
                     lua_pushnumber(L, 1.0);
                 } else {
                     lua_pushnil(L);
@@ -167,7 +167,7 @@ static int32_t Script_GetSkillLineInfo(lua_State* L) {
 
                 int32_t tierCost;
 
-                if (((info->m_flags & 0x8) || (!step && (info->m_flags & 0x4))) && (tierCost = GetSkillTierCost(info, step)) != 0) {
+                if (((info->m_flags & SKILL_RACE_CLASS_FLAG_SHOW_TIER_COST) || (!step && (info->m_flags & SKILL_RACE_CLASS_FLAG_SHOW_AT_MIN_LEVEL))) && (tierCost = GetSkillTierCost(info, step)) != 0) {
                     lua_pushnumber(L, tierCost);
                 } else {
                     lua_pushnil(L);
@@ -358,7 +358,7 @@ static int32_t Script_BuySkillTier(lua_State* L) {
 
     uint32_t step = player->GetSkillStep(skillIndex);
 
-    if (!(info->m_flags & 8) && (step || !(info->m_flags & 4))) {
+    if (!(info->m_flags & SKILL_RACE_CLASS_FLAG_SHOW_TIER_COST) && (step || !(info->m_flags & SKILL_RACE_CLASS_FLAG_SHOW_AT_MIN_LEVEL))) {
         return 0;
     }
 

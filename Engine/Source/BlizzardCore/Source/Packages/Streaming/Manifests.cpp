@@ -55,14 +55,14 @@ bool Blizzard::Streaming::SplitLine(char* line, char** value, char** tag, int32_
                 *cursor++ = '\0';
             }
 
-            *length = cursor - line;
+            *length = static_cast<int32_t>(cursor - line);
             return true;
         }
 
         cursor++;
     }
 
-    *length = cursor - line;
+    *length = static_cast<int32_t>(cursor - line);
     return true;
 }
 
@@ -90,14 +90,14 @@ bool STORMAPI Blizzard::Streaming::ManifestInfo::GetItemTag(char* line, char** v
                 *cursor++ = '\0';
             }
 
-            *length = cursor - line;
+            *length = static_cast<int32_t>(cursor - line);
             return true;
         }
 
         cursor++;
     }
 
-    *length = cursor - line;
+    *length = static_cast<int32_t>(cursor - line);
     return false;
 }
 
@@ -149,7 +149,7 @@ char* STORMAPI Blizzard::Streaming::TrimLine(char* line) {
         return start;
     }
 
-    uint32_t length = strlen(line);
+    uint32_t length = static_cast<uint32_t>(strlen(line));
 
     while (*start == ' ' || *start == '\t' || *start == '\r' || *start == '\n') {
         start++;
@@ -374,9 +374,9 @@ bool Blizzard::Streaming::FileManifest::SplitServerItem(char* line, std::string&
     uint32_t prefixLength;
 
     if (s_httpPrefix && !_strnicmp(s_httpPrefix, line, strlen(s_httpPrefix))) {
-        prefixLength = s_httpPrefix ? strlen(s_httpPrefix) : 0;
+        prefixLength = static_cast<uint32_t>(s_httpPrefix ? strlen(s_httpPrefix) : 0);
     } else if (s_filePrefix && !_strnicmp(s_filePrefix, line, strlen(s_filePrefix))) {
-        prefixLength = s_filePrefix ? strlen(s_filePrefix) : 0;
+        prefixLength = static_cast<uint32_t>(s_filePrefix ? strlen(s_filePrefix) : 0);
     } else {
         return false;
     }
@@ -963,7 +963,7 @@ std::vector<std::string> Blizzard::Streaming::ManifestInfo::GetFileList(const ch
     Blizzard::File::MakeAbsolutePath(path, directory, sizeof(directory), false);
 
     char separator = Blizzard::String::FirstPathSeparator(directory);
-    int32_t length = strlen(directory);
+    int32_t length = static_cast<int32_t>(strlen(directory));
     char last = length > 0 ? directory[length - 1] : '\0';
 
     if (!length || last != separator) {
@@ -1020,7 +1020,7 @@ std::vector<std::string> Blizzard::Streaming::ManifestInfo::GetFileList(const ch
                 }
             }
 
-            int32_t directoryLength = name - localPath + 1;
+            int32_t directoryLength = static_cast<int32_t>(name - localPath + 1);
             Blizzard::String::Copy(localDirectory, localPath, directoryLength <= 260 ? directoryLength : 260);
             Blizzard::String::Copy(fileName, name, 260);
         } else {
@@ -1044,7 +1044,7 @@ void Blizzard::Streaming::ManifestInfo::DeactivateServer(std::string url, const 
     }
 
     for (std::map<std::string, Manifests::ServerItem>::iterator it = Get()->m_servers.begin(); it != Get()->m_servers.end(); ++it) {
-        uint32_t length = it->second.m_location.size();
+        uint32_t length = static_cast<uint32_t>(it->second.m_location.size());
         const char* location = it->second.m_location.c_str();
 
         if (location && !_strnicmp(url.c_str(), location, length) && it->second.m_canDeactivate >= 1) {
@@ -1061,7 +1061,7 @@ int32_t Blizzard::Streaming::ManifestInfo::GetServerItemMaxRetry(std::string url
     }
 
     for (std::map<std::string, Manifests::ServerItem>::iterator it = Get()->m_servers.begin(); it != Get()->m_servers.end(); ++it) {
-        uint32_t length = it->second.m_location.size();
+        uint32_t length = static_cast<uint32_t>(it->second.m_location.size());
         const char* location = it->second.m_location.c_str();
 
         if (location && !_strnicmp(url.c_str(), location, length)) {
@@ -1387,7 +1387,7 @@ bool Blizzard::Streaming::FileManifest::ReadDirectFileFromBuffer(char* buffer, i
         } else if (tag == "isTrial" || !_strnicmp(tag, "isTrial", 7)) {
             ManifestInfo::SetParameter(std::string("istrial"), std::string(value));
         } else if (tag == "manifest" || !_strnicmp(tag, "manifest", 8)) {
-            uint32_t prefixLength = s_httpPrefix ? strlen(s_httpPrefix) : 0;
+            uint32_t prefixLength = static_cast<uint32_t>(s_httpPrefix ? strlen(s_httpPrefix) : 0);
 
             if (value && s_httpPrefix && !_strnicmp(value, s_httpPrefix, prefixLength)) {
                 return ReadIndirectFile(value);
@@ -1430,7 +1430,7 @@ bool Blizzard::Streaming::FileManifest::ReadDirectFileFromBuffer(char* buffer, i
             SplitItem(value, &item);
 
             if (!item.m_size) {
-                if (Blizzard::File::Exists(item.m_absolutePath.c_str()) != 2) {
+                if (Blizzard::File::Exists(item.m_absolutePath.c_str()) != EXISTENCE_DIRECTORY) {
                     Blizzard::File::CreateDirectory(item.m_absolutePath.c_str(), true);
                 }
             }
@@ -1489,7 +1489,7 @@ bool Blizzard::Streaming::ManifestInfo::ReadDirectFileFromBuffer(char* buffer, i
             this->m_version = atol(value);
 
             if (this->m_version == 1) {
-                return FileManifest::ReadDirectFileFromBuffer(next, size + next - buffer);
+                return FileManifest::ReadDirectFileFromBuffer(next, static_cast<int32_t>(size + next - buffer));
             }
         } else if (tag && !_stricmp(tag, "manifest")) {
             if (value && s_httpPrefix && !_strnicmp(value, s_httpPrefix, Blizzard::String::Length(s_httpPrefix))) {

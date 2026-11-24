@@ -228,7 +228,7 @@ void ComSat::Sound::IOSoundEngine::InitCapture() {
             userData->m_name = "<Voice Chat>";
             userData->m_soundKitId = 0;
             userData->m_def = nullptr;
-            userData->m_group = 3;
+            userData->m_group = SI2_SOUND_GROUP_CINEMATIC;
             channel->m_object.m_sound.SetUserData(userData);
             SI2::SetPitch(&channel->m_object, this->m_sampleRate);
             SI2::VoiceChat_Play(&channel->m_object);

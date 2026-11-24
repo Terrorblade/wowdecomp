@@ -56,7 +56,7 @@ static int32_t Script_CanSignPetition(lua_State* L) {
     int32_t canSign = 1;
 
     if (petition) {
-        if (petition->m_staticType == 0 || petition->m_staticType == 1) {
+        if (petition->m_staticType == CGPetition::STATIC_TYPE_GUILD || petition->m_staticType == CGPetition::STATIC_TYPE_ARENA) {
             CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
             if ((!petition->m_staticType && player && player->m_player->m_playerGuildid) || static_cast<int32_t>(CGPetitionInfo::m_numPetitionNames) >= static_cast<int32_t>(petition->m_maxSignatures)) {
@@ -106,9 +106,9 @@ static int32_t Script_GetPetitionInfo(lua_State* L) {
         return 7;
     }
 
-    if (petition->m_staticType == 0) {
+    if (petition->m_staticType == CGPetition::STATIC_TYPE_GUILD) {
         lua_pushstring(L, "guild");
-    } else if (petition->m_staticType == 1) {
+    } else if (petition->m_staticType == CGPetition::STATIC_TYPE_ARENA) {
         lua_pushstring(L, "arena");
     } else {
         lua_pushstring(L, "other");
@@ -207,14 +207,14 @@ static int32_t Script_OfferPetition(lua_State* L) {
 
     int32_t minLevel = petition->m_allowedMinLevel;
 
-    if (minLevel > 0 && target->m_unit->m_unitFieldLevel < minLevel) {
+    if (minLevel > 0 && target->m_unit->m_unitFieldLevel < static_cast<uint32_t>(minLevel)) {
         CGGameUI::DisplayError(ERR_ARENA_TEAM_TARGET_TOO_LOW_S, target->GetUnitName(nullptr, 1));
         return 0;
     }
 
     int32_t maxLevel = petition->m_allowedMaxLevel;
 
-    if (maxLevel > 0 && target->m_unit->m_unitFieldLevel > maxLevel) {
+    if (maxLevel > 0 && target->m_unit->m_unitFieldLevel > static_cast<uint32_t>(maxLevel)) {
         CGGameUI::DisplayError(ERR_ARENA_TEAM_TARGET_TOO_HIGH_S, target->GetUnitName(nullptr, 1));
         return 0;
     }
@@ -222,7 +222,7 @@ static int32_t Script_OfferPetition(lua_State* L) {
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_OFFER_PETITION));
 
-    if (petition->m_staticType == 1) {
+    if (petition->m_staticType == CGPetition::STATIC_TYPE_ARENA) {
         msg.Put(static_cast<uint32_t>(petition->m_minSignatures + 1));
     } else {
         msg.Put(static_cast<uint32_t>(0));

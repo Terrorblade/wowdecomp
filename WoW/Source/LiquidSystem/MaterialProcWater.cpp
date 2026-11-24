@@ -6,6 +6,8 @@
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/ShaderEffect/Types.h"
+static constexpr uint32_t MAX_DIR_WAVES = 3;
+static constexpr uint32_t MAX_RAD_WAVES = 3;
 
 // STATIC: 0x00D4505C
 CDataAllocator Liquid::s_procWaterFFPAllocator(sizeof(Liquid::CMaterialProcWaterFFP), 8);
@@ -222,7 +224,7 @@ void Liquid::CMaterialProcWater::Render(Liquid::IEnvironment* environment, Liqui
 
     g_theGxDevicePtr->RsSet(GxRs_Culling, 0);
     g_theGxDevicePtr->RsSet(GxRs_DepthWrite, 0);
-    g_theGxDevicePtr->RsSet(GxRs_BlendingMode, 2);
+    g_theGxDevicePtr->RsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     g_theGxDevicePtr->RsSet(GxRs_Fog, 1);
 
@@ -276,7 +278,7 @@ void Liquid::CMaterialProcWater::Render(Liquid::IEnvironment* environment, Liqui
         wavesEnd = waves;
     }
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < MAX_DIR_WAVES; i++) {
         if (waves + 6 > wavesEnd) {
             C2Vector direction;
             Liquid::SetDirectionalWave(i, direction, 0.0f, 0.0f, 0.0f, 0.0f);
@@ -288,7 +290,7 @@ void Liquid::CMaterialProcWater::Render(Liquid::IEnvironment* environment, Liqui
         waves += 6;
     }
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < MAX_RAD_WAVES; i++) {
         if (waves + 8 > wavesEnd) {
             C2Vector a2;
             C2Vector a3;
@@ -349,7 +351,7 @@ void Liquid::CMaterialProcWaterFFP::Render(Liquid::IEnvironment* environment, Li
     g_theGxDevicePtr->RsPush();
     g_theGxDevicePtr->XformPush(GxXform_World);
     g_theGxDevicePtr->RsSet(GxRs_Culling, 0);
-    g_theGxDevicePtr->RsSet(GxRs_BlendingMode, 2);
+    g_theGxDevicePtr->RsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     GxRsSet(GxRs_DepthWrite, g_theGxDevicePtr->Caps().m_maxClipPlanes == 0);
 

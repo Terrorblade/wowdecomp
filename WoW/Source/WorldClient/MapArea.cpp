@@ -120,14 +120,14 @@ void CMapArea::BatchChunks(const C2iVector& pos) {
         int32_t secondStart = 1;
         int32_t firstMerge = mergeTop;
         int32_t secondMerge = mergeBottom;
-        uint8_t orientation = 2;
+        uint8_t orientation = CMapRenderChunk::BATCH_PAIR_HORIZONTAL;
 
         if (vertical > horizontal) {
             firstMerge = mergeLeft;
             firstPartner = 1;
             secondStart = 2;
             secondMerge = mergeRight;
-            orientation = 1;
+            orientation = CMapRenderChunk::BATCH_PAIR_VERTICAL;
         }
 
         if (firstMerge) {
@@ -159,7 +159,7 @@ void CMapArea::BatchChunks(const C2iVector& pos) {
 // VERIFY: bb694f33 manual
 // OFFSET: 0x007D6980
 void CMapArea::LoadTerrainTexture(CMapAreaTexture* areaTexture, int32_t textureId) {
-    bool shaders = g_theGxDevicePtr->Caps().m_texTarget[1] && g_theGxDevicePtr->Caps().m_shaderTargets[0] && g_theGxDevicePtr->Caps().m_shaderTargets[4];
+    bool shaders = g_theGxDevicePtr->Caps().m_texTarget[1] && g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Vertex] && g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel];
 
     uint8_t flags = 0;
 
@@ -167,8 +167,8 @@ void CMapArea::LoadTerrainTexture(CMapAreaTexture* areaTexture, int32_t textureI
         flags = this->m_textureFlags[textureId];
     }
 
-    if ((flags & 0x1) || !CMap::enableSpecularTerrain) {
-        if (!(flags & 0x1) || shaders) {
+    if ((flags & TEXTURE_FLAG_NO_SPECULAR) || !CMap::enableSpecularTerrain) {
+        if (!(flags & TEXTURE_FLAG_NO_SPECULAR) || shaders) {
             areaTexture->m_texture = CMap::LoadTexture(areaTexture->m_textureName);
         } else {
             CImVector color;
@@ -220,11 +220,11 @@ CMapChunk* CMapArea::PrepareChunk(int32_t chunkX, int32_t chunkY) {
 
     bool firstUse = true;
 
-    if (this->m_chunkInfo[index].m_flags & 0x1) {
+    if (this->m_chunkInfo[index].m_flags & SMChunkInfo::F_PREPARED) {
         firstUse = false;
     }
 
-    this->m_chunkInfo[index].m_flags |= 0x1;
+    this->m_chunkInfo[index].m_flags |= SMChunkInfo::F_PREPARED;
 
     CMapChunk* chunk = CMap::AllocMapChunk();
     CMapBaseObjLink* link = CMap::AllocBaseObjLink(chunk);
@@ -323,7 +323,7 @@ void CMapArea::ProcessIffChunks() {
     this->m_modelFilenamesOffsets = reinterpret_cast<uint32_t*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mmid)->m_data);
     this->m_wmoFilenamesOffsets = reinterpret_cast<uint32_t*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mwid)->m_data);
 
-    if (this->m_header->m_flags & 0x1) {
+    if (this->m_header->m_flags & SMAreaHeader::HAS_FLYING_BBOX) {
         this->m_flyingBbox = reinterpret_cast<int16_t*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mfbo)->m_data);
     }
 

@@ -18,6 +18,7 @@
 #include "WoW/Source/Ui/NamePlateFrame.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
 #include "WoW/Source/UIUtil/Tooltip.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 
 namespace {
 
@@ -30,9 +31,6 @@ struct GuidHash {
 template <typename T>
 using GuidMap = std::unordered_map<WOWGUID, T, GuidHash>;
 
-const int32_t SPELL_AURA_SCHOOL_ABSORB = 69;
-const int32_t SPELL_AURA_MANA_SHIELD = 97;
-const int32_t SPELL_AURA_SCHOOL_HEAL_ABSORB = 301;
 const uint32_t NUM_AURA_SLOTS = 64;
 
 void SignalUnitEvent(const char* name, WOWGUID guid) {

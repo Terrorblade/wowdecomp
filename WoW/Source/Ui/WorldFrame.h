@@ -14,6 +14,7 @@
 #include "Engine/Source/Event/Types.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "Engine/Source/Tempest/CRect.h"
+#include "Engine/Source/Tempest/C3Segment.h"
 
 class CGGameObject_C;
 class CGUnit_C;
@@ -112,6 +113,42 @@ struct KEYDOWNSTATE {
 
 class CGWorldFrame : public CSimpleFrame {
     public:
+    enum WORLD_FLAGS : int32_t {
+        WORLD_UNKNOWN_0001 = 0x1,
+        WORLD_RELATIVE_MOUSE = 0x2,
+        WORLD_INITIAL_MODE_MASK = 0x3,
+    };
+
+    enum NAME_PLATE_FLAGS : uint32_t {
+        NAME_PLATE_NONE = 0,
+        NAME_PLATE_REPOSITION_PENDING = 0x1,
+        NAME_PLATE_RESORT_PENDING = 0x2,
+    };
+
+    enum HIT_FILTER : uint32_t {
+        HIT_TEST_NOTHING = 0x0,
+        HIT_TEST_GROUND = 0x1,
+        HIT_TEST_LIQUID = 0x2,
+        HIT_TEST_OBJECTS = 0x4,
+        HIT_TEST_UNITS = 0x8,
+        HIT_TEST_PLAYERS = 0x10,
+        HIT_TEST_ME = 0x20,
+        HIT_TEST_CORPSES = 0x40,
+        HIT_TEST_PARTY = 0x10000,
+        HIT_TEST_RAID = 0x20000,
+        HIT_TEST_FRIENDS = 0x40000,
+        HIT_TEST_ENEMIES = 0x80000,
+        HIT_TEST_LIVE = 0x100000,
+        HIT_TEST_DEAD = 0x200000,
+        HIT_TEST_NON_COMBAT_PET = 0x400000,
+        HIT_TEST_POSSESSED_FRIENDS = 0x800000,
+        HIT_TEST_UNKNOWN_8000000 = 0x8000000,
+        HIT_TEST_TERRAIN = HIT_TEST_GROUND | HIT_TEST_LIQUID,
+        HIT_TEST_ALL_OBJS = HIT_TEST_OBJECTS | HIT_TEST_UNITS | HIT_TEST_PLAYERS | HIT_TEST_ME | HIT_TEST_CORPSES,
+        HIT_TEST_RELATION_MASK = HIT_TEST_PARTY | HIT_TEST_RAID | HIT_TEST_FRIENDS | HIT_TEST_ENEMIES,
+        HIT_TEST_LIFE_STATE_MASK = HIT_TEST_LIVE | HIT_TEST_DEAD,
+    };
+
     enum HIT_TYPE : int32_t {
         HIT_NONE = 0,
         HIT_GROUND = 1,
@@ -184,6 +221,15 @@ class CGWorldFrame : public CSimpleFrame {
     void UpdateObject(CGObject_C* object, uint32_t flags);
     void ClearTrackedObjects();
     int32_t GetLineSegment(float mouseX, float mouseY, C3Vector* start, C3Vector* end);
+
+    enum SCREEN_BOUNDS : uint32_t {
+        SCREEN_BOUNDS_LEFT = 0x1,
+        SCREEN_BOUNDS_BOTTOM = 0x2,
+        SCREEN_BOUNDS_RIGHT = 0x4,
+        SCREEN_BOUNDS_TOP = 0x8,
+        SCREEN_BOUNDS_ALL = SCREEN_BOUNDS_LEFT | SCREEN_BOUNDS_BOTTOM | SCREEN_BOUNDS_RIGHT | SCREEN_BOUNDS_TOP,
+    };
+
     bool GetScreenCoordinates(const C3Vector& world, C3Vector* screen, uint32_t* result);
     bool HitTestModelList(const C3Vector& start, const C3Vector& end);
     void MoveToFreeList(TSList<CModelRecord, TSGetLink<CModelRecord> >* list);

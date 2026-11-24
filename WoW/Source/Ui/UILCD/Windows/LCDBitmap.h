@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <windows.h>
 #include "WoW/Source/Ui/UILCD/Windows/LCDBase.h"
+#include "Engine/Source/Tempest/C2iVector.h"
 
 class CLCDBitmap : public CLCDBase {
     public:

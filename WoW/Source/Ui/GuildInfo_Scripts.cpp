@@ -24,28 +24,28 @@
 
 
 // STATIC: 0x00AD07B8
-static GuildRankFlag s_guildRankFlags[17] = {
-    { 0x1, 0 },
-    { 0x2, 0 },
-    { 0x4, 0 },
-    { 0x8, 0 },
-    { 0x80, 0 },
-    { 0x100, 0 },
-    { 0x10, 0 },
-    { 0x20, 0 },
-    { 0x1000, 0 },
-    { 0x2000, 0 },
-    { 0x4000, 0 },
-    { 0x8000, 0 },
-    { 0x10000, 0 },
-    { 0x20000, 0 },
-    { 0x40000, 0 },
-    { 0x80000, 0 },
-    { 0x100000, 0 },
+static GuildRankFlag s_guildRankFlags[NUM_GUILD_RANK_FLAGS] = {
+    { GUILD_RIGHT_GUILDCHAT_LISTEN, 0 },
+    { GUILD_RIGHT_GUILDCHAT_SPEAK, 0 },
+    { GUILD_RIGHT_OFFICERCHAT_LISTEN, 0 },
+    { GUILD_RIGHT_OFFICERCHAT_SPEAK, 0 },
+    { GUILD_RIGHT_PROMOTE, 0 },
+    { GUILD_RIGHT_DEMOTE, 0 },
+    { GUILD_RIGHT_INVITE, 0 },
+    { GUILD_RIGHT_REMOVE, 0 },
+    { GUILD_RIGHT_EDIT_MOTD, 0 },
+    { GUILD_RIGHT_EDIT_PUBLIC_NOTE, 0 },
+    { GUILD_RIGHT_VIEW_OFFICER_NOTE, 0 },
+    { GUILD_RIGHT_EDIT_OFFICER_NOTE, 0 },
+    { GUILD_RIGHT_EDIT_GUILD_INFO, 0 },
+    { GUILD_RIGHT_UNKNOWN_17, 0 },
+    { GUILD_RIGHT_BANK_REPAIR, 0 },
+    { GUILD_RIGHT_WITHDRAW_BANK_MONEY, 0 },
+    { GUILD_RIGHT_EDIT_GUILD_EVENT, 0 },
 };
 
 // STATIC: 0x00AD07AC
-static uint32_t s_guildBankTabPermissionFlags[3] = { 1, 2, 4 };
+static uint32_t s_guildBankTabPermissionFlags[3] = { GUILDBANK_TAB_RIGHT_VIEW, GUILDBANK_TAB_RIGHT_DEPOSIT, GUILDBANK_TAB_RIGHT_UPDATE_TEXT };
 
 // VERIFY: d783a8ca auto
 // OFFSET: 0x005CA1B0
@@ -90,7 +90,7 @@ static int32_t Script_GuildControlSetRankFlag(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index < 17) {
+    if (index < NUM_GUILD_RANK_FLAGS) {
         s_guildRankFlags[index].m_enabled = StringToBOOL(L, 2, 0);
     }
 
@@ -270,7 +270,7 @@ static int32_t Script_GuildControlGetRankFlags(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     uint32_t rights = CGGuildInfo::GetRankInfo(s_guildControlRank).m_rights;
 
-    for (uint32_t i = 0; i < 17; i++) {
+    for (uint32_t i = 0; i < NUM_GUILD_RANK_FLAGS; i++) {
         if (player && player->m_player->m_playerGuildid && (rights & s_guildRankFlags[i].m_mask)) {
             lua_pushnumber(L, 1.0);
         } else {
@@ -278,7 +278,7 @@ static int32_t Script_GuildControlGetRankFlags(lua_State* L) {
         }
     }
 
-    return 17;
+    return NUM_GUILD_RANK_FLAGS;
 }
 
 // VERIFY: 40d5d07a auto
@@ -514,9 +514,9 @@ static int32_t Script_GetGuildRosterInfo(lua_State* L) {
         lua_pushnil(L);
     }
 
-    if (member->m_status & 0x4) {
+    if (member->m_status & GUILD_MEMBER_STATUS_DND) {
         lua_pushstring(L, FrameScript_GetText("CHAT_FLAG_DND", -1, GENDER_NOT_APPLICABLE));
-    } else if (member->m_status & 0x2) {
+    } else if (member->m_status & GUILD_MEMBER_STATUS_AFK) {
         lua_pushstring(L, FrameScript_GetText("CHAT_FLAG_AFK", -1, GENDER_NOT_APPLICABLE));
     } else {
         lua_pushstring(L, "");
@@ -542,7 +542,7 @@ static void SetGuildControlRank(uint32_t rank) {
     uint32_t rights = CGGuildInfo::GetRankInfo(rank).m_rights;
     s_guildControlRank = rank;
 
-    for (uint32_t i = 0; i < 17; i++) {
+    for (uint32_t i = 0; i < NUM_GUILD_RANK_FLAGS; i++) {
         s_guildRankFlags[i].m_enabled = rights & s_guildRankFlags[i].m_mask;
     }
 }
@@ -684,42 +684,42 @@ static int32_t Script_SortGuildRoster(lua_State* L) {
         return 0;
     }
 
-    int32_t column = 2;
+    int32_t column = GUILD_ROSTER_SORT_NAME;
     const char* type = lua_tolstring(L, 1, nullptr);
 
     if (SStrCmpI(type, "name", STORM_MAX_STR)) {
         if (!SStrCmpI(type, "level", STORM_MAX_STR)) {
-            CGGuildInfo::SortRoster(1);
+            CGGuildInfo::SortRoster(GUILD_ROSTER_SORT_LEVEL);
             return 0;
         }
 
         if (!SStrCmpI(type, "class", STORM_MAX_STR)) {
-            CGGuildInfo::SortRoster(4);
+            CGGuildInfo::SortRoster(GUILD_ROSTER_SORT_CLASS);
             return 0;
         }
 
         if (!SStrCmpI(type, "group", STORM_MAX_STR)) {
-            CGGuildInfo::SortRoster(5);
+            CGGuildInfo::SortRoster(GUILD_ROSTER_SORT_GROUP);
             return 0;
         }
 
         if (!SStrCmpI(type, "rank", STORM_MAX_STR)) {
-            CGGuildInfo::SortRoster(0);
+            CGGuildInfo::SortRoster(GUILD_ROSTER_SORT_RANK);
             return 0;
         }
 
         if (!SStrCmpI(type, "zone", STORM_MAX_STR)) {
-            CGGuildInfo::SortRoster(3);
+            CGGuildInfo::SortRoster(GUILD_ROSTER_SORT_ZONE);
             return 0;
         }
 
         if (!SStrCmpI(type, "online", STORM_MAX_STR)) {
-            CGGuildInfo::SortRoster(6);
+            CGGuildInfo::SortRoster(GUILD_ROSTER_SORT_ONLINE);
             return 0;
         }
 
         if (!SStrCmpI(type, "note", STORM_MAX_STR)) {
-            column = 7;
+            column = GUILD_ROSTER_SORT_NOTE;
         }
     }
 
@@ -742,7 +742,7 @@ static int32_t Script_GuildControlSaveRank(lua_State* L) {
     }
 
     char rankName[64];
-    ScrubString(name, rankName, 16, sizeof(rankName), 1);
+    ScrubString(name, rankName, 16, sizeof(rankName), SCRUB_FLAG_TRUNCATE_NEWLINES);
     int32_t rank = s_guildControlRank;
 
     if (static_cast<uint32_t>(rank) >= CGGuildInfo::m_numRanks) {
@@ -751,7 +751,7 @@ static int32_t Script_GuildControlSaveRank(lua_State* L) {
 
     uint32_t rights = CGGuildInfo::m_rankInfo[rank].m_rights;
 
-    for (uint32_t i = 0; i < 17; i++) {
+    for (uint32_t i = 0; i < NUM_GUILD_RANK_FLAGS; i++) {
         if (s_guildRankFlags[i].m_enabled) {
             rights |= s_guildRankFlags[i].m_mask;
         } else {
@@ -791,9 +791,9 @@ static int32_t Script_GuildControlAddRank(lua_State* L) {
     }
 
     char rankName[64];
-    ScrubString(name, rankName, 16, sizeof(rankName), 1);
+    ScrubString(name, rankName, 16, sizeof(rankName), SCRUB_FLAG_TRUNCATE_NEWLINES);
 
-    if (CGGuildInfo::m_numRanks < 10) {
+    if (CGGuildInfo::m_numRanks < MAX_GUILD_RANKS) {
         CDataStore msg;
         msg.Put(static_cast<uint32_t>(CMSG_GUILD_ADD_RANK));
         msg.PutString(rankName);
@@ -815,19 +815,19 @@ static int32_t Script_GetGuildBankTabPermissions(lua_State* L) {
     uint8_t tab = static_cast<uint8_t>(static_cast<int32_t>(lua_tonumber(L, 1)) - 1);
     uint32_t rights = tab < 6 ? CGGuildInfo::GetRankInfo(s_guildControlRank).m_bankTabRights[tab] : 0;
 
-    if (rights & 0x1) {
+    if (rights & GUILDBANK_TAB_RIGHT_VIEW) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (rights & 0x2) {
+    if (rights & GUILDBANK_TAB_RIGHT_DEPOSIT) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (rights & 0x4) {
+    if (rights & GUILDBANK_TAB_RIGHT_UPDATE_TEXT) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -850,7 +850,7 @@ static int32_t Script_SetGuildInfoText(lua_State* L) {
     scrubbed[0] = '\0';
 
     if (text && *text) {
-        ScrubString(text, scrubbed, 501, sizeof(scrubbed), 0);
+        ScrubString(text, scrubbed, 501, sizeof(scrubbed), SCRUB_FLAG_NONE);
     }
 
     CDataStore msg;
@@ -912,27 +912,27 @@ static int32_t Script_GetGuildEventInfo(lua_State* L) {
     char type[16];
 
     switch (entry->m_type) {
-        case 1:
+        case GuildEventLogEntry::EVENT_INVITE:
             SStrCopy(type, "invite", STORM_MAX_STR);
             break;
 
-        case 2:
+        case GuildEventLogEntry::EVENT_JOIN:
             SStrCopy(type, "join", STORM_MAX_STR);
             break;
 
-        case 3:
+        case GuildEventLogEntry::EVENT_PROMOTE:
             SStrCopy(type, "promote", STORM_MAX_STR);
             break;
 
-        case 4:
+        case GuildEventLogEntry::EVENT_DEMOTE:
             SStrCopy(type, "demote", STORM_MAX_STR);
             break;
 
-        case 5:
+        case GuildEventLogEntry::EVENT_REMOVE:
             SStrCopy(type, "remove", STORM_MAX_STR);
             break;
 
-        case 6:
+        case GuildEventLogEntry::EVENT_QUIT:
             SStrCopy(type, "quit", STORM_MAX_STR);
             break;
 

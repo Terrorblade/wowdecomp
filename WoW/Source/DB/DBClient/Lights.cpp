@@ -6,6 +6,7 @@
 #include "WoW/Source/DB/Rec/LightParamsRec.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "Engine/Source/Tempest/Color.h"
 
 // VERIFY: 7c5384b3 manual
 // OFFSET: 0x007EAE70
@@ -53,7 +54,7 @@ static CImVector InterpolateIntBand(const LightIntBandRec& rec, int32_t time) {
     CImVector color;
 
     if (!rec.m_num) {
-        *reinterpret_cast<uint32_t*>(&color) = 0xFF000000;
+        *reinterpret_cast<uint32_t*>(&color) = COLOR_BLACK_ARGB;
         return color;
     }
 

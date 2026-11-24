@@ -32,7 +32,7 @@ int32_t Packet_SMSG_NOTIFY_DANCE(void* param, NETMESSAGE msgId, uint32_t time, C
     char name[128];
     name[0] = '\0';
 
-    if (flags & 8) {
+    if (flags & DANCE_NOTIFY_ERROR) {
         msg->Get(error);
     } else {
         msg->Get(danceId);
@@ -40,7 +40,7 @@ int32_t Packet_SMSG_NOTIFY_DANCE(void* param, NETMESSAGE msgId, uint32_t time, C
         msg->Get(unk);
     }
 
-    if (flags & 1) {
+    if (flags & DANCE_NOTIFY_ADD) {
         KNOWNDANCES* dance = s_knownDances.Ptr(name);
 
         if (!dance) {
@@ -51,7 +51,7 @@ int32_t Packet_SMSG_NOTIFY_DANCE(void* param, NETMESSAGE msgId, uint32_t time, C
         dance->unk_001C = unk;
     }
 
-    if (flags & 2) {
+    if (flags & DANCE_NOTIFY_REPLACE) {
         KNOWNDANCES* dance = s_knownDances.m_fulllist.Head();
 
         while (dance) {
@@ -86,12 +86,12 @@ int32_t Packet_SMSG_NOTIFY_DANCE(void* param, NETMESSAGE msgId, uint32_t time, C
         g_danceCache.Invalidate(danceId);
     }
 
-    if (flags & 8) {
-        if (error == 0) {
+    if (flags & DANCE_NOTIFY_ERROR) {
+        if (error == DANCE_ERROR_CREATE_DUPLICATE) {
             CGGameUI::DisplayError(ERR_DANCE_CREATE_DUPLICATE);
-        } else if (error == 1) {
+        } else if (error == DANCE_ERROR_SAVE_FAILED) {
             CGGameUI::DisplayError(ERR_DANCE_SAVE_FAILED);
-        } else if (error == 2) {
+        } else if (error == DANCE_ERROR_DELETE_FAILED) {
             CGGameUI::DisplayError(ERR_DANCE_DELETE_FAILED);
         }
     }
@@ -177,7 +177,7 @@ void CGDanceStudio::PlayDance(DanceCache* record, DANCE_REQUEST* request) {
             continue;
         }
 
-        if (i < record->m_dataCount && record->m_data[i].m_type == 1) {
+        if (i < record->m_dataCount && record->m_data[i].m_type == DANCEMOVE_TYPE_FALLBACK) {
             DanceMovesRec* move = g_danceMovesDB.GetRecord(record->m_data[i].m_moveId);
             dance->m_moves[count] = move ? move->m_fallback : 0;
         } else {

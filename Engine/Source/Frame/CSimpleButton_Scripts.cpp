@@ -481,9 +481,9 @@ static int32_t Script_SetPushedTextOffset(lua_State* L) {
         return 0;
     }
 
-    float x = lua_tonumber(L, 2);
+    float x = static_cast<float>(lua_tonumber(L, 2));
     x = NDCToDDCWidth(x / (CoordinateGetAspectCompensation() * 1024.0f));
-    float y = lua_tonumber(L, 3);
+    float y = static_cast<float>(lua_tonumber(L, 3));
     y = NDCToDDCWidth(y / (CoordinateGetAspectCompensation() * 1024.0f));
 
     button->m_pushedTextOffset.x = x;

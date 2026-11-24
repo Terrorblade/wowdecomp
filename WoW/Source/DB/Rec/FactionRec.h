@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_FACTION_REPUTATION_ENTRIES = 4;
 
 class FactionRec {
     public:
@@ -14,10 +15,10 @@ class FactionRec {
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_reputationIndex;
-    /* 0008 */ int32_t m_reputationRaceMask [4];
-    /* 0018 */ int32_t m_reputationClassMask [4];
-    /* 0028 */ int32_t m_reputationBase [4];
-    /* 0038 */ int32_t m_reputationFlags [4];
+    /* 0008 */ int32_t m_reputationRaceMask [NUM_FACTION_REPUTATION_ENTRIES];
+    /* 0018 */ int32_t m_reputationClassMask [NUM_FACTION_REPUTATION_ENTRIES];
+    /* 0028 */ int32_t m_reputationBase [NUM_FACTION_REPUTATION_ENTRIES];
+    /* 0038 */ int32_t m_reputationFlags [NUM_FACTION_REPUTATION_ENTRIES];
     /* 0048 */ int32_t m_parentFactionID;
     /* 004C */ float m_parentFactionMod [2];
     /* 0054 */ int32_t m_parentFactionCap [2];

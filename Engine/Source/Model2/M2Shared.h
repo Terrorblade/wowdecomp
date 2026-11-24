@@ -42,6 +42,19 @@ class CM2SequenceLoad : public TSLinkedNode<CM2SequenceLoad> {
 
 class CM2Shared {
     public:
+    enum SHARED_FLAGS : uint32_t {
+        FLAG_NONE = 0,
+        FLAG_MODEL_LOADED = 1,
+        FLAG_SKIN_LOADED = 2,
+        FLAG_DIRECT_ACCESS = 4,
+        FLAG_OWNS_REORDERED_VERTICES = 8,
+        FLAG_SEQUENCE_CALLBACK = 0x10,
+        FLAG_SEQUENCE_CLEAR_PENDING = 0x20,
+        FLAG_TEXTURE_PRIORITY_AND_DEFERRED_CANCEL = 0x40,
+        FLAG_SEQUENCE_CALLBACK_MASK = 0x30u,
+        FLAG_INITIALIZATION_MASK = 0x7Fu,
+    };
+
     /* 0000 */ uint32_t m_refCount;
     /* 0004 */ CM2Cache* m_cache;
     /* 0008 */ uint32_t m_flags;

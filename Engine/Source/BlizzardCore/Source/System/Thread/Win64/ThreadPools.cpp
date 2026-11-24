@@ -28,7 +28,7 @@ uint32_t System_Thread::ThreadWorker::Executive(void* param) {
     Blizzard::Lock::EventWaitForever(worker->m_wakeEvent.m_event);
 
     while (worker->m_taskFunction) {
-        worker->m_task->m_state = 1;
+        worker->m_task->m_state = THREAD_STATE_RUNNING;
         worker->m_task->m_result = worker->m_taskFunction(worker->m_taskParam);
 
         if (worker->m_thread) {
@@ -49,7 +49,7 @@ uint32_t System_Thread::ThreadWorker::Executive(void* param) {
             }
         }
 
-        worker->m_task->m_state = -1;
+        worker->m_task->m_state = THREAD_STATE_FINISHED;
         Blizzard::Thread::Close(worker->m_task);
         worker->m_task = nullptr;
         worker->m_taskFunction = nullptr;

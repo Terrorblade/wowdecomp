@@ -260,10 +260,10 @@ CSimpleMessageScrollFrameDisplayNode::CSimpleMessageScrollFrameDisplayNode() {
 
     CSimpleFontStringRecord* string = this->m_string;
     uint32_t styleFlags = string->m_styleFlags;
-    string->m_settableStyleFlags &= ~0x4000u;
+    string->m_settableStyleFlags &= ~TEXTBLOCK_IGNORE_NEWLINE_CODES;
 
-    if ((styleFlags | 0x4000) != styleFlags) {
-        string->m_styleFlags = styleFlags | 0x4000;
+    if ((styleFlags | TEXTBLOCK_IGNORE_NEWLINE_CODES) != styleFlags) {
+        string->m_styleFlags = styleFlags | TEXTBLOCK_IGNORE_NEWLINE_CODES;
 
         if (string->m_string) {
             string->UpdateString();
@@ -505,7 +505,7 @@ void CSimpleMessageScrollFrame::ScrollMessages(int32_t scroll) {
 
                 if (created) {
                     string->SetFrame(this, 2, 1);
-                    string->m_fontableFlags &= ~0x4u;
+                    string->m_fontableFlags &= ~FLAG_COLOR_UPDATE;
                     string->SetFontObject(this->m_font);
                     string->SetWidth((this->m_messageFrameArea.maxX - this->m_messageFrameArea.minX) / this->m_layoutScale);
 
@@ -603,7 +603,7 @@ CSimpleMessageScrollFrame::CSimpleMessageScrollFrame(CSimpleFrame* parent, int32
 // VERIFY: 5b3fe8fd auto
 // OFFSET: 0x0096A4B0
 void CSimpleMessageScrollFrame::FontUpdated(CSimpleFontedFrameFont* font, int32_t flags) {
-    if (flags & 0x11) {
+    if (flags & (FLAG_FONT_UPDATE | FLAG_SPACING_UPDATE)) {
         for (uint32_t i = 0; i < this->m_displayNodes.Count(); i++) {
             this->m_displayNodes[i].m_string->SetFontObject(this->m_font);
         }
@@ -691,7 +691,7 @@ void CSimpleMessageScrollFrame::OnScreenSizeChanged() {
 // VERIFY: 3f38cf68 manual
 // OFFSET: 0x0096A760
 void CSimpleMessageScrollFrame::UpdateRect() {
-    if (!(this->m_layoutFlags & 0x100)) {
+    if (!(this->m_layoutFlags & CLayoutFrame::LAYOUT_RECT_VALID)) {
         return;
     }
 

@@ -5,9 +5,57 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/Net/Types.h"
+#include "WoW/Source/Object/Player.h"
 
 struct lua_State;
 class CDataStore;
+
+enum ARENA_TEAM_COMMAND_TYPE : uint32_t {
+    ARENA_TEAM_COMMAND_CREATE  = 0,
+    ARENA_TEAM_COMMAND_INVITE  = 1,
+    ARENA_TEAM_COMMAND_QUIT    = 3,
+    ARENA_TEAM_COMMAND_FOUNDER = 14,
+};
+
+enum ARENA_TEAM_EVENT : uint8_t {
+    ARENA_TEAM_EVENT_UNKNOWN_0      = 0,
+    ARENA_TEAM_EVENT_UNKNOWN_1      = 1,
+    ARENA_TEAM_EVENT_UNKNOWN_2      = 2,
+    ARENA_TEAM_EVENT_JOINED         = 3,
+    ARENA_TEAM_EVENT_LEFT           = 4,
+    ARENA_TEAM_EVENT_REMOVED        = 5,
+    ARENA_TEAM_EVENT_LEADER_IS      = 6,
+    ARENA_TEAM_EVENT_LEADER_CHANGED = 7,
+    ARENA_TEAM_EVENT_DISBANDED      = 8,
+};
+
+enum ARENA_TEAM_COMMAND_RESULT : uint32_t {
+    ARENA_RESULT_SUCCESS                                     = 0,
+    ARENA_RESULT_INTERNAL                                    = 1,
+    ARENA_RESULT_ALREADY_IN_TEAM                             = 2,
+    ARENA_RESULT_PLAYER_ALREADY_IN_TEAM                      = 3,
+    ARENA_RESULT_ALREADY_INVITED                             = 4,
+    ARENA_RESULT_PLAYER_ALREADY_INVITED                      = 5,
+    ARENA_RESULT_NAME_INVALID                                = 6,
+    ARENA_RESULT_NAME_EXISTS                                 = 7,
+    ARENA_RESULT_LEADER_CANNOT_LEAVE_OR_NO_PERMISSION        = 8,
+    ARENA_RESULT_NOT_IN_TEAM                                 = 9,
+    ARENA_RESULT_PLAYER_NOT_IN_TEAM                          = 10,
+    ARENA_RESULT_PLAYER_NOT_FOUND                            = 11,
+    ARENA_RESULT_NOT_ALLIED                                  = 12,
+    ARENA_RESULT_IGNORING_YOU                                = 19,
+    ARENA_RESULT_TARGET_TOO_LOW                              = 21,
+    ARENA_RESULT_TARGET_TOO_HIGH                             = 22,
+    ARENA_RESULT_TOO_MANY_MEMBERS                            = 23,
+    ARENA_RESULT_TEAM_NOT_FOUND                              = 27,
+    ARENA_RESULT_TEAMS_LOCKED                                = 30,
+};
+
+enum ARENA_TEAM_SIZE : int32_t {
+    TWO_VS_TWO = 2,
+    THREE_VS_THREE = 3,
+    FIVE_VS_FIVE = 5,
+};
 
 struct ArenaTeamMember {
     /* 0000 */ WOWGUID m_guid;
@@ -49,10 +97,22 @@ struct ArenaTeamSort {
 
 class CGArenaTeamInfo {
     public:
-    static ArenaTeam m_arenaTeams[3];
+
+    enum SORT_COLUMN : int32_t {
+        COLUMN_NAME = 0,
+        COLUMN_CLASS = 1,
+        COLUMN_WEEK_GAMES = 2,
+        COLUMN_WEEK_WINS = 3,
+        COLUMN_SEASON_GAMES = 4,
+        COLUMN_SEASON_WINS = 5,
+        COLUMN_PERSONAL_RATING = 6,
+        NUM_COLUMNS = 7,
+    };
+
+    static ArenaTeam m_arenaTeams[MAX_ARENA_TEAMS];
     static int32_t m_showOffline;
-    static uint32_t m_nextAllowedQuery[3];
-    static ArenaTeamSort m_sortOrder[7];
+    static uint32_t m_nextAllowedQuery[MAX_ARENA_TEAMS];
+    static ArenaTeamSort m_sortOrder[CGArenaTeamInfo::NUM_COLUMNS];
     static WOWGUID m_selectedMember;
     static void EnterWorld();
     static void InitializeGame();

@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum ITEM_LIMIT_CATEGORY_FLAGS : int32_t {
+    ITEM_LIMIT_CATEGORY_FLAG_NONE     = 0x00000000,
+    ITEM_LIMIT_CATEGORY_FLAG_MULTIPLE = 0x00000001,
+};
+
 class ItemLimitCategoryRec {
     public:
     static const int32_t s_numColumns = 20;

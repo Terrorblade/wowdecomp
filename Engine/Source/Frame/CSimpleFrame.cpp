@@ -202,7 +202,7 @@ CSimpleFrame::CSimpleFrame(CSimpleFrame* parent) {
     this->m_alpha = 0xFF;
     this->m_parentAlpha = 0xFF;
     this->m_animSavedAlpha = 0xFF;
-    this->m_lifecycleState = 1;
+    this->m_lifecycleState = STATE_INITIALIZED;
     this->m_hitRect = { 0.0f, 0.0f, 0.0f, 0.0f };
     this->m_hitRectInsets = { 0.0f, 0.0f, 0.0f, 0.0f };
     this->m_clampRectInsets = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -242,7 +242,7 @@ CSimpleFrame::CSimpleFrame(CSimpleFrame* parent) {
 CSimpleFrame::~CSimpleFrame() {
     // Controller: drop the frame's gamepad scripts and button captures.
     Controller::OnFrameDestroyed(this);
-    this->m_lifecycleState = 3;
+    this->m_lifecycleState = STATE_DELETED;
     this->m_simpleTop->UnregisterFrame(this);
     this->m_simpleTop->ValidateDeletedFrame(this);
     this->m_simpleTop = nullptr;
@@ -604,10 +604,10 @@ void CSimpleFrame::RunOnAttributeChangedScript(const char* name, int32_t luaRef)
 // OFFSET: 0x0048ECF0
 void CSimpleFrame::AllowAttributeChanges(int32_t allow) {
     if (allow) {
-        this->m_frameFlags |= 0x8000;
+        this->m_frameFlags |= FRAME_ALLOW_ATTRIBUTE_CHANGES;
         this->m_simpleTop->RegisterForCleanup(this);
     } else {
-        this->m_frameFlags &= ~0x8000u;
+        this->m_frameFlags &= ~FRAME_ALLOW_ATTRIBUTE_CHANGES;
     }
 }
 
@@ -615,7 +615,7 @@ void CSimpleFrame::AllowAttributeChanges(int32_t allow) {
 // OFFSET: 0x0048ED30
 int32_t CSimpleFrame::AttributeChangesAllowed() {
     for (CSimpleFrame* frame = this; frame; frame = frame->m_parent) {
-        if (frame->m_frameFlags & 0x8000) {
+        if (frame->m_frameFlags & FRAME_ALLOW_ATTRIBUTE_CHANGES) {
             return 1;
         }
     }
@@ -791,8 +791,8 @@ void CSimpleFrame::LoadXMLInheritance(XMLNode* node, CStatus* status) {
 // VERIFY: 08c5569f auto
 // OFFSET: 0x0048F550
 void CSimpleFrame::NotifyDelayedLoad() {
-    if (this->m_frameFlags & 0x2000) {
-        this->m_batchDirty |= 0x20;
+    if (this->m_frameFlags & FRAME_BEING_SCROLLED) {
+        this->m_batchDirty |= BATCH_DIRTY_DELAYED_LOAD;
     } else if (this->m_simpleTop && this->m_isVisible) {
         this->m_simpleTop->NotifyFrameDelayedLoad(this);
     }
@@ -881,11 +881,11 @@ void CSimpleFrame::DisableEvent(CSimpleEventType eventType) {
 // VERIFY: bbfb8171 manual
 // OFFSET: 0x0048F730
 int32_t CSimpleFrame::TestHitRect(const C2Vector& pt) {
-    if (!(this->m_layoutFlags & 0x100)) {
+    if (!(this->m_layoutFlags & CLayoutFrame::LAYOUT_RECT_VALID)) {
         return 0;
     }
 
-    if (!(this->m_frameFlags & 0x2000)) {
+    if (!(this->m_frameFlags & FRAME_BEING_SCROLLED)) {
         return this->m_hitRect.IsPointInside(pt);
     }
 
@@ -923,7 +923,7 @@ void CSimpleFrame::SetHitRectInsets(float left, float right, float top, float bo
 // VERIFY: 8c2d9ec9 manual
 // OFFSET: 0x0048F890
 int32_t CSimpleFrame::GetHitRect(CRect& rect) {
-    if (!(this->m_layoutFlags & 0x100)) {
+    if (!(this->m_layoutFlags & CLayoutFrame::LAYOUT_RECT_VALID)) {
         return 0;
     }
 
@@ -1174,19 +1174,19 @@ void CSimpleFrame::OnReceiveDrag(const CMouseEvent& evt) {
 // VERIFY: 703bbed0 auto
 // OFFSET: 0x0048FEA0
 void CSimpleFrame::NotifyScrollParent() {
-    if (!(this->m_frameFlags & 0x2000) || !this->m_isVisible) {
+    if (!(this->m_frameFlags & FRAME_BEING_SCROLLED) || !this->m_isVisible) {
         return;
     }
 
     CSimpleFrame* frame = this;
 
-    while (!(frame->m_frameFlags & 0x4000)) {
+    while (!(frame->m_frameFlags & FRAME_SCROLL_CHILD)) {
         frame = frame->m_parent;
     }
 
     CSimpleScrollFrame* scrollFrame = static_cast<CSimpleScrollFrame*>(frame->m_parent);
 
-    if (scrollFrame && scrollFrame->m_lifecycleState != 3) {
+    if (scrollFrame && scrollFrame->m_lifecycleState != STATE_DELETED) {
         scrollFrame->m_scrollChildUpdate = 1;
     }
 }
@@ -1283,7 +1283,7 @@ void CSimpleFrame::LoadXML_Scripts(XMLNode* node, CStatus* status) {
 // VERIFY: 784118ad auto
 // OFFSET: 0x00490270
 void CSimpleFrame::NotifyDrawLayerChanged(uint32_t drawLayer) {
-    if (this->m_frameFlags & 0x2000) {
+    if (this->m_frameFlags & FRAME_BEING_SCROLLED) {
         this->m_batchDirty |= 1 << drawLayer;
     } else if (this->m_simpleTop && this->m_isVisible) {
         this->m_simpleTop->NotifyFrameLayerChanged(this, drawLayer);
@@ -1560,7 +1560,7 @@ void CSimpleFrame::LockHighlight(int32_t lock) {
 // VERIFY: 95d4bac7 manual
 // OFFSET: 0x00490C70
 void CSimpleFrame::ParentFrame(CSimpleFrame* child) {
-    SIMPLEFRAMENODE* node = this->m_children.NewNode(2, 0, 0);
+    SIMPLEFRAMENODE* node = this->m_children.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_frame = child;
 }
 
@@ -1604,25 +1604,25 @@ void CSimpleFrame::SetBeingScrolled(int32_t scrolled, int32_t a3) {
     }
 
     if (scrolled) {
-        this->m_frameFlags |= 0x2000;
+        this->m_frameFlags |= FRAME_BEING_SCROLLED;
     } else {
-        this->m_frameFlags &= ~0x2000u;
+        this->m_frameFlags &= ~FRAME_BEING_SCROLLED;
     }
 
     if (a3 >= 0) {
         if (a3) {
-            this->m_frameFlags |= 0x4000;
+            this->m_frameFlags |= FRAME_SCROLL_CHILD;
         } else {
-            this->m_frameFlags &= ~0x4000u;
+            this->m_frameFlags &= ~FRAME_SCROLL_CHILD;
         }
     }
 
     if (scrolled) {
-        this->m_batchDirty |= 0x1F;
+        this->m_batchDirty |= BATCH_DIRTY_ALL_DRAWLAYERS;
     }
 
     for (SIMPLEFRAMENODE* node = this->m_children.Head(); node; node = this->m_children.Next(node)) {
-        if (!(node->m_frame->m_frameFlags & 0x4000)) {
+        if (!(node->m_frame->m_frameFlags & FRAME_SCROLL_CHILD)) {
             node->m_frame->SetBeingScrolled(scrolled, -1);
         }
     }
@@ -1769,7 +1769,7 @@ void CSimpleFrame::SetParent(CSimpleFrame* parent) {
 // OFFSET: 0x00491350
 int32_t CSimpleFrame::AreChildrenProtected(int32_t& deferred) {
     for (SIMPLEFRAMENODE* node = this->m_children.Head(); node; node = this->m_children.Next(node)) {
-        if (node->m_frame->m_frameFlags & 0x800) {
+        if (node->m_frame->m_frameFlags & FRAME_DEFER_PROTECTION_QUERY) {
             deferred = 1;
         } else if (node->m_frame->IsProtected()) {
             return 1;
@@ -1953,7 +1953,7 @@ int32_t CSimpleFrame::ShowThis() {
         node->m_frame->ShowThis();
     }
 
-    if (this->m_frameFlags & 0x1) {
+    if (this->m_frameFlags & FRAME_TOPLEVEL) {
         this->m_simpleTop->RaiseFrame(this, 1);
     }
 
@@ -2087,7 +2087,7 @@ void CSimpleFrame::OnFrameRender() {
             }
         }
 
-        if (this->m_batchDirty & 0x20) {
+        if (this->m_batchDirty & BATCH_DIRTY_DELAYED_LOAD) {
             for (uint32_t layer = 0; layer < NUM_SIMPLEFRAME_DRAWLAYERS; layer++) {
                 this->m_batchDirty |= 1 << layer;
             }
@@ -2103,7 +2103,7 @@ void CSimpleFrame::OnFrameRender() {
     for (SIMPLEFRAMENODE* node = this->m_children.Head(); node; node = this->m_children.Next(node)) {
         CSimpleFrame* child = node->m_frame;
 
-        if (child->m_isVisible && !(child->m_frameFlags & 0x4000)) {
+        if (child->m_isVisible && !(child->m_frameFlags & FRAME_SCROLL_CHILD)) {
             child->OnFrameRender();
         }
     }
@@ -2273,25 +2273,25 @@ void CSimpleFrame::LoadXML(XMLNode* node, CStatus* status) {
     const char* toplevel = node->GetAttributeByName("toplevel");
 
     if (toplevel && *toplevel) {
-        this->SetFrameFlag(0x1, StringToBOOL(toplevel));
+        this->SetFrameFlag(FRAME_TOPLEVEL, StringToBOOL(toplevel));
     }
 
     const char* movable = node->GetAttributeByName("movable");
 
     if (movable && *movable) {
-        this->SetFrameFlag(0x100, StringToBOOL(movable));
+        this->SetFrameFlag(FRAME_MOVABLE, StringToBOOL(movable));
     }
 
     const char* dontSavePosition = node->GetAttributeByName("dontSavePosition");
 
     if (dontSavePosition && *dontSavePosition) {
-        this->SetFrameFlag(0x80000, StringToBOOL(dontSavePosition));
+        this->SetFrameFlag(FRAME_DONT_SAVE_POSITION, StringToBOOL(dontSavePosition));
     }
 
     const char* resizable = node->GetAttributeByName("resizable");
 
     if (resizable && *resizable) {
-        this->SetFrameFlag(0x200, StringToBOOL(resizable));
+        this->SetFrameFlag(FRAME_RESIZABLE, StringToBOOL(resizable));
     }
 
     const char* frameStrata = node->GetAttributeByName("frameStrata");

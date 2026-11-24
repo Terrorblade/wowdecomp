@@ -12,6 +12,7 @@
 #include "WoW/Common/ComponentCore/Types.h"
 #include "WoW/Common/TextureCache.h"
 #include "WoW/Source/Glue/ComponentData.h"
+#include "WoW/Source/DB/Rec/CharSectionsRec.h"
 
 class CCharacterComponent;
 class CComponentMipBits;
@@ -30,6 +31,11 @@ struct SheetSlot;
 struct st_race;
 
 struct CharacterBaseVariation {
+
+    enum TEXTURE_LIMITS : int32_t {
+        DESTRUCTION_COUNT = 7,
+    };
+
     /* 0000 */ HTEXTURECACHE m_texture [3];
 
     ~CharacterBaseVariation();
@@ -58,6 +64,12 @@ class CComponentMipBits {
 
 class CComponentRequest {
     public:
+    enum REQUEST_FLAGS : int32_t {
+        IN_USE = 0x1,
+        FINISHED = 0x2,
+        STATE_MASK = 0x3,
+    };
+
     /* 0000 */ uint32_t m_flags;
     /* 0004 */ EGxTexFormat m_format;
     /* 0008 */ CComponentMipBits* m_mipBits;
@@ -74,6 +86,24 @@ class CComponentRequest {
 class CStatus;
 class CCharacterComponent {
     public:
+    enum FLAGS : int32_t {
+        TEXTURES_DIRTY = 0x1,
+        UNKNOWN_2 = 0x2,
+        GEOSETS_DIRTY = 0x4,
+        UNKNOWN_8 = 0x8,
+        BARE_FEET = 0x10,
+        HIDE_PANTS_AND_BELT = 0x20,
+        TABARD_PREVIEW = 0x40,
+        TEXTURES_AND_GEOSETS_DIRTY = 0x5,
+        INITIAL_FLAGS = 0x7,
+        TABARD_PREVIEW_AND_GEOSETS = 0x44,
+        DISPLAY_RESET_MASK = 0x45,
+    };
+
+    enum FLAG_BITS : int32_t {
+        BARE_FEET_BIT_INDEX = 4,
+    };
+
     static CVar* g_componentCompressVar;
     static CVar* g_componentTextureLevelVar;
     static CVar* g_componentThreadVar;
@@ -94,8 +124,8 @@ class CCharacterComponent {
     static CompSectionInfo s_sectionInfoRaw[NUM_COMPONENT_SECTIONS];
     static MipBits* s_textureBuffer;
 
-    static GEOCOMPONENTLINKS AddHandItem(CM2Model* model, const ItemDisplayInfoRec* displayRec, INVENTORY_SLOTS invSlot, SHEATHE_TYPE sheatheType, bool sheathed, bool shield, bool mainHand, int32_t itemVisual);
-    static void AddLink(CM2Model* parent, GEOCOMPONENTLINKS link, const char* modelPath, const char* texturePath, int32_t itemVisual, const ItemDisplayInfoRec* displayRec);
+    static MODEL_ATTACHMENT_ID AddHandItem(CM2Model* model, const ItemDisplayInfoRec* displayRec, INVENTORY_SLOTS invSlot, SHEATHE_TYPE sheatheType, bool sheathed, bool shield, bool mainHand, int32_t itemVisual);
+    static void AddLink(CM2Model* parent, MODEL_ATTACHMENT_ID link, const char* modelPath, const char* texturePath, int32_t itemVisual, const ItemDisplayInfoRec* displayRec);
     static CCharacterComponent* AllocComponent();
     static CComponentMipBits* AllocComponentMipBits(EGxTexFormat format);
     static CComponentRequest* AllocComponentRequest();
@@ -116,7 +146,7 @@ class CCharacterComponent {
     static int32_t GetNumHairColorsForStyle(int32_t raceID, int32_t sexID, int32_t classID, int32_t hairStyleID, COMPONENT_CONTEXT context);
     static int32_t GetNumHairStylesForColor(int32_t raceID, int32_t sexID, int32_t classID, int32_t hairColorID, COMPONENT_CONTEXT context);
     static int32_t GetNumSkins(int32_t raceID, int32_t sexID, int32_t classID, COMPONENT_CONTEXT context);
-    static GEOCOMPONENTLINKS GetSheatheLink(SHEATHE_TYPE sheatheType, bool mainHand);
+    static MODEL_ATTACHMENT_ID GetSheatheLink(SHEATHE_TYPE sheatheType, bool mainHand);
     static char* GetTabardBackgroundFileName(COMPONENT_SECTIONS section, int32_t background, char* buffer, int32_t size);
     static char* GetTabardBorderFileName(COMPONENT_SECTIONS section, int32_t border, int32_t color, char* buffer, int32_t size);
     static char* GetTabardEmblemFileName(COMPONENT_SECTIONS section, int32_t emblem, int32_t color, char* buffer, int32_t size);
@@ -139,7 +169,7 @@ class CCharacterComponent {
     static void ProcessComponentFinishedList(int32_t all);
     static void ProcessComponentRequest(CComponentRequest* request);
     static void RemoveHandItem(CM2Model* model, INVENTORY_SLOTS invSlot, SHEATHE_TYPE sheatheType, bool shield);
-    static void RemoveLinkpt(CM2Model* model, GEOCOMPONENTLINKS link);
+    static void RemoveLinkpt(CM2Model* model, MODEL_ATTACHMENT_ID link);
     static void RemoveVisuals(CM2Model* model);
     static void ReplaceMonsterSkin(CM2Model* model, const CreatureDisplayInfoRec* displayRec, const CreatureModelDataRec* modelRec);
     static void ThreadDestroy();
@@ -160,7 +190,7 @@ class CCharacterComponent {
     /* 01D0 */ CharacterSection m_section [10];
     /* 0428 */ uint32_t m_itemDisplayID [12];
     /* 0458 */ uint32_t m_handItemDisplayID [3];
-    /* 0464 */ int32_t m_itemSlotForAttachSlot [50];
+    /* 0464 */ int32_t m_itemSlotForAttachSlot [NUM_ATTACH_SLOTS];
     /* 052C */ CComponentRequest* m_request;
     // FIX: the HD character state lives on the component so the hooks need no side tables.
     bool m_hd;
@@ -234,7 +264,7 @@ class CCharacterComponent {
     void SetHairColor(int32_t hairColorID, bool loadHair, const char* debug);
     void SetHairStyle(int32_t hairStyleID, const char* debug);
     void SetHandItemDisplay(int32_t displayID, uint32_t hand, INVENTORY_SLOTS invSlot, bool shield);
-    void SetItemSlotUsingAttachSlot(ITEM_SLOT itemSlot, GEOCOMPONENTLINKS link);
+    void SetItemSlotUsingAttachSlot(ITEM_SLOT itemSlot, MODEL_ATTACHMENT_ID link);
     void SetMainHandItemDisplay(int32_t displayID);
     void SetOffHandItemDisplay(int32_t displayID);
     void SetShieldItemDisplay(int32_t displayID);

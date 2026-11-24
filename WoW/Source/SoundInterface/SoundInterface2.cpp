@@ -32,12 +32,14 @@
 #include "WoW/Source/WorldClient/AreaList.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "WoW/Source/Client.h"
+#include "WoW/Common/Types.h"
 
 // STATIC: 0x00B24180
 static const char* s_raceFileNames[] = { nullptr, "Human", "Orc", "Dwarf", "NightElf", "Scourge", "Tauren", "Gnome", "Troll", "Goblin", "BloodElf", "Draenei" };
 
 // STATIC: 0x009F2010
-const char SI2::s_channelGroupNames[18][32] = {
+const char SI2::s_channelGroupNames[SI2_SOUND_GROUP_COUNT][32] = {
     "SFX",
     "MUSIC",
     "AMBIENCE",
@@ -59,7 +61,7 @@ const char SI2::s_channelGroupNames[18][32] = {
 };
 
 // STATIC: 0x009F2268
-const int32_t SI2::s_channelGroupMaxSounds[18] = {
+const int32_t SI2::s_channelGroupMaxSounds[SI2_SOUND_GROUP_COUNT] = {
     0x7FFFFFFF,
     0x7FFFFFFF,
     0x7FFFFFFF,
@@ -84,7 +86,7 @@ const int32_t SI2::s_channelGroupMaxSounds[18] = {
 static float s_subchunkRound = 0.5f;
 
 // STATIC: 0x00B4A340
-int32_t SI2::s_channelGroupNumSounds[18];
+int32_t SI2::s_channelGroupNumSounds[SI2_SOUND_GROUP_COUNT];
 
 // STATIC: 0x00B4A390
 TSGrowableArray<uint32_t> SI2::s_suppressors;
@@ -93,7 +95,7 @@ TSGrowableArray<uint32_t> SI2::s_suppressors;
 static const char* s_savedVoiceSession;
 
 // STATIC: 0x00AC3860
-static int32_t s_savedVoiceSessionType = 4;
+static int32_t s_savedVoiceSessionType = COMSATDATA::NONE;
 
 // STATIC: 0x00B4A3E4
 static float s_chaosRestartTimer;
@@ -122,7 +124,7 @@ int32_t SI2::sm_bLuaMusicPlaying;
 // VERIFY: 8cb9a901 manual
 // OFFSET: 0x004C5B60
 static int32_t GetDownloadPriority(int32_t group) {
-    if (group <= 0 || group > 2) {
+    if (group <= SI2_SOUND_GROUP_SFX || group > SI2_SOUND_GROUP_AMBIENCE) {
         return 5;
     }
 
@@ -135,17 +137,17 @@ void SE2SoundKitProperties::ResetToDefaults() {
     this->m_volume = -1.0f;
     this->m_volumeScale = 1.0f;
     this->m_fileIndex = -1;
-    this->m_priority = -1;
+    this->m_priority = SE2_PRIORITY_UNSET;
     this->m_fadeInTime = 0.0f;
     this->m_fadeOutTime = 0.0f;
-    this->m_group = 0;
-    this->m_selectMode = 2;
+    this->m_group = SI2_SOUND_GROUP_SFX;
+    this->m_selectMode = SE2_FILE_SELECT_WEIGHTED_CYCLE;
     this->m_maxDistance = -1.0f;
-    this->m_loopMode = 0;
+    this->m_loopMode = SE2_LOOP_MODE_DEFAULT;
     this->m_muteFadeSpeed = 0.5f;
-    this->m_suppressorMode = 0;
+    this->m_suppressorMode = SE2_SUPPRESSOR_MODE_DEFAULT;
     this->m_decodeBufferSize = 0;
-    this->m_maxAudibleBehavior = 1;
+    this->m_maxAudibleBehavior = SE2_MAX_AUDIBLE_STEAL_LOWEST;
     this->m_coneInsideAngle = 360.0f;
     this->m_reverb = 1;
     this->m_coneOutsideAngle = 360.0f;
@@ -285,7 +287,7 @@ uint32_t SI2::IsSoundKitLooping(int32_t soundKitId) {
         return 0;
     }
 
-    return def->m_flags & 0x200;
+    return def->m_flags & SOUND_ENTRY_FLAG_LOOPING;
 }
 
 // VERIFY: dd9e9845 manual
@@ -297,7 +299,7 @@ int32_t SI2::GetSoundKitUsage(int32_t soundKitId) {
         return def->m_advanced->m_usage;
     }
 
-    return 2;
+    return SI2_SOUND_USAGE_ONESHOT;
 }
 
 // VERIFY: 9ff69350 manual
@@ -322,17 +324,17 @@ int32_t SI2::GetNumSoundsInSoundKit(int32_t soundKitId) {
 // OFFSET: 0x004C5C80
 int32_t SI2::AttachToObject(SE2SoundKitObject* object, WOWGUID guid) {
     if (!object->m_sound.Is3D()) {
-        return 12;
+        return SI2_ERR_NOT_3D;
     }
 
     object->m_sound.AttachToObject(guid.m_guid);
-    return 0;
+    return SI2_OK;
 }
 
 // VERIFY: f1864be0 auto
 // OFFSET: 0x004C5CC0
 void SI2::StopAllSounds(float fadeOutTime) {
-    SE2::StopAllSounds(SI2::s_channelGroupNames[0], fadeOutTime);
+    SE2::StopAllSounds(SI2::s_channelGroupNames[SI2_SOUND_GROUP_SFX], fadeOutTime);
 }
 
 // VERIFY: 218e92b2 auto
@@ -372,7 +374,7 @@ int32_t SI2::OnFocusChanged(const void* data, void* param) {
         if (CGGameUI::m_initialized && enableVoiceChat && enableVoiceChat->m_intValue && s_savedVoiceSession) {
             CGChat::SetActiveVoiceSession(s_savedVoiceSession, s_savedVoiceSessionType, -1);
             s_savedVoiceSession = nullptr;
-            s_savedVoiceSessionType = 4;
+            s_savedVoiceSessionType = COMSATDATA::NONE;
         }
     } else if (s_enableSoundWhenGameIsInBG->m_intValue) {
         SE2::MuteAllSound(false);
@@ -383,7 +385,7 @@ int32_t SI2::OnFocusChanged(const void* data, void* param) {
 
         if (CGGameUI::m_initialized && !s_savedVoiceSession) {
             s_savedVoiceSession = CGChat::GetChannelStringForDisplay(CGChat::GetActiveVoiceSession(), &s_savedVoiceSessionType);
-            CGChat::SetActiveVoiceSession(nullptr, 4, -1);
+            CGChat::SetActiveVoiceSession(nullptr, COMSATDATA::NONE, -1);
         }
     }
 
@@ -511,13 +513,13 @@ void SI2::SoundFinished(SESound* sound, void* param) {
         SI2::s_channelGroupNumSounds[userData->m_group]--;
     }
 
-    if (userData->m_advancedId && userData->m_def && userData->m_def->m_advanced && userData->m_def->m_advanced->m_usage == 2) {
+    if (userData->m_advancedId && userData->m_def && userData->m_def->m_advanced && userData->m_def->m_advanced->m_usage == SI2_SOUND_USAGE_ONESHOT) {
         SI2::MarkAdvancedSoundStopped(userData->m_advancedId);
     }
 
     VSOUNDKITDEF* def = userData->m_def;
 
-    if (def && (def->m_flags & 0x20)) {
+    if (def && (def->m_flags & SOUND_ENTRY_FLAG_SUPPRESSIBLE)) {
         int32_t id = def->m_id;
 
         for (uint32_t i = 0; i < SI2::s_suppressors.Count(); i++) {
@@ -535,7 +537,7 @@ int32_t SI2::ResetSoundKitVariants(const char* name) {
     int32_t soundKitId = SI2::LookupSoundKitId(name);
 
     if (!soundKitId) {
-        return 7;
+        return SI2_ERR_SOUND_KIT_NOT_FOUND;
     }
 
     VSOUNDKITDEF* def = SI2::GetSoundKitDef(soundKitId);
@@ -545,12 +547,12 @@ int32_t SI2::ResetSoundKitVariants(const char* name) {
     }
 
     if (!def->m_numFiles) {
-        return 6;
+        return SI2_ERR_NO_FILES;
     }
 
     def->ResetWeights();
     def->m_lastIndex = -1;
-    return 0;
+    return SI2_OK;
 }
 
 // VERIFY: 2c0f24c2 auto
@@ -561,7 +563,7 @@ int32_t SI2::StopSound(SE2SoundKitObject* object, int32_t immediate, float fadeO
     if (userData) {
         VSOUNDKITDEF* def = userData->m_def;
 
-        if (def && (def->m_flags & 0x20)) {
+        if (def && (def->m_flags & SOUND_ENTRY_FLAG_SUPPRESSIBLE)) {
             int32_t id = def->m_id;
 
             for (uint32_t i = 0; i < SI2::s_suppressors.Count(); i++) {
@@ -596,11 +598,11 @@ int32_t SI2ZoneSoundPair::GetPlayingSoundKitId() {
 // OFFSET: 0x004C6450
 void SI2ZoneSoundPair::Stop(int32_t immediate) {
     SI2::StopSound(&this->m_sounds[this->m_current].m_object, immediate, -1.0f, 1);
-    this->m_sounds[this->m_current].m_type = 13;
+    this->m_sounds[this->m_current].m_type = SI2::SOURCE_NONE;
     this->m_sounds[this->m_current].m_soundKitId = 0;
 
     SI2::StopSound(&this->m_sounds[this->m_next].m_object, immediate, -1.0f, 1);
-    this->m_sounds[this->m_next].m_type = 13;
+    this->m_sounds[this->m_next].m_type = SI2::SOURCE_NONE;
     this->m_sounds[this->m_next].m_soundKitId = 0;
 }
 
@@ -610,7 +612,7 @@ SI2SoundUserData::SI2SoundUserData() {
     this->m_name = nullptr;
     this->m_soundKitId = 0;
     this->m_def = nullptr;
-    this->m_group = 0;
+    this->m_group = SI2_SOUND_GROUP_SFX;
     this->m_counted = 0;
     this->m_advancedId = 0;
 }
@@ -626,7 +628,7 @@ SI2SoundUserData::~SI2SoundUserData() {
     this->m_name = nullptr;
     this->m_soundKitId = 0;
     this->m_def = nullptr;
-    this->m_group = 0;
+    this->m_group = SI2_SOUND_GROUP_SFX;
     this->m_counted = 0;
     this->m_advancedId = 0;
 }
@@ -675,7 +677,7 @@ void SI2::RegisterDeviceChangeHandler() {
 // OFFSET: 0x004C6A40
 int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2SoundKitObject* object, SE2SoundKitProperties* properties, uint32_t advancedId, uint32_t* soundId, int32_t checkDistance, int32_t keepPlaying) {
     if (soundKitId <= 0) {
-        return 5;
+        return SI2_ERR_INVALID_SOUND_KIT;
     }
 
     VSOUNDKITDEF* def = SI2::GetSoundKitDef(soundKitId);
@@ -685,17 +687,17 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
     }
 
     if (!def->m_numFiles) {
-        return 6;
+        return SI2_ERR_NO_FILES;
     }
 
     if (!SE2::IsInitialized()) {
-        return 17;
+        return SI2_ERR_SOUND_DISABLED;
     }
 
     static CVar* s_enableAllSound = CVar::Lookup("Sound_EnableAllSound");
 
     if (!s_enableAllSound || !s_enableAllSound->m_intValue || CGGameUI::m_inMovie) {
-        return 17;
+        return SI2_ERR_SOUND_DISABLED;
     }
 
     SE2SoundKitProperties defaults;
@@ -706,14 +708,14 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
     }
 
     if (SI2::s_channelGroupNumSounds[properties->m_group] >= SI2::s_channelGroupMaxSounds[properties->m_group]) {
-        return 14;
+        return SI2_ERR_GROUP_FULL;
     }
 
     if (!strcmp(SI2::s_channelGroupNames[properties->m_group], "SFX")) {
         static CVar* s_enableSFX = CVar::Lookup("Sound_EnableSFX");
 
         if (!s_enableSFX || !s_enableSFX->m_intValue) {
-            return 9;
+            return SI2_ERR_SFX_DISABLED;
         }
     }
 
@@ -721,38 +723,38 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
         static CVar* s_enableMusic = CVar::Lookup("Sound_EnableMusic");
 
         if (!s_enableMusic || !s_enableMusic->m_intValue) {
-            return 10;
+            return SI2_ERR_MUSIC_DISABLED;
         }
     }
 
-    if (properties->m_group == 2) {
+    if (properties->m_group == SI2_SOUND_GROUP_AMBIENCE) {
         static CVar* s_enableAmbience = CVar::Lookup("Sound_EnableAmbience");
 
         if (!s_enableAmbience || !s_enableAmbience->m_intValue) {
-            return 11;
+            return SI2_ERR_AMBIENCE_DISABLED;
         }
     }
 
-    if (properties->m_group >= 18) {
-        return 8;
+    if (properties->m_group >= SI2_SOUND_GROUP_COUNT) {
+        return SI2_ERR_INVALID_GROUP;
     }
 
     if (CGChat::IsPaused() && !position) {
-        return 9;
+        return SI2_ERR_SFX_DISABLED;
     }
 
-    if (properties->m_suppressorMode == 2) {
-        def->m_flags |= 0x20;
+    if (properties->m_suppressorMode == SE2_SUPPRESSOR_MODE_HONOR) {
+        def->m_flags |= SOUND_ENTRY_FLAG_SUPPRESSIBLE;
     }
 
-    if (properties->m_suppressorMode == 1) {
-        def->m_flags &= ~0x20u;
+    if (properties->m_suppressorMode == SE2_SUPPRESSOR_MODE_IGNORE) {
+        def->m_flags &= ~SOUND_ENTRY_FLAG_SUPPRESSIBLE;
     }
 
-    if (def->m_flags & 0x20) {
+    if (def->m_flags & SOUND_ENTRY_FLAG_SUPPRESSIBLE) {
         for (uint32_t i = 0; i < SI2::s_suppressors.Count(); i++) {
             if (SI2::s_suppressors[i] == static_cast<uint32_t>(soundKitId)) {
-                return 15;
+                return SI2_ERR_ALREADY_PLAYING;
             }
         }
     }
@@ -768,30 +770,30 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
         }
     } else {
         sound = &localSound;
-        properties->m_loopMode = 2;
+        properties->m_loopMode = SE2_LOOP_MODE_NONLOOPING;
     }
 
     const char* file = def->SelectFile(properties->m_selectMode, nullptr, properties->m_fileIndex, GetDownloadPriority(properties->m_group));
 
     if (!file) {
-        return 16;
+        return SI2_ERR_FILE_FAILED;
     }
 
     if (properties->m_checkStreaming) {
         int32_t local = SFile::FileIsLocal(file, GetDownloadPriority(properties->m_group));
 
-        if (local != 1) {
-            if (properties->m_group == 6) {
+        if (local != SFILE_LOCAL_YES) {
+            if (properties->m_group == SI2_SOUND_GROUP_RACIAL_CINEMATIC) {
                 if (!SFile::MakeFileLocal(file, 2, true)) {
-                    return 16;
+                    return SI2_ERR_FILE_FAILED;
                 }
-            } else if (local == 0 || local == 2) {
-                if (local == 0) {
+            } else if (local == SFILE_LOCAL_NO || local == SFILE_LOCAL_PARTIAL) {
+                if (local == SFILE_LOCAL_NO) {
                     SFile::MakeFileLocal(file, GetDownloadPriority(properties->m_group), false);
                 }
 
                 def->m_downloadPending = 1;
-                return 20;
+                return SI2_DOWNLOAD_PENDING;
             }
         }
     }
@@ -799,20 +801,20 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
     def->m_downloadPending = 0;
 
     if (properties->m_blockMusicFiles && (SStrStrI(file, "music") || SStrStrI(file, "ambience") || SStrStrI(file, "cinematic"))) {
-        return 16;
+        return SI2_ERR_FILE_FAILED;
     }
 
     int32_t looping = 0;
 
-    if (properties->m_loopMode == 0) {
-        looping = def->m_flags & 0x200;
-    } else if (properties->m_loopMode == 1) {
+    if (properties->m_loopMode == SE2_LOOP_MODE_DEFAULT) {
+        looping = def->m_flags & SOUND_ENTRY_FLAG_LOOPING;
+    } else if (properties->m_loopMode == SE2_LOOP_MODE_LOOPING) {
         looping = 1;
     }
 
     if (properties->m_forceLoop) {
         looping = 1;
-        properties->m_maxAudibleBehavior = 0;
+        properties->m_maxAudibleBehavior = SE2_MAX_AUDIBLE_MUTE;
         properties->m_streaming = true;
         properties->m_software = 1;
     }
@@ -821,28 +823,28 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
         DebugLog("XXXX\nXXXX ERROR!! Sound Kit ID %d is a looping sound but there is no user handle! This sound will play forever!! \nXXXX\n", soundKitId);
     }
 
-    SE2::SetSoundGroupMaxAudibleBehavior(def->m_loadSoundGroup, 1, 0.0f);
+    SE2::SetSoundGroupMaxAudibleBehavior(def->m_loadSoundGroup, SE2_MAX_AUDIBLE_STEAL_LOWEST, 0.0f);
     SE2::SetSoundGroupMaxAudibleBehavior(def->m_soundGroup, properties->m_maxAudibleBehavior, properties->m_muteFadeSpeed);
 
     if (def->m_advanced && !advancedId) {
-        SI2::AddAdvancedSound(def->m_advanced, soundKitId, position, properties->m_coneOrientation, object, 0, 0, checkDistance, properties->m_loopMode == 1);
-        return 0;
+        SI2::AddAdvancedSound(def->m_advanced, soundKitId, position, properties->m_coneOrientation, object, 0, 0, checkDistance, properties->m_loopMode == SE2_LOOP_MODE_LOOPING);
+        return SI2_OK;
     }
 
-    bool randomStart = properties->m_group != 1 && properties->m_group != 5 && !properties->m_noRandomStart;
+    bool randomStart = properties->m_group != SI2_SOUND_GROUP_MUSIC && properties->m_group != SI2_SOUND_GROUP_SCRIPT_MUSIC && !properties->m_noRandomStart;
 
     if (position) {
         if (!sound->Create3D(file, looping, def->m_loadSoundGroup, def->m_soundGroup, randomStart, properties->m_streaming, properties->m_priority, properties->m_software, properties->m_coneInsideAngle, properties->m_coneOutsideAngle, properties->m_coneOutsideVolume, properties->m_coneOrientation)) {
-            return 16;
+            return SI2_ERR_FILE_FAILED;
         }
 
         sound->Set3DPosition(*position);
         sound->Set3DMinMaxDistance(def->m_minDistance, properties->m_maxDistance > -1.0f ? properties->m_maxDistance : def->m_distanceCutoff);
     } else if (!sound->Create2D(file, looping, def->m_loadSoundGroup, def->m_soundGroup, randomStart, properties->m_streaming, properties->m_reverb, properties->m_priority, properties->m_decodeBufferSize)) {
-        return 16;
+        return SI2_ERR_FILE_FAILED;
     }
 
-    sound->SetChannelGroup(SI2::s_channelGroupNames[properties->m_group], properties->m_group != 3);
+    sound->SetChannelGroup(SI2::s_channelGroupNames[properties->m_group], properties->m_group != SI2_SOUND_GROUP_CINEMATIC);
 
     SI2SoundUserData* userData = new (SMemAlloc(sizeof(SI2SoundUserData), __FILE__, __LINE__, 0)) SI2SoundUserData();
     userData->m_name = def->m_name ? def->m_name : "<UNKNOWN ERROR>";
@@ -857,7 +859,7 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
     if (properties->m_volume < 0.0f || properties->m_volume > 1.0f) {
         volume = def->m_volume * properties->m_volumeScale;
 
-        if (def->m_flags & 0x800) {
+        if (def->m_flags & SOUND_ENTRY_FLAG_RANDOM_VOLUME) {
             CRange range;
             range.m_l = -0.15f;
             range.m_h = 0.15f;
@@ -869,7 +871,7 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
 
     sound->SetVolume(volume);
 
-    if (def->m_flags & 0x400) {
+    if (def->m_flags & SOUND_ENTRY_FLAG_RANDOM_PITCH) {
         CRange range;
         range.m_l = 0.85f;
         range.m_h = 1.15f;
@@ -888,7 +890,7 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
     userData->m_counted = 1;
     sound->SetFinishedCallback(SI2::SoundFinished, nullptr);
 
-    if (def->m_flags & 0x20) {
+    if (def->m_flags & SOUND_ENTRY_FLAG_SUPPRESSIBLE) {
         uint32_t i;
 
         for (i = 0; i < SI2::s_suppressors.Count(); i++) {
@@ -914,17 +916,17 @@ int32_t SI2::PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2Sound
     }
 
     sound->Play();
-    return 0;
+    return SI2_OK;
 }
 
 // VERIFY: 4ec0a358 manual
 // OFFSET: 0x004C7140
 int32_t SI2ZoneSoundPair::Transition(int32_t soundKitId, int32_t type, SE2SoundKitProperties* properties, int32_t immediate, float fadeOutTime) {
-    if (type >= 11) {
+    if (type >= SI2::NUM_SOURCE_SLOTS) {
         SI2::StopSound(&this->m_sounds[this->m_current].m_object, 0, -1.0f, 1);
         this->m_sounds[this->m_current].m_type = type;
         this->m_sounds[this->m_current].m_soundKitId = 0;
-        return 18;
+        return SI2_ZONE_SOUND_STOPPED;
     }
 
     if (immediate) {
@@ -936,14 +938,14 @@ int32_t SI2ZoneSoundPair::Transition(int32_t soundKitId, int32_t type, SE2SoundK
         if (!result) {
             this->m_sounds[this->m_current].m_soundKitId = soundKitId;
             this->m_sounds[this->m_current].m_type = type;
-            return 0;
+            return SI2_OK;
         }
 
         return result;
     }
 
     if (soundKitId == this->m_sounds[this->m_current].m_soundKitId && this->m_sounds[this->m_current].m_object.m_sound.IsPlaying()) {
-        return 15;
+        return SI2_ERR_ALREADY_PLAYING;
     }
 
     if (soundKitId == this->m_sounds[this->m_next].m_soundKitId && this->m_sounds[this->m_next].m_object.m_sound.IsPlaying()) {
@@ -962,7 +964,7 @@ int32_t SI2ZoneSoundPair::Transition(int32_t soundKitId, int32_t type, SE2SoundK
         uint32_t current = this->m_current;
         this->m_next = current;
         this->m_current = 1 - current;
-        return 21;
+        return SI2_ZONE_SOUND_RESUMED;
     }
 
     SI2::StopSound(&this->m_sounds[this->m_next].m_object, 0, -1.0f, 1);
@@ -982,7 +984,7 @@ int32_t SI2ZoneSoundPair::Transition(int32_t soundKitId, int32_t type, SE2SoundK
         uint32_t current = this->m_current;
         this->m_next = current;
         this->m_current = 1 - current;
-        return 0;
+        return SI2_OK;
     }
 
     return result;
@@ -1007,13 +1009,13 @@ SE2SoundKitObject::~SE2SoundKitObject() {
 // OFFSET: 0x004C74A0
 int32_t SI2::PlaySoundKit(const char* name, const C3Vector* position, SE2SoundKitObject* object, SE2SoundKitProperties* properties) {
     if (!SE2::IsInitialized()) {
-        return 17;
+        return SI2_ERR_SOUND_DISABLED;
     }
 
     int32_t soundKitId = SI2::LookupSoundKitId(name);
 
     if (!soundKitId) {
-        return 7;
+        return SI2_ERR_SOUND_KIT_NOT_FOUND;
     }
 
     return SI2::PlaySoundKit(soundKitId, position, object, properties, 0, nullptr, 1, 0);
@@ -1024,7 +1026,7 @@ int32_t SI2::PlaySoundKit(const char* name, const C3Vector* position, SE2SoundKi
 int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
     static CVar* s_chaosMode = CVar::Lookup("Sound_ChaosMode");
 
-    int32_t mode = 0;
+    int32_t mode = MODE_IDLE;
 
     if (s_chaosMode) {
         mode = s_chaosMode->m_intValue;
@@ -1051,19 +1053,19 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
     SE2SoundKitProperties properties;
     properties.ResetToDefaults();
     properties.m_volumeScale = 0.3f;
-    properties.m_loopMode = 2;
+    properties.m_loopMode = SE2_LOOP_MODE_NONLOOPING;
     properties.m_streaming = false;
     properties.m_blockMusicFiles = 1;
 
     SE2SoundKitProperties loopProperties;
     loopProperties.ResetToDefaults();
     loopProperties.m_volumeScale = 0.3f;
-    loopProperties.m_loopMode = 1;
+    loopProperties.m_loopMode = SE2_LOOP_MODE_LOOPING;
     loopProperties.m_streaming = false;
     loopProperties.m_blockMusicFiles = 1;
 
     switch (mode) {
-        case 2:
+        case MODE_STREAMED_AND_NORMAL_3D:
             if (s_chaosElapsedMs < 100) {
                 break;
             }
@@ -1072,7 +1074,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             position = RandomListenerOffset();
             SI2::PlaySoundKit(static_cast<int32_t>((static_cast<uint64_t>(CRandom::uint32_(g_rndSeed)) * s_maxSoundKitId) >> 32), &position, nullptr, &properties, 0, nullptr, 1, 0);
 
-        case 1:
+        case MODE_RANDOM_3D:
             if (s_chaosElapsedMs >= 100) {
                 properties.m_streaming = false;
                 position = RandomListenerOffset();
@@ -1082,7 +1084,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
 
             break;
 
-        case 13:
+        case MODE_STREAMED_AND_NORMAL_2D_3D:
             if (s_chaosElapsedMs < 100) {
                 break;
             }
@@ -1094,7 +1096,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             position = RandomListenerOffset();
             SI2::PlaySoundKit(static_cast<int32_t>((static_cast<uint64_t>(CRandom::uint32_(g_rndSeed)) * s_maxSoundKitId) >> 32), &position, nullptr, &properties, 0, nullptr, 1, 0);
 
-        case 12:
+        case MODE_STREAMED_AND_NORMAL_2D:
             if (s_chaosElapsedMs < 100) {
                 break;
             }
@@ -1102,7 +1104,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             properties.m_streaming = true;
             SI2::PlaySoundKit(static_cast<int32_t>((static_cast<uint64_t>(CRandom::uint32_(g_rndSeed)) * s_maxSoundKitId) >> 32), nullptr, nullptr, &properties, 0, nullptr, 1, 0);
 
-        case 11:
+        case MODE_RANDOM_2D:
             if (s_chaosElapsedMs >= 100) {
                 properties.m_streaming = false;
                 SI2::PlaySoundKit(static_cast<int32_t>((static_cast<uint64_t>(CRandom::uint32_(g_rndSeed)) * s_maxSoundKitId) >> 32), nullptr, nullptr, &properties, 0, nullptr, 1, 0);
@@ -1111,13 +1113,13 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
 
             break;
 
-        case 4:
+        case MODE_EXTRA_NULL_POSITION_PLAY_STOP:
             SI2::PlaySoundKit(soundKitId, nullptr, &s_object2D, &properties, 0, nullptr, 1, 0);
             SI2::StopSound(&s_object2D, 1, -1.0f, 1);
             SI2::PlaySoundKit(soundKitId, nullptr, &s_object3D, &properties, 0, nullptr, 1, 0);
             SI2::StopSound(&s_object3D, 1, -1.0f, 1);
 
-        case 3:
+        case MODE_PLAY_STOP_2D_3D:
             SI2::PlaySoundKit(soundKitId, nullptr, &s_object2D, &properties, 0, nullptr, 1, 0);
             SI2::StopSound(&s_object2D, 1, -1.0f, 1);
             position = RandomListenerOffset();
@@ -1125,7 +1127,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             SI2::StopSound(&s_object3D, 1, -1.0f, 1);
             break;
 
-        case 5:
+        case MODE_BURST_80_2D:
             s_chaosTimer += elapsed;
 
             if (s_chaosTimer <= 1.0f) {
@@ -1139,7 +1141,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             s_chaosTimer = 0.0f;
             break;
 
-        case 6:
+        case MODE_BURST_80_3D:
             s_chaosTimer += elapsed;
 
             if (s_chaosTimer <= 1.0f) {
@@ -1154,7 +1156,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             s_chaosTimer = 0.0f;
             break;
 
-        case 7:
+        case MODE_FILL_80_LOOPS_3D:
             s_chaosTimer += elapsed;
 
             if (s_chaosTimer <= 1.0f) {
@@ -1171,7 +1173,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             s_chaosTimer = 0.0f;
             break;
 
-        case 8:
+        case MODE_ALERT_FILE:
             s_chaosTimer += elapsed;
 
             if (s_chaosTimer <= 0.05f) {
@@ -1179,11 +1181,11 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             }
 
             printf("----------playing...\n");
-            SI2::PlaySoundFile("Data\\Alert.mp3", 4);
+            SI2::PlaySoundFile("Data\\Alert.mp3", SI2_SOUND_GROUP_SCRIPT_SOUND);
             s_chaosTimer = 0.0f;
             break;
 
-        case 9:
+        case MODE_RESTART:
             s_chaosRestartTimer += elapsed;
 
             if (s_chaosRestartTimer <= 10.0f) {
@@ -1202,7 +1204,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
 
             break;
 
-        case 10:
+        case MODE_RANDOM_PAIR_3D_AND_RESTART:
             s_chaosRestartTimer += elapsed;
 
             if (s_chaosElapsedMs < 100) {
@@ -1231,7 +1233,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
 
             break;
 
-        case 14: {
+        case MODE_REPEATED_KIT_3D_AND_RESTART: {
             s_chaosRestartTimer += elapsed;
 
             if (s_chaosElapsedMs < 100) {
@@ -1263,7 +1265,7 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
             break;
         }
 
-        case 15: {
+        case MODE_SHARED_OBJECT_SELECTED_KITS: {
             int32_t ids[3] = { 13061, 15969, 12173 };
 
             position = RandomListenerOffset();
@@ -1297,10 +1299,10 @@ int32_t SI2::ChaosModeUpdate(const void* data, void* param) {
 // VERIFY: 3e5c36df auto
 // OFFSET: 0x004C82E0
 int32_t SI2::Init(int32_t restart) {
-    if (CmdLineGetBool(static_cast<CMDOPT>(26))) {
+    if (CmdLineGetBool(static_cast<CMDOPT>(CMD_NO_SOUND))) {
         SI2::RegisterSoundEngineCVars();
         SI2::RegisterCVars();
-        return 17;
+        return SI2_ERR_SOUND_DISABLED;
     }
 
     if (!restart) {
@@ -1391,7 +1393,7 @@ int32_t SI2::Init(int32_t restart) {
         SI2::DSP_Init();
     }
 
-    return 0;
+    return SI2_OK;
 }
 
 // VERIFY: db4e7763 manual
@@ -1407,7 +1409,7 @@ void SI2::PlaySpellFizzleSound(uint32_t spellId, const void* object) {
         return;
     }
 
-    for (int32_t i = 0; i < 7; i++) {
+    for (int32_t i = 0; i < NUM_SPELL_SCHOOLS; i++) {
         if (!((1 << i) & spell.m_schoolMask)) {
             continue;
         }

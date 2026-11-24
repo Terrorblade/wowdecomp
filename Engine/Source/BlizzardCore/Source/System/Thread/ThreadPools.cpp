@@ -130,7 +130,7 @@ bool Blizzard::Thread::CreateFromPool(ThreadPoolRecord* pool, uint32_t (*functio
     worker->m_taskParam = param;
     *thread = worker->m_task;
 
-    if (worker->m_task->m_state == 1) {
+    if (worker->m_task->m_state == THREAD_STATE_RUNNING) {
         Blizzard::Lock::EventSet(worker->m_wakeEvent.m_event);
     }
 

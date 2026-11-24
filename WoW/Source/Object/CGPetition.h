@@ -32,6 +32,11 @@ class CGPetition {
     /* 13BC */ uint32_t m_staticType;
     /* 13C0 */ uint32_t m_muid;
 
+    enum STATIC_TYPE : uint32_t {
+        STATIC_TYPE_GUILD = 0,
+        STATIC_TYPE_ARENA = 1,
+    };
+
     CGPetition();
     CGPetition& operator=(const CGPetition& source);
     void Pack(CDataStore* msg);

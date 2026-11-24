@@ -293,9 +293,9 @@ DWORD WINAPI CLCDConnection::_OnNotificationCallback(int connection, const PVOID
     CLCDConnection* self = static_cast<CLCDConnection*>(pContext);
 
     EnterCriticalSection(&self->m_csCallback);
-    CB_EVENT_NODE* node = self->m_callbackEvents.NewNode(2, 0, 0);
+    CB_EVENT_NODE* node = self->m_callbackEvents.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_event.m_code = notificationCode;
-    node->m_event.m_type = 2;
+    node->m_event.m_type = CB_EVENT_NOTIFICATION;
     node->m_event.m_param1 = notifyParm1;
     node->m_event.m_param2 = notifyParm2;
     LeaveCriticalSection(&self->m_csCallback);
@@ -310,9 +310,9 @@ DWORD WINAPI CLCDConnection::_OnSoftButtonsCallback(int device, DWORD buttons, c
     CLCDConnection* self = static_cast<CLCDConnection*>(context);
 
     EnterCriticalSection(&self->m_csCallback);
-    CB_EVENT_NODE* node = self->m_callbackEvents.NewNode(2, 0, 0);
+    CB_EVENT_NODE* node = self->m_callbackEvents.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_event.m_code = device;
-    node->m_event.m_type = 0;
+    node->m_event.m_type = CB_EVENT_SOFTBUTTON;
     node->m_event.m_param1 = buttons;
     LeaveCriticalSection(&self->m_csCallback);
 
@@ -380,11 +380,11 @@ void CLCDConnection::Update() {
     CB_EVENT event;
 
     while (this->PopEvent(event)) {
-        if (event.m_type == 0) {
+        if (event.m_type == CB_EVENT_SOFTBUTTON) {
             this->OnSoftButtonEvent(event.m_code, event.m_param1);
-        } else if (event.m_type == 1) {
+        } else if (event.m_type == CB_EVENT_CONFIGURE) {
             this->OnConfigure();
-        } else if (event.m_type == 2) {
+        } else if (event.m_type == CB_EVENT_NOTIFICATION) {
             this->OnNotification(event.m_code, event.m_param1);
         }
     }

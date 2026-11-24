@@ -12,6 +12,19 @@ class CDataStore;
 class DanceCache;
 struct lua_State;
 
+enum DANCE_NOTIFY_FLAGS : uint32_t {
+    DANCE_NOTIFY_ADD = 0x1,
+    DANCE_NOTIFY_REPLACE = 0x2,
+    DANCE_NOTIFY_DELETE = 0x4,
+    DANCE_NOTIFY_ERROR = 0x8,
+};
+
+enum DANCE_ERROR_CODE : uint32_t {
+    DANCE_ERROR_CREATE_DUPLICATE = 0,
+    DANCE_ERROR_SAVE_FAILED = 1,
+    DANCE_ERROR_DELETE_FAILED = 2,
+};
+
 struct KNOWNDANCES : public TSHashObject<KNOWNDANCES, HASHKEY_STR> {
     /* 0018 */ uint32_t m_id;
     /* 001C */ uint32_t unk_001C;

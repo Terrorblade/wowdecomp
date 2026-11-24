@@ -51,7 +51,7 @@ bool InboundChatVolumeHandler(CVar* var, const char* oldValue, const char* value
     if (ComSatThread::s_comsat) {
         for (COMSATDATA* data = s_comsatData; data < s_comsatData + sizeof(s_comsatData) / sizeof(s_comsatData[0]); data++) {
             if (data->m_sessionID) {
-                AddComSatEvent(1, volume, data->m_sessionID);
+                AddComSatEvent(ComSatEvent::SET_SESSION_VOLUME, volume, data->m_sessionID);
             }
         }
     }
@@ -69,9 +69,9 @@ bool VoiceChatModeHandler(CVar* var, const char* oldValue, const char* value, vo
         CVar* selfMute = CVar::Lookup("VoiceChatSelfMute");
 
         if (selfMute && selfMute->m_intValue) {
-            AddComSatEvent(2, 0u, 0);
+            AddComSatEvent(ComSatEvent::ENABLE_LOCAL_TALKER, 0u, 0);
         } else {
-            AddComSatEvent(2, 1u, 0);
+            AddComSatEvent(ComSatEvent::ENABLE_LOCAL_TALKER, 1u, 0);
         }
 
         CVar* sensitivity = CVar::Lookup("VoiceActivationSensitivity");
@@ -81,12 +81,12 @@ bool VoiceChatModeHandler(CVar* var, const char* oldValue, const char* value, vo
 
             level = level < 0.0f ? 0.0f : (level < 0.99f ? level : 0.99f);
 
-            AddComSatEvent(3, level, 0);
+            AddComSatEvent(ComSatEvent::SET_TALKER_THRESHOLD, level, 0);
         }
     } else {
         s_voiceActivation = 0;
-        AddComSatEvent(2, 0u, 0);
-        AddComSatEvent(3, 0.0f, 0);
+        AddComSatEvent(ComSatEvent::ENABLE_LOCAL_TALKER, 0u, 0);
+        AddComSatEvent(ComSatEvent::SET_TALKER_THRESHOLD, 0.0f, 0);
     }
 
     return true;
@@ -106,7 +106,7 @@ bool VoiceActivationSensitivityHandler(CVar* var, const char* oldValue, const ch
             level = 0.99f;
         }
 
-        AddComSatEvent(3, level, 0);
+        AddComSatEvent(ComSatEvent::SET_TALKER_THRESHOLD, level, 0);
     }
 
     return true;
@@ -115,7 +115,7 @@ bool VoiceActivationSensitivityHandler(CVar* var, const char* oldValue, const ch
 // VERIFY: daea7ad1 auto
 // OFFSET: 0x007DD040
 bool PushToTalkButtonHandler(CVar* var, const char* oldValue, const char* value, void* arg) {
-    AddComSatEvent(10, 0u, 0);
+    AddComSatEvent(ComSatEvent::UPDATE_PUSH_TO_TALK_KEY, 0u, 0);
 
     return true;
 }
@@ -124,9 +124,9 @@ bool PushToTalkButtonHandler(CVar* var, const char* oldValue, const char* value,
 // OFFSET: 0x007DD060
 bool SelfMuteHandler(CVar* var, const char* oldValue, const char* value, void* arg) {
     if (SStrToInt(value)) {
-        AddComSatEvent(2, 0u, 0);
+        AddComSatEvent(ComSatEvent::ENABLE_LOCAL_TALKER, 0u, 0);
     } else {
-        AddComSatEvent(2, 1u, 0);
+        AddComSatEvent(ComSatEvent::ENABLE_LOCAL_TALKER, 1u, 0);
     }
 
     Script_SendUniqueSignal(SCRIPT_EVENT_VOICE_SELF_MUTE);

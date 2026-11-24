@@ -17,7 +17,7 @@ CMinigame_C::CMinigame_C(MINIGAME_TYPE type, uint64_t guid) {
 CMinigameTicTacToe_C::CMinigameTicTacToe_C(uint64_t guid) : CMinigame_C(MINIGAME_TICTACTOE, guid) {
     this->m_guid = guid;
     this->m_type = MINIGAME_TICTACTOE;
-    this->m_state = 0;
+    this->m_state = MINIGAME_STATE_NONE;
     this->unk_0010 = 0;
     this->unk_0018 = 0;
     this->unk_0020 = 0;
@@ -46,7 +46,7 @@ void CMinigame_C::UpdateSetup(CDataStore* msg) {
     msg->Get(this->unk_0018);
     msg->GetData(this->m_board, sizeof(this->m_board));
 
-    if (this->m_state == 2) {
+    if (this->m_state == MINIGAME_STATE_UNKNOWN_2) {
         msg->Get(this->unk_0021);
     }
 }

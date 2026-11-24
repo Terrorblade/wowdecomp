@@ -23,7 +23,7 @@
 // VERIFY: 6144c30d auto
 // OFFSET: 0x005B71E0
 static int32_t Script_GetNumGlyphSockets(lua_State* L) {
-    lua_pushnumber(L, 6.0);
+    lua_pushnumber(L, NUM_GLYPH_SLOTS);
     return 1;
 }
 
@@ -39,7 +39,7 @@ static int32_t Script_GetGlyphSocketInfo(lua_State* L) {
     CGTalentGroup_C* group = TalentInfoGetTalentGroup(TalentInfoGetScriptGroupIndex(L, 2), 0, 0);
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (index >= 6 || !group || !player) {
+    if (index >= NUM_GLYPH_SLOTS || !group || !player) {
         return 0;
     }
 
@@ -99,7 +99,7 @@ static int32_t Script_GlyphMatchesSocket(lua_State* L) {
         return 0;
     }
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < NUM_SPELL_EFFECTS; i++) {
         if (spell.m_effect[i] != SPELL_EFFECT_APPLY_GLYPH) {
             continue;
         }
@@ -133,7 +133,7 @@ static int32_t Script_PlaceGlyphInSocket(lua_State* L) {
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (index >= 6 || !player) {
+    if (index >= NUM_GLYPH_SLOTS || !player) {
         return 0;
     }
 
@@ -157,7 +157,7 @@ static int32_t Script_RemoveGlyphFromSocket(lua_State* L) {
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (index < 6 && player && player->m_player->m_playerFieldGlyphSlots1[index]) {
+    if (index < NUM_GLYPH_SLOTS && player && player->m_player->m_playerFieldGlyphSlots1[index]) {
         CDataStore msg;
         msg.Put(static_cast<uint32_t>(CMSG_REMOVE_GLYPH));
         msg.Put(index);
@@ -180,7 +180,7 @@ static int32_t Script_GetGlyphLink(lua_State* L) {
     CGTalentGroup_C* group = TalentInfoGetTalentGroup(TalentInfoGetScriptGroupIndex(L, 2), 0, 0);
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (index >= 6 || !player || !group) {
+    if (index >= NUM_GLYPH_SLOTS || !player || !group) {
         return 0;
     }
 

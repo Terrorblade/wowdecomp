@@ -381,7 +381,7 @@ void CSimpleScrollFrame::LoadXML(XMLNode* node, CStatus* status) {
 void CSimpleScrollFrame::OnFrameRender(CRenderBatch* batch, uint32_t layer) {
     CSimpleFrame::OnFrameRender(batch, layer);
 
-    if (layer == 4) {
+    if (layer == DRAWLAYER_HIGHLIGHT) {
         batch->QueueCallback(&CSimpleScrollFrame::RenderScrollChild, this);
     }
 }

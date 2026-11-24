@@ -318,8 +318,8 @@ class CGxDeviceD3d : public CGxDevice {
     static const D3DCULL s_cullMode[3];
     static D3DTEXTUREFILTERTYPE s_filterModes[GxTexFilters_Last][3];
     static const D3DTEXTUREADDRESS s_wrapModes[2];
-    static const uint32_t s_gxAttribToD3dAttribSize[7];
-    static D3DDECLTYPE s_gxAttribToD3dAttribType[7];
+    static const uint32_t s_gxAttribToD3dAttribSize[GxVertexAttribTypes_Last];
+    static D3DDECLTYPE s_gxAttribToD3dAttribType[GxVertexAttribTypes_Last];
     static const D3DDECLUSAGE s_gxAttribToD3dAttribUsage[GxVAs_Last];
     static const uint32_t s_gxAttribToD3dAttribUsageIndex[GxVAs_Last];
 

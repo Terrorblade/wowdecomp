@@ -181,19 +181,19 @@ bool OsFileList_Internal::Callback(const Blizzard::File::ProcessDirParms& parms)
     data.size = static_cast<uint32_t>(info.m_size);
     data.flags = 0;
 
-    if (info.m_attributes & 0x40) {
+    if (info.m_attributes & ATTRIBUTE_DIRECTORY) {
         data.flags = FILE_ATTRIBUTE_DIRECTORY;
     }
 
-    if (info.m_attributes & 0x1) {
+    if (info.m_attributes & ATTRIBUTE_READONLY) {
         data.flags |= FILE_ATTRIBUTE_READONLY;
     }
 
-    if (info.m_attributes & 0x2) {
+    if (info.m_attributes & ATTRIBUTE_HIDDEN) {
         data.flags |= FILE_ATTRIBUTE_HIDDEN;
     }
 
-    if (!list->m_includeHidden && (info.m_attributes & 0x2)) {
+    if (!list->m_includeHidden && (info.m_attributes & ATTRIBUTE_HIDDEN)) {
         return true;
     }
 

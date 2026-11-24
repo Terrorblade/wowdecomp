@@ -64,19 +64,19 @@ void WowConnectionNet::Start() {
 // OFFSET: 0x00468FF0
 void WowConnectionNet::Service(WowConnection* connection, uint32_t flags) {
     do {
-        if (flags & 0x1) {
+        if (flags & SERVICE_WRITES) {
             connection->DoWrites();
         }
 
-        if (flags & 0x2) {
+        if (flags & SERVICE_READS) {
             connection->DoReads();
         }
 
-        if (flags & 0x4) {
+        if (flags & SERVICE_EXCEPTIONS) {
             connection->DoExceptions();
         }
 
-        if (flags & 0x8) {
+        if (flags & SERVICE_DISCONNECT) {
             connection->DoDisconnect();
         }
 

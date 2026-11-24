@@ -183,7 +183,7 @@ BannedAddOnCache* FindBannedAddOn(const char* name, const char* version) {
     MD5_CTX context;
     uint8_t nameMd5[16];
     MD5Init(&context);
-    MD5Update(&context, reinterpret_cast<const uint8_t*>(name), SStrLen(name));
+    MD5Update(&context, reinterpret_cast<const uint8_t*>(name), static_cast<uint32_t>(SStrLen(name)));
     MD5Final(nameMd5, &context);
 
     if (!version) {
@@ -192,13 +192,13 @@ BannedAddOnCache* FindBannedAddOn(const char* name, const char* version) {
 
     uint8_t versionMd5[16];
     MD5Init(&context);
-    MD5Update(&context, reinterpret_cast<const uint8_t*>(version), SStrLen(version));
+    MD5Update(&context, reinterpret_cast<const uint8_t*>(version), static_cast<uint32_t>(SStrLen(version)));
     MD5Final(versionMd5, &context);
 
     for (_BANNEDADDON* entry = s_bannedAddOns.m_fulllist.Head(); entry; entry = s_bannedAddOns.m_fulllist.Next(entry)) {
         BannedAddOnCache* cache = &entry->m_cache;
 
-        if ((cache->m_flags & 1) && !memcmp(cache->m_nameMd5, nameMd5, sizeof(nameMd5)) && (!memcmp(cache->m_versionMd5, s_emptyMd5, sizeof(s_emptyMd5)) || !memcmp(cache->m_versionMd5, versionMd5, sizeof(versionMd5)))) {
+        if ((cache->m_flags & BANNED_ADDON_FLAG_ACTIVE) && !memcmp(cache->m_nameMd5, nameMd5, sizeof(nameMd5)) && (!memcmp(cache->m_versionMd5, s_emptyMd5, sizeof(s_emptyMd5)) || !memcmp(cache->m_versionMd5, versionMd5, sizeof(versionMd5)))) {
             return cache;
         }
     }
@@ -303,7 +303,7 @@ static int32_t LoadCache() {
     uint32_t bytes;
 
     do {
-        _BANNEDADDONLOADNODE* node = records.NewNode(2, 0, 8);
+        _BANNEDADDONLOADNODE* node = records.NewNode(TSLIST_LINK_BEFORE, 0, 8);
 
         if (!ReadCacheRecord(file, &node->m_cache, &bytes)) {
             records.Clear();

@@ -23,7 +23,7 @@
 static int32_t Script_EquipmentManagerIgnoreSlotForSave(lua_State* L) {
     uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (slot > 18) {
+    if (slot > EQUIPPED_LAST) {
         luaL_error(L, "Usage: EquipmentManagerIgnoreSlotForSave(slot)");
         return 0;
     }
@@ -37,7 +37,7 @@ static int32_t Script_EquipmentManagerIgnoreSlotForSave(lua_State* L) {
 static int32_t Script_EquipmentManagerUnignoreSlotForSave(lua_State* L) {
     uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (slot > 18) {
+    if (slot > EQUIPPED_LAST) {
         luaL_error(L, "Usage: UpdatePendingEquipmentSetSlot(slot)");
         return 0;
     }
@@ -51,7 +51,7 @@ static int32_t Script_EquipmentManagerUnignoreSlotForSave(lua_State* L) {
 static int32_t Script_EquipmentManagerIsSlotIgnoredForSave(lua_State* L) {
     uint32_t slot = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (slot > 18) {
+    if (slot > EQUIPPED_LAST) {
         luaL_error(L, "Usage: EquipmentSetIsSlotIgnoredForSave(slot)");
         return 0;
     }
@@ -124,7 +124,7 @@ static int32_t Script_GetEquipmentSetLocations(lua_State* L) {
     int32_t pending[19];
     int32_t count = 0;
 
-    for (int32_t slot = 0; slot <= 18; slot++) {
+    for (int32_t slot = 0; slot <= EQUIPPED_LAST; slot++) {
         WOWGUID guid = set->m_items[slot];
 
         if (guid) {
@@ -147,7 +147,7 @@ static int32_t Script_GetEquipmentSetLocations(lua_State* L) {
 
     CGBag_C* inventory = player->GetBag();
 
-    for (int32_t i = 0; i <= 18; i++) {
+    for (int32_t i = EQUIPPED_FIRST; i <= EQUIPPED_LAST; i++) {
         CGItem_C* item = inventory->GetItemPointer(i);
 
         if (!item) {
@@ -175,7 +175,7 @@ static int32_t Script_GetEquipmentSetLocations(lua_State* L) {
         return 1;
     }
 
-    for (int32_t i = 23; i <= 38; i++) {
+    for (int32_t i = BACKPACK_FIRST; i <= BACKPACK_LAST; i++) {
         CGItem_C* item = inventory->GetItemPointer(i);
 
         if (!item) {
@@ -243,7 +243,7 @@ static int32_t Script_GetEquipmentSetLocations(lua_State* L) {
     }
 
     if (CGBankInfo::m_banker) {
-        for (int32_t i = 39; i <= 66; i++) {
+        for (int32_t i = BANKGENERIC_FIRST; i <= BANKGENERIC_LAST; i++) {
             CGItem_C* item = inventory->GetItemPointer(i);
 
             if (!item) {
@@ -332,7 +332,7 @@ static int32_t Script_GetEquipmentSetItemIDs(lua_State* L) {
         lua_createtable(L, 0, 0);
     }
 
-    for (int32_t slot = 0; slot < 19; slot++) {
+    for (int32_t slot = 0; slot <= EQUIPPED_LAST; slot++) {
         WOWGUID guid = set->m_items[slot];
         double value;
 
@@ -431,7 +431,7 @@ static int32_t Script_PickupEquipmentSetByName(lua_State* L) {
         return 0;
     }
 
-    if (!CGGameUI::CanPerformAction(14)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_ACTION_MANIPULATION)) {
         return 0;
     }
 
@@ -518,7 +518,7 @@ static int32_t Script_RenameEquipmentSet(lua_State* L) {
     const char* newName = lua_tolstring(L, 2, nullptr);
     char name[128];
 
-    if (!ScrubString(newName, name, 32, sizeof(name), 1)) {
+    if (!ScrubString(newName, name, 32, sizeof(name), SCRUB_FLAG_TRUNCATE_NEWLINES)) {
         luaL_error(L, "Invalid string for setName");
         return 0;
     }
@@ -548,7 +548,7 @@ static int32_t Script_SaveEquipmentSet(lua_State* L) {
     int32_t iconIndex = static_cast<int32_t>(lua_tonumber(L, 2));
     char name[128];
 
-    if (!ScrubString(setName, name, 32, sizeof(name), 1)) {
+    if (!ScrubString(setName, name, 32, sizeof(name), SCRUB_FLAG_TRUNCATE_NEWLINES)) {
         luaL_error(L, "Invalid string for setName");
         return 0;
     }
@@ -564,7 +564,7 @@ static int32_t Script_SaveEquipmentSet(lua_State* L) {
     } else {
         int32_t slot = abs(iconIndex) - 1;
 
-        if (slot <= 18) {
+        if (slot <= EQUIPPED_LAST) {
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
             if (player) {
@@ -576,7 +576,7 @@ static int32_t Script_SaveEquipmentSet(lua_State* L) {
                 } else {
                     CGItem_C* item = player->GetBag()->GetItemPointer(slot);
 
-                    if (item && !(item->m_modelFlags & 0x10000)) {
+                    if (item && !(item->m_modelFlags & OBJECT_MODEL_FLAG_DISABLED)) {
                         displayId = item->GetDisplayID();
                     }
                 }
@@ -598,7 +598,7 @@ static int32_t Script_SaveEquipmentSet(lua_State* L) {
     }
 
     if (!CGEquipmentManager::CanCreateSet()) {
-        luaL_error(L, "Too many sets! You can only have %d sets", 10);
+        luaL_error(L, "Too many sets! You can only have %d sets", MAX_EQUIPMENT_SETS_PER_PLAYER);
         return 0;
     }
 

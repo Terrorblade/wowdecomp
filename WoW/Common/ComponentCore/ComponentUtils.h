@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Common/ComponentCore/Types.h"
+#include "WoW/Source/DB/Rec/CharSectionsRec.h"
 
 struct st_race {
     /* 0000 */ CharVariationList m_variation [CHARTEXTUREVARIATIONS_NUM];

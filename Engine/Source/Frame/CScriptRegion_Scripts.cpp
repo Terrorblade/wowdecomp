@@ -28,7 +28,7 @@ static int32_t Script_IsProtected(lua_State* L) {
         lua_pushnil(L);
     }
 
-    if (region->m_layoutFlags & 0x10000) {
+    if (region->m_layoutFlags & CLayoutFrame::LAYOUT_EXPLICITLY_PROTECTED) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -304,7 +304,7 @@ static int32_t Script_SetWidth(lua_State* L) {
         return 0;
     }
 
-    float width = lua_tonumber(L, 2);
+    float width = static_cast<float>(lua_tonumber(L, 2));
     region->SetWidth(NDCToDDCWidth(width / (CoordinateGetAspectCompensation() * 1024.0f)));
     return 0;
 }
@@ -350,7 +350,7 @@ static int32_t Script_SetHeight(lua_State* L) {
         return 0;
     }
 
-    float height = lua_tonumber(L, 2);
+    float height = static_cast<float>(lua_tonumber(L, 2));
     region->SetHeight(NDCToDDCWidth(height / (CoordinateGetAspectCompensation() * 1024.0f)));
     return 0;
 }
@@ -393,8 +393,8 @@ static int32_t Script_SetSize(lua_State* L) {
         return 0;
     }
 
-    float height = lua_tonumber(L, 3);
-    float width = lua_tonumber(L, 2);
+    float height = static_cast<float>(lua_tonumber(L, 3));
+    float width = static_cast<float>(lua_tonumber(L, 2));
     float ddcHeight = NDCToDDCWidth(height / (CoordinateGetAspectCompensation() * 1024.0f));
     float ddcWidth = NDCToDDCWidth(width / (CoordinateGetAspectCompensation() * 1024.0f));
     region->SetSize(ddcWidth, ddcHeight);
@@ -410,7 +410,7 @@ static int32_t Script_GetNumPoints(lua_State* L) {
     for (int32_t i = 0; i < FRAMEPOINT_NUMPOINTS; i++) {
         CFramePoint* framePoint = region->m_framePoints[i];
 
-        if (framePoint && !(framePoint->m_flags & 8)) {
+        if (framePoint && !(framePoint->m_flags & CFramePoint::FLAG_UNUSED)) {
             count++;
         }
     }
@@ -436,7 +436,7 @@ static int32_t Script_GetPoint(lua_State* L) {
     for (point = 0; point < FRAMEPOINT_NUMPOINTS; point++) {
         framePoint = region->m_framePoints[point];
 
-        if (framePoint && !(framePoint->m_flags & 8)) {
+        if (framePoint && !(framePoint->m_flags & CFramePoint::FLAG_UNUSED)) {
             if (found >= index) {
                 break;
             }
@@ -449,7 +449,7 @@ static int32_t Script_GetPoint(lua_State* L) {
         return 0;
     }
 
-    if (framePoint->m_flags & 1) {
+    if (framePoint->m_flags & CFramePoint::FLAG_ABSOLUTE_COORDINATES) {
         lua_pushstring(L, FramePointToString(static_cast<FRAMEPOINT>(point)));
         lua_pushnumber(L, DDCToNDCWidth(CoordinateGetAspectCompensation() * 1024.0f * framePoint->m_x));
         lua_pushnumber(L, DDCToNDCWidth(CoordinateGetAspectCompensation() * 1024.0f * framePoint->m_y));
@@ -552,9 +552,9 @@ static int32_t Script_SetPoint(lua_State* L) {
     float offsetY;
 
     if (lua_isnumber(L, argIndex) && lua_isnumber(L, argIndex + 1)) {
-        offsetX = lua_tonumber(L, argIndex);
+        offsetX = static_cast<float>(lua_tonumber(L, argIndex));
         offsetX = NDCToDDCWidth(offsetX / (CoordinateGetAspectCompensation() * 1024.0f));
-        offsetY = lua_tonumber(L, argIndex + 1);
+        offsetY = static_cast<float>(lua_tonumber(L, argIndex + 1));
         offsetY = NDCToDDCWidth(offsetY / (CoordinateGetAspectCompensation() * 1024.0f));
     } else {
         offsetY = 0.0f;

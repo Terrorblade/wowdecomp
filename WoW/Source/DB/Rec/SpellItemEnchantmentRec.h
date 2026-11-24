@@ -5,6 +5,25 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_SPELL_ITEM_ENCHANTMENT_EFFECTS = 3;
+
+enum ITEM_ENCHANTMENT_EFFECT : int32_t {
+    ENCHANTMENT_EFFECT_NONE                  = 0,
+    ENCHANTMENT_EFFECT_COMBAT_SPELL          = 1,
+    ENCHANTMENT_EFFECT_WEAPON_DAMAGE         = 2,
+    ENCHANTMENT_EFFECT_EQUIP_SPELL           = 3,
+    ENCHANTMENT_EFFECT_RESISTANCE            = 4,
+    ENCHANTMENT_EFFECT_STAT                  = 5,
+    ENCHANTMENT_EFFECT_WEAPON_DPS            = 6,
+    ENCHANTMENT_EFFECT_USE_SPELL             = 7,
+    ENCHANTMENT_EFFECT_PRISMATIC_SOCKET      = 8,
+};
+
+enum ITEM_ENCHANTMENT_FLAGS : int32_t {
+    ENCHANTMENT_FLAG_NONE      = 0x00000000,
+    ENCHANTMENT_FLAG_SOULBOUND = 0x00000001,
+    ENCHANTMENT_FLAG_SUPPRESS_COMBAT_LOG = 0x00000002,
+};
 
 class SpellItemEnchantmentRec {
     public:
@@ -14,10 +33,10 @@ class SpellItemEnchantmentRec {
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_charges;
-    /* 0008 */ int32_t m_effect [3];
-    /* 0014 */ int32_t m_effectPointsMin [3];
-    /* 0020 */ int32_t m_effectPointsMax [3];
-    /* 002C */ int32_t m_effectArg [3];
+    /* 0008 */ int32_t m_effect [NUM_SPELL_ITEM_ENCHANTMENT_EFFECTS];
+    /* 0014 */ int32_t m_effectPointsMin [NUM_SPELL_ITEM_ENCHANTMENT_EFFECTS];
+    /* 0020 */ int32_t m_effectPointsMax [NUM_SPELL_ITEM_ENCHANTMENT_EFFECTS];
+    /* 002C */ int32_t m_effectArg [NUM_SPELL_ITEM_ENCHANTMENT_EFFECTS];
     /* 0038 */ const char* m_name;
     /* 003C */ int32_t m_itemVisual;
     /* 0040 */ int32_t m_flags;

@@ -1,6 +1,8 @@
 #ifndef WOW_SOURCE_WORLDCLIENT_ZONES_H
 #define WOW_SOURCE_WORLDCLIENT_ZONES_H
 
+#include "Engine/Source/Tempest/CAaRect.h"
+
 #include <cstdint>
 
 class C2Vector;

@@ -5,6 +5,7 @@
 #include "Engine/Source/Base/RCString.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/Ui/TotemInfo.h"
 
 struct lua_State;
 class CGUnit_C;
@@ -40,6 +41,13 @@ struct SPELLSBYNAME : public TSHashObject<SPELLSBYNAME, HASHKEY_UTF8I> {
 class CGPlayer_C;
 class SpellRec;
 
+enum COMPANION_TYPE : int32_t {
+    COMPANION_TYPE_CRITTER = 0,
+    COMPANION_TYPE_MOUNT = 1,
+    NUM_COMPANION_TYPES = 2,
+    COMPANION_TYPE_NONE = NUM_COMPANION_TYPES,
+};
+
 class CGSpellBook {
     public:
     static void GetAppropriateSpellRank(uint32_t* spellId, CGUnit_C* caster, CGUnit_C* target);
@@ -55,7 +63,7 @@ class CGSpellBook {
     static int32_t m_stuckSpell;
     static uint32_t m_numPetSpells;
     static int32_t m_summonFriendSpell;
-    static TSGrowableArray<int32_t> m_companions[2];
+    static TSGrowableArray<int32_t> m_companions[NUM_COMPANION_TYPES];
 
     static void AddKnownSpell(int32_t spellId, int32_t notify, int32_t replaceSpell);
     static void AddSpellToNameCache(int32_t spellId, int32_t isPet);
@@ -63,7 +71,7 @@ class CGSpellBook {
     static int32_t GetSpellProgressionRank(const SpellRec* spell);
     static int32_t GetCompanionType(const SpellRec* spell);
     static int32_t FindCompanionSlotByID(int32_t spellId, int32_t type);
-    static TSGrowableArray<int32_t> m_totemSpells[4];
+    static TSGrowableArray<int32_t> m_totemSpells[MAX_TOTEMS];
     static uint32_t m_interruptSchoolMask;
     static uint32_t m_interruptSpecialSchoolMask;
     static uint32_t m_silenceSchoolMask;
@@ -105,7 +113,7 @@ int32_t GetSpellIdBySlot(int32_t slot, int32_t petSpell);
 bool HasSpell(int32_t spellId, int32_t petSpell);
 bool HasSpell(uint32_t spellId);
 void ClearPetSpellInfo();
-extern const char* s_companionTypes[2];
+extern const char* s_companionTypes[NUM_COMPANION_TYPES];
 extern TSGrowableArray<SpellUsableInfo> s_shapeshiftSpells;
 extern uint32_t s_numSkillInfos;
 extern uint32_t s_displayedSpells[1024];

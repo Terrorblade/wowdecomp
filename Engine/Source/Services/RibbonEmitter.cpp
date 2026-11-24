@@ -42,20 +42,20 @@ void CRibbonEmitter::ConvertTexSlotToTexCoords() {
 // VERIFY: 507021d0 manual
 // OFFSET: 0x0097F570
 void CRibbonEmitter::SetDataEnabled(int32_t enabled) {
-    this->m_flags ^= (this->m_flags ^ (4 * enabled)) & 0x4;
+    this->m_flags ^= (this->m_flags ^ (4 * enabled)) & CRibbonEmitter::DATA_ENABLED;
 
-    if (!(this->m_flags & 0x4)) {
-        this->m_flags &= ~0x1;
+    if (!(this->m_flags & CRibbonEmitter::DATA_ENABLED)) {
+        this->m_flags &= ~CRibbonEmitter::POSITION_SET;
     }
 }
 
 // VERIFY: 2a6d93b6 manual
 // OFFSET: 0x0097F5B0
 void CRibbonEmitter::SetUserEnabled(uint32_t enabled) {
-    this->m_flags ^= (this->m_flags ^ (8 * enabled)) & 0x8;
+    this->m_flags ^= (this->m_flags ^ (8 * enabled)) & CRibbonEmitter::USER_ENABLED;
 
-    if (!(this->m_flags & 0x8)) {
-        this->m_flags &= ~0x1;
+    if (!(this->m_flags & CRibbonEmitter::USER_ENABLED)) {
+        this->m_flags &= ~CRibbonEmitter::POSITION_SET;
     }
 }
 
@@ -123,7 +123,7 @@ void CRibbonEmitter::CloseTextureHandles() {
 // VERIFY: 684a7387 manual
 // OFFSET: 0x0097F940
 void CRibbonEmitter::SetPos(const C44Matrix& transform, const C3Vector& position, const C44Matrix* frameOfReference) {
-    if (!(this->m_flags & 0x4) || !(this->m_flags & 0x8)) {
+    if (!(this->m_flags & CRibbonEmitter::DATA_ENABLED) || !(this->m_flags & CRibbonEmitter::USER_ENABLED)) {
         return;
     }
 
@@ -138,7 +138,7 @@ void CRibbonEmitter::SetPos(const C44Matrix& transform, const C3Vector& position
 
     this->m_localPos = position;
 
-    if (this->m_flags & 0x1) {
+    if (this->m_flags & CRibbonEmitter::POSITION_SET) {
         this->m_prevPos = this->m_currPos;
         this->m_prevDir = this->m_currDir;
         this->m_prevUp = this->m_currUp;
@@ -147,7 +147,7 @@ void CRibbonEmitter::SetPos(const C44Matrix& transform, const C3Vector& position
         this->m_edgeFraction = 0.0f;
         this->m_prevUp = C3Vector(matrix.b0, matrix.b1, matrix.b2);
         this->m_prevPos = C3Vector(matrix.d0, matrix.d1, matrix.d2);
-        this->m_flags |= 0x1;
+        this->m_flags |= CRibbonEmitter::POSITION_SET;
     }
 
     this->m_currPos = C3Vector(matrix.d0, matrix.d1, matrix.d2);
@@ -248,7 +248,7 @@ void CRibbonEmitter::Update(float deltaTime, int32_t suppressNewEdges) {
     float dt = deltaTime;
     float start = 1.0f;
 
-    if (!(this->m_flags & 0x10) && this->m_edgesPerSec > 0.0f) {
+    if (!(this->m_flags & CRibbonEmitter::UPDATED) && this->m_edgesPerSec > 0.0f) {
         dt = 1.0f / this->m_edgesPerSec + 0.000099999997f;
     }
 
@@ -268,7 +268,7 @@ void CRibbonEmitter::Update(float deltaTime, int32_t suppressNewEdges) {
         }
     }
 
-    if (!suppressNewEdges && (this->m_flags & 0x4) && (this->m_flags & 0x8) && (this->m_flags & 0x1)) {
+    if (!suppressNewEdges && (this->m_flags & CRibbonEmitter::DATA_ENABLED) && (this->m_flags & CRibbonEmitter::USER_ENABLED) && (this->m_flags & CRibbonEmitter::POSITION_SET)) {
         float target = dt * this->m_edgesPerSec + this->m_edgeFraction;
         CImVector color = this->m_color;
 
@@ -360,7 +360,7 @@ void CRibbonEmitter::Update(float deltaTime, int32_t suppressNewEdges) {
         }
     }
 
-    this->m_flags = (this->m_flags & ~0x30) | 0x10;
+    this->m_flags = (this->m_flags & ~CRibbonEmitter::UPDATE_STATE_MASK) | CRibbonEmitter::UPDATED;
 }
 
 // VERIFY: 05a5de95 manual
@@ -378,7 +378,7 @@ static void DuplicateTextures(const TSGrowableArray<CTexture*>& source, TSGrowab
 // OFFSET: 0x00980590
 CRibbonEmitter::~CRibbonEmitter() {
     this->CloseTextureHandles();
-    this->m_flags &= ~0x2;
+    this->m_flags &= ~CRibbonEmitter::INITIALIZED;
 }
 
 // VERIFY: 459f4678 auto
@@ -399,7 +399,7 @@ CRibbonEmitter::CRibbonEmitter() {
     this->m_texCoords.minY = 0.0f;
     this->m_texCoords.maxX = 0.0f;
     this->m_texCoords.maxY = 0.0f;
-    this->m_flags &= ~0x12;
+    this->m_flags &= ~CRibbonEmitter::CONSTRUCTOR_RESET_MASK;
 }
 
 // VERIFY: 85ed808e manual
@@ -414,7 +414,7 @@ void CRibbonEmitter::Initialize(float edgesPerSecond, float edgeLifetime, const 
     uint32_t edgeCount = static_cast<uint32_t>(static_cast<int64_t>(ceil(edgesPerSec * edgeLifetime) + 2.0f));
     this->m_edgeAges.SetCount(edgeCount);
 
-    this->m_flags &= ~0x1;
+    this->m_flags &= ~CRibbonEmitter::POSITION_SET;
     this->m_edgeFraction = 0.0f;
     this->m_readPos = 0;
     this->m_writePos = 0;
@@ -442,7 +442,7 @@ void CRibbonEmitter::Initialize(float edgesPerSecond, float edgeLifetime, const 
     this->m_cols = cols;
     this->m_texSlot = 0;
     this->ConvertTexSlotToTexCoords();
-    this->m_flags |= 0xE;
+    this->m_flags |= CRibbonEmitter::INITIAL_ENABLED_MASK;
     this->m_above = 10.0f;
     this->m_below = 10.0f;
     this->m_gravity = 0.0f;

@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "Engine/Source/Frame/CFrameStrataNode.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 7f1b23bd manual
 // OFFSET: 0x00495BD0
@@ -22,7 +23,7 @@ int32_t CFrameStrataNode::RemoveFrame(CSimpleFrame* frame) {
 
     frame->m_strataLink.Unlink();
 
-    if (!(frame->m_frameFlags & 0x2000)) {
+    if (!(frame->m_frameFlags & CSimpleFrame::FRAME_BEING_SCROLLED)) {
         this->m_batchDirty = -1;
     }
 
@@ -61,7 +62,7 @@ int32_t CFrameStrataNode::BuildBatches() {
             batch->Clear();
 
             for (CSimpleFrame* frame = this->m_frames.Head(); frame; frame = this->m_frames.Next(frame)) {
-                if (!(frame->m_frameFlags & 0x2000)) {
+                if (!(frame->m_frameFlags & CSimpleFrame::FRAME_BEING_SCROLLED)) {
                     frame->OnFrameRender(batch, layer);
                 }
             }
@@ -74,8 +75,8 @@ int32_t CFrameStrataNode::BuildBatches() {
         }
     }
 
-    if (this->m_batchDirty & 0x20) {
-        this->m_batchDirty |= 0x1F;
+    if (this->m_batchDirty & BATCH_DIRTY_DELAYED_LOAD) {
+        this->m_batchDirty |= BATCH_DIRTY_ALL_DRAWLAYERS;
     }
 
     return 0;

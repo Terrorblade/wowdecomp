@@ -203,7 +203,7 @@ CONSOLECOMMAND* ParseCommand(const char* commandLine, const char** command, char
 
         SStrCopy(arguments, src, argsbytes);
 
-        for (uint32_t length = SStrLen(arguments); length > 0 && arguments[length - 1] == ' '; length--) {
+        for (uint32_t length = static_cast<uint32_t>(SStrLen(arguments)); length > 0 && arguments[length - 1] == ' '; length--) {
             arguments[length - 1] = '\0';
         }
     }
@@ -242,7 +242,7 @@ int32_t ConsoleCommandComplete(const char* partial, const char** previous, int32
         cmd = g_consoleCommandHash.m_fulllist.Head();
     }
 
-    uint32_t length = SStrLen(partial);
+    uint32_t length = static_cast<uint32_t>(SStrLen(partial));
 
     while (cmd) {
         if (!SStrCmpI(partial, cmd->m_key.m_str, length) && !IsHiddenCommand(cmd)) {

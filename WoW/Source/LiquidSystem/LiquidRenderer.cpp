@@ -137,7 +137,7 @@ void Liquid::CRenderer::Flush(const C3Vector& cameraPos, uint32_t pass) {
     instances.SetCount(0);
 
     for (uint32_t i = 0; i < 4; i++) {
-        if (lights[i].m_flags & 0x1) {
+        if (lights[i].m_flags & CGxLight::F_ENABLED) {
             g_theGxDevicePtr->LightSet(i, lights[i], C3Vector(0.0f, 0.0f, 0.0f));
             g_theGxDevicePtr->LightEnable(i, 1);
         }

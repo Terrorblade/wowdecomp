@@ -10,6 +10,6 @@ CVar* CGUnit_C::s_cvPathingDistTolerance;
 // VERIFY: 18dce5cf auto
 // OFFSET: 0x00715330
 void CGUnit_C::ClientInitialize() {
-    CGUnit_C::s_cvShowFootPrintParticles = CVar::Register("showfootprintparticles", "toggles rendering of footprint particles", 1, "1", nullptr, 1, false, nullptr, false);
-    CGUnit_C::s_cvPathingDistTolerance = CVar::Register("pathDistTol", "Sets acceptable distance from pathing destination in yards", 0, "1", nullptr, 4, false, nullptr, false);
+    CGUnit_C::s_cvShowFootPrintParticles = CVar::Register("showfootprintparticles", "toggles rendering of footprint particles", CVAR_ARCHIVE, "1", nullptr, 1, false, nullptr, false);
+    CGUnit_C::s_cvPathingDistTolerance = CVar::Register("pathDistTol", "Sets acceptable distance from pathing destination in yards", CVAR_NONE, "1", nullptr, 4, false, nullptr, false);
 }

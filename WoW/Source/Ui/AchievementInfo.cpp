@@ -117,7 +117,7 @@ int32_t Packet_SMSG_QUERY_QUESTS_COMPLETED_RESPONSE(void* param, NETMESSAGE msgI
     s_completedQuests.Clear();
 
     for (int32_t i = 0; i < static_cast<int32_t>(count); i++) {
-        COMPLETED_QUESTS* quest = s_completedQuests.NewNode(2, 0, 0);
+        COMPLETED_QUESTS* quest = s_completedQuests.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         msg->Get(reinterpret_cast<uint32_t&>(quest->m_questId));
     }
 
@@ -170,12 +170,12 @@ void CGAchievementInfo::InitializeGame() {
             list = s_criteriaByType[rec->m_type].New(rec->m_assetID, HASHKEY_NONE(), 0, 0);
         }
 
-        list->m_criteria.NewNode(2, 0, 0)->m_criteria = rec;
+        list->m_criteria.NewNode(TSLIST_LINK_BEFORE, 0, 0)->m_criteria = rec;
 
         ACHIEVEMENT* achievement = s_achievements.Ptr(rec->m_achievementID, HASHKEY_NONE());
 
         if (achievement) {
-            achievement->m_criteria.NewNode(2, 0, 0)->m_criteria = rec;
+            achievement->m_criteria.NewNode(TSLIST_LINK_BEFORE, 0, 0)->m_criteria = rec;
         }
     }
 }
@@ -201,7 +201,7 @@ bool CGAchievementInfo::IsCriteriaStat(int32_t criteriaId) {
         return false;
     }
 
-    if (category->m_id == 1) {
+    if (category->m_id == ACHIEVEMENT_CATEGORY_STATISTICS) {
         return true;
     }
 
@@ -211,7 +211,7 @@ bool CGAchievementInfo::IsCriteriaStat(int32_t criteriaId) {
         return false;
     }
 
-    while (category->m_id != 1) {
+    while (category->m_id != ACHIEVEMENT_CATEGORY_STATISTICS) {
         category = g_achievement_CategoryDB.GetRecord(category->m_parent);
 
         if (!category) {
@@ -241,7 +241,7 @@ void CGAchievementInfo::UpdateCriteria(int32_t id, uint64_t counter, uint32_t fl
     criteria->m_timer1 = timer1;
     criteria->m_timer2 = timer2;
 
-    if (flags & 1) {
+    if (flags & CRITERIA_PROGRESS_FLAG_RESET) {
         s_criteriaById.erase(id);
         s_criteria.UnlinkNode(criteria);
         delete criteria;
@@ -252,7 +252,7 @@ void CGAchievementInfo::UpdateCriteria(int32_t id, uint64_t counter, uint32_t fl
         return;
     }
 
-    CLIENT_ACHIEVEMENT_CRITERIA* recent = s_recentCriteria.NewNode(0, 0, 0);
+    CLIENT_ACHIEVEMENT_CRITERIA* recent = s_recentCriteria.NewNode(TSLIST_NEWNODE_UNLINKED, 0, 0);
     recent->m_id = criteria->m_id;
     recent->m_counter = criteria->m_counter;
     recent->m_flags = criteria->m_flags;
@@ -262,7 +262,7 @@ void CGAchievementInfo::UpdateCriteria(int32_t id, uint64_t counter, uint32_t fl
 
     Achievement_CriteriaRec* rec = g_achievement_CriteriaDB.GetRecord(recent->m_id);
     CLIENT_ACHIEVEMENT_CRITERIA* node = s_recentCriteria.Head();
-    s_recentCriteria.LinkNode(recent, 2, node);
+    s_recentCriteria.LinkNode(recent, TSLIST_LINK_BEFORE, node);
 
     for (int32_t count = 0; node; ) {
         Achievement_CriteriaRec* nodeRec = g_achievement_CriteriaDB.GetRecord(node->m_id);
@@ -299,7 +299,7 @@ void CGAchievementInfo::UpdateAchievement(int32_t id, WowTime date) {
     }
 
     if (!achievement) {
-        achievement = s_completedAchievements.NewNode(0, 0, 0);
+        achievement = s_completedAchievements.NewNode(TSLIST_NEWNODE_UNLINKED, 0, 0);
         s_completedById[id] = achievement;
         CLIENT_ACHIEVEMENTS* position = s_completedAchievements.Head();
         bool found = false;
@@ -320,7 +320,7 @@ void CGAchievementInfo::UpdateAchievement(int32_t id, WowTime date) {
             }
         }
 
-        s_completedAchievements.LinkNode(achievement, 2, position);
+        s_completedAchievements.LinkNode(achievement, TSLIST_LINK_BEFORE, position);
     }
 
     achievement->m_id = id;
@@ -399,7 +399,7 @@ int32_t AddTrackedAchievement(int32_t id) {
         }
     }
 
-    CLIENT_ACHIEVEMENTS* node = s_trackedAchievements.NewNode(2, 0, 0);
+    CLIENT_ACHIEVEMENTS* node = s_trackedAchievements.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_id = id;
     FrameScript_SignalEvent(SCRIPT_EVENT_TRACKED_ACHIEVEMENT_UPDATE, "%d", id);
     return 1;
@@ -609,7 +609,7 @@ void CGAchievementInfo::UpdateInspectAchievement(WOWGUID guid, int32_t id, WowTi
     AchievementRec* rec = g_achievementDB.GetRecord(id);
 
     if (!achievement) {
-        achievement = s_inspectAchievements.NewNode(0, 0, 0);
+        achievement = s_inspectAchievements.NewNode(TSLIST_NEWNODE_UNLINKED, 0, 0);
         s_inspectAchievementsById[id] = achievement;
         CLIENT_ACHIEVEMENTS* position = s_inspectAchievements.Head();
         bool found = false;
@@ -630,7 +630,7 @@ void CGAchievementInfo::UpdateInspectAchievement(WOWGUID guid, int32_t id, WowTi
             }
         }
 
-        s_inspectAchievements.LinkNode(achievement, 2, position);
+        s_inspectAchievements.LinkNode(achievement, TSLIST_LINK_BEFORE, position);
     }
 
     achievement->m_id = id;
@@ -663,7 +663,7 @@ void CGAchievementInfo::UpdateInspectCriteria(WOWGUID guid, int32_t id, uint64_t
         return;
     }
 
-    CLIENT_ACHIEVEMENT_CRITERIA* recent = s_inspectRecentCriteria.NewNode(0, 0, 0);
+    CLIENT_ACHIEVEMENT_CRITERIA* recent = s_inspectRecentCriteria.NewNode(TSLIST_NEWNODE_UNLINKED, 0, 0);
     recent->m_id = criteria->m_id;
     recent->m_counter = criteria->m_counter;
     recent->m_flags = criteria->m_flags;
@@ -673,7 +673,7 @@ void CGAchievementInfo::UpdateInspectCriteria(WOWGUID guid, int32_t id, uint64_t
     recent->m_timer2 = criteria->m_timer2;
 
     CLIENT_ACHIEVEMENT_CRITERIA* node = s_inspectRecentCriteria.Head();
-    s_inspectRecentCriteria.LinkNode(recent, 2, node);
+    s_inspectRecentCriteria.LinkNode(recent, TSLIST_LINK_BEFORE, node);
 
     for (int32_t count = 0; node; ) {
         if (node->m_id == recent->m_id) {
@@ -721,14 +721,14 @@ int32_t Packet_SMSG_ACHIEVEMENT_EARNED(void* param, NETMESSAGE msgId, uint32_t t
         return 1;
     }
 
-    if (!(achievement->m_flags & 0x4)) {
+    if (!(achievement->m_flags & ACHIEVEMENT_FLAG_NO_COMPLETION_VISUAL)) {
         void* memory = SMemAlloc(sizeof(CEffect), __FILE__, __LINE__, 0);
         CEffect* effect = memory ? new (memory) CEffect() : nullptr;
 
         if (effect) {
             WOWGUID guid = player;
             effect->AddSpecialEffect(SPECIALEFFECT_ACHIEVEMENTBASE, guid, CGObject_C::EffectOnceHandler);
-            effect->m_flags |= 0x20;
+            effect->m_flags |= CEffect::EFFECT_CALLBACK_LIFETIME;
             effect->Release();
         }
     }
@@ -764,8 +764,8 @@ int32_t Packet_SMSG_CRITERIA_UPDATE(void* param, NETMESSAGE msgId, uint32_t time
         return 1;
     }
 
-    uint32_t elapsed1 = ::time(nullptr) - timer1;
-    uint32_t elapsed2 = ::time(nullptr) - timer2;
+    uint32_t elapsed1 = static_cast<uint32_t>(::time(nullptr) - timer1);
+    uint32_t elapsed2 = static_cast<uint32_t>(::time(nullptr) - timer2);
     CGAchievementInfo::UpdateCriteria(id, counter.m_guid, flags, date, player, elapsed1, elapsed2);
     FrameScript_SignalEvent(SCRIPT_EVENT_CRITERIA_UPDATE, nullptr);
     Achievement_CriteriaRec* criteria = g_achievement_CriteriaDB.GetRecord(id);
@@ -801,12 +801,12 @@ bool CGAchievementInfo::IsRealAchievement(int32_t id) {
 
     Achievement_CategoryRec* category = g_achievement_CategoryDB.GetRecord(achievement->m_category);
 
-    if (!category || category->m_id == 1) {
+    if (!category || category->m_id == ACHIEVEMENT_CATEGORY_STATISTICS) {
         return false;
     }
 
     for (category = g_achievement_CategoryDB.GetRecord(category->m_parent); category; category = g_achievement_CategoryDB.GetRecord(category->m_parent)) {
-        if (category->m_id == 1) {
+        if (category->m_id == ACHIEVEMENT_CATEGORY_STATISTICS) {
             return false;
         }
     }
@@ -851,10 +851,10 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
     CVar* colorblindMode = CVar::Lookup("colorblindMode");
     uint64_t result;
 
-    if (flags & 0x8) {
+    if (flags & ACHIEVEMENT_FLAG_SUM) {
         result = sum;
 
-        if (criteria && (flags & 0x40)) {
+        if (criteria && (flags & ACHIEVEMENT_FLAG_AVERAGE_PER_DAY)) {
             uint32_t days = static_cast<uint32_t>(::time(nullptr) - criteria->m_timer2) / 86400;
 
             if (days) {
@@ -863,7 +863,7 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
             }
         }
 
-        if (criteriaFlags & 0x20) {
+        if (criteriaFlags & ACHIEVEMENT_CRITERIA_FLAG_IS_MONEY) {
             if (colorblindMode && colorblindMode->m_intValue) {
                 GetCurrencyShortText(static_cast<int32_t>(result), buffer, size, " ");
             } else {
@@ -873,34 +873,34 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
             SStrPrintf(buffer, size, "%0.2f", perDay);
         } else if (result) {
             SStrPrintf(buffer, size, "%I64d", result);
-        } else if (flags & 0x1) {
+        } else if (flags & ACHIEVEMENT_FLAG_STATISTIC) {
             SStrPrintf(buffer, size, "--");
         } else {
             SStrPrintf(buffer, size, "0");
         }
-    } else if (flags & 0x10) {
+    } else if (flags & ACHIEVEMENT_FLAG_MAXIMUM) {
         Achievement_CriteriaRec* best = g_achievement_CriteriaDB.GetRecord(highestId);
         result = highest;
 
         if (best) {
-            if (flags & 0x1) {
+            if (flags & ACHIEVEMENT_FLAG_STATISTIC) {
                 SStrPrintf(buffer, size, "%I64d (%s)", highest, best->m_description);
             } else {
                 SStrPrintf(buffer, size, "%I64d", highest);
             }
         } else if (result) {
             SStrPrintf(buffer, size, "%I64d", result);
-        } else if (flags & 0x1) {
+        } else if (flags & ACHIEVEMENT_FLAG_STATISTIC) {
             SStrPrintf(buffer, size, "--");
         } else {
             SStrPrintf(buffer, size, "0");
         }
-    } else if (flags & 0x20) {
+    } else if (flags & ACHIEVEMENT_FLAG_COMPLETED_CRITERIA_COUNT) {
         result = count;
 
         if (result) {
             SStrPrintf(buffer, size, "%I64d", result);
-        } else if (flags & 0x1) {
+        } else if (flags & ACHIEVEMENT_FLAG_STATISTIC) {
             SStrPrintf(buffer, size, "--");
         } else {
             SStrPrintf(buffer, size, "0");
@@ -908,11 +908,11 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
     } else if (value) {
         result = value;
 
-        if (criteriaRec && !(flags & 0x1) && result >= static_cast<uint64_t>(static_cast<int64_t>(criteriaRec->m_quantity))) {
+        if (criteriaRec && !(flags & ACHIEVEMENT_FLAG_STATISTIC) && result >= static_cast<uint64_t>(static_cast<int64_t>(criteriaRec->m_quantity))) {
             result = static_cast<int64_t>(criteriaRec->m_quantity);
         }
 
-        if (flags & 0x40) {
+        if (flags & ACHIEVEMENT_FLAG_AVERAGE_PER_DAY) {
             uint32_t days = static_cast<uint32_t>(::time(nullptr) - criteria->m_timer2) / 86400;
 
             if (days) {
@@ -923,18 +923,18 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
 
         Achievement_CriteriaRec* rec = g_achievement_CriteriaDB.GetRecord(criteria->m_id);
 
-        if (rec && (rec->m_flags & 0x10)) {
+        if (rec && (rec->m_flags & ACHIEVEMENT_CRITERIA_FLAG_IS_DATE)) {
             WowTime time;
             DBDATESTRUCT date;
             WowTime::WowDecodeTimeToDbDate(static_cast<uint32_t>(result), &date);
             SStrPrintf(buffer, size, "%02d/%02d/%d", date.m_month, date.m_day, static_cast<int16_t>(date.m_year));
-        } else if (rec && (rec->m_flags & 0x20)) {
+        } else if (rec && (rec->m_flags & ACHIEVEMENT_CRITERIA_FLAG_IS_MONEY)) {
             if (colorblindMode && colorblindMode->m_intValue) {
                 GetCurrencyShortText(static_cast<int32_t>(result), buffer, size, " ");
             } else {
                 GetCurrencyTextureString(static_cast<int32_t>(result), buffer, size, 0);
             }
-        } else if (!(flags & 0x1)) {
+        } else if (!(flags & ACHIEVEMENT_FLAG_STATISTIC)) {
             SStrPrintf(buffer, size, "%I64d", result);
         } else if (perDay != 0.0f) {
             SStrPrintf(buffer, size, "%0.2f", perDay);
@@ -947,12 +947,12 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
         result = static_cast<int64_t>(criteriaRec->m_quantity);
 
         if (!result) {
-            if (flags & 0x1) {
+            if (flags & ACHIEVEMENT_FLAG_STATISTIC) {
                 SStrPrintf(buffer, size, "--");
             } else {
                 SStrPrintf(buffer, size, "0");
             }
-        } else if (criteriaFlags & 0x20) {
+        } else if (criteriaFlags & ACHIEVEMENT_CRITERIA_FLAG_IS_MONEY) {
             if (colorblindMode && colorblindMode->m_intValue) {
                 GetCurrencyShortText(static_cast<int32_t>(result), buffer, size, " ");
             } else {
@@ -962,13 +962,13 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
             SStrPrintf(buffer, size, "%I64d", result);
         }
     } else {
-        if ((criteriaFlags & 0x20) && (criteriaFlags & 0x1)) {
+        if ((criteriaFlags & ACHIEVEMENT_CRITERIA_FLAG_IS_MONEY) && (criteriaFlags & ACHIEVEMENT_CRITERIA_FLAG_PROGRESS_BAR)) {
             if (colorblindMode && colorblindMode->m_intValue) {
                 GetCurrencyShortText(0, buffer, size, " ");
             } else {
                 GetCurrencyTextureString(0, buffer, size, 0);
             }
-        } else if (flags & 0x1) {
+        } else if (flags & ACHIEVEMENT_FLAG_STATISTIC) {
             SStrPrintf(buffer, size, "--");
         } else {
             SStrPrintf(buffer, size, "%I64d", static_cast<int64_t>(0));
@@ -977,10 +977,10 @@ uint64_t CGAchievementInfo::BuildOutputString(char* buffer, int32_t size, uint64
         result = 0;
     }
 
-    if ((criteriaFlags & 0x1) && criteriaRec) {
+    if ((criteriaFlags & ACHIEVEMENT_CRITERIA_FLAG_PROGRESS_BAR) && criteriaRec) {
         char total[128];
 
-        if (criteriaFlags & 0x20) {
+        if (criteriaFlags & ACHIEVEMENT_CRITERIA_FLAG_IS_MONEY) {
             if (colorblindMode && colorblindMode->m_intValue) {
                 GetCurrencyShortText(required ? required : criteriaRec->m_quantity, total, sizeof(total), " ");
             } else {

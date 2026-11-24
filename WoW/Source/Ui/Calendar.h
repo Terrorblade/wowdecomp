@@ -5,6 +5,7 @@
 #include "WoW/Source/Net/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/DB/Rec/HolidaysRec.h"
 
 class CDataStore;
 class CGCalendarEvent;
@@ -20,6 +21,81 @@ void PH_SMSG_CALENDAR_SEND_CALENDAR(CDataStore* msg);
 
 class HolidaysRec;
 struct CalendarDayEvent;
+
+enum CALENDAR_COMMAND_RESULT : uint32_t {
+    CALENDAR_RESULT_SUCCESS                               = 0,
+    CALENDAR_RESULT_GUILD_EVENTS_EXCEEDED                 = 1,
+    CALENDAR_RESULT_EVENTS_EXCEEDED                       = 2,
+    CALENDAR_RESULT_SELF_INVITES_EXCEEDED                 = 3,
+    CALENDAR_RESULT_OTHER_INVITES_EXCEEDED                = 4,
+    CALENDAR_RESULT_PERMISSIONS                           = 5,
+    CALENDAR_RESULT_EVENT_INVALID                         = 6,
+    CALENDAR_RESULT_NOT_INVITED                           = 7,
+    CALENDAR_RESULT_INTERNAL                              = 8,
+    CALENDAR_RESULT_GUILD_PLAYER_NOT_IN_GUILD             = 9,
+    CALENDAR_RESULT_ALREADY_INVITED_TO_EVENT              = 10,
+    CALENDAR_RESULT_PLAYER_NOT_FOUND                      = 11,
+    CALENDAR_RESULT_NOT_ALLIED                            = 12,
+    CALENDAR_RESULT_IGNORING_YOU                          = 13,
+    CALENDAR_RESULT_INVITES_EXCEEDED                      = 14,
+    CALENDAR_RESULT_INVALID_DATE                          = 16,
+    CALENDAR_RESULT_INVALID_TIME                          = 17,
+    CALENDAR_RESULT_NEEDS_TITLE                           = 19,
+    CALENDAR_RESULT_EVENT_PASSED                          = 20,
+    CALENDAR_RESULT_EVENT_LOCKED                          = 21,
+    CALENDAR_RESULT_DELETE_CREATOR_FAILED                 = 22,
+    CALENDAR_RESULT_SYSTEM_DISABLED                       = 24,
+    CALENDAR_RESULT_RESTRICTED_ACCOUNT                    = 25,
+    CALENDAR_RESULT_ARENA_EVENTS_EXCEEDED                 = 26,
+    CALENDAR_RESULT_RESTRICTED_LEVEL                      = 27,
+    CALENDAR_RESULT_USER_SQUELCHED                        = 28,
+    CALENDAR_RESULT_NO_INVITE                             = 29,
+    CALENDAR_RESULT_EVENT_WRONG_SERVER                    = 36,
+    CALENDAR_RESULT_INVITE_WRONG_SERVER                   = 37,
+    CALENDAR_RESULT_NO_GUILD_INVITES                      = 38,
+    CALENDAR_RESULT_INVALID_SIGNUP                        = 39,
+    CALENDAR_RESULT_NO_MODERATOR                          = 40,
+};
+
+enum CALENDAR_EVENT_TABLE : int32_t {
+    CALENDAR_EVENT_TABLE_PLAYER         = 0,
+    CALENDAR_EVENT_TABLE_GUILD          = 1,
+    CALENDAR_EVENT_TABLE_RAID_LOCKOUT   = 2,
+    CALENDAR_EVENT_TABLE_RAID_RESET     = 3,
+    CALENDAR_EVENT_TABLE_HOLIDAY        = 4,
+    CALENDAR_EVENT_TABLE_WEEKLY_HOLIDAY = 5,
+    CALENDAR_EVENT_TABLE_DARKMOON       = 6,
+    CALENDAR_EVENT_TABLE_BATTLEGROUND   = 7,
+    NUM_CALENDAR_EVENT_TABLES           = 8,
+};
+
+enum CALENDAR_EVENT_FLAGS : uint32_t {
+    CALENDAR_EVENT_FLAG_NONE = 0,
+    CALENDAR_EVENT_FLAG_PLAYER = 0x1,
+    CALENDAR_EVENT_FLAG_UNKNOWN_0002 = 0x2,
+    CALENDAR_EVENT_FLAG_SYSTEM = 0x4,
+    CALENDAR_EVENT_FLAG_HOLIDAY = 0x8,
+    CALENDAR_EVENT_FLAG_INVITES_LOCKED = 0x10,
+    CALENDAR_EVENT_FLAG_AUTO_APPROVE = 0x20,
+    CALENDAR_EVENT_FLAG_GUILD_ANNOUNCEMENT = 0x40,
+    CALENDAR_EVENT_FLAG_RAID_LOCKOUT = 0x80,
+    CALENDAR_EVENT_FLAG_UNKNOWN_0100 = 0x100,
+    CALENDAR_EVENT_FLAG_RAID_RESET = 0x200,
+    CALENDAR_EVENT_FLAG_GUILD_EVENT = 0x400,
+    CALENDAR_EVENT_FLAG_GUILD_MASK = 0x440,
+    CALENDAR_EVENT_FLAG_RAID_MASK = 0x280,
+    CALENDAR_EVENT_FLAG_PLAYER_OR_GUILD_EVENT_MASK = 0x401,
+    CALENDAR_EVENT_FLAG_SORT_PRIORITY_MASK = 0x543,
+    CALENDAR_EVENT_FLAG_COMPLAINT_RESTRICTED_MASK = 0x6CC,
+};
+
+enum CALENDAR_DAY_EVENT_FLAGS : uint32_t {
+    CALENDAR_DAY_FLAG_NONE                   = 0x00000000u,
+    CALENDAR_DAY_FLAG_PENDING_INVITE         = 0x00000001u,
+    CALENDAR_DAY_FLAG_MODERATOR              = 0x00000002u,
+    CALENDAR_DAY_FLAG_CREATOR                = 0x00000004u,
+    CALENDAR_DAY_FLAG_GUILD_INVITE           = 0x00000008u,
+};
 
 struct CALENDARHOLIDAYNODE : public TSLinkedNode<CALENDARHOLIDAYNODE> {
     /* 0008 */ HolidaysRec* m_holiday;
@@ -39,7 +115,7 @@ inline CALENDARHOLIDAYNODE::CALENDARHOLIDAYNODE() {
     this->m_startTime = 0;
     this->m_endTime = 0;
     this->m_duration = 0;
-    this->m_type = 4;
+    this->m_type = CALENDAR_EVENT_TABLE_HOLIDAY;
 }
 
 struct CALENDARRAIDRESETNODE : public TSLinkedNode<CALENDARRAIDRESETNODE> {
@@ -101,8 +177,8 @@ struct CalendarEventSelection {
 
 class CalendarEventTables {
     public:
-    /* 0000 */ TSHashTable<CALENDAREVENTHASH, HASHKEY_NONE> m_tables[8];
-    /* 0140 */ int32_t m_counts[8];
+    /* 0000 */ TSHashTable<CALENDAREVENTHASH, HASHKEY_NONE> m_tables[NUM_CALENDAR_EVENT_TABLES];
+    /* 0140 */ int32_t m_counts[NUM_CALENDAR_EVENT_TABLES];
 
     CalendarEventTables();
     void Clear();

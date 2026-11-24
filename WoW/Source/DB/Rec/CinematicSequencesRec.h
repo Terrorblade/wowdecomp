@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_CINEMATIC_SEQUENCE_CAMERAS = 8;
 
 class CinematicSequencesRec {
     public:
@@ -14,7 +15,7 @@ class CinematicSequencesRec {
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_soundID;
-    /* 0008 */ int32_t m_camera [8];
+    /* 0008 */ int32_t m_camera [NUM_CINEMATIC_SEQUENCE_CAMERAS];
 
     CinematicSequencesRec();
     ~CinematicSequencesRec();

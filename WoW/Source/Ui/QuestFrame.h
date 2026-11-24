@@ -4,6 +4,18 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/Object/QuestCache.h"
+constexpr uint32_t QUESTGIVER_MAX_QUEST_COUNT = 32;
+constexpr uint32_t MAX_REQUIRED_ITEMS = 6;
+constexpr uint32_t MAX_QUEST_REWARD_FACTIONS = 10;
+
+enum QUEST_LIST_TYPE : uint32_t {
+    QUEST_LIST_TYPE_TURN_IN = 0,
+    QUEST_LIST_TYPE_UNKNOWN_1 = 1,
+    QUEST_LIST_TYPE_UNKNOWN_2 = 2,
+    QUEST_LIST_TYPE_ACTIVE_3 = 3,
+    QUEST_LIST_TYPE_ACTIVE_4 = 4,
+};
 
 enum QUEST_STATE : int32_t {
     QUEST_GREETING = 0,
@@ -11,6 +23,7 @@ enum QUEST_STATE : int32_t {
     QUEST_ACCEPTED = 2,
     QUEST_REWARD = 3,
     // QUEST_STATE_NUM_TYPES = 4, // Unused reference member.
+    QUEST_STATE_NUM_TYPES = 4,
 };
 
 struct QuestItemInfo {
@@ -36,8 +49,8 @@ struct QuestGiverQuest {
 
 class CGQuestInfo {
     public:
-    static int32_t m_rewardFactionList[10];
-    static int32_t m_rewardFactionAmounts[10];
+    static int32_t m_rewardFactionList[MAX_QUEST_REWARD_FACTIONS];
+    static int32_t m_rewardFactionAmounts[MAX_QUEST_REWARD_FACTIONS];
     static int32_t IsLowLevel(int32_t level);
     static QUEST_STATE m_state;
     static int32_t m_currentQuest;
@@ -77,7 +90,7 @@ class CGQuestInfo {
     static int32_t m_rewardTalents;
     static int32_t m_numQuests;
     static int32_t m_numInProgress;
-    static QuestItemSlot m_questItems[6];
+    static QuestItemSlot m_questItems[MAX_REQUIRED_ITEMS];
     static QuestGiverQuest m_inProgressQuests[32];
     static QuestGiverQuest m_availableQuests[32];
     static uint32_t m_rewardHonor;

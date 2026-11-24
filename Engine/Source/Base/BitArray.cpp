@@ -1,5 +1,6 @@
 #include <cstdint>
 #include "Engine/Source/Base/BitArray.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 08b8f5fb auto
 // OFFSET: 0x0095DA10

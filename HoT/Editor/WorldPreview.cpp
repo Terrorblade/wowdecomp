@@ -20,6 +20,7 @@
 #include "WoW/Source/Object/Types.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/ObjectMgrClient/CClientObjCreate.h"
 
 namespace HoT::Editor::WorldPreview {
 
@@ -37,10 +38,6 @@ static constexpr uint32_t kAnimRecheckMs = 250;
 static constexpr uint32_t kNoAnim = 0xFFFFFFFF;
 
 static constexpr uint32_t UPDATE_CREATE_OBJECT = 2;
-static constexpr uint16_t UPDATEFLAG_LIVING = 0x20;
-static constexpr uint16_t UPDATEFLAG_STATIONARY = 0x40;
-static constexpr uint16_t UPDATEFLAG_VEHICLE = 0x80;
-static constexpr uint16_t UPDATEFLAG_ROTATION = 0x200;
 
 static constexpr uint32_t UNIT_BYTES_0 = 23;
 static constexpr uint32_t UNIT_HEALTH = 24;
@@ -230,7 +227,7 @@ static void SendGameObject(const Object& object) {
     msg.Put(static_cast<uint8_t>(UPDATE_CREATE_OBJECT));
     PutGuid(msg, object.guid);
     msg.Put(static_cast<uint8_t>(ID_GAMEOBJECT));
-    msg.Put(static_cast<uint16_t>(UPDATEFLAG_STATIONARY | UPDATEFLAG_ROTATION));
+    msg.Put(static_cast<uint16_t>(UPDATEFLAG_STATIONARY_POSITION | UPDATEFLAG_ROTATION));
     msg.Put(s_anchor.position.x);
     msg.Put(s_anchor.position.y);
     msg.Put(s_anchor.position.z);

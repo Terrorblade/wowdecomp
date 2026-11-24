@@ -18,6 +18,13 @@ class XMLNode;
 struct MD5_CTX;
 struct lua_State;
 
+enum XML_SIGNATURE_RESULT : int32_t {
+    XML_SIGNATURE_MISSING  = 0,
+    XML_SIGNATURE_CORRUPT  = 1,
+    XML_SIGNATURE_MODIFIED = 2,
+    XML_SIGNATURE_VALID    = 3,
+};
+
 struct SMOOTHWEIGHTS {
     /* 0000 */ float m_in;
     /* 0004 */ float m_out;

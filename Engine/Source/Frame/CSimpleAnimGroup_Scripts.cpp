@@ -151,9 +151,9 @@ static int32_t Script_SetInitialOffset(lua_State* L) {
     }
 
     C2Vector offset;
-    float x = lua_tonumber(L, 2);
+    float x = static_cast<float>(lua_tonumber(L, 2));
     offset.x = NDCToDDCWidth(x / (CoordinateGetAspectCompensation() * 1024.0f));
-    float y = lua_tonumber(L, 3);
+    float y = static_cast<float>(lua_tonumber(L, 3));
     offset.y = NDCToDDCWidth(y / (CoordinateGetAspectCompensation() * 1024.0f));
     group->SetInitialOffset(offset);
 

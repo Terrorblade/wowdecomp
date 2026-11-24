@@ -50,7 +50,7 @@ static int32_t Script_SetParent(lua_State* L) {
     int32_t oldOrder = point->m_order;
 
     if (lua_isnumber(L, 3)) {
-        point->SetOrder(lua_tointeger(L, 3) - 1, false, false);
+        point->SetOrder(static_cast<int32_t>(lua_tointeger(L, 3) - 1), false, false);
     } else {
         int32_t order = point->m_order;
 
@@ -80,9 +80,9 @@ static int32_t Script_SetOffset(lua_State* L) {
     }
 
     C2Vector offset;
-    float x = lua_tonumber(L, 2);
+    float x = static_cast<float>(lua_tonumber(L, 2));
     offset.x = NDCToDDCWidth(x / (CoordinateGetAspectCompensation() * 1024.0f));
-    float y = lua_tonumber(L, 3);
+    float y = static_cast<float>(lua_tonumber(L, 3));
     offset.y = NDCToDDCWidth(y / (CoordinateGetAspectCompensation() * 1024.0f));
     point->SetOffset(offset);
 
@@ -115,7 +115,7 @@ static int32_t Script_SetOrder(lua_State* L) {
         return 0;
     }
 
-    point->SetOrder(lua_tointeger(L, 2) - 1, true, false);
+    point->SetOrder(static_cast<int32_t>(lua_tointeger(L, 2) - 1), true, false);
     return 0;
 }
 

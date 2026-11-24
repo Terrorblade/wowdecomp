@@ -86,6 +86,20 @@ class M2Loop {
 
 class M2Sequence {
     public:
+    enum FLAGS : uint32_t {
+        NONE = 0,
+        NON_LOOPING = 1,
+        BLEND_TO_UP = 2,
+        BLEND_FROM_UP = 4,
+        ALIGN_TO_UP = 8,
+        LOAD_PENDING = 0x10,
+        LOADED = 0x20,
+        ALIAS = 0x40,
+        SECONDARY_NON_LOOPING = 0x80,
+        UP_VECTOR_MASK = 0xe,
+        LOAD_STATE_MASK = 0x30,
+    };
+
     /* 0000 */ uint16_t m_id;
     /* 0002 */ uint16_t m_variationIndex;
     /* 0004 */ uint32_t m_duration;
@@ -101,6 +115,24 @@ class M2Sequence {
 
 class M2CompBone {
     public:
+    enum FLAGS : uint32_t {
+        NONE = 0,
+        IGNORE_PARENT_TRANSLATION = 1,
+        IGNORE_PARENT_SCALE = 2,
+        IGNORE_PARENT_ROTATION = 4,
+        BILLBOARD = 8,
+        BILLBOARD_LOCK_X = 0x10,
+        BILLBOARD_LOCK_Y = 0x20,
+        BILLBOARD_LOCK_Z = 0x40,
+        PROCEDURAL_TRANSFORM = 0x80,
+        TRANSFORMED = 0x200,
+        PARENT_OVERRIDE_MASK = 7,
+        PARENT_ROTATION_SCALE_MASK = 6,
+        BILLBOARD_MASK = 0x78,
+        LOCAL_TRANSFORM_MASK = 0x280,
+        DYNAMIC_TRANSFORM_MASK = 0x2f8,
+    };
+
     /* 0000 */ uint32_t m_boneId;
     /* 0004 */ uint32_t m_flags;
     /* 0008 */ uint16_t m_parentIndex;
@@ -155,6 +187,21 @@ class M2TextureTransform {
 
 class M2Material {
     public:
+    enum FLAGS : uint16_t {
+        NONE = 0,
+        UNLIT = 1,
+        UNFOGGED = 2,
+        TWO_SIDED = 4,
+        NO_DEPTH_TEST = 8,
+        NO_DEPTH_WRITE = 0x10,
+        HIT_TEST_NON_OPAQUE = 0x20,
+        NO_SHADOW_CAST = 0x40,
+        ALLOW_BLENDED_SHADOW_CAST = 0x80,
+        NO_SHADOW_RECEIVE = 0x100,
+        UNLIT_TWO_SIDED = 5,
+        RENDER_STATE_MASK = 0x1f,
+    };
+
     /* 0000 */ uint16_t m_flags;
     /* 0002 */ M2BLEND m_blendMode;
 };
@@ -230,6 +277,36 @@ class M2Ribbon {
 
 class M2Particle {
     public:
+    enum FLAGS : uint32_t {
+        NONE = 0,
+        UNLIT = 1,
+        SORT_PARTICLES = 2,
+        VELOCITY_ALIGNED_HEAD = 4,
+        UNFOGGED = 8,
+        LOCAL_SPACE = 0x10,
+        TRANSFORM_SCALE = 0x20,
+        INHERIT_VELOCITY = 0x40,
+        KILL_OUTWARD_PARTICLES = 0x80,
+        SPHERE_Z_VELOCITY = 0x100,
+        RANDOM_SPIN_DIRECTION = 0x200,
+        CLAMP_TAIL = 0x400,
+        EMIT_ALONG_MOTION = 0x800,
+        USE_BILLBOARD_AXIS = 0x1000,
+        PROJECT = 0x2000,
+        FOLLOW = 0x4000,
+        BURST = 0x8000,
+        RANDOM_TEXTURE = 0x10000,
+        HEAD = 0x20000,
+        TAIL = 0x40000,
+        SCALE_VARIATION = 0x80000,
+    };
+
+    enum EMITTER_TYPE : uint8_t {
+        PET_PLANE = 1,
+        PET_SPHERE = 2,
+        PET_SPLINE = 3,
+    };
+
     /* 0000 */ uint32_t m_particleId;
     /* 0004 */ uint32_t m_flags;
     /* 0008 */ C3Vector m_position;
@@ -285,6 +362,28 @@ class M2Particle {
 
 class M2Batch {
     public:
+    enum FLAGS : uint8_t {
+        NONE = 0,
+        SORT_NEAR_SURFACE = 1,
+        SORT_FAR_SURFACE = 2,
+        PROJECTED_TEXTURE = 4,
+        NO_HIT_TEST = 8,
+        DOODAD_BATCHABLE = 0x10,
+        NO_PROJECTED_TEXTURE_RECEIVE = 0x20,
+        SURFACE_SORT_MASK = 3,
+        MULTI_SAMPLE_VERTICES = 0x40,
+    };
+
+    enum SHADER_ID : uint16_t {
+        TEX_COORD_1 = 0x4000,
+        SPECIAL = 0x8000,
+        SPECIAL_INDEX_MASK = 0x7FFF,
+        SPECIAL_COMBINED = 0x8000,
+        SPECIAL_OPAQUE_MOD2XNA_ALPHA = 0x8001,
+        SPECIAL_OPAQUE_ADDALPHA = 0x8002,
+        SPECIAL_OPAQUE_ADDALPHA_ALPHA = 0x8003,
+    };
+
     /* 0000 */ uint8_t m_flags;
     /* 0001 */ int8_t m_priorityPlane;
     /* 0002 */ uint16_t m_shader;
@@ -337,6 +436,19 @@ class M2SkinSection {
 
 class M2Data {
     public:
+    enum FLAGS : uint32_t {
+        NONE = 0,
+        ALIGN_UP_KEEP_Y_HORIZONTAL = 1,
+        UNKNOWN_2 = 2,
+        LOCAL_TINT_ONLY = 4,
+        HAS_TEXTURE_COMBINER_COMBOS = 8,
+        SORT_BY_DISTANCE = 0x10,
+        OWNS_TEXTURE_COMBOS = 0x20,
+        OWNS_TEXTURE_TRANSFORM_COMBOS = 0x40,
+        UP_ALIGNMENT_MASK = 3,
+        RUNTIME_ALLOCATION_MASK = 0x60,
+    };
+
     /* 0000 */ uint32_t m_magic;
     /* 0004 */ uint32_t m_version;
     /* 0008 */ M2Array<char> m_name;

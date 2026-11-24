@@ -23,6 +23,7 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/CRect.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
+#include "Engine/Source/Tempest/Color.h"
 
 // STATIC: 0x00ADBAB4
 static RECTF s_rect = { 0.0f, 1.0f, 1.0f, 1.0f };
@@ -220,7 +221,7 @@ static void ResetHighlight() {
 // OFFSET: 0x00763860
 static void UpdateHighlight() {
     CGxFont* font = TextBlockGetFontPtr(s_textFont);
-    uint32_t length = SStrLen(s_copyText);
+    uint32_t length = static_cast<uint32_t>(SStrLen(s_copyText));
 
     float left = s_highlightHStart >= s_highlightHEnd ? s_highlightHEnd : s_highlightHStart;
     float right = s_highlightHStart > s_highlightHEnd ? s_highlightHStart : s_highlightHEnd;
@@ -292,7 +293,7 @@ static void MakeCommandCurrent(CONSOLELINE* line, const char* command) {
     line->m_chars = line->m_inputstart;
     line->m_buffer[line->m_inputstart] = 0;
 
-    uint32_t length = SStrLen(command);
+    uint32_t length = static_cast<uint32_t>(SStrLen(command));
     ReserveInputSpace(line, length);
     SStrCopy(reinterpret_cast<char*>(line->m_buffer) + line->m_inputpos, command, STORM_MAX_STR);
 
@@ -538,14 +539,14 @@ static CONSOLELINE* GetInputLine() {
         return head;
     }
 
-    CONSOLELINE* line = s_linelist.NewNode(1, 0, 0);
+    CONSOLELINE* line = s_linelist.NewNode(TSLIST_LINK_AFTER, 0, 0);
 
     line->m_charsalloc = 16;
     line->m_buffer = static_cast<uint8_t*>(SMemAlloc(line->m_charsalloc, __FILE__, __LINE__, 0));
     SStrCopy(reinterpret_cast<char*>(line->m_buffer), "> ", line->m_charsalloc);
     SetInputString(reinterpret_cast<const char*>(line->m_buffer));
 
-    uint32_t length = SStrLen(reinterpret_cast<const char*>(line->m_buffer));
+    uint32_t length = static_cast<uint32_t>(SStrLen(reinterpret_cast<const char*>(line->m_buffer)));
     s_NumLines++;
     line->m_chars = line->m_inputpos = line->m_inputstart = length;
     line->m_colorType = INPUT_COLOR;
@@ -629,7 +630,7 @@ static CONSOLELINE* GetLineAtMousePosition(float y) {
 // VERIFY: deafcbfa manual
 // OFFSET: 0x00764800
 static void PasteInInputLine(const char* text) {
-    int32_t length = SStrLen(text);
+    int32_t length = static_cast<int32_t>(SStrLen(text));
 
     if (!length) {
         return;
@@ -655,11 +656,11 @@ static void PasteInInputLine(const char* text) {
         head[line->m_inputpos] = 0;
 
         SStrPack(head, text, line->m_charsalloc);
-        line->m_inputpos = SStrLen(head);
+        line->m_inputpos = static_cast<uint32_t>(SStrLen(head));
         SStrPack(head, tail, line->m_charsalloc);
 
         SStrCopy(reinterpret_cast<char*>(line->m_buffer), head, STORM_MAX_STR);
-        line->m_chars = SStrLen(reinterpret_cast<const char*>(line->m_buffer));
+        line->m_chars = static_cast<uint32_t>(SStrLen(reinterpret_cast<const char*>(line->m_buffer)));
 
         if (tail) {
             SMemFree(tail, __FILE__, __LINE__, 0);
@@ -795,7 +796,7 @@ static int32_t OnKeyDownRepeat(const void* data, void* param) {
             break;
 
         case KEY_PAGEUP:
-            if (key->m_metaKeyState & 3) {
+            if (key->m_metaKeyState & META_KEY_SHIFT) {
                 CONSOLELINE* ptr = s_currlineptr;
 
                 for (int32_t i = 0; i < 10 && ptr; i++) {
@@ -877,18 +878,18 @@ void ConsoleWrite(const char* str, COLOR_T color) {
 
     s_critsect.Enter();
 
-    CONSOLELINE* node = s_linelist.NewNode(0, 0, 0);
+    CONSOLELINE* node = s_linelist.NewNode(TSLIST_NEWNODE_UNLINKED, 0, 0);
     CONSOLELINE* head = s_linelist.Head();
 
     if (head && head->m_inputpos) {
-        s_linelist.LinkNode(node, 1, head);
+        s_linelist.LinkNode(node, TSLIST_LINK_AFTER, head);
     } else {
         s_linelist.LinkToHead(node);
     }
 
     size_t length = SStrLen(str) + 1;
-    node->m_chars = length;
-    node->m_charsalloc = length;
+    node->m_chars = static_cast<uint32_t>(length);
+    node->m_charsalloc = static_cast<uint32_t>(length);
     node->m_buffer = static_cast<uint8_t*>(SMemAlloc(length, __FILE__, __LINE__, 0));
     SStrCopy(reinterpret_cast<char*>(node->m_buffer), str, STORM_MAX_STR);
     node->m_colorType = color;
@@ -1081,7 +1082,7 @@ static int32_t OnKeyDown(const void* data, void* param) {
                 SStrCopy(s_partial, reinterpret_cast<const char*>(line->m_buffer) + line->m_inputstart, STORM_MAX_STR);
             }
 
-            if (ConsoleCommandComplete(s_partial, &s_completedCmd, (key->m_metaKeyState & 3) != 0)) {
+            if (ConsoleCommandComplete(s_partial, &s_completedCmd, (key->m_metaKeyState & META_KEY_SHIFT) != 0)) {
                 MakeCommandCurrent(line, s_completedCmd);
             }
 
@@ -1115,7 +1116,7 @@ static int32_t OnKeyDown(const void* data, void* param) {
             break;
 
         case KEY_HOME:
-            if (key->m_metaKeyState & 0xC) {
+            if (key->m_metaKeyState & META_KEY_CONTROL) {
                 s_currlineptr = s_linelist.Tail();
             } else if (line->m_inputpos > line->m_inputstart) {
                 line->m_inputpos = line->m_inputstart;
@@ -1124,7 +1125,7 @@ static int32_t OnKeyDown(const void* data, void* param) {
             break;
 
         case KEY_END:
-            if (key->m_metaKeyState & 0xC) {
+            if (key->m_metaKeyState & META_KEY_CONTROL) {
                 s_currlineptr = s_linelist.Head();
             } else if (line->m_inputpos < line->m_chars) {
                 line->m_inputpos = line->m_chars;
@@ -1133,7 +1134,7 @@ static int32_t OnKeyDown(const void* data, void* param) {
             break;
 
         case KEY_PAGEUP:
-            if (key->m_metaKeyState & 3) {
+            if (key->m_metaKeyState & META_KEY_SHIFT) {
                 CONSOLELINE* ptr = s_currlineptr;
 
                 for (int32_t i = 0; i < 10 && ptr; i++) {
@@ -1195,10 +1196,10 @@ static int32_t OnKeyDown(const void* data, void* param) {
             break;
 
         case 'C':
-            if (key->m_metaKeyState & 0xC) {
+            if (key->m_metaKeyState & META_KEY_CONTROL) {
                 if (s_copyText[0]) {
                     char buffer[128];
-                    uint32_t copyLength = SStrLen(s_copyText);
+                    uint32_t copyLength = static_cast<uint32_t>(SStrLen(s_copyText));
                     uint32_t left = s_highlightLeftCharIndex < copyLength ? s_highlightLeftCharIndex : copyLength;
                     uint32_t right = s_highlightRightCharIndex < copyLength ? s_highlightRightCharIndex : copyLength;
                     uint32_t length = right > left ? right - left : 0;
@@ -1218,7 +1219,7 @@ static int32_t OnKeyDown(const void* data, void* param) {
             break;
 
         case 'V':
-            if (key->m_metaKeyState & 0xC) {
+            if (key->m_metaKeyState & META_KEY_CONTROL) {
                 char* text = OsClipboardGetString();
 
                 if (text) {
@@ -1283,8 +1284,8 @@ void ConsoleScreenInitialize(const char* title) {
     SStrCopy(s_fontName, "Fonts\\ARIALN.ttf", sizeof(s_fontName));
     s_textFont = TextBlockGenerateFont(s_fontName, 0, NDCToDDCHeight(s_fontHeight));
 
-    ScrnLayerCreate(&s_rect, 6.0f, 3, nullptr, PaintBackground, &s_layerBackground);
-    ScrnLayerCreate(&s_rect, 7.0f, 3, nullptr, PaintText, &s_layerText);
+    ScrnLayerCreate(&s_rect, 6.0f, SCRN_LAYER_TRANSPARENT | SCRN_LAYER_ORTHO, nullptr, PaintBackground, &s_layerBackground);
+    ScrnLayerCreate(&s_rect, 7.0f, SCRN_LAYER_TRANSPARENT | SCRN_LAYER_ORTHO, nullptr, PaintText, &s_layerText);
 
     RegisterHandlers();
 

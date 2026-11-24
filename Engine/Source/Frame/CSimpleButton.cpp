@@ -546,35 +546,35 @@ void CSimpleButton::UpdateTextState(CSimpleButtonState state) {
 // OFFSET: 0x0096F530
 const char* GetMouseButtonName(uint32_t button) {
     switch (button) {
-        case 0x1:
+        case MOUSE_BUTTON_LEFT:
             return "LeftButton";
-        case 0x2:
+        case MOUSE_BUTTON_MIDDLE:
             return "MiddleButton";
-        case 0x4:
+        case MOUSE_BUTTON_RIGHT:
             return "RightButton";
-        case 0x8:
+        case MOUSE_BUTTON_XBUTTON1:
             return "Button4";
-        case 0x10:
+        case MOUSE_BUTTON_XBUTTON2:
             return "Button5";
-        case 0x20:
+        case MOUSE_BUTTON_XBUTTON3:
             return "Button6";
-        case 0x40:
+        case MOUSE_BUTTON_XBUTTON4:
             return "Button7";
-        case 0x80:
+        case MOUSE_BUTTON_XBUTTON5:
             return "Button8";
-        case 0x100:
+        case MOUSE_BUTTON_XBUTTON6:
             return "Button9";
-        case 0x200:
+        case MOUSE_BUTTON_XBUTTON7:
             return "Button10";
-        case 0x400:
+        case MOUSE_BUTTON_XBUTTON8:
             return "Button11";
-        case 0x800:
+        case MOUSE_BUTTON_XBUTTON9:
             return "Button12";
-        case 0x1000:
+        case MOUSE_BUTTON_XBUTTON10:
             return "Button13";
-        case 0x2000:
+        case MOUSE_BUTTON_XBUTTON11:
             return "Button14";
-        case 0x4000:
+        case MOUSE_BUTTON_XBUTTON12:
             return "Button15";
         case MOUSE_BUTTON_XBUTTON13:
             return "Button16";
@@ -630,9 +630,9 @@ void CSimpleButton::SetFontString(CSimpleFontString* fontString) {
         if (!fontString->HasAnyFramepoints()) {
             uint32_t styleFlags = this->m_normalFont ? this->m_normalFont->m_attributes.m_styleFlags : 0;
 
-            if (styleFlags & 0x1) {
+            if (styleFlags & TEXTBLOCK_JUSTIFY_LEFT) {
                 fontString->SetPoint(FRAMEPOINT_LEFT, this, FRAMEPOINT_LEFT, 0.0f, 0.0f, 1);
-            } else if (styleFlags & 0x4) {
+            } else if (styleFlags & TEXTBLOCK_JUSTIFY_RIGHT) {
                 fontString->SetPoint(FRAMEPOINT_RIGHT, this, FRAMEPOINT_RIGHT, 0.0f, 0.0f, 1);
             } else {
                 fontString->SetPoint(FRAMEPOINT_CENTER, this, FRAMEPOINT_CENTER, 0.0f, 0.0f, 1);
@@ -668,12 +668,12 @@ void CSimpleButton::SetNormalFontColor(const CImVector& color) {
         return;
     }
 
-    if (*reinterpret_cast<const uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&font->m_attributes.m_color) || !(font->m_attributes.m_flags & 0x400)) {
+    if (*reinterpret_cast<const uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&font->m_attributes.m_color) || !(font->m_attributes.m_flags & FLAG_COLOR_PRESENT)) {
         font->m_attributes.m_color = color;
-        font->m_attributes.m_flags |= 0x404;
+        font->m_attributes.m_flags |= FLAG_COLOR_PRESENT | FLAG_COLOR_UPDATE;
     }
 
-    this->m_normalFont->m_fontableFlags &= ~0x4u;
+    this->m_normalFont->m_fontableFlags &= ~FLAG_COLOR_UPDATE;
     this->m_normalFont->UpdateObjects();
 }
 
@@ -1087,7 +1087,7 @@ void CSimpleButton::Enable(int32_t enabled) {
     }
 
     int32_t disabled = enabled == 0;
-    this->SetFrameFlag(0x400, disabled);
+    this->SetFrameFlag(CSimpleFrame::FRAME_DISABLED, disabled);
 
     FrameScript_Object::ScriptIx& script = disabled ? this->m_onDisable : this->m_onEnable;
 
@@ -1120,5 +1120,5 @@ CSimpleButton::CSimpleButton(CSimpleFrame* parent) : CSimpleFrame(parent) {
 
     this->Enable(1);
     this->EnableEvent(SIMPLE_EVENT_MOUSE, -1);
-    this->SetFrameFlag(0x10000, 1);
+    this->SetFrameFlag(CSimpleFrame::FRAME_BUTTON_CONSTRUCTION_TAG, 1);
 }

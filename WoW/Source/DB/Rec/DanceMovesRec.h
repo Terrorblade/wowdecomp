@@ -6,6 +6,14 @@
 
 class SFileImpl;
 
+enum DANCE_MOVE_TYPE : int32_t {
+    DANCE_MOVE_ANIMATION        = 0,
+    DANCE_MOVE_SPELL_VISUAL_KIT = 1,
+    DANCE_MOVE_SOUND_KIT        = 2,
+    DANCE_MOVE_HOLD             = 3,
+    DANCE_MOVE_REPEAT           = 4,
+};
+
 class DanceMovesRec {
     public:
     static const int32_t s_numColumns = 24;

@@ -10,6 +10,7 @@
 #include "WoW/Source/WorldClient/MapBaseObj.h"
 #include "Engine/Source/Tempest/C2iVector.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 
 class CiRect;
 
@@ -36,6 +37,10 @@ class CMapAreaChunkLink {
 
 class CMapArea : public CMapBaseObj {
     public:
+    enum TEXTURE_FLAGS : uint32_t {
+        TEXTURE_FLAG_NO_SPECULAR = 0x1,
+    };
+
     void QueryLiquidSounds(C3Vector* pos, float radius, TSGrowableArray<World::LiquidQueryResult>& results);
     static void Destroy();
     static void Initialize();
@@ -85,6 +90,12 @@ class CMapArea : public CMapBaseObj {
 };
 
 struct SMAreaHeader {
+
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        HAS_FLYING_BBOX = 0x1,
+    };
+
     /* 0000 */ uint32_t m_flags;
     /* 0004 */ uint32_t m_mcin;
     /* 0008 */ uint32_t m_mtex;
@@ -103,6 +114,11 @@ struct SMAreaHeader {
 };
 
 struct SMChunkInfo {
+
+    enum FLAGS : uint32_t {
+        F_PREPARED = 0x1,
+    };
+
     /* 0000 */ uint32_t m_offset;
     /* 0004 */ uint32_t m_size;
     /* 0008 */ uint32_t m_flags;

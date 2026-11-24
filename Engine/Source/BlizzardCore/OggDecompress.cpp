@@ -44,7 +44,7 @@ size_t OggMemoryStream::Read(void* buffer, size_t size, size_t count) {
     size_t copy = size * ((left < bytes ? left : bytes) / size);
 
     memcpy(buffer, this->m_data + this->m_position, copy);
-    this->m_position += copy;
+    this->m_position += static_cast<uint32_t>(copy);
 
     return copy;
 }

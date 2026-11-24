@@ -3164,11 +3164,11 @@ bool CGxDeviceMetalNative::QueryGetParam(CGxQuery* query, EGxQueryParam param, u
     }
 
     switch (param) {
-        case GxQueryParam_Unk0:
+        case GxQueryParam_DataSize:
             data = sizeof(uint32_t);
             return true;
 
-        case GxQueryParam_Unk1:
+        case GxQueryParam_ResultAvailable:
             data = native->Result(nullptr, false);
             return false;
 

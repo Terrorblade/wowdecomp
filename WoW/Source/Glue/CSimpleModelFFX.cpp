@@ -11,6 +11,7 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
+#include "Engine/Source/FFX/EffectGlow.h"
 
 // STATIC: 0x00B6B48C
 CDataAllocator CSimpleModelFFX::s_simpleModelFFXHeap(sizeof(CSimpleModelFFX), 5);
@@ -18,7 +19,7 @@ CDataAllocator CSimpleModelFFX::s_simpleModelFFXHeap(sizeof(CSimpleModelFFX), 5)
 // VERIFY: 14316163 auto
 // OFFSET: 0x004E5EA0
 static void AnimEventCallback(CM2Model* model, uint32_t boneId, uint32_t eventId, uint32_t data, const C3Vector* position, uint32_t time, uint64_t param) {
-    if (eventId == 0x4F534424) {
+    if (eventId == PlayOneShotSoundKit_DSO) {
         SI2::PlaySoundKit(static_cast<int32_t>(data), nullptr, nullptr, nullptr, 0, nullptr, 1, 0);
     }
 }
@@ -100,7 +101,7 @@ void CSimpleModelFFX::Render(void* arg) {
     GxSceneClear(GxBufferBit_Color | GxBufferBit_Depth, clearColor);
 
     int32_t params[3];
-    params[0] = 0;
+    params[0] = EffectGlow::STANDARD_PASSES;
     params[1] = static_cast<uint8_t>(static_cast<int64_t>(model->m_glow * 255.0f));
     params[2] = 0;
     CGlueMgr::m_glowEffect->SetParameters(3, params);
@@ -144,7 +145,7 @@ CSimpleFrame* CSimpleModelFFX::Create(CSimpleFrame* parent) {
 void CSimpleModelFFX::OnFrameRender(CRenderBatch* batch, uint32_t layer) {
     this->CSimpleFrame::OnFrameRender(batch, layer);
 
-    if (layer == 2) {
+    if (layer == DRAWLAYER_ARTWORK) {
         batch->QueueCallback(CSimpleModelFFX::Render, this);
     }
 }

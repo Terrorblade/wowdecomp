@@ -18,6 +18,7 @@
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/Types.h"
+#include "Engine/Source/Tempest/Color.h"
 
 // VERIFY: f68ff2aa manual
 // OFFSET: 0x005A1F70
@@ -151,7 +152,7 @@ static int32_t Script_TurnInArenaPetition(lua_State* L) {
     }
 
     uint32_t background = 0xFFFFFFFF;
-    uint32_t emblemColor = 0xFFFFFFFF;
+    uint32_t emblemColor = COLOR_WHITE_ARGB;
     uint32_t borderStyle = 0xFFFFFFFF;
     uint32_t emblemStyle;
     uint32_t borderColor;

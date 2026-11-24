@@ -19,6 +19,14 @@ enum FONT_ATTRIBUTE_UPDATE_FLAGS : uint32_t {
     FLAG_COMPLETE_UPDATE = 31,
 };
 
+enum FONT_ATTRIBUTE_PRESENT_FLAGS : uint32_t {
+    FLAG_FONT_PRESENT = 0x100,
+    FLAG_STYLE_PRESENT = 0x200,
+    FLAG_COLOR_PRESENT = 0x400,
+    FLAG_SHADOW_PRESENT = 0x800,
+    FLAG_SPACING_PRESENT = 0x1000,
+};
+
 class CSimpleFontStringAttributes {
     public:
     /* 0000 */ uint32_t m_flags;

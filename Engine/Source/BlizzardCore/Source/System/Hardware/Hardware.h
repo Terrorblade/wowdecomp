@@ -4,6 +4,21 @@
 #include <cstdint>
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
 
+enum PROCESSOR_VENDOR : uint32_t {
+    PROCESSOR_VENDOR_UNKNOWN = 0,
+    PROCESSOR_VENDOR_INTEL = 1,
+    PROCESSOR_VENDOR_AMD = 2,
+};
+
+enum PROCESSOR_FEATURE : uint32_t {
+    PROCESSOR_FEATURE_TSC = 0x1,
+    PROCESSOR_FEATURE_MMX = 0x2,
+    PROCESSOR_FEATURE_SSE = 0x4,
+    PROCESSOR_FEATURE_3DNOW = 0x8,
+    PROCESSOR_FEATURE_SSE2 = 0x10,
+    PROCESSOR_FEATURE_MULTICORE = 0x40,
+};
+
 namespace Blizzard {
 namespace Hardware {
 

@@ -36,10 +36,10 @@ static uint32_t s_primVertsExtra[GxPrims_Last] = { 0, 0, 1, 0, 2, 2 };
 const char* s_formatToInt[CGxFormat::Formats_Last] = { "16", "24", "24", "30", "16", "24", "24", "32" };
 
 // STATIC: 0x00AD87FC
-const char* CGxDevice::s_pixelShaderTargetNames[14] = { "none", "ps_1_1", "ps_1_4", "ps_2_0", "ps_3_0", "ps_4_0", "ps_5_0", "nvrc", "nvts", "nvts2", "nvts3", "nvfp2", "arbfp1", "glsl" };
+const char* CGxDevice::s_pixelShaderTargetNames[GxShPS_Last] = { "none", "ps_1_1", "ps_1_4", "ps_2_0", "ps_3_0", "ps_4_0", "ps_5_0", "nvrc", "nvts", "nvts2", "nvts3", "nvfp2", "arbfp1", "glsl" };
 
 // STATIC: 0x00AD8834
-const char* CGxDevice::s_vertexShaderTargetNames[12] = { "none", "vs_1_1", "vs_2_0", "vs_3_0", "vs_4_0", "vs_5_0", "arbvp1", "arbvp1_cg12", "nvvp", "nvvp2", "nvvp3", "glsl" };
+const char* CGxDevice::s_vertexShaderTargetNames[GxShVS_Last] = { "none", "vs_1_1", "vs_2_0", "vs_3_0", "vs_4_0", "vs_5_0", "arbvp1", "arbvp1_cg12", "nvvp", "nvvp2", "nvvp3", "glsl" };
 
 // STATIC: 0x00AD8864
 static const char* s_geometryShaderTargetNames[3] = { "none", "gs_4_0", "gs_5_0" };
@@ -462,20 +462,20 @@ void CGxDevice::ICursorDraw() {
 
     GxRsSet(GxRs_PolygonOffset, 0);
     GxRsSet(GxRs_NormalizeNormals, 0);
-    GxRsSet(GxRs_BlendingMode, 1);
+    GxRsSet(GxRs_BlendingMode, GxBlend_AlphaKey);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     GxRsSet(GxRs_Lighting, 0);
     GxRsSet(GxRs_Fog, 0);
     GxRsSet(GxRs_DepthTest, 0);
     GxRsSet(GxRs_DepthWrite, 0);
-    GxRsSet(GxRs_ColorWrite, 15);
+    GxRsSet(GxRs_ColorWrite, GxColorWrite_All);
     GxRsSet(GxRs_Culling, 0);
     GxRsSet(GxRs_ClipPlaneMask, 0);
     GxRsSet(GxRs_Texture0, this->m_cursorTexture);
     GxRsSet(GxRs_Texture1, nullptr);
     GxRsSet(GxRs_ColorOp0, GxTexOp_Mod);
     GxRsSet(GxRs_AlphaOp0, GxTexOp_Mod);
-    GxRsSet(GxRs_TexGen0, 0);
+    GxRsSet(GxRs_TexGen0, GxTexGen_Disabled);
     GxRsSet(GxRs_TextureShader0, 0);
 
     C44Matrix world;
@@ -688,8 +688,8 @@ void CGxDevice::XformPushAndSet(EGxXform xf, const C44Matrix& matrix) {
 // OFFSET: 0x00682C50
 void CGxDevice::InitLights() {
     for (uint32_t i = 0; i < 4; i++) {
-        this->m_lights[i].m_flags = 0xFF;
-        this->m_lights[i].unk_0046 = 0xFF;
+        this->m_lights[i].m_flags = CGxApiLight::FIELD_ALL;
+        this->m_lights[i].unk_0046 = CGxApiLight::FIELD_ALL;
         this->m_lights[i].m_enable = 0;
     }
 }
@@ -779,7 +779,7 @@ void CGxDevice::LightEnable(uint32_t index, int32_t enable) {
     CGxApiLight& light = this->m_lights[index];
 
     if (light.m_enable != enable) {
-        light.m_flags |= 0x1;
+        light.m_flags |= CGxApiLight::FIELD_ENABLE;
         light.m_enable = enable;
     }
 }
@@ -1029,8 +1029,8 @@ void CGxDevice::LightSet(uint32_t index, const CGxLight& light, const C3Vector& 
     CGxApiLight& apiLight = this->m_lights[index];
     apiLight = light;
 
-    if ((light.m_flags & 0x2) && (pos.x != 0.0f || pos.y != 0.0f || pos.z != 0.0f)) {
-        apiLight.m_flags |= 0x2;
+    if ((light.m_flags & CGxLight::F_OMNI) && (pos.x != 0.0f || pos.y != 0.0f || pos.z != 0.0f)) {
+        apiLight.m_flags |= CGxApiLight::FIELD_DIRECTION_OR_POSITION;
         apiLight.m_dir.x = apiLight.m_dir.x - pos.x;
         apiLight.m_dir.y = apiLight.m_dir.y - pos.y;
         apiLight.m_dir.z = apiLight.m_dir.z - pos.z;
@@ -1389,7 +1389,7 @@ void CGxDevice::IRsInit() {
     this->m_appRenderStates[GxRs_DepthTest].m_value.m_data.i[0] = 1;
     this->m_appRenderStates[GxRs_DepthFunc].m_value.m_data.i[0] = GxCmp_LEqual;
     this->m_appRenderStates[GxRs_DepthWrite].m_value.m_data.i[0] = 1;
-    this->m_appRenderStates[GxRs_ColorWrite].m_value.m_data.i[0] = 15;
+    this->m_appRenderStates[GxRs_ColorWrite].m_value.m_data.i[0] = GxColorWrite_All;
     this->m_appRenderStates[GxRs_Culling].m_value.m_data.i[0] = 1;
     this->m_appRenderStates[GxRs_ClipPlaneMask].m_value.m_data.i[0] = 0;
     this->m_appRenderStates[GxRs_Multisample].m_value.m_data.i[0] = 1;
@@ -1399,7 +1399,7 @@ void CGxDevice::IRsInit() {
         this->m_appRenderStates[GxRs_Texture0 + i].m_value.m_data.i[0] = 0;
         this->m_appRenderStates[GxRs_ColorOp0 + i].m_value.m_data.i[0] = GxTexOp_Mod;
         this->m_appRenderStates[GxRs_AlphaOp0 + i].m_value.m_data.i[0] = GxTexOp_Mod;
-        this->m_appRenderStates[GxRs_TexGen0 + i].m_value.m_data.i[0] = 0;
+        this->m_appRenderStates[GxRs_TexGen0 + i].m_value.m_data.i[0] = GxTexGen_Disabled;
         this->m_appRenderStates[GxRs_TextureShader0 + i].m_value.m_data.i[0] = 0;
         this->m_appRenderStates[GxRs_TextureCoord0 + i].m_value.m_data.i[0] = i;
     }
@@ -1572,8 +1572,8 @@ CGxDevice::CGxDevice() : m_defWindowRect(), m_curWindowRect(), m_viewport(), m_s
     this->m_viewport.m_z.m_h = 1.0f;
     this->m_viewportDirty = 1;
     this->InitLights();
-    this->m_appMasterEnables = 0x1FF;
-    this->m_hwMasterEnables = 0x1FF;
+    this->m_appMasterEnables = ((1 << GxMasterEnables_Last) - 1);
+    this->m_hwMasterEnables = ((1 << GxMasterEnables_Last) - 1);
     this->m_scrShotClick = 0;
     this->m_scrShotWidth = 0;
     this->m_scrShotHeight = 0;
@@ -1711,7 +1711,7 @@ void CGxDevice::IShaderLoad(CGxShader** shaders, EGxShTarget target, const char*
                 uint32_t version;
                 SFileReadFile(file, &version, 4, nullptr, nullptr, 0);
 
-                if (version == 0x10003) {
+                if (version == Version) {
                     uint32_t unknown;
                     SFileReadFile(file, &unknown, 4, nullptr, nullptr, 0);
 
@@ -1730,12 +1730,12 @@ void CGxDevice::IShaderLoad(CGxShader** shaders, EGxShTarget target, const char*
 
         if (target == GxSh_Vertex) {
             switch (profile) {
-                case 2:
-                    profile = 1;
+                case GxShVS_vs_2_0:
+                    profile = GxShVS_vs_1_1;
                     break;
 
-                case 3:
-                    profile = 2;
+                case GxShVS_vs_3_0:
+                    profile = GxShVS_vs_2_0;
                     break;
 
                 default:
@@ -1743,21 +1743,21 @@ void CGxDevice::IShaderLoad(CGxShader** shaders, EGxShTarget target, const char*
             }
         } else if (target == GxSh_Pixel) {
             switch (profile) {
-                case 2:
-                    profile = 1;
+                case GxShPS_ps_1_4:
+                    profile = GxShPS_ps_1_1;
                     break;
 
-                case 3:
-                    profile = 2;
+                case GxShPS_ps_2_0:
+                    profile = GxShPS_ps_1_4;
                     break;
 
-                case 4:
-                    profile = 3;
+                case GxShPS_ps_3_0:
+                    profile = GxShPS_ps_2_0;
                     break;
 
-                case 9:
-                case 10:
-                    profile = 8;
+                case GxShPS_nvts2:
+                case GxShPS_nvts3:
+                    profile = GxShPS_nvts;
                     break;
 
                 default:
@@ -1837,7 +1837,7 @@ void CGxDevice::ShaderDestroy(CGxShader*& shader) {
 void CGxDevice::DeviceOverride(EGxOverride override, uint32_t value) {
     CGxDevice::Log("CGxDevice::DeviceOverride(): %d set to %d", override, value);
 
-    if (override == GxOverride_Unk8) {
+    if (override == GxOverride_PointScaleMax) {
         int32_t enable = value > 1;
         this->m_caps.m_pointParameters = enable;
         this->m_caps.m_pointSprite = enable;
@@ -1977,10 +1977,10 @@ void CGxDevice::RsSet(EGxRenderState which, const C3Vector& value) {
 // OFFSET: 0x00682FD0
 void CGxDevice::Light(uint32_t index, CGxLight& light) {
     CGxApiLight& apiLight = this->m_lights[index];
-    light.m_flags ^= (light.m_flags ^ apiLight.m_enable) & 0x1;
+    light.m_flags ^= (light.m_flags ^ apiLight.m_enable) & CGxLight::F_ENABLED;
 
-    if (light.m_flags & 0x1) {
-        light.m_flags ^= (light.m_flags ^ (2 * (apiLight.m_dir.w != 0.0f))) & 0x2;
+    if (light.m_flags & CGxLight::F_ENABLED) {
+        light.m_flags ^= (light.m_flags ^ (CGxLight::F_OMNI * (apiLight.m_dir.w != 0.0f))) & CGxLight::F_OMNI;
         light.m_dir.x = apiLight.m_dir.x;
         light.m_dir.y = apiLight.m_dir.y;
         light.m_dir.z = apiLight.m_dir.z;
@@ -2082,7 +2082,7 @@ void CGxDevice::RsInit() {
     this->RsSet(GxRs_MatEmissive, 0.0f);
     this->RsSet(GxRs_MatSpecular, 0.0f);
     this->RsSet(GxRs_NormalizeNormals, 0);
-    this->RsSet(GxRs_BlendingMode, 0);
+    this->RsSet(GxRs_BlendingMode, GxBlend_Opaque);
     this->RsSet(GxRs_FogStart, 0.0f);
     this->RsSet(GxRs_FogEnd, 1.0f);
     this->RsSet(GxRs_FogColor, static_cast<int32_t>(0xFFFF0000));
@@ -2100,7 +2100,7 @@ void CGxDevice::RsInit() {
         this->RsSet(static_cast<EGxRenderState>(GxRs_Texture0 + tmu), nullptr);
         this->RsSet(static_cast<EGxRenderState>(GxRs_ColorOp0 + tmu), GxTexOp_Mod);
         this->RsSet(static_cast<EGxRenderState>(GxRs_AlphaOp0 + tmu), GxTexOp_Mod);
-        this->RsSet(static_cast<EGxRenderState>(GxRs_TexGen0 + tmu), 0);
+        this->RsSet(static_cast<EGxRenderState>(GxRs_TexGen0 + tmu), GxTexGen_Disabled);
         this->RsSet(static_cast<EGxRenderState>(GxRs_TextureShader0 + tmu), 0);
         this->RsSet(static_cast<EGxRenderState>(GxRs_TextureCoord0 + tmu), static_cast<int32_t>(tmu));
     }

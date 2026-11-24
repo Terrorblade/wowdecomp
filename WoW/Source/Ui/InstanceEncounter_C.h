@@ -31,6 +31,18 @@ struct ENCOUNTER_OBJECTIVE : public TSLinkedNode<ENCOUNTER_OBJECTIVE> {
 
 class CGInstanceEncounter_C {
     public:
+
+    enum UPDATE_TYPE : int32_t {
+        UPDATE_ENGAGE_UNIT = 0,
+        UPDATE_DISENGAGE_UNIT = 1,
+        UPDATE_UNIT_PRIORITY = 2,
+        UPDATE_ADD_TIMER = 3,
+        UPDATE_ENABLE_OBJECTIVE = 4,
+        UPDATE_OBJECTIVE_PROGRESS = 5,
+        UPDATE_DISABLE_OBJECTIVE = 6,
+        UPDATE_REFRESH_UNITS = 7,
+    };
+
     static void EnterWorld();
     static void LeaveWorld();
     static WOWGUID GetBoss(uint32_t index);

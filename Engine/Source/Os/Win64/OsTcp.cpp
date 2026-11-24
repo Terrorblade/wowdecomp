@@ -5,6 +5,7 @@
 #include <cstring>
 #include <new>
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <mswsock.h>
 #include <windows.h>
 #include "Engine/Source/Os/Win64/OsTcpConn.h"
@@ -395,7 +396,9 @@ uint32_t OsNetAddrGetAddress(const NETADDR* addr, uint16_t* port) {
 // OFFSET: 0x0086DC50
 const char* OsNetAddrToStr(const NETADDR* addr, char* buffer, uint32_t size) {
     const sockaddr_in* in = reinterpret_cast<const sockaddr_in*>(addr);
-    SStrPrintf(buffer, size, "%s:%u", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
+    char ip[INET_ADDRSTRLEN] = {};
+    inet_ntop(AF_INET, &in->sin_addr, ip, sizeof(ip));
+    SStrPrintf(buffer, size, "%s:%u", ip, ntohs(in->sin_port));
     return buffer;
 }
 

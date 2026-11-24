@@ -4,6 +4,24 @@
 #include <cstddef>
 #include <cstdint>
 
+enum EGxStringFlags : uint32_t {
+    EGxStringFlags_None = 0,
+    EGxStringFlags_Shadow = 1,
+    EGxStringFlags_NoWordWrap = 2,
+    EGxStringFlags_FixedSize = 4,
+    EGxStringFlags_UniformColor = 8,
+    EGxStringFlags_FixedWidth = 0x10,
+    EGxStringFlags_Gradient = 0x20,
+    EGxStringFlags_NonSpaceWrap = 0x40,
+    EGxStringFlags_Unscaled = 0x80,
+    EGxStringFlags_IgnoreColorCodes = 0x100,
+    EGxStringFlags_IgnoreNewlineCodes = 0x200,
+    EGxStringFlags_IgnoreHyperlinkCodes = 0x400,
+    EGxStringFlags_IgnorePipeCodes = 0x800,
+    EGxStringFlags_IgnoreTextureCodes = 0x1000,
+    EGxStringFlags_Indented = 0x2000,
+};
+
 enum EGxFontHJusts {
     GxHJ_Left = 0,
     GxHJ_Center = 1,
@@ -26,8 +44,8 @@ enum QUOTEDCODE {
     CODE_PIPE = 4,
     CODE_HYPERLINKSTART = 5,
     CODE_HYPERLINKSTOP = 6,
-    CODE_TEXTURESTART = 7,
-    CODE_TEXTURESTOP = 8,
+    CODE_EMBEDDEDTEXTURESTART = 7,
+    CODE_EMBEDDEDTEXTURESTOP = 8,
     NUM_QUOTEDCODES = 9,
 };
 

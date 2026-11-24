@@ -83,7 +83,7 @@ class Manager : public Interface, public Sound::Manager::Callback, public Sessio
     virtual bool DoesLocalPlayerHaveHeadset(uint8_t localTalker);
     virtual void DebugSetSequenceDelay(int32_t delay);
     virtual void DebugSetSoundOutputDelay(uint8_t localTalker, int32_t delay);
-    virtual void MicrophoneStatusUpdate(uint8_t player, Sound::HeadsetDeviceStatus status);
+    virtual void MicrophoneStatusUpdate(uint8_t player, HeadsetDeviceStatus status);
     virtual void LocalChatDataReady(uint8_t player, uint8_t* data, uint32_t size, uint32_t time);
     virtual void RemotePlayerTalkNotifyStart(uint8_t player, uint64_t talker, uint64_t session);
     virtual void RemotePlayerTalkNotifyStop(uint8_t player, uint64_t talker, uint64_t session);

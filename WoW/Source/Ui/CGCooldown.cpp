@@ -18,6 +18,7 @@
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "HoT/Features/Features.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00C2423C
 int32_t CGCooldown::s_objectType;
@@ -390,12 +391,12 @@ void CGCooldown::OnFrameRender(CRenderBatch* batch, uint32_t layer) {
 
     CGxShader* shader = CSimpleTexture::GetImageModePixelShader(ImageMode_Normal);
 
-    if (layer == 2) {
+    if (layer == DRAWLAYER_ARTWORK) {
         if (this->m_starTexture) {
             batch->Queue(this->m_starTexture, GxBlend_Alpha, 10, this->m_starVerts, this->m_starTexCoords, 0, &this->m_starColor, 24, CGCooldown::s_starIndices, shader);
             batch->Queue(this->m_starTexture, GxBlend_Add, 4, this->m_flashVerts, this->m_flashTexCoords, 0, &this->m_flashColor, 6, CGCooldown::s_flashIndices, shader);
         }
-    } else if (layer == 3) {
+    } else if (layer == DRAWLAYER_ARTWORK_OVERLAY) {
         if (this->m_edgeTexture && this->m_drawEdge) {
             batch->Queue(this->m_edgeTexture, GxBlend_Opaque, 4, this->m_edgeVerts, this->m_edgeTexCoords, 0, &this->m_edgeColor, 6, CGCooldown::s_edgeIndices, shader);
         }

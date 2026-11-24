@@ -25,7 +25,7 @@ QuestCache::QuestCache() {
     this->m_effectOnPlayer = 0;
     this->m_rewardHonor = 0;
     this->m_startingItemId = 0;
-    this->m_flags = 0;
+    this->m_flags = QUEST_FLAG_NONE;
     this->m_rewardTitleId = 0;
     this->m_requiredPlayersKilled = 0;
     this->m_rewardTalentPoints = 0;

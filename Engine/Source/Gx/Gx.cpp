@@ -1020,7 +1020,7 @@ bool GxQueryEnd(CGxQuery* query) {
 // VERIFY: ed0eecd3 manual
 // OFFSET: 0x006816F0
 bool GxQueryGetParam(CGxQuery* query, EGxQueryParam param, uint32_t* data) {
-    if (query && param < 2 && data) {
+    if (query && param < GxQueryParams_Last && data) {
         return g_theGxDevicePtr->QueryGetParam(query, param, *data);
     }
 

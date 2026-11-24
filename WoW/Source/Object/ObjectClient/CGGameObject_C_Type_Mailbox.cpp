@@ -1,6 +1,7 @@
 #include "CGGameObject_C_Type_Mailbox.h"
 #include "WoW/Source/UIUtil/Types.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: c799badb auto
 // OFFSET: 0x00712750
@@ -13,10 +14,10 @@ void CGGameObject_C_Type_Mailbox::StartInteraction() {
     CGGameObject_C* owner = this->m_owner;
 
     if (owner->IsObjectModelLoaded()) {
-        owner->m_typeData->ActivateOneShotAnim(8);
-        owner->m_pendingOneShotAnim = 0;
+        owner->m_typeData->ActivateOneShotAnim(ANIMSTATE_CUSTOM0);
+        owner->m_pendingOneShotAnim = ONE_SHOT_ANIM_NONE;
     } else {
-        owner->m_pendingOneShotAnim = 2;
+        owner->m_pendingOneShotAnim = ONE_SHOT_ANIM_CUSTOM0;
     }
 }
 

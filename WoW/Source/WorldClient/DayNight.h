@@ -11,6 +11,7 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/CMemBlock.h"
 #include "Engine/Source/Storm/H/stpl.h"
+#include "Engine/Source/Tempest/CRange.h"
 
 class LightFloatBandRec;
 class LightParamsRec;
@@ -285,6 +286,19 @@ namespace DayNight {
 }
 
 struct SMOFog {
+
+    enum EFogs : int32_t {
+        FOG = 0,
+        UWFOG = 1,
+        NUM_FOGS = 2,
+    };
+
+    enum EFlags : int32_t {
+        F_IEBLEND = 0x1,
+        F_ALLOW_SLIME_FOG = 0x10,
+        F_ALLOW_UNDERWATER_FOG = 0x100,
+    };
+
     struct Fog {
         /* 0000 */ float m_end;
         /* 0004 */ float m_startScalar;
@@ -303,8 +317,24 @@ namespace DayNight {
     void ApplyFogSettings(const SMOFog::Fog* fog);
 }
 
+enum LIGHT_FLAG_BIT : int32_t {
+    LIGHT_FLAG_BIT_GLOW = 0,
+    LIGHT_FLAG_BIT_ECLIPSE = 1,
+};
+
+enum LIGHT_FLAGS : int32_t {
+    LIGHT_FLAG_GLOW = 1 << LIGHT_FLAG_BIT_GLOW,
+    LIGHT_FLAG_ECLIPSE = 1 << LIGHT_FLAG_BIT_ECLIPSE,
+};
+
 namespace DayNight {
 struct AreaLightOverride {
+
+    enum STATE : int32_t {
+        FADE_IN = 1,
+        FADE_OUT = 2,
+    };
+
     /* 0000 */ uint32_t m_id;
     /* 0004 */ LightRec* m_light;
     /* 0008 */ float m_fade;
@@ -342,6 +372,7 @@ class GlareBase {
 
 extern int32_t s_mapId;
 extern int32_t g_forceFullUpdate;
+
 extern int32_t s_lightFlags;
 extern float s_glowBlend;
 extern DNStars g_stars;

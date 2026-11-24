@@ -10,6 +10,7 @@
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/CImVector.h"
+#include "Engine/Source/Gx/Gx.h"
 
 struct CGxPool;
 class CMapChunk;

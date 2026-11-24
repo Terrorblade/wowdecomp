@@ -1,0 +1,140 @@
+#ifndef WOW_COMMON_ITEMTYPES_H
+#define WOW_COMMON_ITEMTYPES_H
+
+#include <cstdint>
+
+constexpr int32_t NUM_ITEM_SPELLS = 5;
+
+constexpr int32_t NUM_ITEM_STATS = 10;
+constexpr int32_t NUM_ITEM_DAMAGES = 2;
+
+constexpr int32_t MAX_NUM_SOCKETS = 3;
+
+enum ITEM_CLASS : int32_t {
+    ITEM_CLASS_NONE                          = -1,
+    ITEM_CLASS_CONSUMABLE                    = 0,
+    ITEM_CLASS_CONTAINER                     = 1,
+    ITEM_CLASS_WEAPON                        = 2,
+    ITEM_CLASS_GEM                           = 3,
+    ITEM_CLASS_ARMOR                         = 4,
+    ITEM_CLASS_REAGENT                       = 5,
+    ITEM_CLASS_PROJECTILE                    = 6,
+    ITEM_CLASS_TRADE_GOODS                   = 7,
+    ITEM_CLASS_GENERIC                       = 8,
+    ITEM_CLASS_RECIPE                        = 9,
+    ITEM_CLASS_MONEY                         = 10,
+    ITEM_CLASS_QUIVER                        = 11,
+    ITEM_CLASS_QUEST                         = 12,
+    ITEM_CLASS_KEY                           = 13,
+    ITEM_CLASS_PERMANENT                     = 14,
+    ITEM_CLASS_MISCELLANEOUS                 = 15,
+    ITEM_CLASS_GLYPH                         = 16,
+    NUM_ITEM_CLASSES                         = 17,
+};
+
+static const uint32_t ITEM_PROFICIENCY_NO_MASK = 0;
+
+enum ITEM_SUBCLASS_WEAPON : int32_t {
+    ITEM_SUBCLASS_WEAPON_AXE                 = 0,
+    ITEM_SUBCLASS_WEAPON_AXE2                = 1,
+    ITEM_SUBCLASS_WEAPON_BOW                 = 2,
+    ITEM_SUBCLASS_WEAPON_GUN                 = 3,
+    ITEM_SUBCLASS_WEAPON_MACE                = 4,
+    ITEM_SUBCLASS_WEAPON_MACE2               = 5,
+    ITEM_SUBCLASS_WEAPON_POLEARM             = 6,
+    ITEM_SUBCLASS_WEAPON_SWORD               = 7,
+    ITEM_SUBCLASS_WEAPON_SWORD2              = 8,
+    ITEM_SUBCLASS_WEAPON_OBSOLETE            = 9,
+    ITEM_SUBCLASS_WEAPON_STAFF               = 10,
+    ITEM_SUBCLASS_WEAPON_EXOTIC              = 11,
+    ITEM_SUBCLASS_WEAPON_EXOTIC2             = 12,
+    ITEM_SUBCLASS_WEAPON_FIST_WEAPON         = 13,
+    ITEM_SUBCLASS_WEAPON_MISCELLANEOUS       = 14,
+    ITEM_SUBCLASS_WEAPON_DAGGER              = 15,
+    ITEM_SUBCLASS_WEAPON_THROWN              = 16,
+    ITEM_SUBCLASS_WEAPON_SPEAR               = 17,
+    ITEM_SUBCLASS_WEAPON_CROSSBOW            = 18,
+    ITEM_SUBCLASS_WEAPON_WAND                = 19,
+    ITEM_SUBCLASS_WEAPON_FISHING_POLE        = 20,
+    NUM_ITEM_WEAPON_SUBCLASSES               = 21,
+};
+
+enum ITEM_SUBCLASS_ARMOR : int32_t {
+  ITEM_SUBCLASS_ARMOR_Miscellaneous = 0,
+  ITEM_SUBCLASS_ARMOR_Cloth = 1,
+  ITEM_SUBCLASS_ARMOR_Leather = 2,
+  ITEM_SUBCLASS_ARMOR_Mail = 3,
+  ITEM_SUBCLASS_ARMOR_Plate = 4,
+  ITEM_SUBCLASS_ARMOR_Buckler_obsolete = 5,
+  ITEM_SUBCLASS_ARMOR_SHIELD = 6,
+  ITEM_SUBCLASS_ARMOR_LIBRAM = 7,
+  ITEM_SUBCLASS_ARMOR_IDOL = 8,
+  ITEM_SUBCLASS_ARMOR_TOTEM = 9,
+  ITEM_SUBCLASS_ARMOR_SIGIL = 10,
+  NUM_ITEM_ARMOR_SUBCLASSES = 11,
+};
+
+enum ITEM_SUBCLASS_CONSUMABLE : int32_t {
+    ITEM_SUBCLASS_CONSUMABLE_CONSUMABLE       = 0,
+    ITEM_SUBCLASS_CONSUMABLE_POTION           = 1,
+    ITEM_SUBCLASS_CONSUMABLE_ELIXIR           = 2,
+    ITEM_SUBCLASS_CONSUMABLE_FLASK            = 3,
+    ITEM_SUBCLASS_CONSUMABLE_SCROLL           = 4,
+    ITEM_SUBCLASS_CONSUMABLE_FOOD_DRINK       = 5,
+    ITEM_SUBCLASS_CONSUMABLE_ITEM_ENHANCEMENT = 6,
+    ITEM_SUBCLASS_CONSUMABLE_BANDAGE          = 7,
+    ITEM_SUBCLASS_CONSUMABLE_OTHER            = 8,
+    NUM_ITEM_CONSUMABLE_SUBCLASSES            = 9,
+};
+
+enum ITEM_BAG_FAMILY_MASK : uint32_t {
+    ITEM_BAG_FAMILY_MASK_NONE = 0x0,
+    ITEM_BAG_FAMILY_MASK_ARROWS = 0x1,
+    ITEM_BAG_FAMILY_MASK_BULLETS = 0x2,
+    ITEM_BAG_FAMILY_MASK_SOUL_SHARDS = 0x4,
+    ITEM_BAG_FAMILY_MASK_LEATHERWORKING_SUPPLIES = 0x8,
+    ITEM_BAG_FAMILY_MASK_INSCRIPTION_SUPPLIES = 0x10,
+    ITEM_BAG_FAMILY_MASK_HERBS = 0x20,
+    ITEM_BAG_FAMILY_MASK_ENCHANTING_SUPPLIES = 0x40,
+    ITEM_BAG_FAMILY_MASK_ENGINEERING_SUPPLIES = 0x80,
+    ITEM_BAG_FAMILY_MASK_KEYS = 0x100,
+    ITEM_BAG_FAMILY_MASK_GEMS = 0x200,
+    ITEM_BAG_FAMILY_MASK_MINING_SUPPLIES = 0x400,
+    ITEM_BAG_FAMILY_MASK_SOULBOUND_EQUIPMENT = 0x800,
+    ITEM_BAG_FAMILY_MASK_VANITY_PETS = 0x1000,
+    ITEM_BAG_FAMILY_MASK_CURRENCY_TOKENS = 0x2000,
+    ITEM_BAG_FAMILY_MASK_QUEST_ITEMS = 0x4000,
+};
+
+static const int32_t ITEM_ID_SOUL_SHARD = 6265;
+
+enum ITEM_QUALITY : uint32_t {
+    ITEM_QUALITY_POOR = 0,
+    ITEM_QUALITY_COMMON = 1,
+    ITEM_QUALITY_UNCOMMON = 2,
+    ITEM_QUALITY_RARE = 3,
+    ITEM_QUALITY_EPIC = 4,
+    ITEM_QUALITY_LEGENDARY = 5,
+    ITEM_QUALITY_ARTIFACT = 6,
+    ITEM_QUALITY_HEIRLOOM = 7,
+    NUM_ITEM_QUALITIES = 8,
+};
+
+enum ITEM_BINDING : uint32_t {
+    ITEM_BINDING_NONE                    = 0,
+    ITEM_BINDING_ON_PICKUP               = 1,
+    ITEM_BINDING_ON_EQUIP                = 2,
+    ITEM_BINDING_ON_USE                  = 3,
+    ITEM_BINDING_QUEST                   = 4,
+};
+
+enum ITEM_SPELL_TRIGGER : uint32_t {
+    ITEM_SPELL_TRIGGER_ON_USE            = 0,
+    ITEM_SPELL_TRIGGER_ON_EQUIP          = 1,
+    ITEM_SPELL_TRIGGER_ON_PROC           = 2,
+
+    ITEM_SPELL_TRIGGER_LEARN_SPELL       = 6,
+
+};
+
+#endif

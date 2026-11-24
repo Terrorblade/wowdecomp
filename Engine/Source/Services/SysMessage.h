@@ -5,6 +5,19 @@
 #include <cstdint>
 #include "Engine/Source/Base/Status.h"
 
+enum SYSMSG_FILTER : uint32_t {
+    SYSMSG_FILTER_GENERAL = 0x1,
+    SYSMSG_FILTER_WORLD = 0x2,
+    SYSMSG_FILTER_UI = 0x4,
+    SYSMSG_FILTER_ANIMATION = 0x8,
+    SYSMSG_FILTER_MODELS = 0x10,
+    SYSMSG_FILTER_OBJECTS = 0x20,
+    SYSMSG_FILTER_SOUND = 0x40,
+    SYSMSG_FILTER_MOVEMENT = 0x80,
+    SYSMSG_FILTER_NETWORK = 0x100,
+    SYSMSG_FILTER_ALL = 0xFFFFFFFF,
+};
+
 struct SYSMSGSEVERITY {
     /* 0000 */ uint8_t m_red;
     /* 0001 */ uint8_t m_green;

@@ -1,5 +1,6 @@
 #include "Combat.h"
 #include "WoW/Source/ObjectMgrClient/CClientObjCreate.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 596a8ec9 auto
 // OFFSET: 0x0098E520

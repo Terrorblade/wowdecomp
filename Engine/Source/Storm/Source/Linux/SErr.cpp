@@ -680,7 +680,7 @@ int32_t STORMAPI SErrDisplayError(uint32_t errorcode, const char* filename, int3
     int32_t defaultresult;
     int32_t keeprunning;
     int32_t breakresult;
-    StormLinux::ErrorDialogButtons buttons;
+    ErrorDialogButtons buttons;
 
     if (!CanBreakToDebugger()) {
         if (recoverable) {
@@ -688,13 +688,13 @@ int32_t STORMAPI SErrDisplayError(uint32_t errorcode, const char* filename, int3
             defaultresult = SERR_IDCANCEL;
             keeprunning = SERR_IDOK;
             breakresult = 0;
-            buttons = StormLinux::ERROR_DIALOG_OK_CANCEL;
+            buttons = ERROR_DIALOG_OK_CANCEL;
         } else {
             outptr += SStrCopy(outptr, GetErrorString(SERR_STR_TERMINATE), outend - outptr);
             defaultresult = SERR_IDOK;
             keeprunning = 0;
             breakresult = 0;
-            buttons = StormLinux::ERROR_DIALOG_OK;
+            buttons = ERROR_DIALOG_OK;
         }
     } else {
         if (!recoverable) {
@@ -702,13 +702,13 @@ int32_t STORMAPI SErrDisplayError(uint32_t errorcode, const char* filename, int3
             defaultresult = SERR_IDNO;
             keeprunning = 0;
             breakresult = SERR_IDYES;
-            buttons = StormLinux::ERROR_DIALOG_YES_NO;
+            buttons = ERROR_DIALOG_YES_NO;
         } else {
             outptr += SStrCopy(outptr, GetErrorString(SERR_STR_BREAK_OR_RUN), outend - outptr);
             defaultresult = SERR_IDNO;
             keeprunning = SERR_IDCANCEL;
             breakresult = SERR_IDYES;
-            buttons = StormLinux::ERROR_DIALOG_YES_NO_CANCEL;
+            buttons = ERROR_DIALOG_YES_NO_CANCEL;
         }
     }
 

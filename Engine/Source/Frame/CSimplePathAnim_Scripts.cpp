@@ -130,7 +130,7 @@ static int32_t Script_CreateControlPoint(lua_State* L) {
     }
 
     if (lua_isnumber(L, 4)) {
-        point->SetOrder(lua_tointeger(L, 4) - 1, false, false);
+        point->SetOrder(static_cast<int32_t>(lua_tointeger(L, 4) - 1), false, false);
     }
 
     if (point->m_order == -1) {

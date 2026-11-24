@@ -22,6 +22,7 @@
 #include "Engine/Source/Services/ParticleSystem2.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/CRandom.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00D3FCE8
 CM2ModelHeap* g_modelPool;
@@ -148,7 +149,7 @@ void CM2Cache::RunThreads(void (*func)(void*), void* param) {
 // VERIFY: c0d77014 auto
 // OFFSET: 0x0081C060
 void M2SetGlobalOptFlags(uint32_t flags) {
-    s_cache.m_flags |= flags & 0xE000;
+    s_cache.m_flags |= flags & CM2Cache::CACHE_OPT_TIER3_MASK;
 }
 
 // VERIFY: 01e775e8 manual
@@ -180,43 +181,43 @@ int32_t CM2Cache::Initialize(uint32_t flags) {
     CM2Cache::s_processorFeatures = OsGetProcessorFeatures();
 
     if (OsGetNumberOfProcessors() > 1) {
-        this->m_flags |= flags & 4;
+        this->m_flags |= flags & CM2Cache::CACHE_ANIMATION_THREADS;
     }
 
-    if (this->m_flags & 4) {
-        this->m_flags &= ~0xC00u;
+    if (this->m_flags & CM2Cache::CACHE_ANIMATION_THREADS) {
+        this->m_flags &= ~CM2Cache::CACHE_THREAD_STATE_MASK;
         this->m_propContext = PropGetSelectedContext();
         StartAnimationWorkers(this->m_propContext);
     }
 
-    if (flags & 8) {
-        int32_t vertexTarget = g_theGxDevicePtr->Caps().m_shaderTargets[0];
-        int32_t pixelTarget = g_theGxDevicePtr->Caps().m_shaderTargets[4];
+    if (flags & CM2Cache::CACHE_GPU_SHADERS) {
+        int32_t vertexTarget = g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Vertex];
+        int32_t pixelTarget = g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Pixel];
 
-        if (vertexTarget > 0 && pixelTarget > 0) {
-            this->m_flags |= 8;
+        if (vertexTarget > GxShVS_none && pixelTarget > GxShPS_none) {
+            this->m_flags |= CM2Cache::CACHE_GPU_SHADERS;
         }
     }
 
-    if (!(this->m_flags & 8) && !(CM2Cache::s_processorFeatures & 4)) {
-        this->m_flags |= 0x40;
+    if (!(this->m_flags & CM2Cache::CACHE_GPU_SHADERS) && !(CM2Cache::s_processorFeatures & OS_PROCESSOR_FEATURE_SSE)) {
+        this->m_flags |= CM2Cache::CACHE_SINGLE_BONE_SHARED_VERTICES;
     }
 
     if (g_theGxDevicePtr->Caps().m_colorWrite) {
-        this->m_flags |= flags & 1;
+        this->m_flags |= flags & CM2Cache::CACHE_Z_FILL;
     }
 
     if (g_theGxDevicePtr->Caps().m_maxClipPlanes) {
-        uint32_t vertexTarget = g_theGxDevicePtr->Caps().m_shaderTargets[0];
+        uint32_t vertexTarget = g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Vertex];
 
         if (vertexTarget - 6 > 1) {
-            this->m_flags |= flags & 2;
-        } else if (!(this->m_flags & 8)) {
-            this->m_flags |= flags & 2;
+            this->m_flags |= flags & CM2Cache::CACHE_CLIP_PLANES;
+        } else if (!(this->m_flags & CM2Cache::CACHE_GPU_SHADERS)) {
+            this->m_flags |= flags & CM2Cache::CACHE_CLIP_PLANES;
         }
     }
 
-    this->m_flags |= flags & 0x1A0;
+    this->m_flags |= flags & CM2Cache::CACHE_RUNTIME_OPTIONS;
 
     uint32_t high = rand() << 16;
     CRndSeed seed(high | static_cast<uint16_t>(rand()));
@@ -297,7 +298,7 @@ CM2Shared* CM2Cache::CreateShared(const char* name, uint32_t flags) {
 
     char* ext = strrchr(path, '.');
 
-    if (!(flags & 0x1000)) {
+    if (!(flags & M2_MODEL_CREATE_FLAG_ANY_EXTENSION)) {
         if (!ext) {
             DebugLog("Model2: Invalid file extension: %s\n", path);
             return nullptr;
@@ -324,7 +325,7 @@ CM2Shared* CM2Cache::CreateShared(const char* name, uint32_t flags) {
         *ext = '.';
     }
 
-    uint32_t fullPath = flags & 0x10;
+    uint32_t fullPath = flags & M2_MODEL_CREATE_FLAG_HASH_FULL_PATH;
     char* key;
 
     if (fullPath) {
@@ -390,7 +391,7 @@ CM2Shared* CM2Cache::CreateShared(const char* name, uint32_t flags) {
         return nullptr;
     }
 
-    if (!shared->Load(file, flags & 4, &boundingBox)) {
+    if (!shared->Load(file, flags & M2_MODEL_CREATE_FLAG_DIRECT_ACCESS, &boundingBox)) {
         SFileCloseFile(file);
         delete shared;
         return nullptr;
@@ -413,7 +414,7 @@ CM2Shared* CM2Cache::CreateShared(const char* name, uint32_t flags) {
         }
     }
 
-    if (!(flags & 8)) {
+    if (!(flags & M2_MODEL_CREATE_FLAG_UNCACHED)) {
         shared->m_previous = link;
         shared->m_next = *link;
 
@@ -424,8 +425,8 @@ CM2Shared* CM2Cache::CreateShared(const char* name, uint32_t flags) {
         *link = shared;
     }
 
-    if (flags & 0x40) {
-        shared->m_flags |= 0x40;
+    if (flags & M2_MODEL_CREATE_FLAG_TEXTURE_PRIORITY_AND_DEFERRED_CANCEL) {
+        shared->m_flags |= CM2Shared::FLAG_TEXTURE_PRIORITY_AND_DEFERRED_CANCEL;
     }
 
     return shared;
@@ -498,7 +499,7 @@ CM2Cache::CM2Cache() {
     this->m_freeList = nullptr;
     this->m_freeListTail = &this->m_freeList;
     this->m_initialized = 0;
-    this->m_flags = 0;
+    this->m_flags = CM2Cache::CACHE_NONE;
     memset(this->m_shared, 0, sizeof(this->m_shared));
     this->unused_101C[0] = '\0';
     this->unused_105C[0] = '\0';

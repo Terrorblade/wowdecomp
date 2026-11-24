@@ -13,12 +13,27 @@ class CSimpleModelFFX;
 
 class CCharacterSelection {
     public:
+
+    enum RACE_RESTRICTION_INDEX : uint32_t {
+        RACE_RESTRICTION_HUMAN = 0,
+        RACE_RESTRICTION_DWARF = 1,
+        RACE_RESTRICTION_GNOME = 2,
+        RACE_RESTRICTION_NIGHT_ELF = 3,
+        RACE_RESTRICTION_DRAENEI = 4,
+        RACE_RESTRICTION_ORC = 5,
+        RACE_RESTRICTION_TROLL = 6,
+        RACE_RESTRICTION_TAUREN = 7,
+        RACE_RESTRICTION_UNDEAD = 8,
+        RACE_RESTRICTION_BLOOD_ELF = 9,
+        NUM_RACE_RESTRICTIONS = 10,
+    };
+
     static CSimpleModelFFX* m_modelFrame;
     static TSGrowableArray<CharacterSelectionDisplay> s_characterList;
     static int32_t s_selectionIndex;
     static int32_t s_characterCount;
     static float s_charFacing;
-    static uint32_t s_raceRestrictions[10];
+    static uint32_t s_raceRestrictions[NUM_RACE_RESTRICTIONS];
 
     static void ClearCharacterList();
     static void EnumerateCharactersCallback(CHARACTER_INFO& info, void* param);

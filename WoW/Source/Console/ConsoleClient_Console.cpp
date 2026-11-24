@@ -10,6 +10,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "WoW/Source/Console/ConsoleClient.h"
+#include "Engine/Source/Tempest/Color.h"
 
 // VERIFY: 7d2e703d auto
 // OFFSET: 0x00763C10

@@ -17,6 +17,9 @@
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "WoW/Source/Ui/Types.h"
 #include "WoW/Source/UIUtil/Types.h"
+#include "Engine/Source/Tempest/CMath.h"
+#include "WoW/Source/Object/Types.h"
+#include "WoW/Source/DB/Rec/VehicleSeatRec.h"
 
 // VERIFY: 46af036c manual
 // OFFSET: 0x005FBF80
@@ -29,13 +32,13 @@ static int32_t Script_JumpOrAscendStart(lua_State* L) {
 
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
     input->ToggleControlBit(INPUT_ASCEND_PLAYER_KEY, 1, CSimpleTop::s_eventTime, 0);
 
-    if (mover->m_movement->m_flags & 0x2200000) {
+    if (mover->m_movement->m_flags & MOVEMENTFLAG_SWIMMING_OR_FLYING_MASK) {
         return 0;
     }
 
@@ -69,7 +72,7 @@ static int32_t Script_JumpOrAscendStart(lua_State* L) {
 static int32_t Script_AscendStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -82,7 +85,7 @@ static int32_t Script_AscendStop(lua_State* L) {
 static int32_t Script_DescendStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -93,7 +96,7 @@ static int32_t Script_DescendStop(lua_State* L) {
 // VERIFY: 8076179f manual
 // OFFSET: 0x005FAAE0
 static int32_t Script_ToggleRun(lua_State* L) {
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -118,7 +121,7 @@ static int32_t Script_ToggleAutoRun(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
     int32_t enable = !(input->m_flags & INPUT_MOVE_PLAYER_AUTORUN);
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -131,7 +134,7 @@ static int32_t Script_ToggleAutoRun(lua_State* L) {
 static int32_t Script_MoveForwardStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -144,7 +147,7 @@ static int32_t Script_MoveForwardStart(lua_State* L) {
 static int32_t Script_MoveForwardStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -157,7 +160,7 @@ static int32_t Script_MoveForwardStop(lua_State* L) {
 static int32_t Script_MoveBackwardStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -170,7 +173,7 @@ static int32_t Script_MoveBackwardStart(lua_State* L) {
 static int32_t Script_MoveBackwardStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -183,7 +186,7 @@ static int32_t Script_MoveBackwardStop(lua_State* L) {
 static int32_t Script_TurnLeftStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -196,7 +199,7 @@ static int32_t Script_TurnLeftStart(lua_State* L) {
 static int32_t Script_TurnLeftStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -209,7 +212,7 @@ static int32_t Script_TurnLeftStop(lua_State* L) {
 static int32_t Script_TurnRightStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -222,7 +225,7 @@ static int32_t Script_TurnRightStart(lua_State* L) {
 static int32_t Script_TurnRightStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -235,7 +238,7 @@ static int32_t Script_TurnRightStop(lua_State* L) {
 static int32_t Script_StrafeLeftStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -248,7 +251,7 @@ static int32_t Script_StrafeLeftStart(lua_State* L) {
 static int32_t Script_StrafeLeftStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -261,7 +264,7 @@ static int32_t Script_StrafeLeftStop(lua_State* L) {
 static int32_t Script_StrafeRightStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -274,7 +277,7 @@ static int32_t Script_StrafeRightStart(lua_State* L) {
 static int32_t Script_StrafeRightStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -287,7 +290,7 @@ static int32_t Script_StrafeRightStop(lua_State* L) {
 static int32_t Script_VehicleAimUpStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -300,7 +303,7 @@ static int32_t Script_VehicleAimUpStop(lua_State* L) {
 static int32_t Script_VehicleAimDownStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -313,7 +316,7 @@ static int32_t Script_VehicleAimDownStop(lua_State* L) {
 static int32_t Script_VehicleAimUpStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -326,7 +329,7 @@ static int32_t Script_VehicleAimUpStart(lua_State* L) {
 static int32_t Script_VehicleAimDownStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 
@@ -339,7 +342,7 @@ static int32_t Script_VehicleAimDownStart(lua_State* L) {
 static int32_t Script_TurnOrActionStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (CGGameUI::CanPerformAction(0)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         uint32_t time = CSimpleTop::s_eventTime;
 
         if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
@@ -367,7 +370,7 @@ static int32_t Script_TurnOrActionStart(lua_State* L) {
 static int32_t Script_TurnOrActionStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (CGGameUI::CanPerformAction(0)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         uint32_t time = CSimpleTop::s_eventTime;
 
         if (input->UnsetControlBit(INPUT_TURN_PLAYER, time, 0)) {
@@ -383,7 +386,7 @@ static int32_t Script_TurnOrActionStop(lua_State* L) {
 static int32_t Script_CameraOrSelectOrMoveStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (CGGameUI::CanPerformAction(0)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         uint32_t time = CSimpleTop::s_eventTime;
 
         if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
@@ -411,7 +414,7 @@ static int32_t Script_CameraOrSelectOrMoveStart(lua_State* L) {
 static int32_t Script_CameraOrSelectOrMoveStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (CGGameUI::CanPerformAction(0)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         uint32_t time = CSimpleTop::s_eventTime;
 
         if (input->UnsetControlBit(INPUT_TURN_CAMERA, time, StringToBOOL(L, 1, 0))) {
@@ -492,7 +495,7 @@ static int32_t Script_VehicleAimGetAngle(lua_State* L) {
 // VERIFY: b1728266 manual
 // OFFSET: 0x005FB970
 static int32_t Script_IsUsingVehicleControls(lua_State* L) {
-    if (CGInputControl::s_inputControl->IsVehicleSeatFlagSet(0x800000)) {
+    if (CGInputControl::s_inputControl->IsVehicleSeatFlagSet(VEHICLE_SEAT_FLAG_IS_USING_VEHICLE_CONTROLS)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -504,7 +507,7 @@ static int32_t Script_IsUsingVehicleControls(lua_State* L) {
 // VERIFY: 5b29d740 auto
 // OFFSET: 0x005FB9C0
 static int32_t Script_CanExitVehicle(lua_State* L) {
-    if (CGInputControl::s_inputControl->IsVehicleSeatFlagSet(0x2000000)) {
+    if (CGInputControl::s_inputControl->IsVehicleSeatFlagSet(VEHICLE_SEAT_FLAG_CAN_EXIT)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -516,7 +519,7 @@ static int32_t Script_CanExitVehicle(lua_State* L) {
 // VERIFY: 19ba3dd9 auto
 // OFFSET: 0x005FBA10
 static int32_t Script_CanSwitchVehicleSeats(lua_State* L) {
-    if (CGInputControl::s_inputControl->IsVehicleSeatFlagSet(0x4000000)) {
+    if (CGInputControl::s_inputControl->IsVehicleSeatFlagSet(VEHICLE_SEAT_FLAG_CAN_SWITCH)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -549,7 +552,7 @@ static int32_t Script_VehicleAimSetNormPower(lua_State* L) {
 static int32_t Script_MoveAndSteerStop(lua_State* L) {
     CGInputControl* inputControl = CGInputControl::s_inputControl;
 
-    if (CGGameUI::CanPerformAction(0)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         uint32_t time = CSimpleTop::s_eventTime;
 
         if (inputControl->UnsetControlBit(INPUT_TURN_CAMERA, time, 0)) {
@@ -570,7 +573,7 @@ static int32_t Script_IsVehicleAimAngleAdjustable(lua_State* L) {
     CGUnit_C* unit = GetVehicleUnitPtr();
     VehicleRec* rec = unit && unit->m_vehicle ? unit->m_vehicle->m_vehicleRec : nullptr;
 
-    if (rec && (rec->m_flags & 0x400)) {
+    if (rec && (rec->m_flags & VehicleRec::ADJUSTABLE_AIM_ANGLE)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -585,7 +588,7 @@ static int32_t Script_IsVehicleAimPowerAdjustable(lua_State* L) {
     CGUnit_C* unit = GetVehicleUnitPtr();
     VehicleRec* rec = unit && unit->m_vehicle ? unit->m_vehicle->m_vehicleRec : nullptr;
 
-    if (rec && (rec->m_flags & 0x800)) {
+    if (rec && (rec->m_flags & VehicleRec::ADJUSTABLE_AIM_POWER)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -604,7 +607,7 @@ static int32_t Script_SetMouselookOverrideBinding(lua_State* L) {
         return 0;
     }
 
-    if (CGGameUI::CanPerformAction(13)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_BINDING)) {
         inputControl->SetMouselookOverrideBinding(lua_tolstring(L, 1, nullptr), lua_tolstring(L, 2, nullptr));
     }
 
@@ -625,7 +628,7 @@ static int32_t Script_VehicleAimGetNormAngle(lua_State* L) {
     float pitchMin;
     float pitchMax;
 
-    if (rec && (rec->m_flags & 0x40)) {
+    if (rec && (rec->m_flags & VehicleRec::USE_PITCH_LIMITS)) {
         pitchMin = rec->m_pitchMin;
         pitchMax = rec->m_pitchMax;
     } else {
@@ -649,7 +652,7 @@ static int32_t Script_VehicleAimRequestAngle(lua_State* L) {
     if (unit) {
         VehicleRec* rec = unit->m_vehicle ? unit->m_vehicle->m_vehicleRec : nullptr;
 
-        if (rec && (rec->m_flags & 0x400) && lua_isnumber(L, 1)) {
+        if (rec && (rec->m_flags & VehicleRec::ADJUSTABLE_AIM_ANGLE) && lua_isnumber(L, 1)) {
             inputControl->SetPlayerPitch(unit, time, static_cast<float>(lua_tonumber(L, 1)));
         }
     }
@@ -670,7 +673,7 @@ static int32_t Script_VehicleAimRequestNormAngle(lua_State* L) {
 
     VehicleRec* rec = unit->m_vehicle ? unit->m_vehicle->m_vehicleRec : nullptr;
 
-    if (!rec || !(rec->m_flags & 0x400)) {
+    if (!rec || !(rec->m_flags & VehicleRec::ADJUSTABLE_AIM_ANGLE)) {
         return 0;
     }
 
@@ -679,7 +682,7 @@ static int32_t Script_VehicleAimRequestNormAngle(lua_State* L) {
         float pitchMin;
         float pitchMax;
 
-        if (rec->m_flags & 0x40) {
+        if (rec->m_flags & VehicleRec::USE_PITCH_LIMITS) {
             pitchMin = rec->m_pitchMin;
             pitchMax = rec->m_pitchMax;
         } else {
@@ -709,7 +712,7 @@ static int32_t Script_VehicleExit(lua_State* L) {
         return 0;
     }
 
-    if (!CGInputControl::s_inputControl->IsVehicleSeatFlagSet(0x2000000)) {
+    if (!CGInputControl::s_inputControl->IsVehicleSeatFlagSet(VEHICLE_SEAT_FLAG_CAN_EXIT)) {
         CGGameUI::DisplayError(ERR_SPELL_FAILED_S, FrameScript_GetText("SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW", -1, GENDER_NOT_APPLICABLE));
         return 0;
     }
@@ -723,7 +726,7 @@ static int32_t Script_VehicleExit(lua_State* L) {
 static int32_t Script_VehiclePrevSeat(lua_State* L) {
     CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
-    if (mover && CGInputControl::s_inputControl->IsVehicleSeatFlagSet(0x4000000)) {
+    if (mover && CGInputControl::s_inputControl->IsVehicleSeatFlagSet(VEHICLE_SEAT_FLAG_CAN_SWITCH)) {
         mover->VehiclePrevSeat();
     }
 
@@ -735,7 +738,7 @@ static int32_t Script_VehiclePrevSeat(lua_State* L) {
 static int32_t Script_VehicleNextSeat(lua_State* L) {
     CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
-    if (mover && CGInputControl::s_inputControl->IsVehicleSeatFlagSet(0x4000000)) {
+    if (mover && CGInputControl::s_inputControl->IsVehicleSeatFlagSet(VEHICLE_SEAT_FLAG_CAN_SWITCH)) {
         mover->VehicleNextSeat();
     }
 
@@ -772,7 +775,7 @@ static int32_t Script_VehicleAimDecrement(lua_State* L) {
 static int32_t Script_MoveAndSteerStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
 
-    if (!CGGameUI::CanPerformAction(0)) {
+    if (!CGGameUI::CanPerformAction(UI_ACTION_MOVEMENT)) {
         return 0;
     }
 

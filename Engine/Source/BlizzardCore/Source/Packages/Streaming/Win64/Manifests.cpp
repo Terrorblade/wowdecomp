@@ -57,7 +57,7 @@ bool Blizzard::Streaming::FileManifest::ReadIndirectFile(const char* url) {
         attempt++;
 
         if (result) {
-            result = ReadDirectFileFromBuffer(const_cast<char*>(callback->m_data.c_str()), callback->m_data.size());
+            result = ReadDirectFileFromBuffer(const_cast<char*>(callback->m_data.c_str()), static_cast<int32_t>(callback->m_data.size()));
             delete callback;
             return result;
         }
@@ -103,7 +103,7 @@ bool Blizzard::Streaming::Transport::ReadIndirectFile(const char* url) {
         attempt++;
 
         if (result) {
-            result = ReadDirectFileFromBuffer(const_cast<char*>(callback->m_data.c_str()), callback->m_data.size());
+            result = ReadDirectFileFromBuffer(const_cast<char*>(callback->m_data.c_str()), static_cast<int32_t>(callback->m_data.size()));
             delete callback;
             return result;
         }
@@ -150,7 +150,7 @@ bool Blizzard::Streaming::SourceManifest::ReadIndirectFile(const char* url) {
         attempt++;
 
         if (result) {
-            result = ReadDirectFileFromBuffer(const_cast<char*>(callback->m_data.c_str()), callback->m_data.size());
+            result = ReadDirectFileFromBuffer(const_cast<char*>(callback->m_data.c_str()), static_cast<int32_t>(callback->m_data.size()));
             delete callback;
             return result;
         }
@@ -197,7 +197,7 @@ bool Blizzard::Streaming::ManifestInfo::ReadIndirectFile(const char* url) {
         attempt++;
 
         if (result) {
-            result = this->ReadDirectFileFromBuffer(const_cast<char*>(callback->m_data.c_str()), callback->m_data.size());
+            result = this->ReadDirectFileFromBuffer(const_cast<char*>(callback->m_data.c_str()), static_cast<int32_t>(callback->m_data.size()));
             delete callback;
             return result;
         }

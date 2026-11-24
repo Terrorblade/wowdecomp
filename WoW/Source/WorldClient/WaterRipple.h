@@ -10,6 +10,11 @@ class CGxShader;
 
 class CWaterRipple {
     public:
+    enum TYPE : int32_t {
+        SPLASH = 0,
+        WAKE = 1,
+    };
+
     /* 0000 */ C3Vector m_position;
     /* 000C */ float m_rotation;
     /* 0010 */ float m_size;

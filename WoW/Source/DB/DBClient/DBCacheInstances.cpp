@@ -287,7 +287,7 @@ static int32_t ReceiveName(void* param, NETMESSAGE msgId, uint32_t time, CDataSt
     msg->Get(result);
 
     switch (result) {
-        case 0: {
+        case NameCache::QUERY_RESULT_OK: {
             msg->GetString(name.m_name, sizeof(name.m_name));
             msg->GetString(name.m_realmName, sizeof(name.m_realmName));
 
@@ -321,11 +321,11 @@ static int32_t ReceiveName(void* param, NETMESSAGE msgId, uint32_t time, CDataSt
             break;
         }
 
-        case 2:
+        case NameCache::QUERY_RESULT_RETRY:
             g_nameDBCache.RetryItem(name.m_guid.m_guid);
             break;
 
-        case 3:
+        case NameCache::QUERY_RESULT_PLACEHOLDER:
             SStrCopy(name.m_name, "?", sizeof(name.m_name));
             memset(name.m_realmName, 0, sizeof(name.m_realmName));
             name.m_race = 0;

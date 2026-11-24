@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum CREATURE_TYPE_REC_FLAGS : int32_t {
+    CREATURE_TYPE_REC_FLAG_NONE          = 0x00000000,
+    CREATURE_TYPE_REC_FLAG_NO_TAB_TARGET = 0x00000001,
+};
+
 class CreatureTypeRec {
     public:
     static const int32_t s_numColumns = 19;

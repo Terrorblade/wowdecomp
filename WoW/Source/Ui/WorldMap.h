@@ -58,6 +58,10 @@ struct WorldMapLandmarkInfo {
 };
 
 bool WorldMapTransformPosition(int32_t mapID, float x, float y, int32_t* outMapID, float* outX, float* outY, int32_t* outDungeonMapID);
+constexpr int32_t WORLDMAP_CONTINENT_WORLD = -1;
+constexpr int32_t WORLDMAP_LANDMARK_TEXTURE_GRAVEYARD = 6;
+constexpr int32_t WORLDMAP_CONTINENT_COSMIC = -2;
+constexpr int32_t WORLDMAP_ZONE_NONE = -1;
 
 class CGWorldMap {
     public:

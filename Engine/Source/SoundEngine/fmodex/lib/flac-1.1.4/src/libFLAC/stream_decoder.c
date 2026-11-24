@@ -69,6 +69,10 @@
 #endif
 #define max(a,b) ((a)>(b)?(a):(b))
 
+#ifdef _MSC_VER
+#define fileno _fileno
+#endif
+
 /* adjust for compilers that can't understand using LLU suffix for uint64_t literals */
 #ifdef _MSC_VER
 #define FLAC__U64L(x) x
@@ -407,7 +411,7 @@ static FLAC__StreamDecoderInitStatus init_stream_internal_(
 #if FLAC__HAS_OGG
 	decoder->private_->is_ogg = is_ogg;
 	if(is_ogg && !FLAC__ogg_decoder_aspect_init(&decoder->protected_->ogg_decoder_aspect))
-		return decoder->protected_->state = FLAC__STREAM_DECODER_OGG_ERROR;
+		return (FLAC__StreamDecoderInitStatus)(decoder->protected_->state = FLAC__STREAM_DECODER_OGG_ERROR);
 #endif
 
 	/*
@@ -552,10 +556,10 @@ static FLAC__StreamDecoderInitStatus init_FILE_internal_(
 	FLAC__ASSERT(0 != file);
 
 	if(decoder->protected_->state != FLAC__STREAM_DECODER_UNINITIALIZED)
-		return decoder->protected_->state = FLAC__STREAM_DECODER_INIT_STATUS_ALREADY_INITIALIZED;
+		return (FLAC__StreamDecoderInitStatus)(decoder->protected_->state = (FLAC__StreamDecoderState)FLAC__STREAM_DECODER_INIT_STATUS_ALREADY_INITIALIZED);
 
 	if(0 == write_callback || 0 == error_callback)
-		return decoder->protected_->state = FLAC__STREAM_DECODER_INIT_STATUS_INVALID_CALLBACKS;
+		return (FLAC__StreamDecoderInitStatus)(decoder->protected_->state = (FLAC__StreamDecoderState)FLAC__STREAM_DECODER_INIT_STATUS_INVALID_CALLBACKS);
 
 	/*
 	 * To make sure that our file does not go unclosed after an error, we
@@ -626,10 +630,10 @@ static FLAC__StreamDecoderInitStatus init_file_internal_(
 	 * in FLAC__stream_decoder_init_FILE() before the FILE* is assigned.
 	 */
 	if(decoder->protected_->state != FLAC__STREAM_DECODER_UNINITIALIZED)
-		return decoder->protected_->state = FLAC__STREAM_DECODER_INIT_STATUS_ALREADY_INITIALIZED;
+		return (FLAC__StreamDecoderInitStatus)(decoder->protected_->state = (FLAC__StreamDecoderState)FLAC__STREAM_DECODER_INIT_STATUS_ALREADY_INITIALIZED);
 
 	if(0 == write_callback || 0 == error_callback)
-		return decoder->protected_->state = FLAC__STREAM_DECODER_INIT_STATUS_INVALID_CALLBACKS;
+		return (FLAC__StreamDecoderInitStatus)(decoder->protected_->state = (FLAC__StreamDecoderState)FLAC__STREAM_DECODER_INIT_STATUS_INVALID_CALLBACKS);
 
 	file = filename? fopen(filename, "rb") : stdin;
 
@@ -1889,7 +1893,7 @@ FLAC__bool read_metadata_picture_(FLAC__StreamDecoder *decoder, FLAC__StreamMeta
 	FLAC__ASSERT(FLAC__bitreader_is_consumed_byte_aligned(decoder->private_->input));
 
 	/* read type */
-	if(!FLAC__bitreader_read_raw_uint32(decoder->private_->input, &obj->type, FLAC__STREAM_METADATA_PICTURE_TYPE_LEN))
+	if(!FLAC__bitreader_read_raw_uint32(decoder->private_->input, (FLAC__uint32*)&obj->type, FLAC__STREAM_METADATA_PICTURE_TYPE_LEN))
 		return false; /* read_callback_ sets the state for us */
 
 	/* read MIME type */

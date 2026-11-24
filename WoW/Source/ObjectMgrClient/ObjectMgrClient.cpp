@@ -34,6 +34,7 @@
 #include "WoW/Source/WowServices/RealmConnection.h"
 #include "WoW/Source/WowServices/WDataStore.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
+#include "WoW/Source/DB/Rec/MapRec.h"
 
 // STATIC: 0x00DD2008
 static thread_local ObjectMgr* s_curMgr;
@@ -56,8 +57,17 @@ static const char* s_objNames[NUM_CLIENT_OBJECT_TYPES] = { "CGObject_C", "CGItem
 // STATIC: 0x00AC3CE4
 static const uint32_t s_objHeapSize[NUM_CLIENT_OBJECT_TYPES] = { 0, 512, 32, 64, 64, 64, 32, 32 };
 
+enum OBJECT_UPDATE_TYPE : uint8_t {
+    UPDATE_PARTIAL = 0,
+    UPDATE_MOVEMENT = 1,
+    UPDATE_FULL = 2,
+    UPDATE_FULL_UNKNOWN_3 = 3,
+    UPDATE_OUT_OF_RANGE = 4,
+    UPDATE_IN_RANGE = 5,
+};
+
 // STATIC: 0x00AC3D04
-static const uint32_t s_objDwordCount[NUM_CLIENT_OBJECT_TYPES] = { 0x6, 0x40, 0x8A, 0x94, 0x52E, 0x12, 0xC, 0x24 };
+static const uint32_t s_objDwordCount[NUM_CLIENT_OBJECT_TYPES] = { OBJECT_END, OBJECT_END + CGItemData::ITEM_END, OBJECT_END + CGItemData::ITEM_END + CGContainerData::CONTAINER_END, OBJECT_END + CGUnitData::UNIT_END, OBJECT_END + CGUnitData::UNIT_END + CGPlayerLocalData::PLAYER_END, OBJECT_END + CGGameObjectData::GAMEOBJECT_END, OBJECT_END + CGDynamicObjectData::DYNAMICOBJECT_END, OBJECT_END + CGCorpseData::CORPSE_END, };
 
 // STATIC: 0x00B6A160
 uint32_t s_objTotalSize[NUM_CLIENT_OBJECT_TYPES] = {
@@ -74,7 +84,7 @@ uint32_t s_objTotalSize[NUM_CLIENT_OBJECT_TYPES] = {
 // VERIFY: 9aded9c4 manual
 // OFFSET: 0x004D5850
 static CMirrorHandler* AssignMirrorHandler(TSList<CMirrorHandler, TSGetLink<CMirrorHandler> >* list, uint32_t fieldByteOffset, uint32_t mirrorByteOffset, uint32_t fieldByteSize, MIRRORHANDLERFUNC function, void* param, HANDLER_PRIORITY priority, int32_t alwaysFire) {
-    CMirrorHandler* handler = list->NewNode(2, 0, 0);
+    CMirrorHandler* handler = list->NewNode(TSLIST_LINK_BEFORE, 0, 0);
     handler->m_fieldByteOffset = fieldByteOffset;
     handler->m_mirrorByteOffset = mirrorByteOffset;
     handler->m_fieldByteSize = fieldByteSize;
@@ -1270,11 +1280,11 @@ static int32_t PostInitObject(uint32_t time, CDataStore* msg, bool reenable) {
         return 0;
     }
 
-    if ((object->m_modelFlags & 0x20000) && (object->m_obj->m_type & TYPE_UNIT)) {
+    if ((object->m_modelFlags & OBJECT_MODEL_FLAG_POST_REENABLE_PENDING) && (object->m_obj->m_type & TYPE_UNIT)) {
       static_cast<CGUnit_C*>(object)->SetClientInitData(create, object->m_obj->m_guid == ClntObjMgrGetActivePlayer());
     }
 
-    if (object->m_modelFlags & 0x40000) {
+    if (object->m_modelFlags & OBJECT_MODEL_FLAG_POST_INITED) {
         return CallMirrorHandlers(msg, true, guid);
     }
 
@@ -1551,7 +1561,7 @@ static int32_t ObjectUpdateFirstPass(uint32_t index, CDataStore* msg, uint32_t t
         }
 
         switch (type) {
-            case 0: {
+            case UPDATE_PARTIAL: {
                 if (!PartialUpdateFromFullUpdate(msg)) {
                     return 0;
                 }
@@ -1559,15 +1569,15 @@ static int32_t ObjectUpdateFirstPass(uint32_t index, CDataStore* msg, uint32_t t
                 break;
             }
 
-            case 1: {
+            case UPDATE_MOVEMENT: {
                 SmartGUID guid;
                 *msg >> guid;
                 CClientMoveUpdate::Skip(msg);
                 break;
             }
 
-            case 2:
-            case 3: {
+            case UPDATE_FULL:
+            case UPDATE_FULL_UNKNOWN_3: {
                 if (!CreateObject(msg, time)) {
                     return 0;
                 }
@@ -1575,7 +1585,7 @@ static int32_t ObjectUpdateFirstPass(uint32_t index, CDataStore* msg, uint32_t t
                 break;
             }
 
-            case 5: {
+            case UPDATE_IN_RANGE: {
                 UpdateInRangeObjects(msg);
                 break;
             }
@@ -1602,7 +1612,7 @@ static int32_t ObjectUpdateSecondPass(CDataStore* msg, uint32_t time, uint32_t c
         }
 
         switch (type) {
-            case 0: {
+            case UPDATE_PARTIAL: {
                 if (!CallMirrorHandlers(msg, false, WOWGUID())) {
                     return 0;
                 }
@@ -1610,22 +1620,22 @@ static int32_t ObjectUpdateSecondPass(CDataStore* msg, uint32_t time, uint32_t c
                 break;
             }
 
-            case 1: {
+            case UPDATE_MOVEMENT: {
                 PostMovementUpdate(msg);
                 break;
             }
 
-            case 2:
-            case 3: {
-                if (!PostInitObject(time, msg, type == 3)) {
+            case UPDATE_FULL:
+            case UPDATE_FULL_UNKNOWN_3: {
+                if (!PostInitObject(time, msg, type == UPDATE_FULL_UNKNOWN_3)) {
                     return 0;
                 }
 
                 break;
             }
 
-            case 4:
-            case 5: {
+            case UPDATE_OUT_OF_RANGE:
+            case UPDATE_IN_RANGE: {
                 SkipSetOfObjects(msg);
                 break;
             }
@@ -1666,7 +1676,7 @@ static void UpdateOutOfRangeObjects(CDataStore* msg) {
             continue;
         }
 
-        if (CGBattlefieldInfo::m_instanceType == 4) {
+        if (CGBattlefieldInfo::m_instanceType == MAP_INSTANCE_TYPE_ARENA_BATTLEFIELD) {
             WOWGUID objectGuid = object->m_obj->m_guid;
             CGBattlefieldInfo::OnArenaUnitOutOfRange(objectGuid);
         }
@@ -1710,10 +1720,10 @@ int32_t Packet_SMSG_UPDATE_OBJECT(void* param, NETMESSAGE msgId, uint32_t time, 
     uint32_t read = msg->m_read;
     uint32_t index = 0;
 
-    uint8_t type = 0;
+    uint8_t type = UPDATE_PARTIAL;
     msg->Get(type);
 
-    if (type == 4) {
+    if (type == UPDATE_OUT_OF_RANGE) {
         UpdateOutOfRangeObjects(msg);
         index = 1;
     } else {
@@ -1815,7 +1825,7 @@ void ClntObjMgrInitialize() {
 void ClntObjMgrInitializeStd(uint32_t mapId) {
     CGGameUI::SetLastInstanceTime(static_cast<int32_t>(time(nullptr)), CGGameUI::m_iCurrentMapID, mapId);
 
-    ObjectMgr* mgr = new (__FILE__, __LINE__) ObjectMgr(0);
+    ObjectMgr* mgr = new (__FILE__, __LINE__) ObjectMgr(PLAYER_NORMAL);
     g_clientConnection->m_objMgr = reinterpret_cast<ClntObjMgr*>(mgr);
     s_curMgr = mgr;
     mgr->m_realmConnection = g_clientConnection;
@@ -1834,7 +1844,7 @@ void ClntObjMgrUnlockObject(WOWGUID guid, const char* fileName, int32_t lineNumb
 
     object->SetObjectLocked(0);
 
-    if (object->IsObjectLocked() || !(object->m_modelFlags & 0x100000)) {
+    if (object->IsObjectLocked() || !(object->m_modelFlags & OBJECT_MODEL_FLAG_DISABLE_PENDING)) {
         return;
     }
 

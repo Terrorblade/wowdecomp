@@ -15,6 +15,13 @@
 class IOMpqUnit;
 class SEvent;
 
+enum SFILE_LOCAL_STATUS : int32_t {
+    SFILE_LOCAL_UNKNOWN = -1,
+    SFILE_LOCAL_NO = 0,
+    SFILE_LOCAL_YES = 1,
+    SFILE_LOCAL_PARTIAL = 2,
+};
+
 enum SARCHIVE_TYPE : uint32_t {
     SARCHIVE_MPQ = 0,
     SARCHIVE_ZIP = 1,

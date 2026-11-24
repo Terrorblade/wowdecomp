@@ -5,7 +5,7 @@
 // VERIFY: be14d437 manual
 // OFFSET: 0x004F4CA0
 uint32_t CMovementStatus::Skip(CDataStore* msg) {
-    uint32_t moveFlags = 0;
+    uint32_t moveFlags = MOVEMENTFLAG_NONE;
     msg->Get(moveFlags);
 
     uint16_t extraFlags = 0;
@@ -19,10 +19,10 @@ uint32_t CMovementStatus::Skip(CDataStore* msg) {
     if (moveFlags & MOVEMENTFLAG_ONTRANSPORT) {
         SmartGUID transport;
         *msg >> transport;
-        size = (extraFlags & MOVEMENTFLAG2_INTERPOLATED_MOVEMENT) ? 25 : 21;
+        size = (extraFlags & MOVEFLAG2_INTERPOLATED_MOVEMENT) ? 25 : 21;
     }
 
-    if ((moveFlags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) || (extraFlags & MOVEMENTFLAG2_ALWAYS_ALLOW_PITCHING)) {
+    if ((moveFlags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) || (extraFlags & MOVEFLAG2_ALWAYS_ALLOW_PITCHING)) {
         size += 4;
     }
 
@@ -45,8 +45,8 @@ uint32_t CMovementStatus::Skip(CDataStore* msg) {
 CMovementStatus::CMovementStatus() {
     this->m_gameTime = 0;
     this->m_transportGuid = WOWGUID();
-    this->m_moveFlags = 0;
-    this->m_moveExtraFlags = 0;
+    this->m_moveFlags = MOVEMENTFLAG_NONE;
+    this->m_moveExtraFlags = MOVEFLAG2_NONE;
     this->m_transportSeat = 0xFF;
     this->m_transportPosition.x = 0.0f;
     this->m_transportPosition.y = 0.0f;
@@ -83,8 +83,8 @@ CDataStore& operator>>(CDataStore& msg, CMovementStatus& status) {
         transportData.Get(status.m_transportPosition.z);
         transportData.Get(status.m_transportFacing).Get(status.m_transportTime).Get(status.m_transportSeat);
 
-        if (status.m_moveExtraFlags & MOVEMENTFLAG2_INTERPOLATED_MOVEMENT) {
-            status.m_moveExtraFlags &= ~MOVEMENTFLAG2_INTERPOLATED_MOVEMENT;
+        if (status.m_moveExtraFlags & MOVEFLAG2_INTERPOLATED_MOVEMENT) {
+            status.m_moveExtraFlags &= ~MOVEFLAG2_INTERPOLATED_MOVEMENT;
             msg.Get(status.m_transportTime2);
         } else {
             status.m_transportTime2 = status.m_transportTime;
@@ -96,7 +96,7 @@ CDataStore& operator>>(CDataStore& msg, CMovementStatus& status) {
         status.m_transportSeat = 0xFF;
     }
 
-    if ((status.m_moveFlags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) || (status.m_moveExtraFlags & MOVEMENTFLAG2_ALWAYS_ALLOW_PITCHING)) {
+    if ((status.m_moveFlags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) || (status.m_moveExtraFlags & MOVEFLAG2_ALWAYS_ALLOW_PITCHING)) {
         msg.Get(status.m_pitch);
     } else {
         status.m_pitch = 0.0f;
@@ -136,12 +136,12 @@ CDataStore& operator<<(CDataStore& msg, const CMovementStatus& status) {
         data.Put(status.m_transportPosition.z);
         data.Put(status.m_transportFacing).Put(status.m_transportTime).Put(status.m_transportSeat);
 
-        if (status.m_moveExtraFlags & MOVEMENTFLAG2_INTERPOLATED_MOVEMENT) {
+        if (status.m_moveExtraFlags & MOVEFLAG2_INTERPOLATED_MOVEMENT) {
             msg.Put(status.m_transportTime2);
         }
     }
 
-    if ((status.m_moveFlags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) || (status.m_moveExtraFlags & MOVEMENTFLAG2_ALWAYS_ALLOW_PITCHING)) {
+    if ((status.m_moveFlags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) || (status.m_moveExtraFlags & MOVEFLAG2_ALWAYS_ALLOW_PITCHING)) {
         msg.Put(status.m_pitch);
     }
 

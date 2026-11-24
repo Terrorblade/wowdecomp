@@ -38,6 +38,11 @@ uint16_t ToLower(uint16_t c);
 void CaseAccentInsensitiveParse(char* string, uint32_t size, int32_t locale);
 bool StripHyperlinks(const char* text, char* buffer, uint32_t size);
 
+enum SCRUB_FLAGS : int32_t {
+    SCRUB_FLAG_NONE = 0x0,
+    SCRUB_FLAG_TRUNCATE_NEWLINES = 0x1,
+};
+
 bool ScrubString(const char* source, char* dest, int32_t maxChars, uint32_t destSize, int32_t flags);
 bool FixCharacterNameCase(char* dest, const char* source, uint32_t size);
 

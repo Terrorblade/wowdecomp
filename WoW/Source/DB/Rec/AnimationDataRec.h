@@ -8,6 +8,22 @@ class SFileImpl;
 
 class AnimationDataRec {
     public:
+
+    enum WeaponFlags : int32_t {
+        ANIM_WEAPON_FLAG_UNKNOWN_2 = 0x4,
+        ANIM_WEAPON_FLAG_SHEATHE = 0x10,
+        ANIM_WEAPON_FLAG_UNSHEATHE = 0x20,
+    };
+
+    enum BodyFlags : int32_t {
+        ANIM_BODY_FLAG_SUPPRESS_MOVEMENT = 0x80,
+    };
+
+    enum FallbackFlags : int32_t {
+        ANIM_FLAG_REVERSE_FALLBACK = 0x10,
+        ANIM_FLAG_FREEZE_FALLBACK = 0x20,
+    };
+
     static const int32_t s_numColumns = 8;
     static const int32_t s_rowSize = 32;
     static const bool s_generatedID = false;

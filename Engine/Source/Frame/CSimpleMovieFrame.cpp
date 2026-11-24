@@ -50,16 +50,16 @@ static uint32_t s_decoderSlots;
 CDataAllocator CSimpleMovieFrame::s_allocator(sizeof(CSimpleMovieFrame), 5);
 
 // STATIC: 0x00A9E8B8
-static uint32_t s_textureCount[6] = { 6, 2, 3, 4, 6, 2 };
+static uint32_t s_textureCount[NUM_MOVIE_LAYOUTS] = { 6, 2, 3, 4, 6, 2 };
 
 // STATIC: 0x00A9E8D0
-static uint32_t s_frameWidth[6] = { 800, 1024, 800, 1024, 800, 1024 };
+static uint32_t s_frameWidth[NUM_MOVIE_LAYOUTS] = { 800, 1024, 800, 1024, 800, 1024 };
 
 // STATIC: 0x00A9E8E8
-static uint32_t s_frameHeight[6] = { 384, 512, 512, 576, 384, 512 };
+static uint32_t s_frameHeight[NUM_MOVIE_LAYOUTS] = { 384, 512, 512, 576, 384, 512 };
 
 // STATIC: 0x00A9E900
-static MOVIETEXTURERECT s_textureRects[6][6] = {
+static MOVIETEXTURERECT s_textureRects[NUM_MOVIE_LAYOUTS][6] = {
     {
         { 0.0f, 0.64f, 0.11f, -0.33f },
         { 0.64f, 0.96f, 0.11f, -0.33f },
@@ -111,7 +111,7 @@ static MOVIETEXTURERECT s_textureRects[6][6] = {
 };
 
 // STATIC: 0x00A9EB40
-static MOVIETEXTUREINFO s_textureInfo[6][6] = {
+static MOVIETEXTUREINFO s_textureInfo[NUM_MOVIE_LAYOUTS][6] = {
     {
         { 512, 256, 0, 3200 },
         { 256, 256, 2048, 3200 },
@@ -163,7 +163,7 @@ static MOVIETEXTUREINFO s_textureInfo[6][6] = {
 };
 
 // STATIC: 0x00A9ED80
-static MOVIEUPDATERECT s_updateRects[6][6] = {
+static MOVIEUPDATERECT s_updateRects[NUM_MOVIE_LAYOUTS][6] = {
     {
         { 0, 6, 512, 256 },
         { 0, 6, 256, 256 },
@@ -215,7 +215,7 @@ static MOVIEUPDATERECT s_updateRects[6][6] = {
 };
 
 // STATIC: 0x00A9EFC0
-static uint32_t s_frameOffset[6] = { 0x4B00, 0x18000, 0x19000, 0, 0x10680, 0x26000 };
+static uint32_t s_frameOffset[NUM_MOVIE_LAYOUTS] = { 0x4B00, 0x18000, 0x19000, 0, 0x10680, 0x26000 };
 
 // STATIC: 0x00A24188
 static uint16_t s_indices[4] = { 0, 1, 2, 3 };
@@ -647,19 +647,19 @@ int32_t CSimpleMovieFrame::OpenVideo(const char* fileName) {
 
         if (this->m_width == 1024) {
             if (this->m_height == 576) {
-                this->m_layout = 3;
+                this->m_layout = MOVIE_LAYOUT_1024X576;
             } else if (this->m_height == 436) {
-                this->m_layout = 5;
+                this->m_layout = MOVIE_LAYOUT_1024X436;
             } else {
-                this->m_layout = 1;
+                this->m_layout = MOVIE_LAYOUT_1024;
             }
         } else if (this->m_width == 800) {
             if (this->m_height == 448) {
-                this->m_layout = 2;
+                this->m_layout = MOVIE_LAYOUT_800X448;
             } else if (this->m_height == 342 || this->m_height == 340) {
-                this->m_layout = 4;
+                this->m_layout = MOVIE_LAYOUT_800X342;
             } else {
-                this->m_layout = 0;
+                this->m_layout = MOVIE_LAYOUT_800;
             }
         } else {
             layoutFound = 0;
@@ -1098,7 +1098,7 @@ void CSimpleMovieFrame::RenderMovie(void* param) {
 void CSimpleMovieFrame::OnFrameRender(CRenderBatch* batch, uint32_t layer) {
     CSimpleFrame::OnFrameRender(batch, layer);
 
-    if (layer == 2) {
+    if (layer == DRAWLAYER_ARTWORK) {
         batch->QueueCallback(&CSimpleMovieFrame::RenderMovie, this);
     }
 }

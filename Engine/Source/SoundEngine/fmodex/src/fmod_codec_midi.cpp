@@ -2256,8 +2256,8 @@ FMOD_RESULT CodecMIDIChannel::update()
 // OFFSET: 0x008FB0C0
 FMOD_RESULT CodecMIDITrack::readVarLen(unsigned int *result)
 {
-    register unsigned int   value       = 0;
-    register unsigned char  ch          = 0;
+    unsigned int   value       = 0;
+    unsigned char  ch          = 0;
 
 	do
 	{

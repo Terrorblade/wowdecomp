@@ -15,6 +15,15 @@
 
 class CGxDeviceOpenGl : public CGxDevice {
     public:
+
+    enum MATERIAL_DIRTY_FLAGS : int32_t {
+        MATERIAL_DIRTY_NONE = 0,
+        MATERIAL_DIRTY_DIFFUSE = 0x1,
+        MATERIAL_DIRTY_SPECULAR = 0x2,
+        MATERIAL_DIRTY_EMISSIVE = 0x4,
+        MATERIAL_DIRTY_ALL = 7,
+    };
+
     enum EDeviceState {
         Ds_DepthMask = 0,
         Ds_ColorMask = 1,
@@ -46,6 +55,11 @@ class CGxDeviceOpenGl : public CGxDevice {
         Ds_CullFace = 88,
         Ds_ClipPlanes = 89,
         DeviceStates_Last = 90,
+    };
+
+    enum RENDER_TARGET_MODE : int32_t {
+        RENDER_TARGET_MODE_COPY = 0,
+        RENDER_TARGET_MODE_FBO = 1,
     };
 
     /* 3968 */ uint32_t m_deviceStates [DeviceStates_Last];
@@ -83,8 +97,8 @@ class CGxDeviceOpenGl : public CGxDevice {
     /* 3B54 */ uintptr_t m_indexPtr;
     /* 3B58 */ int32_t m_viewDirty;
     /* 3B5C */ uint32_t unused_3B5C;
-    /* 3B60 */ int32_t m_useVboBroker [2][3];
-    /* 3B78 */ int32_t m_useVbo [2][3];
+    /* 3B60 */ int32_t m_useVboBroker [2][GxPoolUsages_Last];
+    /* 3B78 */ int32_t m_useVbo [2][GxPoolUsages_Last];
     /* 3B90 */ GLuint m_boundTexture;
     /* 3B94 */ GLuint m_fbo;
     /* 3B98 */ GLuint m_boundFbo;

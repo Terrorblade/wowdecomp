@@ -17,7 +17,7 @@ static int32_t Script_SetChange(lua_State* L) {
         return 0;
     }
 
-    anim->SetChange(lua_tonumber(L, 2));
+    anim->SetChange(static_cast<float>(lua_tonumber(L, 2)));
     return 0;
 }
 

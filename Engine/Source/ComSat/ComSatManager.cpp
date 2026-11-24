@@ -141,13 +141,13 @@ bool ComSat::Manager::IsTalkerMuted(uint8_t localTalker, uint64_t talker) {
 
 // VERIFY: d7c8ef33 auto
 // OFFSET: 0x0087FBF0
-bool ComSat::Manager::MuteTalker(uint8_t localTalker, uint64_t talker, ComSat::MuteSetting setting) {
+bool ComSat::Manager::MuteTalker(uint8_t localTalker, uint64_t talker, MuteSetting setting) {
     return this->m_soundManager->SetTalkerMuted(localTalker, talker, setting);
 }
 
 // VERIFY: ed19ad38 auto
 // OFFSET: 0x0087FC10
-bool ComSat::Manager::MuteSession(uint8_t localTalker, uint64_t session, ComSat::MuteSetting setting) {
+bool ComSat::Manager::MuteSession(uint8_t localTalker, uint64_t session, MuteSetting setting) {
     if (localTalker < this->m_maxLocalPlayers && this->m_localTalkers[localTalker]->m_guid) {
         return this->m_soundManager->SetSessionMuted(localTalker, session, setting);
     }
@@ -516,7 +516,7 @@ void ComSat::Manager::DeviceError(uint8_t player) {
 
 // VERIFY: de61f2c6 auto
 // OFFSET: 0x00653A10
-void ComSat::Manager::MicrophoneStatusUpdate(uint8_t player, ComSat::Sound::HeadsetDeviceStatus status) {
+void ComSat::Manager::MicrophoneStatusUpdate(uint8_t player, HeadsetDeviceStatus status) {
 }
 
 // VERIFY: f7010444 auto

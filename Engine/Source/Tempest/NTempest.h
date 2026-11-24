@@ -12,13 +12,14 @@ class CAaBox;
 class CAaSphere;
 struct C3Segment;
 
+enum SolidIntersect {
+    SOLID_NONE = 0,
+    SOLID_SPHERE = 1,
+    SOLID_BOX = 2,
+    SOLID_BOTH = 3
+};
+
 namespace NTempest {
-    enum SolidIntersect {
-        SOLID_NONE = 0,
-        SOLID_SPHERE = 1,
-        SOLID_BOX = 2,
-        SOLID_BOTH = 3
-    };
 
     float Distance(const CAaBox& box, const C3Vector& point);
     float DistanceFromPolygon(const C3Vector& point, const C3Vector* verts, uint32_t count, const C4Plane& plane);

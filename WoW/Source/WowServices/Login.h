@@ -15,6 +15,13 @@ extern const char* g_LoginResultStringNames[41];
 
 class Login : public Grunt::ClientResponse {
     public:
+
+    enum LOGON_STATUS : int32_t {
+        LOGON_STATUS_PENDING = -1,
+        LOGON_STATUS_SUCCESS = 0,
+        LOGON_STATUS_FAILED = 1,
+    };
+
     static uint32_t s_fourCCprogramID;
 
     /* 0004 */ bool m_online;

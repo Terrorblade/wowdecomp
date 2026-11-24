@@ -27,7 +27,7 @@ static int32_t Script_RequestRealmList(lua_State* L) {
 // VERIFY: 67f9da3d auto
 // OFFSET: 0x004DE450
 static int32_t Script_RealmListUpdateRate(lua_State* L) {
-    if (ClientServices::LoginConnection() && ClientServices::LoginConnection()->GetLoginServerType() == 1) {
+    if (ClientServices::LoginConnection() && ClientServices::LoginConnection()->GetLoginServerType() == LOGIN_SERVER_BATTLENET) {
         lua_pushnumber(L, 4.0);
         return 1;
     }
@@ -130,13 +130,13 @@ static int32_t Script_GetRealmInfo(lua_State* L) {
     lua_pushstring(L, realm->m_realmName);
     lua_pushnumber(L, realm->m_numCharacters);
 
-    if (SFile::IsTrial() || !(realm->m_flags & 0x1)) {
+    if (SFile::IsTrial() || !(realm->m_flags & REALM_FLAG_INVALID)) {
         lua_pushnil(L);
     } else {
         lua_pushnumber(L, 1.0);
     }
 
-    if (realm->m_flags & 0x2) {
+    if (realm->m_flags & REALM_FLAG_OFFLINE) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -175,13 +175,13 @@ static int32_t Script_GetRealmInfo(lua_State* L) {
 
     lua_pushnumber(L, GetRealmPopulation(realm));
 
-    if (realm->m_otherFlags & 0x1) {
+    if (realm->m_otherFlags & REALM_OTHER_FLAG_LOCKED) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (realm->m_flags & 0x4) {
+    if (realm->m_flags & REALM_FLAG_SPECIFY_BUILD) {
         lua_pushnumber(L, realm->m_versionMajor);
         lua_pushnumber(L, realm->m_versionMinor);
         lua_pushnumber(L, realm->m_versionRevision);
@@ -294,7 +294,7 @@ static int32_t Script_IsInvalidTournamentRealmCategory(lua_State* L) {
 
     RealmCategory* category = CRealmList::m_categories[index];
 
-    if (!category || !category->m_category || !(category->m_category->m_flags & 0x1)) {
+    if (!category || !category->m_category || !(category->m_category->m_flags & CFG_CATEGORY_FLAG_TOURNAMENT)) {
         return 0;
     }
 
@@ -322,7 +322,7 @@ static int32_t Script_IsTournamentRealmCategory(lua_State* L) {
 
     RealmCategory* category = CRealmList::m_categories[index];
 
-    if (!category || !category->m_category || !(category->m_category->m_flags & 0x1)) {
+    if (!category || !category->m_category || !(category->m_category->m_flags & CFG_CATEGORY_FLAG_TOURNAMENT)) {
         return 0;
     }
 
@@ -386,22 +386,22 @@ static int32_t Script_SortRealms(lua_State* L) {
         return 0;
     }
 
-    int32_t criterion = 2;
+    int32_t criterion = REALM_SORT_NAME;
     const char* type = lua_tolstring(L, 1, nullptr);
 
     if (SStrCmpI(type, "name", STORM_MAX_STR)) {
         if (!SStrCmpI(type, "load", STORM_MAX_STR)) {
-            CRealmList::SortRealms(1);
+            CRealmList::SortRealms(REALM_SORT_LOAD);
             return 0;
         }
 
         if (!SStrCmpI(type, "characters", STORM_MAX_STR)) {
-            CRealmList::SortRealms(0);
+            CRealmList::SortRealms(REALM_SORT_CHARACTERS);
             return 0;
         }
 
         if (!SStrCmpI(type, "mode", STORM_MAX_STR)) {
-            criterion = 3;
+            criterion = REALM_SORT_MODE;
         }
     }
 

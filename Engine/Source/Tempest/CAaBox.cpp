@@ -1,6 +1,7 @@
 #include <cstdint>
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CAaBox.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 1bea3dca manual
 // OFFSET: 0x0070BCF0

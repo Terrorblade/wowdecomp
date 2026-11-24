@@ -4,7 +4,7 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 
 // STATIC: 0x00C5DEA8
-static TSFixedArray<const ItemSubClassRec*> s_itemSubclasses[17];
+static TSFixedArray<const ItemSubClassRec*> s_itemSubclasses[NUM_ITEM_CLASSES];
 
 // VERIFY: e9c59b21 manual
 // OFFSET: 0x00681090

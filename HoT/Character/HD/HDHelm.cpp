@@ -339,7 +339,7 @@ HelmScope::~HelmScope() {
     ApplyHelmAttach(this->m_component);
 }
 
-const char* HelmModelPath(const CM2Model* parent, GEOCOMPONENTLINKS link, const char* modelPath, char* buffer) {
+const char* HelmModelPath(const CM2Model* parent, MODEL_ATTACHMENT_ID link, const char* modelPath, char* buffer) {
     if (link != ATTACH_HELM || !IsHdModel(parent) || !HdHelmPath(modelPath, buffer)) {
         return modelPath;
     }

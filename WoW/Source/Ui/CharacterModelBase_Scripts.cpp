@@ -32,7 +32,7 @@ static int32_t Script_SetCreature(lua_State* L) {
     }
 
     WOWGUID guid = WOWGUID();
-    CreatureStats_C* stats = g_creatureDBCache.GetRecord(lua_tointeger(L, 2), guid, nullptr, nullptr, false);
+    CreatureStats_C* stats = g_creatureDBCache.GetRecord(static_cast<int32_t>(lua_tointeger(L, 2)), guid, nullptr, nullptr, false);
 
     if (stats) {
         model->m_unitGuid = WOWGUID();

@@ -63,7 +63,7 @@ int32_t GetDeclinedWord(const char* word, int32_t declension, char* buffer, uint
 
     if (c != '|') {
         if (!NameNeedsDeclensions(s_locale, word)) {
-            return SStrCopy(buffer, word, bufferSize);
+            return static_cast<int32_t>(SStrCopy(buffer, word, bufferSize));
         }
 
         int32_t index = declension - 1;
@@ -72,13 +72,13 @@ int32_t GetDeclinedWord(const char* word, int32_t declension, char* buffer, uint
             NameCache* name = g_nameDBCache.GetRecordByName(word);
 
             if (name && name->m_declinedNames) {
-                return SStrCopy(buffer, name->m_declinedNames->m_names[index], bufferSize);
+                return static_cast<int32_t>(SStrCopy(buffer, name->m_declinedNames->m_names[index], bufferSize));
             }
 
             PetNameCache* pet = g_petNameCache.GetRecordByName(word);
 
             if (pet && pet->m_declinedNames) {
-                return SStrCopy(buffer, pet->m_declinedNames->m_names[index], bufferSize);
+                return static_cast<int32_t>(SStrCopy(buffer, pet->m_declinedNames->m_names[index], bufferSize));
             }
         }
 
@@ -90,18 +90,18 @@ int32_t GetDeclinedWord(const char* word, int32_t declension, char* buffer, uint
 
             for (DeclinedWordCasesRec* rec = g_declinedWordCasesDB.GetRecordByIndex(caseIndex); rec && rec->m_declinedWordID == wordId && rec->m_caseIndex <= declension; rec = g_declinedWordCasesDB.GetRecordByIndex(++caseIndex)) {
                 if (rec->m_caseIndex == declension) {
-                    return SStrCopy(buffer, rec->m_declinedWord, bufferSize);
+                    return static_cast<int32_t>(SStrCopy(buffer, rec->m_declinedWord, bufferSize));
                 }
             }
 
-            return SStrCopy(buffer, word, bufferSize);
+            return static_cast<int32_t>(SStrCopy(buffer, word, bufferSize));
         }
 
         const char* dash = SStrChr(word, '-');
 
         if (dash) {
             char prefix[1024];
-            uint32_t length = dash - word;
+            uint32_t length = static_cast<uint32_t>(dash - word);
 
             if (length > sizeof(prefix) - 1) {
                 length = sizeof(prefix) - 1;
@@ -111,33 +111,33 @@ int32_t GetDeclinedWord(const char* word, int32_t declension, char* buffer, uint
             prefix[length] = '\0';
 
             if (index < 0) {
-                return SStrCopy(buffer, word, bufferSize);
+                return static_cast<int32_t>(SStrCopy(buffer, word, bufferSize));
             }
 
             if (index < 5) {
                 NameCache* name = g_nameDBCache.GetRecordByName(prefix);
 
                 if (name && name->m_declinedNames) {
-                    uint32_t count = SStrCopy(buffer, name->m_declinedNames->m_names[index], bufferSize);
-                    return count + SStrCopy(&buffer[count], dash, bufferSize - count);
+                    uint32_t count = static_cast<uint32_t>(SStrCopy(buffer, name->m_declinedNames->m_names[index], bufferSize));
+                    return static_cast<int32_t>(count + SStrCopy(&buffer[count], dash, bufferSize - count));
                 }
 
                 PetNameCache* pet = g_petNameCache.GetRecordByName(prefix);
 
                 if (pet && pet->m_declinedNames) {
-                    uint32_t count = SStrCopy(buffer, pet->m_declinedNames->m_names[index], bufferSize);
-                    return count + SStrCopy(&buffer[count], dash, bufferSize - count);
+                    uint32_t count = static_cast<uint32_t>(SStrCopy(buffer, pet->m_declinedNames->m_names[index], bufferSize));
+                    return static_cast<int32_t>(count + SStrCopy(&buffer[count], dash, bufferSize - count));
                 }
             }
         }
 
-        char declensions[5][1024];
+        char declensions[NUM_DECLENSIONS][1024];
 
-        if (index <= 4 && GetNameDeclensions(s_locale, declensions[0], word, 2, 0)) {
-            return SStrCopy(buffer, declensions[index], bufferSize);
+        if (index < NUM_DECLENSIONS && GetNameDeclensions(s_locale, declensions[0], word, 2, 0)) {
+            return static_cast<int32_t>(SStrCopy(buffer, declensions[index], bufferSize));
         }
 
-        return SStrCopy(buffer, word, bufferSize);
+        return static_cast<int32_t>(SStrCopy(buffer, word, bufferSize));
     }
 
     char* dest = buffer;

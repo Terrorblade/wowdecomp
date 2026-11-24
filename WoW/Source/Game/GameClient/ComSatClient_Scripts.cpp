@@ -212,15 +212,15 @@ static int32_t Script_GetVoiceSessionInfo(lua_State* L) {
         }
 
         switch (s_comsatData[i].m_type) {
-            case 2:
+            case COMSATDATA::PARTY:
                 lua_pushstring(L, FrameScript_GetText("CHAT_MSG_PARTY", -1, GENDER_NOT_APPLICABLE));
                 break;
 
-            case 3:
+            case COMSATDATA::RAID:
                 lua_pushstring(L, FrameScript_GetText("CHAT_MSG_RAID", -1, GENDER_NOT_APPLICABLE));
                 break;
 
-            case 1:
+            case COMSATDATA::BATTLEGROUND:
                 lua_pushstring(L, FrameScript_GetText("CHAT_MSG_BATTLEGROUND", -1, GENDER_NOT_APPLICABLE));
                 break;
 
@@ -347,7 +347,7 @@ static int32_t Script_SetActiveVoiceChannelBySessionID(lua_State* L) {
     int32_t id = static_cast<int32_t>(lua_tonumber(L, 1));
 
     if (id <= 0) {
-        CGChat::SetActiveVoiceSession(nullptr, 4, -1);
+        CGChat::SetActiveVoiceSession(nullptr, COMSATDATA::NONE, -1);
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -447,13 +447,13 @@ int32_t Script_GetVoiceSessionMemberInfoBySessionID(lua_State* L) {
 
     lua_pushstring(L, name);
 
-    if (member.m_flags & 0x4) {
+    if (member.m_flags & COMSATMEMBER::F_TALKER_ENABLED) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (member.m_flags & 0x40) {
+    if (member.m_flags & COMSATMEMBER::F_TALKER_ACTIVE) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -465,7 +465,7 @@ int32_t Script_GetVoiceSessionMemberInfoBySessionID(lua_State* L) {
         lua_pushnil(L);
     }
 
-    if (member.m_flags & 0x8) {
+    if (member.m_flags & COMSATMEMBER::F_TALKER_SQUELCHED) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);

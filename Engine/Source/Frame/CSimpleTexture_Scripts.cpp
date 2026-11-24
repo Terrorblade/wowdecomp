@@ -12,6 +12,7 @@
 #include "Engine/Source/Tempest/CRect.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00AC1110
 int32_t CSimpleTexture::s_metatable = LUA_NOREF;
@@ -187,7 +188,7 @@ static int32_t Script_SetAlpha(lua_State* L) {
         return 0;
     }
 
-    float alpha = lua_tonumber(L, 2);
+    float alpha = static_cast<float>(lua_tonumber(L, 2));
     alpha = alpha < 0.0f ? 0.0f : (alpha >= 1.0f ? 1.0f : alpha);
 
     CImVector color;
@@ -328,8 +329,8 @@ static int32_t Script_SetRotation(lua_State* L) {
     float centerY = 0.5f;
 
     if (lua_isnumber(L, 3) && lua_isnumber(L, 4)) {
-        centerX = lua_tonumber(L, 3);
-        centerY = lua_tonumber(L, 4);
+        centerX = static_cast<float>(lua_tonumber(L, 3));
+        centerY = static_cast<float>(lua_tonumber(L, 4));
     }
 
     float s = sin(angle);
@@ -388,7 +389,7 @@ static int32_t Script_SetNonBlocking(lua_State* L) {
     CSimpleTexture* texture = static_cast<CSimpleTexture*>(FrameScript_GetObjectThis(L, CSimpleTexture::GetObjectType()));
     uint32_t nonBlocking = StringToBOOL(L, 2, 1) != 0;
 
-    texture->m_textureFlags ^= (texture->m_textureFlags ^ nonBlocking) & 0x1;
+    texture->m_textureFlags ^= (texture->m_textureFlags ^ nonBlocking) & CSimpleTexture::FLAG_NONBLOCKING;
     return 0;
 }
 
@@ -397,7 +398,7 @@ static int32_t Script_SetNonBlocking(lua_State* L) {
 static int32_t Script_GetNonBlocking(lua_State* L) {
     CSimpleTexture* texture = static_cast<CSimpleTexture*>(FrameScript_GetObjectThis(L, CSimpleTexture::GetObjectType()));
 
-    if (texture->m_textureFlags & 0x1) {
+    if (texture->m_textureFlags & CSimpleTexture::FLAG_NONBLOCKING) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -411,7 +412,7 @@ static int32_t Script_GetNonBlocking(lua_State* L) {
 static int32_t Script_SetHorizTile(lua_State* L) {
     CSimpleTexture* texture = static_cast<CSimpleTexture*>(FrameScript_GetObjectThis(L, CSimpleTexture::GetObjectType()));
 
-    texture->m_textureFlags ^= (texture->m_textureFlags ^ ((StringToBOOL(L, 2, 1) != 0) << 2)) & 0x4;
+    texture->m_textureFlags ^= (texture->m_textureFlags ^ ((StringToBOOL(L, 2, 1) != 0) << CSimpleTexture::FLAG_HORIZ_TILE_BIT_INDEX)) & CSimpleTexture::FLAG_HORIZ_TILE;
     return 0;
 }
 
@@ -420,7 +421,7 @@ static int32_t Script_SetHorizTile(lua_State* L) {
 static int32_t Script_GetHorizTile(lua_State* L) {
     CSimpleTexture* texture = static_cast<CSimpleTexture*>(FrameScript_GetObjectThis(L, CSimpleTexture::GetObjectType()));
 
-    if (texture->m_textureFlags & 0x4) {
+    if (texture->m_textureFlags & CSimpleTexture::FLAG_HORIZ_TILE) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -434,7 +435,7 @@ static int32_t Script_GetHorizTile(lua_State* L) {
 static int32_t Script_SetVertTile(lua_State* L) {
     CSimpleTexture* texture = static_cast<CSimpleTexture*>(FrameScript_GetObjectThis(L, CSimpleTexture::GetObjectType()));
 
-    texture->m_textureFlags ^= (texture->m_textureFlags ^ ((StringToBOOL(L, 2, 1) != 0) << 3)) & 0x8;
+    texture->m_textureFlags ^= (texture->m_textureFlags ^ ((StringToBOOL(L, 2, 1) != 0) << CSimpleTexture::FLAG_VERT_TILE_BIT_INDEX)) & CSimpleTexture::FLAG_VERT_TILE;
     return 0;
 }
 
@@ -443,7 +444,7 @@ static int32_t Script_SetVertTile(lua_State* L) {
 static int32_t Script_GetVertTile(lua_State* L) {
     CSimpleTexture* texture = static_cast<CSimpleTexture*>(FrameScript_GetObjectThis(L, CSimpleTexture::GetObjectType()));
 
-    if (texture->m_textureFlags & 0x8) {
+    if (texture->m_textureFlags & CSimpleTexture::FLAG_VERT_TILE) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -460,10 +461,10 @@ static int32_t Script_SetTexCoord(lua_State* L) {
 
     if (count == 4) {
         CRect texRect = { 0.0f, 0.0f, 0.0f, 0.0f };
-        texRect.minX = lua_tonumber(L, 2);
-        texRect.maxX = lua_tonumber(L, 3);
-        texRect.minY = lua_tonumber(L, 4);
-        texRect.maxY = lua_tonumber(L, 5);
+        texRect.minX = static_cast<float>(lua_tonumber(L, 2));
+        texRect.maxX = static_cast<float>(lua_tonumber(L, 3));
+        texRect.minY = static_cast<float>(lua_tonumber(L, 4));
+        texRect.maxY = static_cast<float>(lua_tonumber(L, 5));
 
         if (texRect.minX < -10000.0f || texRect.minX > 10000.0f || texRect.maxX < -10000.0f || texRect.maxX > 10000.0f || texRect.minY < -10000.0f || texRect.minY > 10000.0f || texRect.maxY < -10000.0f || texRect.maxY > 10000.0f) {
             luaL_error(L, "TexCoord out of range");
@@ -484,14 +485,14 @@ static int32_t Script_SetTexCoord(lua_State* L) {
     int32_t index = 2;
 
     for (uint32_t i = 0; i < 4; i++) {
-        texCoords[i].x = lua_tonumber(L, index++);
+        texCoords[i].x = static_cast<float>(lua_tonumber(L, index++));
 
         if (texCoords[i].x < -10000.0f || texCoords[i].x > 10000.0f) {
             luaL_error(L, "TexCoord out of range");
             return 0;
         }
 
-        texCoords[i].y = lua_tonumber(L, index++);
+        texCoords[i].y = static_cast<float>(lua_tonumber(L, index++));
 
         if (texCoords[i].y < -10000.0f || texCoords[i].y > 10000.0f) {
             luaL_error(L, "TexCoord out of range");

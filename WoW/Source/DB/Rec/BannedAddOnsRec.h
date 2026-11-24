@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum BANNED_ADDON_FLAGS : int32_t {
+    BANNED_ADDON_FLAG_NONE = 0x0,
+    BANNED_ADDON_FLAG_ACTIVE = 0x1,
+};
+
 class BannedAddOnsRec {
     public:
     static const int32_t s_numColumns = 11;

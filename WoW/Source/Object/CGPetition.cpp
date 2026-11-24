@@ -26,7 +26,7 @@ CGPetition::CGPetition() {
 
     this->m_numChoices = 0;
     this->m_muid = 0;
-    this->m_staticType = 0;
+    this->m_staticType = STATIC_TYPE_GUILD;
 }
 
 // VERIFY: ac373b5d auto

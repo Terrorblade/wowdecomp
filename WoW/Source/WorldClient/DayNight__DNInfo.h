@@ -8,6 +8,7 @@
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Storm/H/stpl.h"
+#include "Engine/Source/Tempest/C4Vector.h"
 
 class CMapObjDef;
 class LightParamsRec;

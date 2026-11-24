@@ -35,7 +35,7 @@ bool Blizzard::Repair::RepairKey::operator<(const RepairKey& other) const {
 // OFFSET: 0x00440970
 Blizzard::Repair::RepairCache::~RepairCache() {
     if (s_reportCallback && this->m_repairedCount) {
-        s_reportCallback(s_reportContext, this->m_entries.size(), this->m_repairedCount, this->m_repairedSize);
+        s_reportCallback(s_reportContext, static_cast<uint32_t>(this->m_entries.size()), this->m_repairedCount, this->m_repairedSize);
     }
 
     for (std::map<RepairKey, RepairEntry>::iterator it = this->m_entries.begin(); it != this->m_entries.end(); ++it) {
@@ -103,7 +103,7 @@ Blizzard::Repair::RepairCache::RepairCache() {
     this->m_repairedCount = 0;
     this->m_repairedSize = 0;
 
-    if (Blizzard::File::Exists(this->m_headPath) == 1) {
+    if (Blizzard::File::Exists(this->m_headPath) == EXISTENCE_FILE) {
         Blizzard::File::StreamRecord* file = nullptr;
 
         if (Blizzard::File::Open(this->m_headPath, 0x1001, file)) {

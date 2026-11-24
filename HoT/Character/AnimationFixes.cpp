@@ -9,12 +9,13 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/AnimationDataRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
+#include "WoW/Source/Object/Types.h"
 
 namespace HoT::Animation {
 
 static const int32_t ANIM_NONE = 506;
-static const int32_t SPELL_AURA_MONK_ANIMS = 336;
 static const uint8_t CLASS_MONK = 10;
 static const uint32_t ROOT_BONE = 0xFFFFFFFF;
 static const uint32_t ANY_VARIATION = 0xFFFFFFFF;
@@ -24,9 +25,6 @@ static const uint32_t MOVE_DIRECTIONAL = 0x0000000F;
 static const uint32_t MOVE_FALLING = 0x00003000;
 static const uint32_t MOVE_SWIMMING = 0x00200000;
 static const uint32_t MOVE_FLYING = 0x02000000;
-
-static const int32_t ANIM_TIER_SWIM = 1;
-static const int32_t ANIM_TIER_FLY = 3;
 
 enum AnimId : int32_t {
     ANIMATION_STAND = 0,

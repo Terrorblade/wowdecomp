@@ -19,6 +19,23 @@
 #include "WoW/Source/Ui/PartyFrame.h"
 #include "WoW/Source/Ui/TotemInfo.h"
 #include "WoW/Source/Ui/Types.h"
+#include "WoW/Source/Object/ObjectClient/Types.h"
+
+enum UNIT_TARGET_TYPE : int32_t {
+    UNIT_TARGET_ANY           = 0,
+    UNIT_TARGET_ENEMY         = 1,
+    UNIT_TARGET_ENEMY_PLAYER  = 2,
+    UNIT_TARGET_FRIEND        = 3,
+    UNIT_TARGET_FRIEND_PLAYER = 4,
+    UNIT_TARGET_PARTY_MEMBER  = 5,
+    UNIT_TARGET_RAID_MEMBER   = 6,
+};
+
+enum BLOCKED_ACTION_TYPE : uint32_t {
+    BLOCKED_ACTION_FORBIDDEN = 0,
+    BLOCKED_ACTION_BLOCKED = 1,
+    BLOCKED_ACTION_BLOCKED_IN_COMBAT = 2,
+};
 
 class CGUnit_C;
 class CGItem_C;
@@ -129,6 +146,12 @@ class SE2SoundKitObject;
 class CM2Model;
 class CinematicCameraRec;
 class CinematicSequencesRec;
+
+enum END_REFUND_TYPE : int32_t {
+    END_REFUND_TYPE_ITEM_SPELL = 1,
+    END_REFUND_TYPE_SOCKET = 2,
+};
+
 struct CinematicInfo {
     /* 0000 */ CinematicSequencesRec* m_sequence;
     /* 0004 */ SE2SoundKitObject m_music;
@@ -245,7 +268,7 @@ class CGGameUI {
     static uint32_t m_lastRegenTime;
     static WOWGUID m_comboTarget;
     static uint16_t m_accountDataGeneration;
-    static TotemInfo m_totems[4];
+    static TotemInfo m_totems[MAX_TOTEMS];
     static MirrorTimerInfo m_mirrorTimerInfo[NUM_UNIT_MIRROR_TIMERS];
     static MirrorTimerInfo* MirrorTimerGetInfo(uint32_t index);
     static uint32_t GetInstanceDifficulty();
@@ -559,6 +582,12 @@ extern CVar* g_chatBubblesCVar;
 extern CVar* g_chatBubblesPartyCVar;
 
 void UpdateInstanceOwnershipPacket(int32_t owns);
+
+enum UI_MODEL_UPDATE_FLAGS : uint32_t {
+    UI_MODEL_UPDATE_MODEL = 0x1,
+    UI_MODEL_UPDATE_PORTRAIT = 0x2,
+    UI_MODEL_UPDATE_ALL = 0x3,
+};
 
 void UpdateModelForUI(const WOWGUID& guid, uint32_t flags);
 

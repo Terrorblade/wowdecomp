@@ -312,13 +312,13 @@ void PlayerSignalSkillStatChanges() {
         SkillLineRec* rec = g_skillLineDB.GetRecord(skillId);
         const SkillRaceClassInfoRec* info = SpellTableLookupInfo(player->m_unit->m_unitFieldBytes0[0], player->m_unit->m_unitFieldBytes0[1], skillId);
 
-        if (!rec || !info || !g_skillLineCategoryDB.GetRecord(rec->m_categoryID) || (info->m_flags & 2)) {
+        if (!rec || !info || !g_skillLineCategoryDB.GetRecord(rec->m_categoryID) || (info->m_flags & SKILL_RACE_CLASS_FLAG_HIDDEN)) {
             continue;
         }
 
         uint16_t rank = data->m_playerSkillInfo[i].m_rank;
 
-        if (!(info->m_flags & 1) && !rank && (!(info->m_flags & 4) || static_cast<int32_t>(player->m_unit->m_unitFieldLevel) < info->m_minLevel)) {
+        if (!(info->m_flags & SKILL_RACE_CLASS_FLAG_SHOW_UNLEARNED) && !rank && (!(info->m_flags & SKILL_RACE_CLASS_FLAG_SHOW_AT_MIN_LEVEL) || static_cast<int32_t>(player->m_unit->m_unitFieldLevel) < info->m_minLevel)) {
             continue;
         }
 

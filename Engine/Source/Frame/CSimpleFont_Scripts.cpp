@@ -11,6 +11,7 @@
 #include "Engine/Source/FrameXML/LoadXML.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
+#include "Engine/Source/Services/Types.h"
 
 // Attribute updates recurse down the font object chain, so a deeper chain would overflow the C stack.
 static bool CSimpleFont_ChainTooDeep(CSimpleFont* parent, CSimpleFont* font) {
@@ -97,12 +98,12 @@ static int32_t CSimpleFont_SetAlpha(const char* name, CSimpleFont* font, lua_Sta
 
     uint8_t alpha = static_cast<uint8_t>(static_cast<int64_t>(lua_tonumber(L, 2) * 255.0));
 
-    if (alpha != font->m_attributes.m_color.a || !(font->m_attributes.m_flags & 0x400)) {
-        font->m_attributes.m_flags |= 0x404;
+    if (alpha != font->m_attributes.m_color.a || !(font->m_attributes.m_flags & FLAG_COLOR_PRESENT)) {
+        font->m_attributes.m_flags |= FLAG_COLOR_PRESENT | FLAG_COLOR_UPDATE;
         font->m_attributes.m_color.a = alpha;
     }
 
-    font->m_fontableFlags &= ~0x4u;
+    font->m_fontableFlags &= ~FLAG_COLOR_UPDATE;
     font->UpdateObjects();
 
     return 0;
@@ -200,7 +201,7 @@ int32_t CSimpleFont_SetFont(const char* name, CSimpleFont* font, lua_State* L) {
     }
 
     if (font && font->m_attributes.SetFont(fontName, fontHeight, fontFlags)) {
-        font->m_fontableFlags &= ~0x1u;
+        font->m_fontableFlags &= ~FLAG_FONT_UPDATE;
         font->UpdateObjects();
         lua_pushnumber(L, 1.0);
     } else {
@@ -227,12 +228,12 @@ int32_t CSimpleFont_SetTextColor(const char* name, CSimpleFont* font, lua_State*
     CImVector color;
     FrameScript_GetColor(L, 2, color);
 
-    if (*reinterpret_cast<uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&font->m_attributes.m_color) || !(font->m_attributes.m_flags & 0x400)) {
+    if (*reinterpret_cast<uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&font->m_attributes.m_color) || !(font->m_attributes.m_flags & FLAG_COLOR_PRESENT)) {
         font->m_attributes.m_color = color;
-        font->m_attributes.m_flags |= 0x404;
+        font->m_attributes.m_flags |= FLAG_COLOR_PRESENT | FLAG_COLOR_UPDATE;
     }
 
-    font->m_fontableFlags &= ~0x4u;
+    font->m_fontableFlags &= ~FLAG_COLOR_UPDATE;
     font->UpdateObjects();
 
     return 0;
@@ -256,12 +257,12 @@ int32_t CSimpleFont_SetShadowColor(const char* name, CSimpleFont* font, lua_Stat
     CImVector color;
     FrameScript_GetColor(L, 2, color);
 
-    if (*reinterpret_cast<uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&font->m_attributes.m_shadowColor) || !(font->m_attributes.m_flags & 0x800)) {
+    if (*reinterpret_cast<uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&font->m_attributes.m_shadowColor) || !(font->m_attributes.m_flags & FLAG_SHADOW_PRESENT)) {
         font->m_attributes.m_shadowColor = color;
-        font->m_attributes.m_flags |= 0x808;
+        font->m_attributes.m_flags |= FLAG_SHADOW_PRESENT | FLAG_SHADOW_UPDATE;
     }
 
-    font->m_fontableFlags &= ~0x8u;
+    font->m_fontableFlags &= ~FLAG_SHADOW_UPDATE;
     font->UpdateObjects();
 
     return 0;
@@ -295,7 +296,7 @@ int32_t CSimpleFont_SetShadowOffset(const char* name, CSimpleFont* font, lua_Sta
     offset.y = NDCToDDCWidth(y / (CoordinateGetAspectCompensation() * 1024.0f));
     font->m_attributes.SetShadowOffset(offset);
 
-    font->m_fontableFlags &= ~0x8u;
+    font->m_fontableFlags &= ~FLAG_SHADOW_UPDATE;
     font->UpdateObjects();
 
     return 0;
@@ -319,12 +320,12 @@ int32_t CSimpleFont_SetSpacing(const char* name, CSimpleFont* font, lua_State* L
         float value = static_cast<float>(lua_tonumber(L, 2));
         float spacing = NDCToDDCWidth(value / (CoordinateGetAspectCompensation() * 1024.0f));
 
-        if (!(fabsf(spacing - font->m_attributes.m_spacing) < 0.00000023841858f) || !(font->m_attributes.m_flags & 0x1000)) {
-            font->m_attributes.m_flags |= 0x1010;
+        if (!(fabsf(spacing - font->m_attributes.m_spacing) < 0.00000023841858f) || !(font->m_attributes.m_flags & FLAG_SPACING_PRESENT)) {
+            font->m_attributes.m_flags |= FLAG_SPACING_PRESENT | FLAG_SPACING_UPDATE;
             font->m_attributes.m_spacing = spacing;
         }
 
-        font->m_fontableFlags &= ~0x10u;
+        font->m_fontableFlags &= ~FLAG_SPACING_UPDATE;
         font->UpdateObjects();
         return 0;
     }
@@ -345,7 +346,7 @@ int32_t CSimpleFont_GetSpacing(const char* name, CSimpleFont* font, lua_State* L
 // VERIFY: 52a27fbd auto
 // OFFSET: 0x004A4080
 int32_t CSimpleFont_GetJustifyH(const char* name, CSimpleFont* font, lua_State* L) {
-    lua_pushstring(L, JustifyToString(font->m_attributes.m_styleFlags & 0x7));
+    lua_pushstring(L, JustifyToString(font->m_attributes.m_styleFlags & TEXTBLOCK_JUSTIFY_H_MASK));
 
     return 1;
 }
@@ -353,7 +354,7 @@ int32_t CSimpleFont_GetJustifyH(const char* name, CSimpleFont* font, lua_State* 
 // VERIFY: 8b90d006 auto
 // OFFSET: 0x004A40B0
 int32_t CSimpleFont_GetJustifyV(const char* name, CSimpleFont* font, lua_State* L) {
-    lua_pushstring(L, JustifyToString(font->m_attributes.m_styleFlags & 0x38));
+    lua_pushstring(L, JustifyToString(font->m_attributes.m_styleFlags & TEXTBLOCK_JUSTIFY_V_MASK));
 
     return 1;
 }
@@ -361,7 +362,7 @@ int32_t CSimpleFont_GetJustifyV(const char* name, CSimpleFont* font, lua_State* 
 // VERIFY: 5d813183 auto
 // OFFSET: 0x004A40E0
 int32_t CSimpleFont_GetIndentedWordWrap(const char* name, CSimpleFont* font, lua_State* L) {
-    if (font->m_attributes.m_styleFlags & 0x20000) {
+    if (font->m_attributes.m_styleFlags & TEXTBLOCK_INDENTED) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -380,10 +381,10 @@ int32_t CSimpleFont_SetJustifyH(const char* name, CSimpleFont* font, lua_State* 
         return 0;
     }
 
-    uint32_t styleFlags = (font->m_attributes.m_styleFlags & ~0x7u) | (justify & 0x7);
+    uint32_t styleFlags = (font->m_attributes.m_styleFlags & ~TEXTBLOCK_JUSTIFY_H_MASK) | (justify & TEXTBLOCK_JUSTIFY_H_MASK);
 
-    if (styleFlags != font->m_attributes.m_styleFlags || !(font->m_attributes.m_flags & 0x200)) {
-        font->m_attributes.m_flags |= 0x202;
+    if (styleFlags != font->m_attributes.m_styleFlags || !(font->m_attributes.m_flags & FLAG_STYLE_PRESENT)) {
+        font->m_attributes.m_flags |= FLAG_STYLE_PRESENT | FLAG_STYLE_UPDATE;
         font->m_attributes.m_styleFlags = styleFlags;
     }
 
@@ -403,10 +404,10 @@ int32_t CSimpleFont_SetJustifyV(const char* name, CSimpleFont* font, lua_State* 
         return 0;
     }
 
-    uint32_t styleFlags = (font->m_attributes.m_styleFlags & ~0x38u) | (justify & 0x38);
+    uint32_t styleFlags = (font->m_attributes.m_styleFlags & ~TEXTBLOCK_JUSTIFY_V_MASK) | (justify & TEXTBLOCK_JUSTIFY_V_MASK);
 
-    if (styleFlags != font->m_attributes.m_styleFlags || !(font->m_attributes.m_flags & 0x200)) {
-        font->m_attributes.m_flags |= 0x202;
+    if (styleFlags != font->m_attributes.m_styleFlags || !(font->m_attributes.m_flags & FLAG_STYLE_PRESENT)) {
+        font->m_attributes.m_flags |= FLAG_STYLE_PRESENT | FLAG_STYLE_UPDATE;
         font->m_attributes.m_styleFlags = styleFlags;
     }
 
@@ -420,10 +421,10 @@ int32_t CSimpleFont_SetJustifyV(const char* name, CSimpleFont* font, lua_State* 
 // OFFSET: 0x004A4A50
 int32_t CSimpleFont_SetIndentedWordWrap(const char* name, CSimpleFont* font, lua_State* L) {
     int32_t indented = StringToBOOL(L, 2, 1);
-    uint32_t styleFlags = indented ? font->m_attributes.m_styleFlags | 0x20000 : font->m_attributes.m_styleFlags & ~0x20000u;
+    uint32_t styleFlags = indented ? font->m_attributes.m_styleFlags | TEXTBLOCK_INDENTED : font->m_attributes.m_styleFlags & ~TEXTBLOCK_INDENTED;
 
-    if (styleFlags != font->m_attributes.m_styleFlags || !(font->m_attributes.m_flags & 0x200)) {
-        font->m_attributes.m_flags |= 0x202;
+    if (styleFlags != font->m_attributes.m_styleFlags || !(font->m_attributes.m_flags & FLAG_STYLE_PRESENT)) {
+        font->m_attributes.m_flags |= FLAG_STYLE_PRESENT | FLAG_STYLE_UPDATE;
         font->m_attributes.m_styleFlags = styleFlags;
     }
 

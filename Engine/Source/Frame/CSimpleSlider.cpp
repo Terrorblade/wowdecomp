@@ -340,7 +340,7 @@ int32_t CSimpleSlider::OnLayerTrackUpdate(const CMouseEvent& evt) {
 // VERIFY: 4a17f296 auto
 // OFFSET: 0x0096C400
 int32_t CSimpleSlider::OnLayerMouseDown(const CMouseEvent& evt, const char* btn) {
-    if (!(this->m_frameFlags & 0x400)) {
+    if (!(this->m_frameFlags & CSimpleFrame::FRAME_DISABLED)) {
         this->m_buttonDown = 1;
         this->OnLayerTrackUpdate(evt);
     }

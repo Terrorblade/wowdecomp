@@ -113,7 +113,7 @@ static int32_t Script_CanWithdrawGuildBankMoney(lua_State* L) {
     if (player && player->m_player->m_playerGuildid) {
         const GuildRankInfo& rank = CGGuildInfo::GetRankInfo(player->m_player->m_playerGuildrank);
 
-        if (rank.m_bankMoneyPerDay && (rank.m_rights & 0x80000)) {
+        if (rank.m_bankMoneyPerDay && (rank.m_rights & GUILD_RIGHT_WITHDRAW_BANK_MONEY)) {
             lua_pushnumber(L, 1.0);
             return 1;
         }
@@ -230,13 +230,13 @@ static int32_t Script_GetGuildBankMoneyTransaction(lua_State* L) {
         return 0;
     }
 
-    if (entry->m_type == 4) {
+    if (entry->m_type == GUILD_BANK_LOG_DEPOSIT_MONEY) {
         lua_pushstring(L, "deposit");
-    } else if (entry->m_type == 5) {
+    } else if (entry->m_type == GUILD_BANK_LOG_WITHDRAW_MONEY) {
         lua_pushstring(L, "withdraw");
-    } else if (entry->m_type == 8) {
+    } else if (entry->m_type == GUILD_BANK_LOG_WITHDRAW_MONEY_FOR_TAB) {
         lua_pushstring(L, "withdrawForTab");
-    } else if (entry->m_type == 9) {
+    } else if (entry->m_type == GUILD_BANK_LOG_BUY_TAB) {
         lua_pushstring(L, "buyTab");
     } else {
         lua_pushstring(L, "repair");
@@ -517,7 +517,7 @@ static int32_t Script_SplitGuildBankItem(lua_State* L) {
 
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (!player || (!CGGameUI::m_hasControl && !(player->m_unit->m_unitFieldFlags & 0x100000))) {
+    if (!player || (!CGGameUI::m_hasControl && !(player->m_unit->m_unitFieldFlags & UNIT_FLAG_ON_TAXI))) {
         return 0;
     }
 
@@ -618,13 +618,13 @@ static int32_t Script_GetGuildBankTabInfo(lua_State* L) {
     uint32_t rank = player->m_player->m_playerGuildrank;
     uint8_t rights = CGGuildInfo::GetGuildBankTabPermissionsByRankID(tab, rank);
 
-    if (rights & 1) {
+    if (rights & GUILDBANK_TAB_RIGHT_VIEW) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (rights & 2) {
+    if (rights & GUILDBANK_TAB_RIGHT_DEPOSIT) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -739,14 +739,14 @@ static int32_t Script_GetGuildBankTransaction(lua_State* L) {
     char type[16];
 
     switch (entry->m_type) {
-        case 1:
+        case GUILD_BANK_LOG_DEPOSIT_ITEM:
             SStrCopy(type, "deposit", STORM_MAX_STR);
             break;
-        case 2:
+        case GUILD_BANK_LOG_WITHDRAW_ITEM:
             SStrCopy(type, "withdraw", STORM_MAX_STR);
             break;
-        case 3:
-        case 7:
+        case GUILD_BANK_LOG_MOVE_ITEM:
+        case GUILD_BANK_LOG_MOVE_ITEM_FROM_TAB:
             SStrCopy(type, "move", STORM_MAX_STR);
             break;
         default:
@@ -774,10 +774,10 @@ static int32_t Script_GetGuildBankTransaction(lua_State* L) {
 
     lua_pushnumber(L, entry->m_count);
 
-    if (entry->m_type == 3) {
+    if (entry->m_type == GUILD_BANK_LOG_MOVE_ITEM) {
         lua_pushnumber(L, tab + 1);
         lua_pushnumber(L, entry->m_otherTab + 1);
-    } else if (entry->m_type == 7) {
+    } else if (entry->m_type == GUILD_BANK_LOG_MOVE_ITEM_FROM_TAB) {
         lua_pushnumber(L, entry->m_otherTab + 1);
         lua_pushnumber(L, tab + 1);
     } else {
@@ -824,7 +824,7 @@ static int32_t Script_SetGuildBankText(lua_State* L) {
     scrubbed[0] = '\0';
 
     if (text && *text) {
-        ScrubString(text, scrubbed, 2048, 8192, 0);
+        ScrubString(text, scrubbed, 2048, 8192, SCRUB_FLAG_NONE);
     }
 
     CGGuildBankInfo::SetGuildBankText(tab, scrubbed);

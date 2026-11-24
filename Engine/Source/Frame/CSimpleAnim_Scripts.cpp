@@ -18,10 +18,10 @@ void ReadOrigin(lua_State* L, int32_t index, FRAMEPOINT& point, C2Vector& offset
         point = FRAMEPOINT_CENTER;
     }
 
-    float x = lua_tonumber(L, index + 1);
+    float x = static_cast<float>(lua_tonumber(L, index + 1));
     offset.x = NDCToDDCWidth(x / (CoordinateGetAspectCompensation() * 1024.0f));
 
-    float y = lua_tonumber(L, index + 2);
+    float y = static_cast<float>(lua_tonumber(L, index + 2));
     offset.y = NDCToDDCWidth(y / (CoordinateGetAspectCompensation() * 1024.0f));
 }
 
@@ -61,7 +61,7 @@ static int32_t Script_IsDone(lua_State* L) {
 // OFFSET: 0x004A5060
 static int32_t Script_IsPlaying(lua_State* L) {
     CSimpleAnim* anim = static_cast<CSimpleAnim*>(FrameScript_GetObjectThis(L, CSimpleAnim::GetObjectType()));
-    lua_pushboolean(L, anim->m_playState == 1);
+    lua_pushboolean(L, anim->m_playState == CSimpleAnim::STATE_PLAYING);
     return 1;
 }
 
@@ -69,7 +69,7 @@ static int32_t Script_IsPlaying(lua_State* L) {
 // OFFSET: 0x004A50B0
 static int32_t Script_IsPaused(lua_State* L) {
     CSimpleAnim* anim = static_cast<CSimpleAnim*>(FrameScript_GetObjectThis(L, CSimpleAnim::GetObjectType()));
-    lua_pushboolean(L, anim->m_playState == 2);
+    lua_pushboolean(L, anim->m_playState == CSimpleAnim::STATE_PAUSED);
     return 1;
 }
 
@@ -77,7 +77,7 @@ static int32_t Script_IsPaused(lua_State* L) {
 // OFFSET: 0x004A5100
 static int32_t Script_IsStopped(lua_State* L) {
     CSimpleAnim* anim = static_cast<CSimpleAnim*>(FrameScript_GetObjectThis(L, CSimpleAnim::GetObjectType()));
-    lua_pushboolean(L, anim->m_playState == 0);
+    lua_pushboolean(L, anim->m_playState == CSimpleAnim::STATE_STOPPED);
     return 1;
 }
 
@@ -100,7 +100,7 @@ static int32_t Script_SetStartDelay(lua_State* L) {
         return 0;
     }
 
-    anim->SetStartDelay(lua_tonumber(L, 2), true);
+    anim->SetStartDelay(static_cast<float>(lua_tonumber(L, 2)), true);
     return 0;
 }
 
@@ -123,7 +123,7 @@ static int32_t Script_SetEndDelay(lua_State* L) {
         return 0;
     }
 
-    anim->SetEndDelay(lua_tonumber(L, 2), true);
+    anim->SetEndDelay(static_cast<float>(lua_tonumber(L, 2)), true);
     return 0;
 }
 
@@ -146,7 +146,7 @@ static int32_t Script_SetDuration(lua_State* L) {
         return 0;
     }
 
-    anim->SetDuration(lua_tonumber(L, 2), true);
+    anim->SetDuration(static_cast<float>(lua_tonumber(L, 2)), true);
     return 0;
 }
 
@@ -177,7 +177,7 @@ static int32_t Script_SetSmoothProgress(lua_State* L) {
         return 0;
     }
 
-    anim->SetSmoothProgress(lua_tonumber(L, 2));
+    anim->SetSmoothProgress(static_cast<float>(lua_tonumber(L, 2)));
     return 0;
 }
 
@@ -208,7 +208,7 @@ static int32_t Script_SetMaxFramerate(lua_State* L) {
         return 0;
     }
 
-    anim->SetMaxFramerate(lua_tonumber(L, 2));
+    anim->SetMaxFramerate(static_cast<float>(lua_tonumber(L, 2)));
     return 0;
 }
 
@@ -245,7 +245,7 @@ static int32_t Script_SetOrder(lua_State* L) {
         return 0;
     }
 
-    anim->SetOrder(lua_tointeger(L, 2) - 1, true, false);
+    anim->SetOrder(static_cast<int32_t>(lua_tointeger(L, 2) - 1), true, false);
     return 0;
 }
 
@@ -340,7 +340,7 @@ static int32_t Script_SetParent(lua_State* L) {
     int32_t oldOrder = anim->m_order;
 
     if (lua_isnumber(L, 3)) {
-        anim->SetOrder(lua_tointeger(L, 3) - 1, false, false);
+        anim->SetOrder(static_cast<int32_t>(lua_tointeger(L, 3) - 1), false, false);
     } else {
         int32_t order = anim->m_order;
 

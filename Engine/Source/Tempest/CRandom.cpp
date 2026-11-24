@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include "Engine/Source/Tempest/CRandom.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x009F1700
 static const uint32_t s_rndTable[64] = {

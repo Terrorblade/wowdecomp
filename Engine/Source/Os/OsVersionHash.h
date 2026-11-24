@@ -28,6 +28,14 @@ class IOsVersionHashCallback2 : public IOsVersionHashCallback {
 };
 
 struct OsVersionHashEntry {
+
+    enum TYPE : uint32_t {
+        IMPORT_THUNKS = 0,
+        IMPORT_DESCRIPTOR = 1,
+        RELOCATION = 2,
+        ZEROES = 3
+    };
+
     /* 0000 */ uint32_t m_offset;
     /* 0004 */ uint32_t m_size;
     /* 0008 */ uint32_t m_type;

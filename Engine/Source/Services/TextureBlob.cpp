@@ -48,7 +48,7 @@ CTextureBlob::CTextureBlob() {
 // OFFSET: 0x004BFE70
 const uint8_t* CTextureBlobTexture::GetLevel(uint32_t level) {
     SBlobTexture* texture = this->m_texture;
-    int32_t shift = texture->m_format & 0xF ? 0 : 1;
+    int32_t shift = texture->m_format & SBlobTexture::ENCODING_MASK ? 0 : 1;
     uint32_t width = texture->m_width;
     uint32_t height = texture->m_height;
     const uint8_t* data = this->m_blob->m_levelData + texture->m_dataOffset + 8;
@@ -127,7 +127,7 @@ void CTextureBlob::RemoveTextures() {
             s_textureBlobTextureHash.Delete(blobTexture);
         }
 
-        texture->m_levels &= ~0x80;
+        texture->m_levels &= ~SBlobTexture::LEVELS_DUPLICATE_NAME;
     }
 }
 
@@ -196,7 +196,7 @@ int32_t CTextureBlob::CreateTexture(CTexture* texture, CTextureBlobTexture* blob
     texture->m_alphaBits = blobTexture->m_texture->m_format >> 4;
 
     if (!texture->m_alphaBits) {
-        texture->m_flags |= 1;
+        texture->m_flags |= CTexture::IS_OPAQUE;
     }
 
     uint32_t width = blobTexture->m_texture->m_width;
@@ -205,8 +205,8 @@ int32_t CTextureBlob::CreateTexture(CTexture* texture, CTextureBlobTexture* blob
 
     PIXEL_FORMAT pixelFormat;
     EGxTexFormat gxTexFormat;
-    uint32_t encoding = blobTexture->m_texture->m_format & 0xF;
-    TextureGetTextureFormats(pixelFormat, gxTexFormat, encoding == 1 ? PIXEL_DXT3 : encoding == 2 ? PIXEL_DXT5 : PIXEL_DXT1, texture->m_alphaBits);
+    uint32_t encoding = blobTexture->m_texture->m_format & SBlobTexture::ENCODING_MASK;
+    TextureGetTextureFormats(pixelFormat, gxTexFormat, encoding == SBlobTexture::ENCODING_DXT3 ? PIXEL_DXT3 : encoding == SBlobTexture::ENCODING_DXT5 ? PIXEL_DXT5 : PIXEL_DXT1, texture->m_alphaBits);
 
     EGxTexTarget target = GxTex_2d;
 
@@ -215,8 +215,8 @@ int32_t CTextureBlob::CreateTexture(CTexture* texture, CTextureBlobTexture* blob
         width /= 6;
     }
 
-    encoding = blobTexture->m_texture->m_format & 0xF;
-    EGxTexFormat dataFormat = TexturePixelFormatToGxTexFormat(encoding == 1 ? PIXEL_DXT3 : encoding == 2 ? PIXEL_DXT5 : PIXEL_DXT1);
+    encoding = blobTexture->m_texture->m_format & SBlobTexture::ENCODING_MASK;
+    EGxTexFormat dataFormat = TexturePixelFormatToGxTexFormat(encoding == SBlobTexture::ENCODING_DXT3 ? PIXEL_DXT3 : encoding == SBlobTexture::ENCODING_DXT5 ? PIXEL_DXT5 : PIXEL_DXT1);
     texture->m_gxTexFormat = gxTexFormat;
     texture->m_dataFormat = dataFormat;
     texture->m_gxTexTarget = target;
@@ -250,7 +250,7 @@ void CTextureBlob::HashTexture(SBlobTexture* texture) {
     key.m_filename = name;
 
     if (s_textureBlobTextureHash.Ptr(hash, key)) {
-        texture->m_levels |= 0x80;
+        texture->m_levels |= SBlobTexture::LEVELS_DUPLICATE_NAME;
         return;
     }
 
@@ -282,7 +282,7 @@ int32_t CTextureBlob::Load(const char* fileName) {
         return 0;
     }
 
-    CTextureBlob* blob = s_textureBlobList.NewNode(2, 0, 0);
+    CTextureBlob* blob = s_textureBlobList.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     SStrCopy(blob->m_filename, fileName, STORM_MAX_STR);
 
     uint32_t size = SFileGetFileSize(file, nullptr);

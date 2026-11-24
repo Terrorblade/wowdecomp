@@ -13,7 +13,7 @@ PendingSpellCastData::PendingSpellCastData() {
     this->unused_0010 = 0;
     this->unused_0014 = 0;
     this->m_spellId = 0;
-    this->m_targetFlags = 0;
+    this->m_targetFlags = TARGET_FLAG_NONE;
     this->m_objectTarget = WOWGUID{ 0 };
     this->m_itemTarget = WOWGUID{ 0 };
     this->unk_0038 = WOWGUID{ 0 };
@@ -34,7 +34,7 @@ PendingSpellCastData::PendingSpellCastData() {
     this->unused_0088 = 0;
     this->unused_008C = 0;
     this->unused_0110 = 0;
-    this->m_castFlags = 0;
+    this->m_castFlags = CAST_NONE;
     this->unused_0118 = 0;
     this->m_glyphSlot = 0;
 }
@@ -56,19 +56,19 @@ C3Vector PendingSpellCastData::GetDestLocation() const {
 void PendingSpellCastData::WriteTargetInfo(const PendingSpellCastData* data, CDataStore* msg) {
     msg->Put(data->m_targetFlags);
 
-    if (data->m_targetFlags & 0x18A02) {
+    if (data->m_targetFlags & TARGET_FLAG_OBJECT_GUID_MASK) {
         SmartGUID guid;
         guid.m_guid = data->m_objectTarget.m_guid;
         *msg << guid;
     }
 
-    if (data->m_targetFlags & 0x1010) {
+    if (data->m_targetFlags & TARGET_FLAG_ITEM_GUID_MASK) {
         SmartGUID guid;
         guid.m_guid = data->m_itemTarget.m_guid;
         *msg << guid;
     }
 
-    if (data->m_targetFlags & 0x20) {
+    if (data->m_targetFlags & TARGET_FLAG_SOURCE_LOCATION) {
         SmartGUID guid;
         guid.m_guid = data->m_sourceTarget.m_guid;
         *msg << guid;
@@ -77,7 +77,7 @@ void PendingSpellCastData::WriteTargetInfo(const PendingSpellCastData* data, CDa
         msg->Put(data->m_sourcePos.z);
     }
 
-    if (data->m_targetFlags & 0x40) {
+    if (data->m_targetFlags & TARGET_FLAG_DEST_LOCATION) {
         SmartGUID guid;
         guid.m_guid = data->m_destTarget.m_guid;
         *msg << guid;
@@ -86,7 +86,7 @@ void PendingSpellCastData::WriteTargetInfo(const PendingSpellCastData* data, CDa
         msg->Put(data->m_destPos.z);
     }
 
-    if (data->m_targetFlags & 0x2000) {
+    if (data->m_targetFlags & TARGET_FLAG_STRING) {
         msg->PutArray(reinterpret_cast<const uint8_t*>(data->m_targetString), sizeof(data->m_targetString));
     }
 }
@@ -97,17 +97,17 @@ void SpellGetCastTargets(PendingSpellCastData* data, CDataStore* msg) {
     msg->Get(data->m_targetFlags);
     SmartGUID guid;
 
-    if (data->m_targetFlags & 0x18A02) {
+    if (data->m_targetFlags & TARGET_FLAG_OBJECT_GUID_MASK) {
         *msg >> guid;
         data->m_objectTarget = guid;
     }
 
-    if (data->m_targetFlags & 0x1010) {
+    if (data->m_targetFlags & TARGET_FLAG_ITEM_GUID_MASK) {
         *msg >> guid;
         data->m_itemTarget = guid;
     }
 
-    if (data->m_targetFlags & 0x20) {
+    if (data->m_targetFlags & TARGET_FLAG_SOURCE_LOCATION) {
         *msg >> guid;
         data->m_sourceTarget = guid;
         msg->Get(data->m_sourcePos.x);
@@ -115,7 +115,7 @@ void SpellGetCastTargets(PendingSpellCastData* data, CDataStore* msg) {
         msg->Get(data->m_sourcePos.z);
     }
 
-    if (data->m_targetFlags & 0x40) {
+    if (data->m_targetFlags & TARGET_FLAG_DEST_LOCATION) {
         *msg >> guid;
         data->m_destTarget = guid;
         msg->Get(data->m_destPos.x);
@@ -123,7 +123,7 @@ void SpellGetCastTargets(PendingSpellCastData* data, CDataStore* msg) {
         msg->Get(data->m_destPos.z);
     }
 
-    if (data->m_targetFlags & 0x2000) {
+    if (data->m_targetFlags & TARGET_FLAG_STRING) {
         msg->GetArray(reinterpret_cast<uint8_t*>(data->m_targetString), sizeof(data->m_targetString));
     }
 }

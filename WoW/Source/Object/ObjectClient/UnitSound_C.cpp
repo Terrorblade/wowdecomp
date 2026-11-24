@@ -16,6 +16,7 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "WoW/Common/Types.h"
 
 // STATIC: 0x00ADB5D8
 static const uint32_t s_unitSoundChance[NUM_UNITSOUNDTYPES] = { 70, 100, 60, 100, 100, 40, 100, 100, 100, 100, 100, 100, 100, 0 };
@@ -30,7 +31,7 @@ static uint32_t s_lastStandSoundTime;
 static TSFixedArray<DEATTHUDSOUNDINFO> s_deathThudSounds[5];
 
 // STATIC: 0x00ADB630
-static const float s_attachmentHeights[50] = { 1.0f, 1.0f, 1.0f, 1.5f, 1.5f, 1.8f, 1.8f, 0.5f, 0.5f, 1.0f, 1.0f, 2.0f, 1.5f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 2.5f, 0.0f, 2.0f, 1.5f, 1.5f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 3.0f, 1.5f, 1.5f, 1.0f, 1.0f, 1.5f, 1.0f, 1.0f, 2.5f, 1.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+static const float s_attachmentHeights[NUM_ATTACH_SLOTS] = { 1.0f, 1.0f, 1.0f, 1.5f, 1.5f, 1.8f, 1.8f, 0.5f, 0.5f, 1.0f, 1.0f, 2.0f, 1.5f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 2.5f, 0.0f, 2.0f, 1.5f, 1.5f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 3.0f, 1.5f, 1.5f, 1.0f, 1.0f, 1.5f, 1.0f, 1.0f, 2.5f, 1.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
 
 // STATIC: 0x00ADB674
 static float s_emoteSoundHeight = 2.0f;
@@ -68,7 +69,7 @@ void CGUnit_C::SetImpactKitEffect(bool offhand, const ATTACKROUNDINFO* info, con
 
     if (parry) {
         int32_t self = s_activeMover == info->m_attacker || s_activeMover == info->m_target;
-        SI2::PlayParrySound(weapon, parry, info->m_hitInfo & 0x200, position, self);
+        SI2::PlayParrySound(weapon, parry, info->m_hitInfo & HIT_INFO_FLAG_CRITICAL, position, self);
     }
 }
 
@@ -77,7 +78,7 @@ void CGUnit_C::SetImpactKitEffect(bool offhand, const ATTACKROUNDINFO* info, con
 void UnitSoundInitialize() {
     UnitSoundLoadDeathThuds();
 
-    s_cvFootstepSounds = CVar::Register("FootstepSounds", nullptr, 0, "1", nullptr, 5, false, nullptr, false);
+    s_cvFootstepSounds = CVar::Register("FootstepSounds", nullptr, CVAR_NONE, "1", nullptr, 5, false, nullptr, false);
     s_lastStandSoundTime = FrameTime::s_curTimeMs;
 
     for (int32_t i = 0; i < g_soundEntriesDB.m_numRecords; i++) {
@@ -201,7 +202,7 @@ void CGUnit_C::PlayDeathThud() {
     if (!soundKitId) {
         int32_t defaults[5] = { 907, 912, 917, 922, 927 };
         soundKitId = defaults[size];
-        SysMsgPrintf(SYSMSG_WARNING, 2, "INVALID DEATH THUD SOUND: DEFAULTING TO ID %d", soundKitId);
+        SysMsgPrintf(SYSMSG_WARNING, SYSMSG_FILTER_WORLD, "INVALID DEATH THUD SOUND: DEFAULTING TO ID %d", soundKitId);
     }
 
     SI2::PlaySoundKit(soundKitId, &position, nullptr, nullptr, 0, nullptr, 1, 0);
@@ -211,28 +212,28 @@ void CGUnit_C::PlayDeathThud() {
 // OFFSET: 0x007471A0
 void CGUnit_C::HandlePlayStandSound(uint32_t eventId, int32_t unused_a3) {
     switch (eventId) {
-        case 0x31444624:
+        case PlayFidgetSound1_FD1:
             this->PlayFidgetSound(0);
             break;
-        case 0x32444624:
+        case PlayFidgetSound2_FD2:
             this->PlayFidgetSound(1);
             break;
-        case 0x33444624:
+        case PlayFidgetSound3_FD3:
             this->PlayFidgetSound(2);
             break;
-        case 0x34444624:
+        case PlayFidgetSound4_FD4:
             this->PlayFidgetSound(3);
             break;
-        case 0x35444624:
+        case PlayFidgetSound5_FD5:
             this->PlayFidgetSound(4);
             break;
-        case 0x36444624:
-        case 0x37444624:
-        case 0x38444624:
-        case 0x39444624:
+        case FidgetSound6_FD6:
+        case FidgetSound7_FD7:
+        case FidgetSound8_FD8:
+        case FidgetSound9_FD9:
             this->GetSoundData();
             break;
-        case 0x58444624:
+        case PlayStandSound_FDX:
             this->PlayStandSound();
             break;
     }
@@ -241,7 +242,7 @@ void CGUnit_C::HandlePlayStandSound(uint32_t eventId, int32_t unused_a3) {
 // VERIFY: 73f75c40 manual
 // OFFSET: 0x00747240
 void CGUnit_C::HandleFootfallAnimEvent(const C3Vector& position) {
-    if ((this->m_unit->m_unitFieldBytes1[2] & 0x2) || (this->m_movementData.m_flags & MOVEMENTFLAG_HOVER)) {
+    if ((this->m_unit->m_unitFieldBytes1[2] & UNIT_VIS_FLAG_CREEP) || (this->m_movementData.m_flags & MOVEMENTFLAG_HOVER)) {
         return;
     }
 
@@ -249,7 +250,7 @@ void CGUnit_C::HandleFootfallAnimEvent(const C3Vector& position) {
         return;
     }
 
-    if ((this->m_obj->m_type & TYPE_PLAYER) && (static_cast<CGPlayer_C*>(this)->m_player->m_playerFlags & 0x10)) {
+    if ((this->m_obj->m_type & TYPE_PLAYER) && (static_cast<CGPlayer_C*>(this)->m_player->m_playerFlags & PLAYER_FLAG_GHOST)) {
         return;
     }
 
@@ -297,14 +298,14 @@ void CGUnit_C::PlayUnitSound(UNITSOUNDTYPE soundType, int32_t force) {
             properties.m_volumeScale = 0.64999998f;
         }
 
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
         SI2::PlaySoundKit(soundKitId, listenerAtCharacter ? nullptr : &position, nullptr, &properties, 0, nullptr, 1, 0);
     } else {
         SE2SoundKitProperties properties;
         properties.ResetToDefaults();
 
         if (soundType == UNITSOUNDTYPE_WINGFLAP) {
-            properties.m_maxAudibleBehavior = 0;
+            properties.m_maxAudibleBehavior = SE2_MAX_AUDIBLE_MUTE;
         }
 
         properties.m_group = this->GetUnitSoundKitIndex(soundType);
@@ -328,11 +329,11 @@ bool CGUnit_C::GetWeaponSwingType(bool offhand, WEAPONSWING_SOUNDTYPES* swingTyp
 
     const CGUnitVirtualItem* item = this->GetVirtualItem(static_cast<VIRTUAL_MONSTER_SLOT>(offhand == false), false);
 
-    if (!item || item->m_classID != 2) {
+    if (!item || item->m_classID != ITEM_CLASS_WEAPON) {
         return false;
     }
 
-    const ItemSubClassRec* subClass = SDBItemSubclassGetSubClassRec(2, item->m_subclassID);
+    const ItemSubClassRec* subClass = SDBItemSubclassGetSubClassRec(ITEM_CLASS_WEAPON, item->m_subclassID);
 
     if (subClass) {
         *swingType = static_cast<WEAPONSWING_SOUNDTYPES>(subClass->m_weaponSwingSize);
@@ -376,7 +377,7 @@ void CGUnit_C::PlaySplashSound(const C3Vector* position) {
         }
     }
 
-    properties.m_group = 8;
+    properties.m_group = SI2_SOUND_GROUP_SPLASH;
     SI2::PlaySoundKit(this->m_splashSoundKitId, listenerAtCharacter ? nullptr : position, nullptr, &properties, 0, nullptr, 1, 0);
 }
 
@@ -421,7 +422,7 @@ void CGUnit_C::PlayAISound(int32_t soundKitId) {
         SE2SoundKitProperties properties;
         properties.ResetToDefaults();
         properties.m_volumeScale = 0.64999998f;
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
         SI2::PlaySoundKit(soundKitId, nullptr, &this->m_aiSound, &properties, 0, nullptr, 1, 0);
     } else {
         C3Vector position = this->GetPosition();
@@ -459,7 +460,7 @@ C3Vector CGUnit_C::GetAttachmentPosition(uint32_t attachId, const C3Vector* offs
         position = *offset;
     }
 
-    if (attachId <= 49) {
+    if (attachId <= (NUM_ATTACH_SLOTS - 1)) {
         position.z = s_attachmentHeights[attachId] + position.z;
     }
 
@@ -497,7 +498,7 @@ void CGUnit_C::PlayTextEmoteSound(uint32_t emote, uint32_t emoteNum) {
     if (this->IsShapeShifted()) {
         SpellShapeshiftFormRec* form = g_spellShapeshiftFormDB.GetRecord(this->GetShapeshiftForm());
 
-        if (form && (form->m_flags & 0x1000)) {
+        if (form && (form->m_flags & SPELL_SHAPESHIFT_FORM_FLAG_SUPPRESS_TEXT_EMOTE_SOUND)) {
             return;
         }
     }
@@ -561,7 +562,7 @@ void CGUnit_C::PlayFoleySound() {
 void CGUnit_C::CheckLoopSound() {
     CreatureSoundDataRec* soundData = this->GetSoundData();
 
-    if (this->m_unit->m_unitFieldHealth > 0 && !(this->m_unit->m_unitFieldFlags2 & 0x1) && soundData && soundData->m_loopSoundID && !SI2::IsPlaying(&this->m_loopSound)) {
+    if (this->m_unit->m_unitFieldHealth > 0 && !(this->m_unit->m_unitFieldFlags2 & UNIT_FLAG2_FEIGN_DEATH) && soundData && soundData->m_loopSoundID && !SI2::IsPlaying(&this->m_loopSound)) {
         C3Vector position = this->GetPosition();
 
         if (SI2::IsPlaying(&this->m_loopSound) || SI2::IsTooCloseToExistingSoundKit(soundData->m_loopSoundID, &position)) {
@@ -570,8 +571,8 @@ void CGUnit_C::CheckLoopSound() {
 
         SE2SoundKitProperties properties;
         properties.ResetToDefaults();
-        properties.m_loopMode = 1;
-        properties.m_maxAudibleBehavior = 0;
+        properties.m_loopMode = SE2_LOOP_MODE_LOOPING;
+        properties.m_maxAudibleBehavior = SE2_MAX_AUDIBLE_MUTE;
         properties.m_streaming = true;
         SI2::PlaySoundKit(soundData->m_loopSoundID, &position, &this->m_loopSound, &properties, 0, nullptr, 1, 0);
         SI2::AttachToObject(&this->m_loopSound, this->m_obj->m_guid);
@@ -587,15 +588,15 @@ int32_t CGUnit_C::GetUnitSoundKitIndex(UNITSOUNDTYPE soundType) const {
     switch (soundType) {
         case UNITSOUNDTYPE_EXERTION:
         case UNITSOUNDTYPE_EXERTIONCRITICAL:
-            return (this->m_creatureCacheEntry && (this->m_creatureCacheEntry->m_typeFlags & 0x20)) ? 15 : 9;
+            return (this->m_creatureCacheEntry && (this->m_creatureCacheEntry->m_typeFlags & CREATURE_TYPE_FLAG_MORE_AUDIBLE)) ? SI2_SOUND_GROUP_MORE_AUDIBLE_EXERTION : SI2_SOUND_GROUP_EXERTION;
 
         case UNITSOUNDTYPE_INJURY:
         case UNITSOUNDTYPE_INJURYCRITICAL:
         case UNITSOUNDTYPE_INJURYCRUSHINGBLOW:
-            return (this->m_creatureCacheEntry && (this->m_creatureCacheEntry->m_typeFlags & 0x20)) ? 16 : 11;
+            return (this->m_creatureCacheEntry && (this->m_creatureCacheEntry->m_typeFlags & CREATURE_TYPE_FLAG_MORE_AUDIBLE)) ? SI2_SOUND_GROUP_MORE_AUDIBLE_INJURY : SI2_SOUND_GROUP_INJURY;
 
         default:
-            return 0;
+            return SI2_SOUND_GROUP_SFX;
     }
 }
 
@@ -640,8 +641,8 @@ void CGUnit_C::PlayEmoteSound(int32_t soundKitId, bool checkCVars, int32_t fileI
     C3Vector position;
     CM2Model* model = this->m_worldModel;
 
-    if (model && model->IsLoaded(0, 0) && model->HasAttachment(17)) {
-        position = model->GetAttachmentPosition(17);
+    if (model && model->IsLoaded(0, 0) && model->HasAttachment(ATTACH_BREATH)) {
+        position = model->GetAttachmentPosition(ATTACH_BREATH);
     } else {
         C3Vector offset(0.0f, 0.0f, s_emoteSoundHeight);
         C3Vector base = this->m_vehiclePassenger ? this->GetModelPosition() : this->GetPosition();
@@ -651,17 +652,17 @@ void CGUnit_C::PlayEmoteSound(int32_t soundKitId, bool checkCVars, int32_t fileI
     SE2SoundKitProperties properties;
     properties.ResetToDefaults();
     properties.m_fileIndex = fileIndex;
-    properties.m_suppressorMode = 2;
+    properties.m_suppressorMode = SE2_SUPPRESSOR_MODE_HONOR;
 
     if (local) {
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
 
         if (atCharacter) {
             properties.m_volumeScale = 0.64999998f;
         }
     }
 
-    if (soundKitId != 6576 && this->m_unit->m_unitFieldBytes0[1] == 6) {
+    if (soundKitId != SOUND_ENTRY_ID_CLAP && this->m_unit->m_unitFieldBytes0[1] == CLASS_DEATH_KNIGHT) {
         properties.m_useDspChain = 1;
         SI2::DK_GetPlayerFilterName(this, properties.m_dspChainName, sizeof(properties.m_dspChainName));
     }
@@ -708,7 +709,7 @@ void CGUnit_C::PlayDismountSound() {
 // VERIFY: 82755190 auto
 // OFFSET: 0x007474B0
 void CGUnit_C::OnAiReaction(int32_t reaction) {
-    if (reaction == 4 && this->m_creatureCacheEntry && (this->m_creatureCacheEntry->m_typeFlags & 0x1000000)) {
+    if (reaction == AI_REACTION_SOUND_DEATH && this->m_creatureCacheEntry && (this->m_creatureCacheEntry->m_typeFlags & CREATURE_TYPE_FLAG_NO_DEATH_SCREAM)) {
         return;
     }
 
@@ -727,7 +728,7 @@ void CGUnit_C::OnAiReaction(int32_t reaction) {
     int32_t soundKitId;
 
     switch (this->m_reactionSoundPriority) {
-    case 0:
+    case AI_REACTION_SOUND_AGGRO:
         if (s_enablePetSounds && !s_enablePetSounds->m_intValue && this->m_unit->m_unitFieldPetnumber) {
             return;
         }
@@ -735,7 +736,7 @@ void CGUnit_C::OnAiReaction(int32_t reaction) {
         soundKitId = this->m_soundData->m_soundAggroID;
         break;
 
-    case 1:
+    case AI_REACTION_SOUND_PET_ORDER:
         if (s_enablePetSounds && !s_enablePetSounds->m_intValue && this->m_unit->m_unitFieldPetnumber) {
             return;
         }
@@ -743,7 +744,7 @@ void CGUnit_C::OnAiReaction(int32_t reaction) {
         soundKitId = this->m_soundData->m_soundPetOrderID;
         break;
 
-    case 2:
+    case AI_REACTION_SOUND_PET_ATTACK:
         if (s_enablePetSounds && !s_enablePetSounds->m_intValue && this->m_unit->m_unitFieldPetnumber) {
             return;
         }
@@ -751,7 +752,7 @@ void CGUnit_C::OnAiReaction(int32_t reaction) {
         soundKitId = this->m_soundData->m_soundPetAttackID;
         break;
 
-    case 4:
+    case AI_REACTION_SOUND_DEATH:
         soundKitId = this->m_soundData->m_soundDeathID;
         break;
 
@@ -759,7 +760,7 @@ void CGUnit_C::OnAiReaction(int32_t reaction) {
         return;
     }
 
-    C3Vector position = this->GetAttachmentPosition(17, nullptr);
+    C3Vector position = this->GetAttachmentPosition(ATTACH_BREATH, nullptr);
     static CVar* s_listenerAtCharacter = CVar::Lookup("Sound_ListenerAtCharacter");
     int32_t activeMover;
     int32_t listenerAtCharacter;
@@ -776,10 +777,10 @@ void CGUnit_C::OnAiReaction(int32_t reaction) {
     properties.ResetToDefaults();
 
     if (activeMover) {
-        properties.m_priority = 110;
+        properties.m_priority = SI2_PRIORITY_OBJECT;
         CGUnit_C* player = ClntObjMgrGetActivePlayerObj();
 
-        if (player && player->m_unit->m_unitFieldBytes0[1] == 6) {
+        if (player && player->m_unit->m_unitFieldBytes0[1] == CLASS_DEATH_KNIGHT) {
             properties.m_useDspChain = 1;
             SI2::DK_GetPlayerFilterName(player, properties.m_dspChainName, sizeof(properties.m_dspChainName));
         }

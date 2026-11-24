@@ -346,12 +346,12 @@ FMOD_RESULT OutputWavWriter_NRT::writeWavHeader()
         WAVE_FORMATEXTENSIBLE Fmt =
         {
             {
-                extensible ? WAVE_FORMAT_EXTENSIBLE : mFormat == FMOD_SOUND_FORMAT_PCMFLOAT ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM, 
-                mChannels, 
-                mRate, 
-                mRate * mChannels * mBits / 8, 
-                mChannels * mBits / 8, 
-                mBits,
+                static_cast<unsigned short>(extensible ? WAVE_FORMAT_EXTENSIBLE : mFormat == FMOD_SOUND_FORMAT_PCMFLOAT ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM), 
+                static_cast<unsigned short>(mChannels), 
+                static_cast<unsigned int>(mRate), 
+                static_cast<unsigned int>(mRate * mChannels * mBits / 8), 
+                static_cast<unsigned short>(mChannels * mBits / 8), 
+                static_cast<unsigned short>(mBits),
                 0
             },
             0
@@ -405,11 +405,11 @@ FMOD_RESULT OutputWavWriter_NRT::writeWavHeader()
 #endif
 
         int written = 0;
-        written = fwrite(&WavHeader, sizeof(WavHeader), 1, mFP);
-        written = fwrite("WAVE", 4, 1, mFP);
-        written = fwrite(&FmtHdr, sizeof(FmtHdr), 1, mFP);
-        written = fwrite(&Fmt, sizeof(Fmt), 1, mFP);
-        written = fwrite(&DataChunk, sizeof(DataChunk), 1, mFP);
+        written = static_cast<int>(fwrite(&WavHeader, sizeof(WavHeader), 1, mFP));
+        written = static_cast<int>(fwrite("WAVE", 4, 1, mFP));
+        written = static_cast<int>(fwrite(&FmtHdr, sizeof(FmtHdr), 1, mFP));
+        written = static_cast<int>(fwrite(&Fmt, sizeof(Fmt), 1, mFP));
+        written = static_cast<int>(fwrite(&DataChunk, sizeof(DataChunk), 1, mFP));
     }
 
     return FMOD_OK;

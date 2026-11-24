@@ -6,6 +6,12 @@
 
 class SFileImpl;
 
+enum LIGHT_SKYBOX_FLAGS : int32_t {
+    LIGHT_SKYBOX_FLAG_NONE                          = 0x00000000,
+    LIGHT_SKYBOX_FLAG_FULL_DAY                      = 0x00000001,
+    LIGHT_SKYBOX_FLAG_COMBINE_PROCEDURAL_AND_SKYBOX = 0x00000002,
+};
+
 class LightSkyboxRec {
     public:
     static const int32_t s_numColumns = 3;

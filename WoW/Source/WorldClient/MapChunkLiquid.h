@@ -13,6 +13,11 @@ class CMapChunkLiquid;
 
 class CMapChunkLiquidBuf {
     public:
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        UNKNOWN_1 = 0x1,
+    };
+
     static TSList<CMapChunkLiquid, TSGetExplicitLink<CMapChunkLiquid> > s_freeLists;
 
     static CMapChunkLiquidBuf* Alloc(uint32_t vertexCount, uint32_t indexCount, int32_t flags, EGxVertexBufferFormat format);

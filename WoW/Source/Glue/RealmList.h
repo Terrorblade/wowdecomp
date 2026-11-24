@@ -6,6 +6,14 @@
 
 class Cfg_CategoriesRec;
 
+enum REALM_SORT_CRITERION : int32_t {
+    REALM_SORT_CHARACTERS = 0,
+    REALM_SORT_LOAD = 1,
+    REALM_SORT_NAME = 2,
+    REALM_SORT_MODE = 3,
+    NUM_REALM_SORT_CRITERIA = 4,
+};
+
 struct RealmCategory {
     /* 0000 */ Cfg_CategoriesRec* m_category;
     /* 0004 */ TSGrowableArray<uint32_t> m_realms;
@@ -25,7 +33,7 @@ class CRealmList {
     static int32_t m_preferredCategory;
     static float m_avgLoad;
     static float m_stdDevLoad;
-    static RealmSortCriterion m_sortCriteria[4];
+    static RealmSortCriterion m_sortCriteria[NUM_REALM_SORT_CRITERIA];
     static TSFixedArray<RealmCategory*> m_categories;
 
     static void Initialize();

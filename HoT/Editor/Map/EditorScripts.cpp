@@ -43,8 +43,8 @@ static const EditorViewFlag s_viewFlags[] = {
     { "wmo", Enable_MapObjs, false },
     { "terrain", Enable_Chunks, false },
     { "water", Enable_Water, false },
-    { "wireframe", Enable_ShowTris, false },
-    { "animations", Enable_NoAnimation, true },
+    { "wireframe", Enable_Wireframe, false },
+    { "animations", Enable_ObjectFadeZFill, true },
     { "sky", Enable_Sky, false },
     { "detaildoodads", Enable_DetailDoodads, false },
     { "modelboxes", Enable_AABoxes, false },
@@ -432,7 +432,7 @@ static int32_t Script_EditorSetTimeOfDay(lua_State* L) {
         return 0;
     }
 
-    EditorWorld::SetTimeOfDay(static_cast<uint32_t>(Clamp(static_cast<float>(lua_tonumber(L, 1)), 0.0f, 1439.0f)));
+    EditorWorld::SetTimeOfDay(static_cast<float>(static_cast<uint32_t>(Clamp(static_cast<float>(lua_tonumber(L, 1)), 0.0f, 1439.0f))));
     return 0;
 }
 

@@ -55,8 +55,8 @@ static int32_t Script_SetScale(lua_State* L) {
     }
 
     C2Vector scale;
-    scale.x = lua_tonumber(L, 2);
-    scale.y = lua_tonumber(L, 3);
+    scale.x = static_cast<float>(lua_tonumber(L, 2));
+    scale.y = static_cast<float>(lua_tonumber(L, 3));
     anim->SetScale(scale);
 
     return 0;

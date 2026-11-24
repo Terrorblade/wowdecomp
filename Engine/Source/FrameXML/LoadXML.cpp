@@ -63,12 +63,12 @@ static const XMLENUMVALUE s_blendModes[] = {
 
 // STATIC: 0x00A44010
 static const XMLENUMVALUE s_justify[] = {
-    { 0x1, "LEFT" },
-    { 0x2, "CENTER" },
-    { 0x4, "RIGHT" },
-    { 0x8, "TOP" },
-    { 0x10, "MIDDLE" },
-    { 0x20, "BOTTOM" },
+    { TEXTBLOCK_JUSTIFY_LEFT, "LEFT" },
+    { TEXTBLOCK_JUSTIFY_CENTER, "CENTER" },
+    { TEXTBLOCK_JUSTIFY_RIGHT, "RIGHT" },
+    { TEXTBLOCK_JUSTIFY_TOP, "TOP" },
+    { TEXTBLOCK_JUSTIFY_MIDDLE, "MIDDLE" },
+    { TEXTBLOCK_JUSTIFY_BOTTOM, "BOTTOM" },
 };
 
 // STATIC: 0x00A44040
@@ -79,9 +79,9 @@ static const XMLENUMVALUE s_orientations[] = {
 
 // STATIC: 0x00A44050
 static const XMLENUMVALUE s_fontFlags[] = {
-    { 0x1, "OUTLINE" },
-    { 0x4, "THICKOUTLINE" },
-    { 0x2, "MONOCHROME" },
+    { TEXTBLOCK_FONT_OUTLINE, "OUTLINE" },
+    { TEXTBLOCK_FONT_THICKOUTLINE, "THICKOUTLINE" },
+    { TEXTBLOCK_FONT_MONOCHROME, "MONOCHROME" },
 };
 
 // STATIC: 0x00A44068
@@ -928,7 +928,7 @@ static void ProcessXMLForMakeSign(char* text, uint32_t size, MD5_CTX* md5, const
     while (cursor < end) {
         if (*cursor == '>') {
             *cursor = '\0';
-            ParseManifestTag(tag, cursor - tag, md5, basePath);
+            ParseManifestTag(tag, static_cast<int32_t>(cursor - tag), md5, basePath);
 
             char* next = cursor + 1;
 
@@ -997,7 +997,7 @@ int32_t ProcessFileForMakeSign(MD5_CTX* md5, const char* filename, const char* b
     }
 
     if (slash) {
-        uint32_t length = slash - path + 2;
+        uint32_t length = static_cast<uint32_t>(slash - path + 2);
 
         if (length < sizeof(directory)) {
             SStrCopy(directory, path, slash - path + 2);
@@ -1060,7 +1060,7 @@ static int32_t VerifySignature(const uint8_t* data, uint32_t size, const uint8_t
 
     uint32_t signatureLength = SSignatureVerifyStream_GetSignatureLength(token);
     SSignatureVerifyStream_ProvideData(token, data, size - signatureLength);
-    SSignatureVerifyStream_ProvideData(token, reinterpret_cast<const uint8_t*>(name), SStrLen(name));
+    SSignatureVerifyStream_ProvideData(token, reinterpret_cast<const uint8_t*>(name), static_cast<uint32_t>(SStrLen(name)));
     SSignatureVerifyStream_ProvideData(token, &data[size - signatureLength], signatureLength);
 
     return SSignatureVerifyStream_Finish(token, modulus, s_signaturePublicExponent);
@@ -1071,7 +1071,7 @@ static int32_t VerifySignature(const uint8_t* data, uint32_t size, const uint8_t
 int32_t FrameXML_CheckSignature(const char* tocFile, const char* extraFile, const uint8_t* modulus, uint8_t* digest) {
 #ifdef DISABLE_SIGNATURE_CHECKS
     CalculateSignatureMD5(tocFile, extraFile, digest);
-    return 3;
+    return XML_SIGNATURE_VALID;
 #endif
 
     char sigFile[260];
@@ -1081,12 +1081,12 @@ int32_t FrameXML_CheckSignature(const char* tocFile, const char* extraFile, cons
     uint32_t size;
 
     if (!SFile::ReadFile(nullptr, sigFile, &data, &size, 0, 1, nullptr)) {
-        return 0;
+        return XML_SIGNATURE_MISSING;
     }
 
     if (size != 276) {
         SFile::Unload(data);
-        return 1;
+        return XML_SIGNATURE_CORRUPT;
     }
 
     char* name = SStrChrR(sigFile, '\\');
@@ -1095,7 +1095,7 @@ int32_t FrameXML_CheckSignature(const char* tocFile, const char* extraFile, cons
 
     if (!VerifySignature(static_cast<const uint8_t*>(data), size, modulus, name)) {
         SFile::Unload(data);
-        return 1;
+        return XML_SIGNATURE_CORRUPT;
     }
 
     uint8_t signedDigest[16];
@@ -1104,5 +1104,5 @@ int32_t FrameXML_CheckSignature(const char* tocFile, const char* extraFile, cons
 
     CalculateSignatureMD5(tocFile, extraFile, digest);
 
-    return memcmp(signedDigest, digest, sizeof(signedDigest)) ? 2 : 3;
+    return memcmp(signedDigest, digest, sizeof(signedDigest)) ? XML_SIGNATURE_MODIFIED : XML_SIGNATURE_VALID;
 }

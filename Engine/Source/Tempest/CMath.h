@@ -9,6 +9,13 @@
 static const float PI = 3.1415927f;
 static const float TWO_PI = 6.2831855f;
 
+enum : uint32_t {
+    rexp = 0x3F800000,
+    rmant = 0x7FFFFF,
+    lrexp = 0x3FF00000,
+    lrmant = 0xFFFFF,
+};
+
 class CMath {
     public:
     static float cos_(float x);
@@ -34,6 +41,8 @@ class CMath {
 
 class CSoftFloat {
     public:
+    static constexpr int32_t EXPONENT_MASK = 0x7F800000;
+
     static CSoftFloat Ceil(const CSoftFloat& value);
     static uint32_t CountLeadingZeros(uint32_t value);
     static CSoftFloat Floor(const CSoftFloat& value);

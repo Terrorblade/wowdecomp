@@ -149,7 +149,7 @@ void CGTabardModelFrame::OnModelLoaded(CM2Model* model) {
 
     M2SequenceInfo info;
     info.m_radius = 0.0f;
-    model->GetSequenceInfo(0, 0, info);
+    model->GetSequenceInfo(ANIM_STAND, 0, info);
 
     C3Vector coord(0.0f, (info.m_bounds.t.y - info.m_bounds.b.y) * 0.33000001f, (info.m_bounds.t.z - info.m_bounds.b.z) * 0.5f);
     CameraSetCoord(camera, 8, coord, 0);

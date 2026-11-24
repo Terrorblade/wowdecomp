@@ -52,7 +52,7 @@ static int32_t Script_GetNumBuybackItems(lua_State* L) {
 static int32_t Script_CanMerchantRepair(lua_State* L) {
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGMerchantInfo::m_merchant, TYPE_UNIT, __FILE__, __LINE__));
 
-    if (unit && (unit->m_unit->m_unitNpcFlags & 0x1000)) {
+    if (unit && (unit->m_unit->m_unitNpcFlags & UNIT_NPC_FLAG_REPAIR)) {
         lua_pushnumber(L, 1.0);
         return 1;
     }
@@ -261,7 +261,7 @@ static int32_t Script_ShowRepairCursor(lua_State* L) {
 
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGMerchantInfo::m_merchant, TYPE_UNIT, __FILE__, __LINE__));
 
-    if (unit && (unit->m_unit->m_unitNpcFlags & 0x1000)) {
+    if (unit && (unit->m_unit->m_unitNpcFlags & UNIT_NPC_FLAG_REPAIR)) {
         CGGameUI::ClearCursor(1, 1);
         CursorSetResetMode(REPAIR_CURSOR);
         CursorSetMode(REPAIR_CURSOR);
@@ -354,7 +354,7 @@ static int32_t Script_GetBuybackItemInfo(lua_State* L) {
         const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
         SStrPrintf(buffer, sizeof(buffer), "%s%s%s", path, *path ? "\\" : "", item->GetInventoryArt());
         lua_pushstring(L, buffer);
-        lua_pushnumber(L, player->GetBuybackPrice(slot - 74));
+        lua_pushnumber(L, player->GetBuybackPrice(slot - BUYBACK_FIRST));
         lua_pushnumber(L, item->m_item->m_itemFieldStackCount);
         lua_pushnumber(L, 0.0);
 
@@ -559,7 +559,7 @@ static int32_t Script_ShowMerchantSellCursor(lua_State* L) {
         unable = 1;
     } else {
         for (uint32_t i = 0; i < 5; i++) {
-            if (cost->m_itemID[i] && cost->m_itemCount[i] > 0 && player->m_bag.GetItemTypeCount(cost->m_itemID[i], 0) < cost->m_itemCount[i]) {
+            if (cost->m_itemID[i] && cost->m_itemCount[i] > 0 && player->m_bag.GetItemTypeCount(cost->m_itemID[i], BAG_SEARCH_NONE) < cost->m_itemCount[i]) {
                 unable = 1;
                 break;
             }
@@ -590,7 +590,7 @@ static int32_t Script_ShowBuybackSellCursor(lua_State* L) {
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && slot && player->m_bag.GetItemGuid(slot)) {
-        uint32_t price = player->GetBuybackPrice(slot - 74);
+        uint32_t price = player->GetBuybackPrice(slot - BUYBACK_FIRST);
 
         if (player->GetCoinage() >= price) {
             CursorSetMode(BUY_CURSOR);
@@ -609,7 +609,7 @@ static int32_t Script_GetRepairAllCost(lua_State* L) {
     CGUnit_C* merchant = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGMerchantInfo::m_merchant, TYPE_UNIT, __FILE__, __LINE__));
     CGPlayer_C* player;
 
-    if (!merchant || !(merchant->m_unit->m_unitNpcFlags & 0x1000) || !(player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)))) {
+    if (!merchant || !(merchant->m_unit->m_unitNpcFlags & UNIT_NPC_FLAG_REPAIR) || !(player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)))) {
         lua_pushnumber(L, 0.0);
         return 1;
     }
@@ -618,7 +618,7 @@ static int32_t Script_GetRepairAllCost(lua_State* L) {
     uint32_t cost = 0;
     int32_t needsRepair = 0;
 
-    for (uint32_t i = 0; i <= 18; i++) {
+    for (uint32_t i = EQUIPPED_FIRST; i <= EQUIPPED_LAST; i++) {
         CGItem_C* item = bag->GetItemPointer(i);
 
         if (item && (item->m_obj->m_type & TYPE_ITEM) && !(item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) && item->m_item->m_itemFieldMaxdurability) {
@@ -631,7 +631,7 @@ static int32_t Script_GetRepairAllCost(lua_State* L) {
         }
     }
 
-    for (uint32_t i = 23; i <= 38; i++) {
+    for (uint32_t i = BACKPACK_FIRST; i <= BACKPACK_LAST; i++) {
         CGItem_C* item = bag->GetItemPointer(i);
 
         if (item && (item->m_obj->m_type & TYPE_ITEM) && !(item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) && item->m_item->m_itemFieldMaxdurability) {
@@ -644,7 +644,7 @@ static int32_t Script_GetRepairAllCost(lua_State* L) {
         }
     }
 
-    for (uint32_t i = 19; i <= 22; i++) {
+    for (uint32_t i = INVSLOT_BAG0; i <= INVSLOT_BAG3; i++) {
         CGItem_C* container = bag->GetItemPointer(i);
 
         if (!container || !container->GetBag()) {
@@ -683,7 +683,7 @@ static int32_t Script_GetRepairAllCost(lua_State* L) {
 static int32_t Script_RepairAllItems(lua_State* L) {
     CGUnit_C* merchant = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGMerchantInfo::m_merchant, TYPE_UNIT, __FILE__, __LINE__));
 
-    if (!merchant || !(merchant->m_unit->m_unitNpcFlags & 0x1000)) {
+    if (!merchant || !(merchant->m_unit->m_unitNpcFlags & UNIT_NPC_FLAG_REPAIR)) {
         return 0;
     }
 
@@ -697,7 +697,7 @@ static int32_t Script_RepairAllItems(lua_State* L) {
     int32_t guildBank = StringToBOOL(L, 1, 0);
     CGBag_C* bag = &player->m_bag;
 
-    for (uint32_t i = 0; i <= 18; i++) {
+    for (uint32_t i = EQUIPPED_FIRST; i <= EQUIPPED_LAST; i++) {
         CGItem_C* item = bag->GetItemPointer(i);
 
         if (item && (item->m_obj->m_type & TYPE_ITEM) && !(item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) && item->m_item->m_itemFieldMaxdurability) {
@@ -705,7 +705,7 @@ static int32_t Script_RepairAllItems(lua_State* L) {
         }
     }
 
-    for (uint32_t i = 23; i <= 38; i++) {
+    for (uint32_t i = BACKPACK_FIRST; i <= BACKPACK_LAST; i++) {
         CGItem_C* item = bag->GetItemPointer(i);
 
         if (item && (item->m_obj->m_type & TYPE_ITEM) && !(item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) && item->m_item->m_itemFieldMaxdurability) {
@@ -713,7 +713,7 @@ static int32_t Script_RepairAllItems(lua_State* L) {
         }
     }
 
-    for (uint32_t i = 19; i <= 22; i++) {
+    for (uint32_t i = INVSLOT_BAG0; i <= INVSLOT_BAG3; i++) {
         CGItem_C* container = player->m_bag.GetItemPointer(i);
 
         if (!container || !container->GetBag()) {

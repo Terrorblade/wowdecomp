@@ -7,6 +7,19 @@
 
 struct lua_State;
 
+enum STABLE_RESULT : uint8_t {
+    STABLE_RESULT_NOT_ENOUGH_MONEY    = 1,
+    STABLE_RESULT_UNKNOWN_8           = 8,
+    STABLE_RESULT_UNKNOWN_9           = 9,
+    STABLE_RESULT_SLOT_BOUGHT         = 10,
+    STABLE_RESULT_UNKNOWN_11          = 11,
+    STABLE_RESULT_CANT_CONTROL_EXOTIC = 12,
+};
+
+enum STABLE_PET_STATE : uint8_t {
+    STABLE_PET_STATE_STABLED = 0x2,
+};
+
 struct StablePetInfo {
     /* 0000 */ uint32_t m_petNumber;
     /* 0004 */ uint32_t m_level;

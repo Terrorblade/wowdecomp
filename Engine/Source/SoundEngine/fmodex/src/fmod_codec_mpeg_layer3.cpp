@@ -760,7 +760,7 @@ FMOD_RESULT CodecMPEG::III_get_side_info_1(struct III_sideinfo *si, int stereo, 
 	{
 		for (ch = 0; ch < stereo; ch++)
 		{
-			register struct gr_info_s *gr_info = &(si->ch[ch].gr[gr]);
+			struct gr_info_s *gr_info = &(si->ch[ch].gr[gr]);
 
 			gr_info->part2_3_length = getBits(12);
 			gr_info->big_values = getBitsFast(9);
@@ -868,7 +868,7 @@ FMOD_RESULT CodecMPEG::III_get_side_info_2(struct III_sideinfo *si, int stereo, 
 
 	for (ch = 0; ch < stereo; ch++)
 	{
-		register struct gr_info_s *gr_info = &(si->ch[ch].gr[0]);
+		struct gr_info_s *gr_info = &(si->ch[ch].gr[0]);
 
 		gr_info->part2_3_length = getBits(12);
 		gr_info->big_values = getBitsFast(9);
@@ -1273,8 +1273,8 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
      */
     int i,max[4];
     int step=0,lwin=3,cb=0;
-    register float v = 0.0f;
-    register int *m,mc;
+    float v = 0.0f;
+    int *m,mc;
 
     if(gr_info->mixed_block_flag) {
       max[3] = -1;
@@ -1294,7 +1294,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
       int lp = l[i];
       struct newhuff *h = ht+gr_info->table_select[i];
       for(;lp;lp--,mc--) {
-        register int x,y;
+        int x,y;
         if( (!mc) ) {
           mc    = *m++;
           xrpnt = ((float *) xr) + (*m++);
@@ -1310,7 +1310,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
           }
         }
         {
-          register short *val = h->table;
+          short *val = h->table;
           REFRESH_MASK;
           while((y=*val++)<0) {
             if (mask < 0)
@@ -1376,8 +1376,8 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
     {
       /* not mixing code and declarations to keep C89 happy */
       struct newhuff* h;
-      register short* val;
-			register short a;
+      short* val;
+			short a;
       /* This is only a humble hack to prevent a special segfault. */
       /* More insight into the real workings is still needed. */
       /* especially why there are (valid?) files that make xrpnt exceed the array with 4 bytes without segfaulting, more seems to be really bad, though. */
@@ -1473,7 +1473,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
         int i,max = -1;
         int cb = 0;
         int *m = gMap[sfreq][2];
-        register float v = 0.0f;
+        float v = 0.0f;
         int mc = 0;
 
         /*
@@ -1497,7 +1497,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
                     v = gr_info->pow2gain[((*scf++) + (*pretab++)) << shift];
                 }
                 {
-                    register short *val = h->table;
+                    short *val = h->table;
                     REFRESH_MASK;
                     while((y=*val++)<0) {
                     if (mask < 0)
@@ -1564,7 +1564,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
         */
         for(;l3 && (part2remain+num > 0);l3--) {
         struct newhuff *h = htc+gr_info->count1table_select;
-        register short *val = h->table,a;
+        short *val = h->table,a;
 
         REFRESH_MASK;
         while((a=*val++)<0) {
@@ -1711,8 +1711,8 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample_ms(float xr[2][SBLIMIT][SSLIMIT], i
 	{
 		int i, max[4];
 		int step = 0, lwin = 0, cb = 0;
-		register float v = 0.0f;
-		register int *m, mc = 0;
+		float v = 0.0f;
+		int *m, mc = 0;
 
 		if (gr_info->mixed_block_flag)
 		{
@@ -1757,7 +1757,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample_ms(float xr[2][SBLIMIT][SSLIMIT], i
 					}
 				}
 				{
-					register short *val = h->table;
+					short *val = h->table;
 
 					while ((y = *val++) < 0)
 					{
@@ -1863,7 +1863,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample_ms(float xr[2][SBLIMIT][SSLIMIT], i
 		for (; l3 && (part2remain > 0); l3--)
 		{
 			struct newhuff *h = htc + gr_info->count1table_select;
-			register short *val = h->table, a;
+			short *val = h->table, a;
 
 			while ((a = *val++) < 0)
 			{
@@ -1973,8 +1973,8 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample_ms(float xr[2][SBLIMIT][SSLIMIT], i
 		int *pretab = gr_info->preflag ? pretab1 : pretab2;
 		int i, max = -1;
 		int cb = 0;
-		register int mc = 0, *m = gMap[sfreq][2];
-		register float v = 0.0f;
+		int mc = 0, *m = gMap[sfreq][2];
+		float v = 0.0f;
 
 		for (i = 0; i < 3; i++)
 		{
@@ -1992,7 +1992,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample_ms(float xr[2][SBLIMIT][SSLIMIT], i
 					v = gr_info->pow2gain[((*scf++) + (*pretab++)) << shift];
 				}
 				{
-					register short *val = h->table;
+					short *val = h->table;
 
 					while ((y = *val++) < 0)
 					{
@@ -2093,7 +2093,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample_ms(float xr[2][SBLIMIT][SSLIMIT], i
 		for (; l3 && (part2remain > 0); l3--)
 		{
 			struct newhuff *h = htc + gr_info->count1table_select;
-			register short *val = h->table, a;
+			short *val = h->table, a;
 
 			while ((a = *val++) < 0)
 			{
@@ -2419,7 +2419,7 @@ FMOD_RESULT CodecMPEG::III_antialias(float xr[SBLIMIT][SSLIMIT], struct gr_info_
 
 			for (ss = 7; ss >= 0; ss--)
 			{	/* upper and lower butterfly inputs */
-				register float bu = *--xr2, bd = *xr1;
+				float bu = *--xr2, bd = *xr1;
 
 				*xr2 = (bu * (*cs)) - (bd * (*ca));
 				*xr1++ = (bd * (*cs++)) + (bu * (*ca++));
@@ -2487,7 +2487,7 @@ void CodecMPEG::dct36(float * inbuf, float * o1, float * o2, float * wintab, flo
 	float tmp[18];
 
 	{
-		register float *in = inbuf;
+		float *in = inbuf;
 
 		in[17] += in[16];
 		in[16] += in[15];
@@ -2612,10 +2612,10 @@ void CodecMPEG::dct36(float * inbuf, float * o1, float * o2, float * wintab, flo
 }
 
 		{
-			register float *out2 = o2;
-			register float *w = wintab;
-			register float *out1 = o1;
-			register float *ts = tsbuf;
+			float *out2 = o2;
+			float *w = wintab;
+			float *out1 = o1;
+			float *ts = tsbuf;
 
 			MACRO(0);
 			MACRO(1);
@@ -2646,7 +2646,7 @@ void CodecMPEG::dct36(float * inbuf, float * o1, float * o2, float * wintab, flo
 */
 // VERIFY: 17f52002 manual
 // OFFSET: 0x00930E80
-void CodecMPEG::dct12(float * in, float * rawout1, float * rawout2, register float * wi, register float * ts)
+void CodecMPEG::dct12(float * in, float * rawout1, float * rawout2, float * wi, float * ts)
 {
 #define DCT12_PART1 \
              in5 = in[5*3];  \
@@ -2680,7 +2680,7 @@ void CodecMPEG::dct12(float * in, float * rawout1, float * rawout2, register flo
 
 	{
 		float in0, in1, in2, in3, in4, in5;
-		register float *out1 = rawout1;
+		float *out1 = rawout1;
 
 		ts[SBLIMIT * 0] = out1[0];
 		ts[SBLIMIT * 1] = out1[1];
@@ -2723,7 +2723,7 @@ void CodecMPEG::dct12(float * in, float * rawout1, float * rawout2, register flo
 
 	{
 		float in0, in1, in2, in3, in4, in5;
-		register float *out2 = rawout2;
+		float *out2 = rawout2;
 
 		DCT12_PART1
 
@@ -2759,7 +2759,7 @@ void CodecMPEG::dct12(float * in, float * rawout1, float * rawout2, register flo
 
 	{
 		float in0, in1, in2, in3, in4, in5;
-		register float *out2 = rawout2;
+		float *out2 = rawout2;
 
 		out2[12] = out2[13] = out2[14] = out2[15] = out2[16] = out2[17] = 0.0f;
 

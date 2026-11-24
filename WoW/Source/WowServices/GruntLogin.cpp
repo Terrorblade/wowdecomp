@@ -34,8 +34,8 @@ bool GruntLogin::Connected(const NETADDR& address) {
 // OFFSET: 0x008CA140
 bool GruntLogin::CantConnect() {
     this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_SERVER_DOWN, nullptr, 0);
-    this->m_logonStatus = 1;
-    this->LogonResult(Grunt::GRUNT_RESULT_CANT_CONNECT, nullptr, 0, 0);
+    this->m_logonStatus = LOGON_STATUS_FAILED;
+    this->LogonResult(GRUNT_RESULT_CANT_CONNECT, nullptr, 0, 0);
     this->m_loggedOn = false;
     this->m_online = false;
 
@@ -48,8 +48,8 @@ bool GruntLogin::Disconnected() {
     this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_DISCONNECTED, LOGIN_OK, nullptr, 0);
 
     if (!this->m_online) {
-        this->m_logonStatus = 1;
-        this->LogonResult(Grunt::GRUNT_RESULT_DISCONNECTED, nullptr, 0, 0);
+        this->m_logonStatus = LOGON_STATUS_FAILED;
+        this->LogonResult(GRUNT_RESULT_DISCONNECTED, nullptr, 0, 0);
     }
 
     this->m_loggedOn = false;
@@ -104,7 +104,7 @@ void GruntLogin::Logon(const char* loginServer, const char* portal) {
     }
 
     this->m_reconnect = false;
-    this->m_logonStatus = -1;
+    this->m_logonStatus = LOGON_STATUS_PENDING;
     this->m_pinEnabled = false;
     this->m_matrixEnabled = false;
     this->m_tokenEnabled = false;
@@ -161,15 +161,15 @@ void GruntLogin::Logoff() {
 
 // VERIFY: 98618c23 manual
 // OFFSET: 0x008CB160
-void GruntLogin::LogonResult(Grunt::Result result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) {
+void GruntLogin::LogonResult(GRUNT_RESULT result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) {
     if (this->IsReconnect()) {
         this->m_loginResponse->HandleRealmData(1, nullptr);
         this->m_clientLink->Disconnect();
         return;
     }
 
-    if (result == Grunt::GRUNT_RESULT_SUCCESS || result == Grunt::GRUNT_RESULT_SUCCESS_SURVEY) {
-        this->m_logonStatus = 0;
+    if (result == GRUNT_RESULT_SUCCESS || result == GRUNT_RESULT_SUCCESS_SURVEY) {
+        this->m_logonStatus = LOGON_STATUS_SUCCESS;
         this->m_pinFailures = 0;
         memcpy(this->m_sessionKey, sessionKey, sessionKeyLength >= sizeof(this->m_sessionKey) ? sizeof(this->m_sessionKey) : sessionKeyLength);
 
@@ -182,15 +182,15 @@ void GruntLogin::LogonResult(Grunt::Result result, const uint8_t* sessionKey, ui
         return;
     }
 
-    this->m_logonStatus = 1;
+    this->m_logonStatus = LOGON_STATUS_FAILED;
 
     switch (result) {
-        case Grunt::GRUNT_RESULT_BANNED:
+        case GRUNT_RESULT_BANNED:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_BANNED, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_UNKNOWN_ACCOUNT:
-        case Grunt::GRUNT_RESULT_INCORRECT_PASSWORD: {
+        case GRUNT_RESULT_UNKNOWN_ACCOUNT:
+        case GRUNT_RESULT_INCORRECT_PASSWORD: {
             LOGIN_RESULT loginResult = LOGIN_UNKNOWN_ACCOUNT;
 
             if (this->m_pinEnabled) {
@@ -201,67 +201,67 @@ void GruntLogin::LogonResult(Grunt::Result result, const uint8_t* sessionKey, ui
             break;
         }
 
-        case Grunt::GRUNT_RESULT_ALREADY_ONLINE:
+        case GRUNT_RESULT_ALREADY_ONLINE:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_ALREADYONLINE, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_NO_TIME:
+        case GRUNT_RESULT_NO_TIME:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_NOTIME, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_DB_BUSY:
+        case GRUNT_RESULT_DB_BUSY:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_DBBUSY, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_BAD_VERSION:
+        case GRUNT_RESULT_BAD_VERSION:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_BADVERSION, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_DOWNLOAD_FILE:
+        case GRUNT_RESULT_DOWNLOAD_FILE:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_DOWNLOADFILE, LOGIN_OK, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_SUSPENDED:
+        case GRUNT_RESULT_SUSPENDED:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_SUSPENDED, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_PARENTAL_CONTROL:
+        case GRUNT_RESULT_PARENTAL_CONTROL:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_PARENTALCONTROL, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_LOCKED_ENFORCED:
+        case GRUNT_RESULT_LOCKED_ENFORCED:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_LOCKED_ENFORCED, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_TRIAL_EXPIRED:
+        case GRUNT_RESULT_TRIAL_EXPIRED:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_TRIAL_EXPIRED, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_ACCOUNT_CONVERTED:
+        case GRUNT_RESULT_ACCOUNT_CONVERTED:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_ACCOUNT_CONVERTED, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_CHARGEBACK:
+        case GRUNT_RESULT_CHARGEBACK:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_CHARGEBACK, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_IGR_WITHOUT_BNET:
+        case GRUNT_RESULT_IGR_WITHOUT_BNET:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_IGR_WITHOUT_BNET, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_GAME_ACCOUNT_LOCKED:
+        case GRUNT_RESULT_GAME_ACCOUNT_LOCKED:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_GAME_ACCOUNT_LOCKED, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_UNLOCKABLE_LOCK:
+        case GRUNT_RESULT_UNLOCKABLE_LOCK:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_UNLOCKABLE_LOCK, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_CONVERSION_REQUIRED:
+        case GRUNT_RESULT_CONVERSION_REQUIRED:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_CONVERSION_REQUIRED, nullptr, 0);
             break;
 
-        case Grunt::GRUNT_RESULT_DISCONNECTED:
+        case GRUNT_RESULT_DISCONNECTED:
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_DISCONNECTED, nullptr, 0);
             break;
 
@@ -278,7 +278,7 @@ void GruntLogin::JoinRealm(uint32_t a1, uint32_t a2, uint32_t a3) {
 }
 
 int32_t GruntLogin::GetLoginServerType() {
-    return 0;
+    return LOGIN_SERVER_GRUNT;
 }
 
 // VERIFY: d9686987 auto
@@ -615,7 +615,7 @@ void GruntLogin::FileComplete(bool success) {
 // VERIFY: 20c829de manual
 // OFFSET: 0x008CA7F0
 int32_t GruntLogin::Wait(const char* message, LoginData& loginData) {
-    while (this->m_logonStatus == -1) {
+    while (this->m_logonStatus == LOGON_STATUS_PENDING) {
         OsSleep(100);
     }
 
@@ -627,7 +627,7 @@ int32_t GruntLogin::Wait(const char* message, LoginData& loginData) {
         memcpy(loginData.m_sessionKey, this->m_sessionKey, sizeof(loginData.m_sessionKey));
     }
 
-    return this->m_logonStatus == 0;
+    return this->m_logonStatus == LOGON_STATUS_SUCCESS;
 }
 
 // VERIFY: 66d294df manual
@@ -675,25 +675,25 @@ void GruntLogin::FinalizeMatrix() {
 
 // VERIFY: 2aeb1ed6 manual
 // OFFSET: 0x008CB020
-void GruntLogin::ReconnectResult(Grunt::Result result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) {
+void GruntLogin::ReconnectResult(GRUNT_RESULT result, const uint8_t* sessionKey, uint32_t sessionKeyLength, uint16_t flags) {
     if (!this->IsReconnect()) {
-        this->m_logonStatus = 1;
+        this->m_logonStatus = LOGON_STATUS_FAILED;
         this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_FAILED, nullptr, 0);
         return;
     }
 
     switch (result) {
-        case Grunt::GRUNT_RESULT_SUCCESS:
-        case Grunt::GRUNT_RESULT_SUCCESS_SURVEY:
+        case GRUNT_RESULT_SUCCESS:
+        case GRUNT_RESULT_SUCCESS_SURVEY:
             this->m_clientLink->GetRealmList();
             this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_RESPONSE_CONNECTED, LOGIN_OK, nullptr, 0);
             return;
 
-        case Grunt::GRUNT_RESULT_BAD_VERSION:
+        case GRUNT_RESULT_BAD_VERSION:
             this->m_loginResponse->HandleRealmData(2, nullptr);
             break;
 
-        case Grunt::GRUNT_RESULT_DOWNLOAD_FILE:
+        case GRUNT_RESULT_DOWNLOAD_FILE:
             this->m_loginResponse->HandleRealmData(3, nullptr);
             break;
 

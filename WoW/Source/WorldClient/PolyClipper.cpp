@@ -1,6 +1,7 @@
 #include "PolyClipper.h"
 #include <cmath>
 #include "Engine/Source/Tempest/C4Plane.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: d86786f4 manual
 // OFFSET: 0x005EEB70

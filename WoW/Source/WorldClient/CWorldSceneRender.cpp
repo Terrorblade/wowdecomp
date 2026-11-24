@@ -29,6 +29,7 @@
 #include "Engine/Source/Gx/CGxMatrixStack.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
+#include "Engine/Source/Gxu/Gxu.h"
 
 // VERIFY: 78b69e1a manual
 // OFFSET: 0x007D5610
@@ -44,7 +45,7 @@ void CWorldScene::RenderCollisionDebug() {
     matrix.Translate(C3Vector(-CWorldScene::s_activeWorldView.x, -CWorldScene::s_activeWorldView.y, -CWorldScene::s_activeWorldView.z));
     g_theGxDevicePtr->XformPushAndSet(GxXform_World, matrix);
 
-    GxRsSet(GxRs_BlendingMode, 2);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     GxRsSet(GxRs_Lighting, 0);
     GxRsSet(GxRs_DepthWrite, 0);
@@ -189,7 +190,7 @@ void CWorldScene::Render(const C3Vector& cameraPos, float time) {
 
     if (scene) {
         HoT::Profiler::Scope profilerScope(HoT::Profiler::Zone::M2Animate);
-        scene->m_flags |= 0x1;
+        scene->m_flags |= CM2Scene::WORLD_ANIMATION_ACTIVE;
 
         {
             HoT::Profiler::Scope advanceScope(HoT::Profiler::Zone::M2AdvanceTime);
@@ -197,7 +198,7 @@ void CWorldScene::Render(const C3Vector& cameraPos, float time) {
         }
 
         scene->Animate(cameraPos);
-        scene->m_flags &= ~0x1;
+        scene->m_flags &= ~CM2Scene::WORLD_ANIMATION_ACTIVE;
     }
 
     CGUnit_C::UpdateMissileTrajectoryTargeting();
@@ -257,7 +258,7 @@ void CWorldScene::Render(const C3Vector& cameraPos, float time) {
         Liquid::UpdateProceduralTextures();
         CWorldScene::PrepareLiquidInstances();
 
-        if ((CWorld::enables & 0x1000000) && CWorldScene::s_liquidRenderer) {
+        if ((CWorld::enables & Enable_Water) && CWorldScene::s_liquidRenderer) {
             HoT::Profiler::Count(HoT::Profiler::Counter::LiquidInstances, CWorldScene::s_liquidRenderer->m_instances[0].Count() + CWorldScene::s_liquidRenderer->m_instances[1].Count());
             CWorldScene::s_liquidRenderer->Flush(CWorldScene::s_activeWorldView, 0);
         }

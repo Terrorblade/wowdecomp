@@ -27,6 +27,12 @@ class SpellRec;
 class SpellVisualKitRec;
 
 struct InspectItem {
+
+    enum FLAGS : uint16_t {
+        NONE = 0x0,
+        USABLE = 0x1,
+    };
+
     /* 0000 */ WOWGUID m_creator;
     /* 0008 */ int32_t m_itemId;
     /* 000C */ int32_t m_enchants [12];
@@ -71,6 +77,15 @@ struct PlayerPendingItemExpiration : public TSLinkedNode<PlayerPendingItemExpira
 struct MerchantItem;
 class ItemStats_C;
 class EmotesTextRec;
+
+enum LOOT_SLOT_TYPE : int32_t {
+    LOOT_SLOT_TYPE_ALLOW_LOOT = 0,
+    LOOT_SLOT_TYPE_ROLL_PENDING = 1,
+    LOOT_SLOT_TYPE_MASTER = 2,
+    LOOT_SLOT_TYPE_LOCKED = 3,
+    LOOT_SLOT_TYPE_UNKNOWN_4 = 4,
+};
+
 struct PlayerLootItem {
     /* 0000 */ int32_t m_itemId;
     /* 0004 */ int32_t m_displayId;
@@ -89,6 +104,12 @@ struct PlayerDance {
 class DanceMovesRec;
 class CEffect;
 
+enum ITEM_REFUND_RESULT : uint32_t {
+    ITEM_REFUND_RESULT_OK = 0,
+    ITEM_REFUND_RESULT_INV_FULL = 10,
+    ITEM_REFUND_RESULT_CURRENCY_FULL = 11,
+};
+
 // FIX: stats HoT servers track outside the update fields.
 struct CGPlayerCustomStats {
     int32_t m_magicFind;
@@ -105,6 +126,30 @@ struct CGPlayerCustomStats {
 
 class CGPlayer_C : public CGUnit_C, public CGPlayer {
     public:
+    enum QUEST_INVALID_REASON : int32_t {
+        LOW_LEVEL = 1,
+        WRONG_RACE = 6,
+        ALREADY_DONE = 7,
+        ONLY_ONE_TIMED = 12,
+        UNKNOWN_13 = 13,
+        EXPANSION = 16,
+        UNKNOWN_18 = 18,
+        MISSING_ITEMS = 21,
+        NOT_ENOUGH_MONEY = 23,
+        TOO_MANY_DAILY_QUESTS = 26,
+        CAIS = 27,
+        ALREADY_DONE_DAILY = 29,
+    };
+
+    enum COMBAT_MODE_FLAGS : uint32_t {
+        COMBAT_MODE_NONE                        = 0x00000000u,
+        COMBAT_MODE_FAR_SIGHT                   = 0x00000001u,
+        COMBAT_MODE_AUTO_COMBAT                 = 0x00000002u,
+        COMBAT_MODE_AUTO_RANGED                 = 0x00000004u,
+        COMBAT_MODE_EXIT_WHEN_NOT_REPEATING     = 0x00000008u,
+        COMBAT_MODE_AUTO_MASK                   = 0x0000000Eu,
+    };
+
     void DanceMoveAnimComplete();
     static int32_t IsXRayVisionActive();
     void AddKnownSpell(int32_t spellId, int32_t a2, int32_t a3, int32_t a4);
@@ -183,11 +228,66 @@ class CGPlayer_C : public CGUnit_C, public CGPlayer {
     static int32_t __stdcall OnLootMoneyNotify(CDataStore* msg);
     static void OnLootClearMoney();
     static void __stdcall ReadItemResult(NETMESSAGE msgId, CDataStore* msg);
+
+    enum RAID_GROUP_ONLY_REASON : int32_t {
+        RG_REASON_UI_LOW_LEVEL = 1,
+        RG_REASON_UI_RAID_GROUP_ONLY = 2,
+        RG_REASON_UI_GROUP_FULL = 3,
+        RG_REASON_UI_REQUIREMENTS_UNMATCH = 4,
+    };
+
+    enum TRAINER_BUY_FAILED_REASON : uint32_t {
+        TRAINER_BUY_FAILED_UNAVAILABLE = 0,
+        TRAINER_BUY_FAILED_NOT_ENOUGH_MONEY = 1,
+        TRAINER_BUY_FAILED_NOT_ENOUGH_SKILL_POINTS = 2,
+    };
+
+    enum QUEST_FAILED_REASON : int32_t {
+        QF_REASON_UNKNOWN_4 = 4,
+        QF_REASON_UNKNOWN_16 = 16,
+        QF_REASON_UI_MAX_COUNT = 17,
+        QF_REASON_UNKNOWN_50 = 50,
+        QF_REASON_UI_TOO_MANY_DAILY_QUESTS = 74,
+    };
+
+    enum QUEST_PUSH_RESULT : int32_t {
+        QP_RESULT_UI_SUCCESS = 0,
+        QP_RESULT_UI_INVALID = 1,
+        QP_RESULT_UI_ACCEPTED = 2,
+        QP_RESULT_UI_DECLINED = 3,
+        QP_RESULT_UI_BUSY = 4,
+        QP_RESULT_UI_LOG_FULL = 5,
+        QP_RESULT_UI_ON_QUEST = 6,
+        QP_RESULT_UI_ALREADY_DONE = 7,
+        QP_RESULT_UI_NOT_DAILY = 8,
+        QP_RESULT_UI_TIMER_EXPIRED = 9,
+        QP_RESULT_UI_NOT_IN_PARTY = 10,
+        QP_RESULT_UI_DIFFERENT_SERVER_DAILY = 11,
+    };
+
     static void __stdcall PushQuestToParty(int32_t questId);
     static void __stdcall QueryQuest(const WOWGUID& questGiver, int32_t questId);
     static void __stdcall QueryQuestGiverStatus(const WOWGUID& questGiver);
     static void QueryQuestGiverStatusMultiple();
     static bool __stdcall IsRAFPlayer(WOWGUID guid);
+
+    enum REFER_A_FRIEND_RESULT : int32_t {
+        RAF_RESULT_SUCCESS = 0,
+        RAF_RESULT_UI_NOT_REFERRED_BY = 1,
+        RAF_RESULT_UI_TARGET_TOO_HIGH = 2,
+        RAF_RESULT_UI_INSUFFICIENT_GRANTABLE_LEVELS = 3,
+        RAF_RESULT_UI_TOO_FAR = 4,
+        RAF_RESULT_UI_DIFFERENT_FACTION = 5,
+        RAF_RESULT_UI_NOT_NOW = 6,
+        RAF_RESULT_UI_GRANT_LEVEL_MAX = 7,
+        RAF_RESULT_UI_NO_TARGET = 8,
+        RAF_RESULT_UI_TARGET_NOT_IN_GROUP = 9,
+        RAF_RESULT_UI_SUMMON_LEVEL_MAX = 10,
+        RAF_RESULT_UI_SUMMON_COOLDOWN = 11,
+        RAF_RESULT_UI_INSUFFICIENT_EXPANSION_LEVEL = 12,
+        RAF_RESULT_UI_SUMMON_OFFLINE = 13,
+    };
+
     static int32_t __stdcall CanSummonFriend(WOWGUID guid);
     int32_t CanGrantLevel(WOWGUID guid);
     void TurnOnGuildTabardPurchase();
@@ -450,8 +550,8 @@ class CGPlayer_C : public CGUnit_C, public CGPlayer {
     float GetCombatRatingPct(int32_t rating);
     bool LoadGuildTextures(int32_t displayId);
     static void TabardDrawCallback(int32_t guildID, const WOWGUID& guid, void* param, bool success);
-    void UpdateHandItemVisual(GEOCOMPONENTLINKS link, int32_t hand);
-    void UpdateObjComponentVisuals(const VisibleItem_C* item, GEOCOMPONENTLINKS link);
+    void UpdateHandItemVisual(MODEL_ATTACHMENT_ID link, int32_t hand);
+    void UpdateObjComponentVisuals(const VisibleItem_C* item, MODEL_ATTACHMENT_ID link);
     void UpdateObjComponentVisualsSlot(const VisibleItem_C* item, int32_t slot);
     void PostInitActivePlayer();
     void UpdatePartyMemberState();
@@ -462,6 +562,10 @@ class CGPlayer_C : public CGUnit_C, public CGPlayer {
 
 class PlaySpellVisuaKitData {
     public:
+    enum LIGHTNING_ATTACHMENT : int32_t {
+        NONE = -1,
+    };
+
     /* 0000 */ const SpellRec* m_spellRec;
     /* 0004 */ const SpellVisualKitRec* m_impactVisualKit;
     /* 0008 */ uint32_t m_kitType;
@@ -517,6 +621,13 @@ int32_t Packet_SMSG_LEARNED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, 
 int32_t Packet_SMSG_REMOVED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 int32_t Packet_SMSG_SUPERCEDED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 int32_t Packet_SMSG_INITIAL_SPELLS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
+
+enum ACTION_BUTTONS_STATE : uint8_t {
+    ACTION_BUTTONS_STATE_LOAD = 0,
+    ACTION_BUTTONS_STATE_LOAD_AND_APPLY = 1,
+    ACTION_BUTTONS_STATE_PENDING = 2,
+};
+
 int32_t Packet_SMSG_ACTION_BUTTONS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 int32_t Packet_SMSG_GROUP_INVITE(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 int32_t Packet_SMSG_GROUP_CANCEL(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
@@ -613,6 +724,10 @@ void PlayerClientShutdown();
 void PlayerShutdownSounds();
 int32_t Player_C_ZoneUpdateHandler(const void* data, void* param);
 int32_t GetModalNextSpell();
+
+enum AURA_CHANGE_MODEL_FLAGS : uint32_t {
+    AURA_CHANGE_MODEL_HOSTILE_PLAYERS_ONLY = 0x1,
+};
 
 uint32_t GetVisibleAuraEffectDisplay();
 uint32_t GetVisibleAuraEffectFlags();

@@ -6,6 +6,7 @@
 #include "WoW/Source/Object/ObjectClient/Object_C.h"
 
 enum BAG_SEARCH_FLAGS : uint32_t {
+    BAG_SEARCH_NONE = 0,
     BAG_SEARCH_EQUIPMENT = 1,
     BAG_SEARCH_BAG_SLOTS = 2,
     BAG_SEARCH_BACKPACK = 4,

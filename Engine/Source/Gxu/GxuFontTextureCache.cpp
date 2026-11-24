@@ -17,7 +17,7 @@ static uint16_t s_textureData[256 * 256];
 // OFFSET: 0x006C8E70
 void TEXTURECACHE::PasteGlyphOutlinedMonochrome(const GLYPHBITMAPDATA& data, uint16_t* dest) {
     const uint8_t* source = static_cast<const uint8_t*>(data.m_data);
-    uint32_t thick = this->m_theFace->m_fontFlags & 8;
+    uint32_t thick = this->m_theFace->m_fontFlags & CGxFont::FONT_THICK_OUTLINE;
 
     uint16_t buffer[256 * 36];
     memset(buffer, 0, sizeof(buffer));
@@ -159,7 +159,7 @@ void TEXTURECACHE::PasteGlyphOutlinedAA(const GLYPHBITMAPDATA& data, uint16_t* d
     static const uint8_t s_outlineAlpha[] = { 0, 1, 1, 3, 5, 7, 9, 11, 13, 15 };
 
     const uint8_t* source = static_cast<const uint8_t*>(data.m_data);
-    uint32_t thick = this->m_theFace->m_fontFlags & 8;
+    uint32_t thick = this->m_theFace->m_fontFlags & CGxFont::FONT_THICK_OUTLINE;
 
     uint16_t alpha[256 * 36];
     uint16_t coverage[256 * 36];

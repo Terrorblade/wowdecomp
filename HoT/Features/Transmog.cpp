@@ -15,6 +15,7 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/ItemDisplayInfoRec.h"
 #include "WoW/Source/Ui/DressUpModelFrame.h"
+#include "WoW/Common/ItemTypes.h"
 
 namespace HoT::Transmog {
 
@@ -49,8 +50,6 @@ static constexpr int32_t EQUIPMENT_SLOT_MAINHAND = 15;
 static constexpr int32_t EQUIPMENT_SLOT_OFFHAND = 16;
 static constexpr int32_t AUTO_HAND = -1;
 static constexpr int32_t NO_COMPONENT_SLOT = -1;
-static constexpr uint8_t ITEM_CLASS_WEAPON = 2;
-static constexpr uint8_t ITEM_CLASS_ARMOR = 4;
 static constexpr size_t MAX_APPLY_ENTRIES = 255;
 
 static std::vector<TransmogAppearance> s_appearances;

@@ -82,7 +82,7 @@ void CGGuildBankInfo::UpdateTabInfo(uint8_t tab, const char* name, const char* i
         return;
     }
 
-    ScrubString(name, CGGuildBankInfo::m_guildBankTabInfo[tab].m_name, 16, sizeof(CGGuildBankInfo::m_guildBankTabInfo[tab].m_name), 1);
+    ScrubString(name, CGGuildBankInfo::m_guildBankTabInfo[tab].m_name, 16, sizeof(CGGuildBankInfo::m_guildBankTabInfo[tab].m_name), SCRUB_FLAG_TRUNCATE_NEWLINES);
     SStrCopy(CGGuildBankInfo::m_guildBankTabInfo[tab].m_icon, icon, sizeof(CGGuildBankInfo::m_guildBankTabInfo[tab].m_icon));
     FrameScript_SignalEvent(SCRIPT_EVENT_GUILDBANK_UPDATE_TABS, nullptr);
 }
@@ -146,7 +146,7 @@ void CGGuildBankInfo::SwapItems(uint8_t tab, uint32_t slot, WOWGUID item, WOWGUI
     }
 
     if (object->IsBound()) {
-        if (stats->m_bonding == 4) {
+        if (stats->m_bonding == ITEM_BINDING_QUEST) {
             CGGameUI::DisplayError(ERR_GUILD_BANK_QUEST_ITEM);
         } else {
             CGGameUI::DisplayError(ERR_GUILD_BANK_BOUND_ITEM);
@@ -155,7 +155,7 @@ void CGGuildBankInfo::SwapItems(uint8_t tab, uint32_t slot, WOWGUID item, WOWGUI
         return;
     }
 
-    if ((object->GetItemStaticFlags(0) & ITEM_FLAG_CONJURED) || ((object->GetItemStaticFlags(0) & 0x10000) && static_cast<int32_t>(stats->m_duration) > 0) || object->m_item->m_itemFieldDuration || object->IsZoneBound() || object->IsInstanceBound()) {
+    if ((object->GetItemStaticFlags(0) & ITEM_FLAG_CONJURED) || ((object->GetItemStaticFlags(0) & ITEM_FLAG_REAL_DURATION) && static_cast<int32_t>(stats->m_duration) > 0) || object->m_item->m_itemFieldDuration || object->IsZoneBound() || object->IsInstanceBound()) {
         CGGameUI::DisplayError(ERR_GUILD_BANK_CONJURED_ITEM);
         return;
     }
@@ -165,7 +165,7 @@ void CGGuildBankInfo::SwapItems(uint8_t tab, uint32_t slot, WOWGUID item, WOWGUI
         return;
     }
 
-    if (container == player->m_obj->m_guid && containerSlot < 23) {
+    if (container == player->m_obj->m_guid && containerSlot < NUM_INVENTORY_SLOTS) {
         CGGameUI::DisplayError(ERR_GUILD_BANK_EQUIPPED_ITEM);
         return;
     }
@@ -185,7 +185,7 @@ void CGGuildBankInfo::SwapItems(uint8_t tab, uint32_t slot, WOWGUID item, WOWGUI
     msg.Put(static_cast<uint8_t>(slot));
     msg.Put(static_cast<uint32_t>(bankItemId));
 
-    if (!(CGGuildInfo::GetGuildBankTabPermissionsByRankID(tab, player->m_player->m_playerGuildrank) & 2)) {
+    if (!(CGGuildInfo::GetGuildBankTabPermissionsByRankID(tab, player->m_player->m_playerGuildrank) & GUILDBANK_TAB_RIGHT_DEPOSIT)) {
         CGGameUI::DisplayError(ERR_GUILD_PERMISSIONS);
         return;
     }
@@ -243,7 +243,7 @@ void CGGuildBankInfo::SwapBankItems(uint8_t tab, uint32_t slot, int32_t itemId, 
         return;
     }
 
-    if (!(CGGuildInfo::GetGuildBankTabPermissionsByRankID(tab, player->m_player->m_playerGuildrank) & 2)) {
+    if (!(CGGuildInfo::GetGuildBankTabPermissionsByRankID(tab, player->m_player->m_playerGuildrank) & GUILDBANK_TAB_RIGHT_DEPOSIT)) {
         CGGameUI::DisplayError(ERR_GUILD_PERMISSIONS);
         return;
     }
@@ -491,13 +491,13 @@ int32_t Packet_MSG_GUILD_BANK_LOG_QUERY(void* param, NETMESSAGE msgId, uint32_t 
 
         entry->m_index = i;
 
-        if (entry->m_type == 4 || entry->m_type == 5 || entry->m_type == 6 || entry->m_type == 8 || entry->m_type == 9) {
+        if (entry->m_type == GUILD_BANK_LOG_DEPOSIT_MONEY || entry->m_type == GUILD_BANK_LOG_WITHDRAW_MONEY || entry->m_type == GUILD_BANK_LOG_REPAIR_MONEY || entry->m_type == GUILD_BANK_LOG_WITHDRAW_MONEY_FOR_TAB || entry->m_type == GUILD_BANK_LOG_BUY_TAB) {
             msg->Get(entry->m_money);
         } else {
             msg->Get(*reinterpret_cast<uint32_t*>(&entry->m_itemID));
             msg->Get(entry->m_count);
 
-            if (entry->m_type == 3 || entry->m_type == 7) {
+            if (entry->m_type == GUILD_BANK_LOG_MOVE_ITEM || entry->m_type == GUILD_BANK_LOG_MOVE_ITEM_FROM_TAB) {
                 uint8_t otherTab;
                 msg->Get(otherTab);
                 entry->m_otherTab = otherTab;
@@ -555,7 +555,7 @@ int32_t Packet_MSG_QUERY_GUILD_BANK_TEXT(void* param, NETMESSAGE msgId, uint32_t
     }
 
     msg->GetString(text, sizeof(text));
-    ScrubString(text, CGGuildBankInfo::m_guildBankTabInfo[tab].m_text, 2048, sizeof(CGGuildBankInfo::m_guildBankTabInfo[tab].m_text), 0);
+    ScrubString(text, CGGuildBankInfo::m_guildBankTabInfo[tab].m_text, 2048, sizeof(CGGuildBankInfo::m_guildBankTabInfo[tab].m_text), SCRUB_FLAG_NONE);
     FrameScript_SignalEvent(SCRIPT_EVENT_GUILDBANK_UPDATE_TEXT, "%d", tab + 1);
     return 1;
 }
@@ -637,7 +637,7 @@ void CGGuildBankInfo::QueryGuildBankText(uint8_t tab) {
 // OFFSET: 0x005A5A00
 void CGGuildBankInfo::SetTabInfo(uint8_t tab, const char* name, const char* icon) {
     char scrubbed[64];
-    ScrubString(name, scrubbed, 16, sizeof(scrubbed), 1);
+    ScrubString(name, scrubbed, 16, sizeof(scrubbed), SCRUB_FLAG_TRUNCATE_NEWLINES);
     VALIDATE_NAME_RESULT error = ValidateGuildBankTabName(s_locale, scrubbed);
 
     if (error) {
@@ -758,7 +758,7 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
                 continue;
             }
 
-            ScrubString(name, CGGuildBankInfo::m_guildBankTabInfo[i].m_name, 16, sizeof(name), 1);
+            ScrubString(name, CGGuildBankInfo::m_guildBankTabInfo[i].m_name, 16, sizeof(name), SCRUB_FLAG_TRUNCATE_NEWLINES);
             SStrCopy(CGGuildBankInfo::m_guildBankTabInfo[i].m_icon, icon, STORM_MAX_STR);
             FrameScript_SignalEvent(SCRIPT_EVENT_GUILDBANK_UPDATE_TABS, nullptr);
         }

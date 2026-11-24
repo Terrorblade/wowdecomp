@@ -6,6 +6,7 @@
 #include "Engine/Source/Frame/CScriptObject.h"
 #include "Engine/Source/Frame/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 class C2Vector;
 class CScriptRegion;
@@ -26,6 +27,12 @@ class CSimpleAnimSCurveSmoother {
 
 class CSimpleAnim : public CScriptObject {
     public:
+    enum ANIM_PLAY_STATE : int32_t {
+        STATE_STOPPED = 0,
+        STATE_PLAYING = 1,
+        STATE_PAUSED = 2,
+    };
+
     static int32_t s_metatable;
     static int32_t s_objectType;
     static const char* s_objectTypeName;
@@ -34,6 +41,10 @@ class CSimpleAnim : public CScriptObject {
     static void CreateScriptMetaTable();
     static void DestroyScriptMetaTable();
     static void RegisterScriptMethods(lua_State* L);
+
+    enum ANIM_FLAGS : uint8_t {
+        SIMPLEANIM_FLAG_IS_LOADING = 1,
+    };
 
     /* 0020 */ TSLink<CSimpleAnim> m_link;
     /* 0028 */ CSimpleAnimGroup* m_group;

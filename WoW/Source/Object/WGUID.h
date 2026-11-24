@@ -5,6 +5,9 @@
 #include <cstdint>
 
 class CDataStore;
+constexpr uint64_t WOWGUID_SPELL_QUERY_TAG = 0x1FE0000000000000ull;
+constexpr uint64_t WOWGUID_NONE_TOKEN = 0xFFFFFFFFFFFFFFFFull;
+constexpr uint64_t WOWGUID_EMPTY_UNIT_TOKEN = 0xFFFFFFFFFFFFFFFEull;
 
 struct WOWGUID {
     /* 0000 */ uint64_t m_guid;

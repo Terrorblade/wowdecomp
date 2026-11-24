@@ -25,6 +25,27 @@ class CVehicleCameraHeap {
 
 class CVehicleCamera_C {
     public:
+    enum CAMERA_STATE : uint32_t {
+        STATE_NONE = 0,
+        STATE_ENTER_DELAY = 1,
+        STATE_ENTERING = 2,
+        STATE_ATTACHED = 3,
+        STATE_EXIT_DELAY = 4,
+        STATE_EXITING = 5,
+    };
+
+    enum CAMERA_FLAGS : uint32_t {
+        FLAG_NONE = 0,
+        FLAG_MOTION_TIMING_SET = 0x1,
+        FLAG_POSITION_INTERPOLATION = 0x2,
+        FLAG_SYNC_FACING = 0x4,
+        FLAG_WORLD_STATE_UPDATED = 0x8,
+        FLAG_FACING_INTERPOLATION = 0x10,
+        FLAG_RESET_END_CHASERS = 0x20,
+        FLAG_SAFE_POSITION_VALID = 0x40,
+        FLAG_CHANGING_TARGET = 0x80,
+    };
+
     static CVehicleCameraHeap* s_cameraPool;
     static uint32_t s_cameraCount;
 

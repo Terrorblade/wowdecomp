@@ -5,6 +5,14 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_WORLD_STATE_UI_EXTENDED_VARIABLES = 3;
+
+enum WORLD_STATE_UI_TYPE : int32_t {
+    WORLD_STATE_UI_TYPE_DEFAULT = 0,
+    WORLD_STATE_UI_TYPE_UNKNOWN_1 = 1,
+    WORLD_STATE_UI_TYPE_BATTLEFIELD_STAT = 2,
+    WORLD_STATE_UI_TYPE_TIMER = 3,
+};
 
 class WorldStateUIRec {
     public:
@@ -24,7 +32,7 @@ class WorldStateUIRec {
     /* 0024 */ const char* m_dynamicIcon;
     /* 0028 */ const char* m_dynamicTooltip;
     /* 002C */ const char* m_extendedUi;
-    /* 0030 */ int32_t m_extendedUistateVariable [3];
+    /* 0030 */ int32_t m_extendedUistateVariable [NUM_WORLD_STATE_UI_EXTENDED_VARIABLES];
 
     WorldStateUIRec();
     ~WorldStateUIRec();

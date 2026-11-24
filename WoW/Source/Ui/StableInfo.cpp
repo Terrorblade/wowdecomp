@@ -66,7 +66,7 @@ int32_t Packet_MSG_LIST_STABLED_PETS(void* param, NETMESSAGE msgId, uint32_t tim
             break;
         }
 
-        if (!(pet.m_state & 0x2)) {
+        if (!(pet.m_state & STABLE_PET_STATE_STABLED)) {
             CGStableInfo::m_pets[0].m_entry = pet.m_entry;
             CGStableInfo::m_pets[0].m_petNumber = pet.m_petNumber;
             CGStableInfo::m_pets[0].m_level = pet.m_level;
@@ -88,15 +88,15 @@ int32_t Packet_SMSG_STABLE_RESULT(void* param, NETMESSAGE msgId, uint32_t time, 
     msg->Get(result);
 
     switch (result) {
-        case 1:
+        case STABLE_RESULT_NOT_ENOUGH_MONEY:
             CGGameUI::DisplayError(ERR_NOT_ENOUGH_MONEY);
             return 1;
 
-        case 10:
+        case STABLE_RESULT_SLOT_BOUGHT:
             CGStableInfo::m_numSlots++;
 
-        case 8:
-        case 9: {
+        case STABLE_RESULT_UNKNOWN_8:
+        case STABLE_RESULT_UNKNOWN_9: {
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
             if (CGStableInfo::m_stableMaster || (player && player->HasAuraEffect(SPELL_AURA_OPEN_STABLE))) {
@@ -110,12 +110,12 @@ int32_t Packet_SMSG_STABLE_RESULT(void* param, NETMESSAGE msgId, uint32_t time, 
             return 1;
         }
 
-        case 11:
+        case STABLE_RESULT_UNKNOWN_11:
             FrameScript_SignalEvent(SCRIPT_EVENT_PET_STABLE_UPDATE, nullptr);
             return 1;
 
-        case 12:
-            Spell_C_PetTameFailure(12);
+        case STABLE_RESULT_CANT_CONTROL_EXOTIC:
+            Spell_C_PetTameFailure(PET_TAME_CANT_CONTROL_EXOTIC);
             return 1;
     }
 

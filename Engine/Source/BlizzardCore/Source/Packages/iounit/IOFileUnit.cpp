@@ -10,6 +10,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 #include "Engine/Source/BlizzardCore/Source/System/Memory/MemoryStorm.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
+#include "Engine/Source/BlizzardCore/SFile2-Core.h"
 
 // VERIFY: dc549ade manual
 // OFFSET: 0x0042FA40
@@ -49,7 +50,7 @@ bool IOFileUnit::Read(void* buffer, int64_t offset, uint32_t count, uint32_t* by
         const char* path = Blizzard::File::GetFileInfo(this->m_stream)->m_path;
         Blizzard::File::StreamingInfo* streaming = this->m_stream->m_streaming;
 
-        if (!streaming || !streaming->m_entry || Blizzard::Streaming::CheckFileRange(path, offset, count, path, 5) == 1) {
+        if (!streaming || !streaming->m_entry || Blizzard::Streaming::CheckFileRange(path, offset, count, path, 5) == SFILE_LOCAL_YES) {
             return this->ReadNative(static_cast<uint32_t>(offset), path, buffer, count, bytesRead);
         }
     }

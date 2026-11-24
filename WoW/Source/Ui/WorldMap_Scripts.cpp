@@ -90,9 +90,9 @@ static int32_t Script_PositionWorldMapArrowFrame(lua_State* L) {
         }
 
         if (lua_isnumber(L, 4) && lua_isnumber(L, 5)) {
-            float value = lua_tonumber(L, 4);
+            float value = static_cast<float>(lua_tonumber(L, 4));
             offsetX = NDCToDDCWidth(value / (CoordinateGetAspectCompensation() * 1024.0f));
-            value = lua_tonumber(L, 5);
+            value = static_cast<float>(lua_tonumber(L, 5));
             offsetY = NDCToDDCWidth(value / (CoordinateGetAspectCompensation() * 1024.0f));
         }
     }
@@ -150,9 +150,9 @@ static int32_t Script_PositionMiniWorldMapArrowFrame(lua_State* L) {
         }
 
         if (lua_isnumber(L, 4) && lua_isnumber(L, 5)) {
-            float value = lua_tonumber(L, 4);
+            float value = static_cast<float>(lua_tonumber(L, 4));
             offsetX = NDCToDDCWidth(value / (CoordinateGetAspectCompensation() * 1024.0f));
-            value = lua_tonumber(L, 5);
+            value = static_cast<float>(lua_tonumber(L, 5));
             offsetY = NDCToDDCWidth(value / (CoordinateGetAspectCompensation() * 1024.0f));
         }
     }
@@ -324,7 +324,7 @@ static int32_t Script_IsZoomOutAvailable(lua_State* L) {
     bool available = true;
     int32_t dungeonMap = CGWorldMap::m_currentOrphanZone == -1 ? -1 : CGWorldMap::m_currentDungeonMap;
 
-    if (!g_dungeonMapDB.GetRecord(dungeonMap) && CGWorldMap::m_currentContinent == -2) {
+    if (!g_dungeonMapDB.GetRecord(dungeonMap) && CGWorldMap::m_currentContinent == WORLDMAP_CONTINENT_COSMIC) {
         WorldMapAreaRec* area = g_worldMapAreaDB.GetRecord(CGWorldMap::GetCurrentAreaID());
 
         if (!area || area->m_defaultDungeonFloor != -1) {
@@ -444,7 +444,7 @@ static int32_t Script_GetMapLandmarkInfo(lua_State* L) {
             if (location) {
                 lua_pushstring(L, location->m_areaName);
                 lua_pushnil(L);
-                lua_pushnumber(L, 6.0);
+                lua_pushnumber(L, WORLDMAP_LANDMARK_TEXTURE_GRAVEYARD);
                 lua_pushnumber(L, landmark->m_x);
                 lua_pushnumber(L, landmark->m_y);
                 lua_pushnil(L);
@@ -458,7 +458,7 @@ static int32_t Script_GetMapLandmarkInfo(lua_State* L) {
                 lua_pushstring(L, poi->m_description);
                 int32_t icon = 0;
 
-                if (landmark->m_isGossip || (poi->m_flags & 0x80) || (CGWorldMap::m_currentZone == -1 && CGWorldMap::m_currentContinent != -2)) {
+                if (landmark->m_isGossip || (poi->m_flags & AREA_POI_FLAG_ALWAYS_DRAW_ICON_WORLDMAP) || (CGWorldMap::m_currentZone == WORLDMAP_ZONE_NONE && CGWorldMap::m_currentContinent != WORLDMAP_CONTINENT_COSMIC)) {
                     uint32_t state = 0;
 
                     if (poi->m_worldStateID) {
@@ -482,7 +482,7 @@ static int32_t Script_GetMapLandmarkInfo(lua_State* L) {
                     lua_pushnil(L);
                 }
 
-                lua_pushboolean(L, poi->m_flags & 0x200);
+                lua_pushboolean(L, poi->m_flags & AREA_POI_FLAG_SHOW_IN_BATTLEMAP);
                 return 7;
             }
         }
@@ -506,8 +506,8 @@ static int32_t Script_UpdateMapHighlight(lua_State* L) {
         return 0;
     }
 
-    float x = lua_tonumber(L, 1);
-    float y = lua_tonumber(L, 2);
+    float x = static_cast<float>(lua_tonumber(L, 1));
+    float y = static_cast<float>(lua_tonumber(L, 2));
 
     if (x != x || y != y) {
         luaL_error(L, "Usage: UpdateMapHighlight(x, y)");
@@ -523,10 +523,10 @@ static int32_t Script_UpdateMapHighlight(lua_State* L) {
             }
 
             CRect rect;
-            rect.minX = overlay->m_hitRectLeft * 0.00099800399;
-            rect.minY = overlay->m_hitRectTop * 0.001497006;
-            rect.maxX = overlay->m_hitRectRight * 0.00099800399;
-            rect.maxY = overlay->m_hitRectBottom * 0.001497006;
+            rect.minX = static_cast<float>(overlay->m_hitRectLeft * 0.00099800399);
+            rect.minY = static_cast<float>(overlay->m_hitRectTop * 0.001497006);
+            rect.maxX = static_cast<float>(overlay->m_hitRectRight * 0.00099800399);
+            rect.maxY = static_cast<float>(overlay->m_hitRectBottom * 0.001497006);
 
             if (rect.maxX - rect.minX == 0.0 || rect.maxY - rect.minY == 0.0) {
                 continue;
@@ -622,8 +622,8 @@ static int32_t Script_UpdateMapHighlight(lua_State* L) {
         }
 
         if (continentRec) {
-            width = continentRec->m_rightBoundary - continentRec->m_leftBoundary + 1;
-            height = continentRec->m_bottomBoundary - continentRec->m_topBoundary + 1;
+            width = static_cast<float>(continentRec->m_rightBoundary - continentRec->m_leftBoundary + 1);
+            height = static_cast<float>(continentRec->m_bottomBoundary - continentRec->m_topBoundary + 1);
             size = static_cast<int32_t>(512.0 * height / width);
         }
     }
@@ -699,8 +699,8 @@ static int32_t Script_UpdateMapHighlight(lua_State* L) {
                 offsetY = rec->m_locTop - transformedX;
             }
 
-            float invWidth = 1.0 / parentWidth;
-            float invHeight = 1.0 / parentHeight;
+            float invWidth = static_cast<float>(1.0 / parentWidth);
+            float invHeight = static_cast<float>(1.0 / parentHeight);
             lua_pushnumber(L, invWidth * width);
             lua_pushnumber(L, invHeight * height);
             lua_pushnumber(L, invWidth * offsetX);
@@ -952,7 +952,7 @@ static int32_t Script_ZoomOut(lua_State* L) {
     int32_t parent;
 
     if (CGWorldMap::m_currentOrphanZone == -1 || CGWorldMap::m_currentDungeonMap <= 0) {
-        if (CGWorldMap::m_currentContinent != -2) {
+        if (CGWorldMap::m_currentContinent != WORLDMAP_CONTINENT_COSMIC) {
             return 0;
         }
 
@@ -1089,8 +1089,8 @@ static int32_t Script_ProcessMapClick(lua_State* L) {
         return 0;
     }
 
-    float x = lua_tonumber(L, 1);
-    float y = lua_tonumber(L, 2);
+    float x = static_cast<float>(lua_tonumber(L, 1));
+    float y = static_cast<float>(lua_tonumber(L, 2));
 
     if (x != x || y != y) {
         luaL_error(L, "Usage: ProcessMapClick(x, y)");

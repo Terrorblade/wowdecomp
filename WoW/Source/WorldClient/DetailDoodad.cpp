@@ -31,6 +31,7 @@
 #include "WoW/Source/WorldClient/Types.h"
 #include "WoW/Source/WorldClient/World.h"
 #include "Engine/Source/ShaderEffect/Types.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00D1C4C4
 static uint32_t s_indexBufferSize;
@@ -383,7 +384,7 @@ void CDetailDoodadInstBatch::FillVertices() {
             color = swapped;
         }
 
-        if (data->m_record->m_flags & 1) {
+        if (data->m_record->m_flags & GROUND_EFFECT_DOODAD_ALIGN_TO_TERRAIN) {
             if ((add.m_triIndex & 0xFC) != cell) {
                 cell = add.m_triIndex & 0xFC;
                 built = 0;
@@ -593,7 +594,7 @@ void CDetailDoodad::UpdatePools() {
 // OFFSET: 0x007B2D30
 int32_t CDetailDoodad::InitializeRenderState() {
     GxRsSet(GxRs_Culling, 0);
-    GxRsSet(GxRs_BlendingMode, 2);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxRsSet(GxRs_AlphaRef, CWorld::detailDoodadAlphaRef);
     GxRsSet(GxRs_DepthWrite, 1);
 
@@ -611,7 +612,7 @@ int32_t CDetailDoodad::InitializeRenderState() {
     g_theGxDevicePtr->RsSet(GxRs_Texture1, CDetailDoodad::s_alphaRampTexture);
     GxRsSet(GxRs_ColorOp1, GxTexOp_Mod);
     GxRsSet(GxRs_AlphaOp1, GxTexOp_Mod);
-    GxRsSet(GxRs_TexGen1, 3);
+    GxRsSet(GxRs_TexGen1, GxTexGen_View);
     GxRsSet(GxRs_TextureShader1, 1);
 
     C44Matrix matrix;

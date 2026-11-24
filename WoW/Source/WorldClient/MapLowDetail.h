@@ -9,12 +9,18 @@
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Tempest/CAaSphere.h"
 #include "WoW/Source/WorldClient/FVBBList.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 
 class CMapObjDef;
 struct SMMapObjDef;
 
 class CMapAreaLow {
     public:
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        UNKNOWN_1 = 0x1,
+    };
+
     /* 0000 */ uint32_t m_objectIndex;
     /* 0004 */ CAaBox m_bbox;
     /* 001C */ CAaSphere m_sphere;

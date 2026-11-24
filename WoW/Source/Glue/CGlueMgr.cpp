@@ -73,6 +73,8 @@
 #include "WoW/Source/WowSvcs/WowSvcsClient/ChecksumExecutables.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/Types.h"
+#include "WoW/Source/Glue/Types.h"
+#include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/Types.h"
 
 // STATIC: 0x009E2C28
 const uint8_t InterfaceKey[256] = {
@@ -256,7 +258,7 @@ static void WriteConnectionLog(const char* text) {
 // VERIFY: c565c343 auto
 // OFFSET: 0x004D8360
 void CGlueMgr::QuitGameAndRunLauncher() {
-    ClientPostClose(0);
+    ClientPostClose(STARTUP_STRING_NONE);
     SCreateProcess("Launcher.exe", nullptr, nullptr, nullptr);
 }
 
@@ -388,7 +390,7 @@ static bool CreateIntroScene(uint8_t classID, uint8_t raceID, C3Vector& position
             model->SetWorldTransform(transform);
 
             scene->SetTime(0);
-            model->SetBoneSequence(0xFFFFFFFF, 0, 0xFFFFFFFF, 0, 1.0f, 0, 1);
+            model->SetBoneSequence(0xFFFFFFFF, ANIM_STAND, 0xFFFFFFFF, 0, 1.0f, 0, 1);
             model->SetAnimating(1);
 
             C3Vector cameraPos;
@@ -429,8 +431,8 @@ int32_t CGlueMgr::OnCharRenameResult(void* param, NETMESSAGE msgId, uint32_t tim
     FrameScript_SignalEvent(GLUE_EVENT_CLOSE_STATUS_DIALOG, nullptr);
 
     if (result) {
-        if (result == 50) {
-            FrameScript_SignalEvent(GLUE_EVENT_FORCE_RENAME_CHARACTER, "%s", ClientServices::GetErrorToken(50));
+        if (result == CHAR_CREATE_NAME_IN_USE) {
+            FrameScript_SignalEvent(GLUE_EVENT_FORCE_RENAME_CHARACTER, "%s", ClientServices::GetErrorToken(CHAR_CREATE_NAME_IN_USE));
         } else {
             FrameScript_SignalEvent(GLUE_EVENT_FORCE_RENAME_CHARACTER, "%s", FrameScript_GetText("CHAR_RENAME_FAILED", -1, GENDER_NOT_APPLICABLE));
         }
@@ -617,22 +619,22 @@ void CGlueMgr::Resume() {
     uint8_t expectedDigest[16];
 
     switch (FrameXML_CheckSignature("Interface\\GlueXML\\GlueXML.toc", nullptr, InterfaceKey, expectedDigest)) {
-        case 0: {
+        case XML_SIGNATURE_MISSING: {
             status.Add(STATUS_WARNING, "GlueXML missing signature");
             break;
         }
 
-        case 1: {
+        case XML_SIGNATURE_CORRUPT: {
             status.Add(STATUS_WARNING, "GlueXML has corrupt signature");
             break;
         }
 
-        case 2: {
+        case XML_SIGNATURE_MODIFIED: {
             status.Add(STATUS_WARNING, "GlueXML is modified or corrupt");
             break;
         }
 
-        case 3: {
+        case XML_SIGNATURE_VALID: {
             FrameXML_FreeHashNodes();
             FrameXML_CreateFrames("Interface\\GlueXML\\GlueXML.toc", nullptr, &md5, &status);
             HoT::SharedXML::Load("glue", &status);
@@ -673,7 +675,7 @@ void CGlueMgr::Resume() {
         }
     }
 
-    ClientPostClose(9);
+    ClientPostClose(MSG_GLUEXML_UI_CORRUPT);
 }
 
 // VERIFY: fc9c4123 auto
@@ -1059,17 +1061,17 @@ int32_t CGlueMgr::Idle(const void* data, void* param) {
             }
         } else {
             switch (ClientServices::Connection()->m_accountExpansion) {
-                case 0: {
+                case EXPANSION_CLASSIC: {
                     accountType->Set("CL", true, false, false, true);
                     break;
                 }
 
-                case 1: {
+                case EXPANSION_BURNING_CRUSADE: {
                     accountType->Set("BC", true, false, false, true);
                     break;
                 }
 
-                case 2: {
+                case EXPANSION_LICH_KING: {
                     accountType->Set("LK", true, false, false, true);
                     break;
                 }
@@ -1340,7 +1342,7 @@ void CGlueMgr::LogConnectionStatus(const char* format, ...) {
 
     s_connectionStatusLock.Enter();
 
-    ConsoleString* string = s_connectionStatus.NewNode(2, 0, 0);
+    ConsoleString* string = s_connectionStatus.NewNode(TSLIST_LINK_BEFORE, 0, 0);
 
     va_list args;
     va_start(args, format);
@@ -1538,22 +1540,22 @@ void CGlueMgr::EnterWorld() {
 
     uint32_t flags = CGlueMgr::m_characterInfo->m_flags;
 
-    if (flags & 0x4) {
+    if (flags & CHARACTER_LOCKED_FOR_TRANSFER) {
         FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s%s", "OKAY", FrameScript_GetText(ClientServices::GetErrorToken(CHAR_LOGIN_LOCKED_FOR_TRANSFER), -1, GENDER_NOT_APPLICABLE));
         return;
     }
 
-    if (flags & 0x1000000) {
+    if (flags & CHARACTER_FLAG_LOCKED_BY_BILLING) {
         FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s%s", "OKAY", FrameScript_GetText(ClientServices::GetErrorToken(CHAR_LOGIN_LOCKED_BY_BILLING), -1, GENDER_NOT_APPLICABLE));
         return;
     }
 
-    if (flags & 0x4000) {
+    if (flags & CHARACTER_FLAG_RENAME) {
         FrameScript_SignalEvent(GLUE_EVENT_FORCE_RENAME_CHARACTER, "%s", "CHAR_RENAME_DESCRIPTION");
         return;
     }
 
-    if (!(flags & 0x2000000) && NameNeedsDeclensions(s_locale, CGlueMgr::m_characterInfo->m_name)) {
+    if (!(flags & CHARACTER_FLAG_DECLINED) && NameNeedsDeclensions(s_locale, CGlueMgr::m_characterInfo->m_name)) {
         FrameScript_SignalEvent(GLUE_EVENT_FORCE_DECLINE_CHARACTER, nullptr);
         return;
     }
@@ -1575,11 +1577,11 @@ void CGlueMgr::EnterWorld() {
     HoT::OnEnterWorld();
 
     if (!s_curGameTip) {
-        s_curGameTip = CVar::Register("gameTip", nullptr, 0, "0", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
+        s_curGameTip = CVar::Register("gameTip", nullptr, CVAR_NONE, "0", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
     }
 
     if (!s_showGameTips) {
-        s_showGameTips = CVar::Register("showGameTips", nullptr, 0, "1", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
+        s_showGameTips = CVar::Register("showGameTips", nullptr, CVAR_NONE, "1", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
     }
 
     if (!CGlueMgr::m_characterInfo->m_firstLogin && s_showGameTips->m_intValue) {
@@ -1602,7 +1604,7 @@ void CGlueMgr::EnterWorld() {
     if (SFile::IsTrial()) {
         bool ready = StreamingIsRaceDataReady(CGlueMgr::m_characterInfo->m_raceID);
         StreamingSetRace(CGlueMgr::m_characterInfo->m_raceID);
-        StreamingSetState(2);
+        StreamingSetState(STREAMING_GAME_STATE_ENTERING_WORLD);
         LoadingScreenSetScreenTipForRaceData(!ready);
     }
 
@@ -1717,7 +1719,7 @@ void CGlueMgr::DisplayLoginStatus() {
 // VERIFY: 6397c8fa auto
 // OFFSET: 0x004D8350
 void CGlueMgr::QuitGame() {
-    ClientPostClose(0);
+    ClientPostClose(STARTUP_STRING_NONE);
 }
 
 // VERIFY: 36e76190 manual
@@ -2014,7 +2016,7 @@ int32_t CGlueMgr::OnCharCustomizeResult(void* param, NETMESSAGE msgId, uint32_t 
     }
 
     if (result) {
-        const char* text = FrameScript_GetText(result == 50 ? ClientServices::GetErrorToken(50) : "CHAR_CUSTOMIZE_FAILED", -1, GENDER_NOT_APPLICABLE);
+        const char* text = FrameScript_GetText(result == CHAR_CREATE_NAME_IN_USE ? ClientServices::GetErrorToken(CHAR_CREATE_NAME_IN_USE) : "CHAR_CUSTOMIZE_FAILED", -1, GENDER_NOT_APPLICABLE);
         FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s%s", "OKAY", text);
         return 1;
     }
@@ -2058,49 +2060,49 @@ int32_t CGlueMgr::OnCharFactionChangeResult(void* param, NETMESSAGE msgId, uint3
     const char* text;
 
     switch (result) {
-        case 0:
+        case RESPONSE_SUCCESS:
             CCharacterSelection::UpdateCharacterInfo(guid, name, sexID, skinID, faceID, hairStyleID, hairColorID, facialHairStyleID, raceID);
             FrameScript_SignalEvent(GLUE_EVENT_CLOSE_STATUS_DIALOG, nullptr);
             CGlueMgr::SetScreen("charselect");
             return 1;
 
-        case 50:
-            text = FrameScript_GetText(ClientServices::GetErrorToken(50), -1, GENDER_NOT_APPLICABLE);
+        case CHAR_CREATE_NAME_IN_USE:
+            text = FrameScript_GetText(ClientServices::GetErrorToken(CHAR_CREATE_NAME_IN_USE), -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 61:
+        case CHAR_CREATE_CHARACTER_IN_GUILD:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_STILL_IN_GUILD", -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 62:
+        case CHAR_CREATE_RESTRICTED_RACECLASS:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_RACECLASS_RESTRICTED", -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 63:
+        case CHAR_CREATE_CHARACTER_CHOOSE_RACE:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_CHOOSE_RACE", -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 64:
+        case CHAR_CREATE_CHARACTER_ARENA_LEADER:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_ARENA_LEADER", -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 65:
+        case CHAR_CREATE_CHARACTER_DELETE_MAIL:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_DELETE_MAIL", -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 66:
+        case CHAR_CREATE_CHARACTER_SWAP_FACTION:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_SWAP_FACTION", -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 67:
+        case CHAR_CREATE_CHARACTER_RACE_ONLY:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_RACE_ONLY", -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 68:
+        case CHAR_CREATE_CHARACTER_GOLD_LIMIT:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_GOLD_LIMIT", -1, GENDER_NOT_APPLICABLE);
             break;
 
-        case 69:
+        case CHAR_CREATE_FORCE_LOGIN:
             text = FrameScript_GetText("CHAR_FACTION_CHANGE_FORCE_LOGIN", -1, GENDER_NOT_APPLICABLE);
             break;
 

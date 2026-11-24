@@ -11,6 +11,7 @@
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/CImVector.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 
 class CMapArea;
 class CM2Lighting;
@@ -62,6 +63,24 @@ class CMapRenderChunkLayer {
 
 class CMapRenderChunk {
     public:
+    enum RENDER_FLAGS : int32_t {
+        FLAG_NONE = 0,
+        FLAG_UNLIT_LAYERS = 0x1,
+        FLAG_SPECULAR = 0x4,
+        FLAG_BLEND_MIP1 = 0x8,
+        LayerFlags_ShouldMip = 0x10,
+        FLAG_LAYER_TEXTURES_DIRTY = 0x20,
+        FLAG_TEXTURE_UPDATE_REQUESTS = 0x30,
+    };
+
+    enum BATCH_FLAGS : int32_t {
+        BATCH_NONE = 0,
+        BATCH_PAIR_VERTICAL = 0x1,
+        BATCH_PAIR_HORIZONTAL = 0x2,
+        BATCH_PAIR_MASK = 0x3,
+        BATCH_LAYER_TEXTURES_LOADED = 0x8,
+    };
+
     struct SLayerAlpha;
     struct SVertexShaderConstants;
     typedef void (*RenderLayersFunc)(CMapRenderChunk* renderChunk);
@@ -203,6 +222,18 @@ struct CMapRenderChunk::SVertexShaderConstants {
 };
 
 struct SMMapHeader {
+
+    enum MAP_FLAGS : int32_t {
+        HAS_GLOBAL_WMO = 1,
+        VERTEX_COLORS = 2,
+        BIG_ALPHA = 0x4,
+        UNKNOWN_8 = 0x8,
+    };
+
+    enum MAP_BITS : int32_t {
+        BIG_ALPHA_BIT_INDEX = 2,
+    };
+
     /* 0000 */ uint32_t m_flags;
     /* 0004 */ uint32_t m_something;
     /* 0008 */ uint32_t m_unused [6];

@@ -10,6 +10,8 @@
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Object/ObjectClient/Object_C.h"
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
+#include "WoW/Source/Game/GameClient/tables.h"
 
 struct lua_State;
 class CGGameObject_C;
@@ -29,18 +31,6 @@ class CGPlayer_C;
 class CGUnit_C;
 class CM2Model;
 class CTerrainClickEvent;
-// FIX: HoT keeps modifiers for every spell family and adds ops after the 31 stock ones.
-enum SPELL_MOD_OP {
-    SPELLMOD_COOLDOWN = 11,
-    SPELLMOD_GLOBAL_COOLDOWN = 21,
-    SPELLMOD_CAST_WHILE_MOVING = 31,
-    SPELLMOD_POWER_TYPE = 32,
-    SPELLMOD_IGNORE_ITEM_SUBCLASS = 33,
-    SPELLMOD_IGNORE_ITEM_INV_TYPE = 34,
-    SPELLMOD_IGNORE_WEAPON_ITEM_CLASS = 35,
-    SPELLMOD_IGNORE_ARMOR_SUBCLASS = 36,
-    NUM_SPELL_MOD_OPS = 37,
-};
 
 static const uint32_t NUM_SPELL_MOD_FAMILIES = 32;
 static const uint32_t NUM_SPELL_MOD_BITS = 96;

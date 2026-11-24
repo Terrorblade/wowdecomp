@@ -9,6 +9,12 @@ enum SCRNSTOCK {
     SCRNSTOCKOBJECTS = 2,
 };
 
+enum SCRN_LAYER_FLAGS : uint32_t {
+    SCRN_LAYER_TRANSPARENT = 0x1,
+    SCRN_LAYER_ORTHO = 0x2,
+    SCRN_LAYER_FULLSCREEN_VIEWPORT = 0x4,
+};
+
 struct HLAYER__ {
     /* 0000 */ int32_t m_unused;
 };

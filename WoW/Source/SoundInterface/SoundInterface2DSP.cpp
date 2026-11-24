@@ -38,7 +38,7 @@ static FMOD_DSP_TYPE TranslateDspType(int32_t type) {
 // INLINED
 SI2DspNode::SI2DspNode() {
     this->m_dsp = nullptr;
-    this->m_type = -1;
+    this->m_type = SI2_DSP_TYPE_UNINITIALIZED;
 }
 
 // INLINED

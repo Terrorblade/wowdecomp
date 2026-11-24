@@ -16,6 +16,16 @@ class CSimpleFontString;
 
 class CGChatBubbleFrame : public TSLinkedNode<CGChatBubbleFrame>, public CSimpleFrame {
     public:
+
+    enum BUBBLE_FLAGS : int32_t {
+        FLAG_FADING_IN = 0x1,
+        FLAG_FADING_OUT = 0x2,
+        FLAG_REMOVE_AFTER_FADE = 0x4,
+        FLAG_NEEDS_SORT = 0x8,
+        FLAG_FADE_MASK = 0x3,
+        FLAG_FADE_IN_BLOCK_MASK = 0x5,
+    };
+
     static CDataAllocator s_chatBubbleHeap;
 
     static void operator delete(void* ptr);

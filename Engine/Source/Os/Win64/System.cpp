@@ -11,6 +11,15 @@
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/Os/Win64/WinVersion.h"
+
+enum : uint32_t {
+    CPUID_1_EDX_TSC = 0x10,
+    CPUID_1_EDX_MMX = 0x800000,
+    CPUID_1_EDX_SSE = 0x2000000,
+    CPUID_1_EDX_SSE2 = 0x4000000,
+    CPUID_80000001_EDX_3DNOW = 0x80000000,
+};
 
 // STATIC: 0x00B1D2AC
 static int32_t s_sleepInBackground = 1;
@@ -163,7 +172,7 @@ void IOsSystemCpuLog(const CpuIdInfo* info) {
     }
 
     SLogWrite(log, "vendor: %d", s_processorVendor);
-    SLogWrite(log, "features: %08X", s_processorFeatures & 0x7FFFFFFF);
+    SLogWrite(log, "features: %08X", s_processorFeatures & ~OS_PROCESSOR_FEATURE_VALID);
     SLogWrite(log, "sockets: %d", s_processorSockets);
     SLogWrite(log, "cores: %d", s_processorCores);
     SLogWrite(log, "processors: %d", s_processorCount);
@@ -222,16 +231,10 @@ void OsSetBackgroundSleepMs(uint32_t milliseconds) {
 OsType OsGetVersion() {
     OsType type = OsType_Unknown;
 
-    OSVERSIONINFOEXA info;
-    memset(&info, 0, sizeof(info));
-    info.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXA);
+    OSVERSIONINFOEXW info;
 
-    if (!GetVersionExA(reinterpret_cast<OSVERSIONINFOA*>(&info))) {
-        info.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
-
-        if (!GetVersionExA(reinterpret_cast<OSVERSIONINFOA*>(&info))) {
-            return type;
-        }
+    if (!OsGetWindowsVersion(&info)) {
+        return type;
     }
 
     switch (info.dwPlatformId) {
@@ -555,31 +558,31 @@ uint32_t OsGetProcessorFeaturesEx(int32_t& vendor) {
     CpuIdInfo info;
 
     if (IOsGetProcessorFeatures(&info)) {
-        if (info.m_standard1d & 0x10) {
-            features = 1;
+        if (info.m_standard1d & CPUID_1_EDX_TSC) {
+            features = OS_PROCESSOR_FEATURE_TSC;
         }
 
-        if (info.m_standard1d & 0x800000) {
-            features |= 2;
+        if (info.m_standard1d & CPUID_1_EDX_MMX) {
+            features |= OS_PROCESSOR_FEATURE_MMX;
         }
 
-        if (info.m_standard1d & 0x2000000) {
-            features |= 4;
+        if (info.m_standard1d & CPUID_1_EDX_SSE) {
+            features |= OS_PROCESSOR_FEATURE_SSE;
         }
 
-        if (info.m_extended1d & 0x80000000) {
-            features |= 8;
+        if (info.m_extended1d & CPUID_80000001_EDX_3DNOW) {
+            features |= OS_PROCESSOR_FEATURE_3DNOW;
         }
 
-        if (info.m_standard1d & 0x4000000) {
-            features |= 0x10;
+        if (info.m_standard1d & CPUID_1_EDX_SSE2) {
+            features |= OS_PROCESSOR_FEATURE_SSE2;
         }
 
         if (!strncmp(info.m_vendor, s_vendorIds, 12)) {
             s_processorVendor = OS_PROCESSOR_VENDOR_INTEL;
 
             if (info.m_maxStandard >= 4 && (info.m_standard4a >> 26)) {
-                features |= 0x40;
+                features |= OS_PROCESSOR_FEATURE_MULTICORE;
                 s_processorCores = static_cast<uint8_t>(info.m_standard4a >> 26) + 1;
             }
         } else if (!strncmp(info.m_vendor, s_vendorIds + 12, 12)) {
@@ -588,7 +591,7 @@ uint32_t OsGetProcessorFeaturesEx(int32_t& vendor) {
             uint8_t cores = static_cast<uint8_t>(info.m_extended8c);
 
             if (cores) {
-                features |= 0x40;
+                features |= OS_PROCESSOR_FEATURE_MULTICORE;
                 s_processorCores = cores + 1;
             }
         } else if (strncmp(info.m_vendor, s_vendorIds + 24, 12)) {
@@ -598,7 +601,7 @@ uint32_t OsGetProcessorFeaturesEx(int32_t& vendor) {
         s_processorVendor = OS_PROCESSOR_VENDOR_CPUID_FAILED;
     }
 
-    s_processorFeatures = features | 0x80000000;
+    s_processorFeatures = features | OS_PROCESSOR_FEATURE_VALID;
 
     IOsSystemCpuLog(&info);
 

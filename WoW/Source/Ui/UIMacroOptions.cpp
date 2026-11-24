@@ -24,6 +24,7 @@
 #include "WoW/Source/Ui/TalentInfo.h"
 #include "WoW/Source/Ui/UIBindings.h"
 #include "WoW/Source/Ui/UIMacros.h"
+#include "WoW/Source/Object/Types.h"
 
 void InitializeMacroOptions() {
 }
@@ -72,7 +73,7 @@ int32_t EvaluateFlyable(const WOWGUID* unit, const TSGrowableArray<MacroSubstrin
     bool flyable = player ? player->IsInFlyableZone(1) : IsInFlyableArea() != 0;
 
     if (args->m_count) {
-        return flyable == args->m_data->ToNumber();
+        return static_cast<int32_t>(flyable) == args->m_data->ToNumber();
     }
 
     return flyable;
@@ -127,7 +128,7 @@ int32_t EvaluateButton(const WOWGUID* unit, const TSGrowableArray<MacroSubstring
 
             SStrCopy(name, GetMouseButtonName(IndexToMouseButton(index)), sizeof(name));
         } else {
-            uint32_t length = arg.m_end - arg.m_start;
+            uint32_t length = static_cast<uint32_t>(arg.m_end - arg.m_start);
 
             if (length > 1023) {
                 length = 1023;
@@ -258,7 +259,7 @@ int32_t EvaluateVehicleUI(const WOWGUID* unit, const TSGrowableArray<MacroSubstr
     VehicleSeatRec* seat = GetVehicleSeatRec(&guid);
 
     if (seat) {
-        return seat->m_flags & 0x20000000;
+        return seat->m_flags & VEHICLE_SEAT_FLAG_HAS_VEHICLE_UI;
     }
 
     return 0;
@@ -270,7 +271,7 @@ int32_t EvaluateUnitHasVehicleUI(const WOWGUID* unit, const TSGrowableArray<Macr
     VehicleSeatRec* seat = GetVehicleSeatRec(unit);
 
     if (seat) {
-        return seat->m_flags & 0x20000000;
+        return seat->m_flags & VEHICLE_SEAT_FLAG_HAS_VEHICLE_UI;
     }
 
     return 0;
@@ -328,7 +329,7 @@ int32_t EvaluateCursor(const WOWGUID* unit, const TSGrowableArray<MacroSubstring
     for (uint32_t i = args->m_count; i; i--) {
         const MacroSubstring& arg = args->m_data[i - 1];
         char text[1024];
-        uint32_t length = arg.m_end - arg.m_start;
+        uint32_t length = static_cast<uint32_t>(arg.m_end - arg.m_start);
 
         if (length > 1023) {
             length = 1023;
@@ -351,11 +352,11 @@ int32_t EvaluateCombat(const WOWGUID* unit, const TSGrowableArray<MacroSubstring
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
     int32_t combat;
 
-    if (player && (player->m_unit->m_unitFieldFlags & 0x80000)) {
+    if (player && (player->m_unit->m_unitFieldFlags & UNIT_FLAG_IN_COMBAT)) {
         combat = 1;
     } else {
         CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
-        combat = pet && (pet->m_unit->m_unitFieldFlags & 0x80000);
+        combat = pet && (pet->m_unit->m_unitFieldFlags & UNIT_FLAG_IN_COMBAT);
     }
 
     if (args->m_count) {
@@ -402,16 +403,16 @@ int32_t EvaluateDead(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>*
     if (object) {
         if (object->m_unit->m_unitFieldHealth <= 0) {
             dead = 1;
-        } else if ((object->m_unit->m_unitDynamicFlags & 0x20) && !CGGameUI::IsRaidMemberOrPet(object->m_obj->m_guid)) {
+        } else if ((object->m_unit->m_unitDynamicFlags & UNIT_DYNFLAG_DEAD) && !CGGameUI::IsRaidMemberOrPet(object->m_obj->m_guid)) {
             dead = 1;
-        } else if ((object->m_obj->m_type & TYPE_PLAYER) && (static_cast<CGPlayer_C*>(object)->m_player->m_playerFlags & 0x10)) {
+        } else if ((object->m_obj->m_type & TYPE_PLAYER) && (static_cast<CGPlayer_C*>(object)->m_player->m_playerFlags & PLAYER_FLAG_GHOST)) {
             dead = 1;
         } else {
             dead = 0;
         }
     } else {
         CGPartyMemberState* state = CGPartyMemberStateRepository::GetState(*unit);
-        dead = state ? (state->m_flags & 0xC) : 0;
+        dead = state ? (state->m_flags & CGPartyMemberState::MEMBER_FLAG_DEAD_OR_GHOST) : 0;
     }
 
     if (args->m_count) {
@@ -451,7 +452,7 @@ int32_t EvaluateOutdoors(const WOWGUID* unit, const TSGrowableArray<MacroSubstri
 // OFFSET: 0x005EFA40
 int32_t EvaluateSwimming(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* args) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    int32_t swimming = player && (player->m_clientFlags & 0x200000);
+    int32_t swimming = player && (player->m_clientFlags & UNIT_CLIENT_FLAG_SWIMMING);
 
     if (args->m_count) {
         return swimming == args->m_data->ToNumber();
@@ -464,7 +465,7 @@ int32_t EvaluateSwimming(const WOWGUID* unit, const TSGrowableArray<MacroSubstri
 // OFFSET: 0x005EFAA0
 int32_t EvaluateFlying(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* args) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    int32_t flying = player && (player->m_movement->m_flags & 0x2000000);
+    int32_t flying = player && (player->m_movement->m_flags & MOVEMENTFLAG_FLYING);
 
     if (args->m_count) {
         return flying == args->m_data->ToNumber();
@@ -490,7 +491,7 @@ int32_t EvaluateMounted(const WOWGUID* unit, const TSGrowableArray<MacroSubstrin
 // OFFSET: 0x005EFB70
 int32_t EvaluateStealth(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* args) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    int32_t stealth = player && (player->m_unit->m_unitFieldBytes1[2] & 0x2);
+    int32_t stealth = player && (player->m_unit->m_unitFieldBytes1[2] & UNIT_VIS_FLAG_CREEP);
 
     if (args->m_count) {
         return stealth == args->m_data->ToNumber();
@@ -535,7 +536,7 @@ int32_t EvaluatePet(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* 
     for (uint32_t i = args->m_count; i; i--) {
         const MacroSubstring& arg = args->m_data[i - 1];
         char text[1024];
-        uint32_t length = arg.m_end - arg.m_start;
+        uint32_t length = static_cast<uint32_t>(arg.m_end - arg.m_start);
 
         if (length > 1023) {
             length = 1023;
@@ -564,7 +565,7 @@ int32_t EvaluateEquipped(const WOWGUID* unit, const TSGrowableArray<MacroSubstri
     for (uint32_t i = args->m_count; i; i--) {
         const MacroSubstring& arg = args->m_data[i - 1];
         char text[1024];
-        uint32_t length = arg.m_end - arg.m_start;
+        uint32_t length = static_cast<uint32_t>(arg.m_end - arg.m_start);
 
         if (length > 1023) {
             length = 1023;
@@ -573,9 +574,9 @@ int32_t EvaluateEquipped(const WOWGUID* unit, const TSGrowableArray<MacroSubstri
         memcpy(text, arg.m_start, length);
         text[length] = '\0';
 
-        int32_t inventoryType = -1;
+        int32_t inventoryType = INVTYPE_INVALID;
 
-        for (int32_t j = 0; j < 29; j++) {
+        for (int32_t j = 0; j < INVTYPE_COUNT; j++) {
             if (!SStrCmpI(text, s_inventoryTypeTokens[j], 0x7FFFFFFF) || !SStrCmpUTF8I(text, FrameScript_GetText(s_inventoryTypeTokens[j], -1, GENDER_NOT_APPLICABLE), 0x7FFFFFFF)) {
                 inventoryType = j;
                 break;
@@ -586,10 +587,10 @@ int32_t EvaluateEquipped(const WOWGUID* unit, const TSGrowableArray<MacroSubstri
         uint32_t slot;
         CGItem_C* item;
 
-        if (inventoryType > 0) {
-            item = player->m_bag.FindItem(&CanEquipInSlotCallback, &inventoryType, container, slot, 1);
+        if (inventoryType > INVTYPE_NON_EQUIP) {
+            item = player->m_bag.FindItem(&CanEquipInSlotCallback, &inventoryType, container, slot, BAG_SEARCH_EQUIPMENT);
         } else {
-            item = player->m_bag.FindItem(&FindItemClassTypeCallback, text, container, slot, 1);
+            item = player->m_bag.FindItem(&FindItemClassTypeCallback, text, container, slot, BAG_SEARCH_EQUIPMENT);
         }
 
         if (item) {
@@ -623,7 +624,7 @@ int32_t EvaluateChanneling(const WOWGUID* unit, const TSGrowableArray<MacroSubst
     for (uint32_t i = args->m_count; i; i--) {
         const MacroSubstring& arg = args->m_data[i - 1];
         char text[1024];
-        uint32_t length = arg.m_end - arg.m_start;
+        uint32_t length = static_cast<uint32_t>(arg.m_end - arg.m_start);
 
         if (length > 1023) {
             length = 1023;

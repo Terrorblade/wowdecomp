@@ -6,6 +6,7 @@
 #include "Engine/Source/SoundEngine/fmodex/src/fmod.hpp"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/C3Vector.h"
+#include "Engine/Source/Tempest/CRange.h"
 
 class SESound;
 class SESoundInternal;
@@ -29,6 +30,32 @@ enum SECHANNELSTATE {
     SECHANNELSTATE_PLAYING = 2,
     SECHANNELSTATE_VIRTUAL = 3,
     SECHANNELSTATE_OTHER = 4,
+};
+
+enum SE2_MAX_AUDIBLE_BEHAVIOR : int32_t {
+    SE2_MAX_AUDIBLE_MUTE = 0,
+    SE2_MAX_AUDIBLE_STEAL_LOWEST = 1,
+    SE2_MAX_AUDIBLE_FAIL = 2,
+};
+
+enum SE2_PRIORITY : int32_t {
+    SE2_PRIORITY_UNSET = -1,
+    SE2_PRIORITY_PLAYING = 127,
+    SE2_PRIORITY_DEFAULT = 128,
+    SE2_PRIORITY_MAX = 256,
+};
+
+enum SE2_OUTPUT_QUALITY : int32_t {
+    SE2_OUTPUT_QUALITY_LOW = 0,
+    SE2_OUTPUT_QUALITY_MEDIUM = 1,
+    SE2_OUTPUT_QUALITY_HIGH = 2,
+};
+
+enum SE2_MIX_MODE : int32_t {
+    SE2_MIX_MODE_OFF = 0,
+    SE2_MIX_MODE_PCMFLOAT = 1,
+    SE2_MIX_MODE_PCM24 = 2,
+    SE2_MIX_MODE_PCM32 = 3,
 };
 
 struct SEDriverInfo {

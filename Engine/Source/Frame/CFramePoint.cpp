@@ -37,7 +37,7 @@ void CFramePoint::SetRelative(CLayoutFrame* relative, FRAMEPOINT framePoint, flo
     this->m_flags = 0;
 
     if (busy) {
-        this->m_flags |= 6;
+        this->m_flags |= FLAG_BUSY_CHANGED_MASK;
     }
 }
 
@@ -49,28 +49,28 @@ void CFramePoint::MarkUnused() {
     this->m_y = 0.0f;
     this->m_relative = nullptr;
 
-    uint32_t busy = this->m_flags & 2;
-    this->m_flags = 8;
+    uint32_t busy = this->m_flags & FLAG_READING_RELATIVE_RECT;
+    this->m_flags = FLAG_UNUSED;
 
     if (busy) {
-        this->m_flags |= 6;
+        this->m_flags |= FLAG_BUSY_CHANGED_MASK;
     }
 }
 
 // VERIFY: 6d9e350f manual
 // OFFSET: 0x0049C830
 int32_t CFramePoint::GetRelativeRect(CRect& rect) {
-    uint32_t busy = this->m_flags & 2;
+    uint32_t busy = this->m_flags & FLAG_READING_RELATIVE_RECT;
     int32_t result = 0;
 
     if (!busy) {
-        this->m_flags |= 2;
+        this->m_flags |= FLAG_READING_RELATIVE_RECT;
     }
 
-    this->m_flags &= ~4u;
+    this->m_flags &= ~FLAG_CHANGED_DURING_READ;
 
-    if (!this->m_relative->IsResizePending() || (this->m_relative->Resize(1), !(this->m_flags & 4))) {
-        if (!(this->m_relative->m_layoutFlags & 0x200) || (this->m_relative->SetDeferredResize(0), !(this->m_flags & 4))) {
+    if (!this->m_relative->IsResizePending() || (this->m_relative->Resize(1), !(this->m_flags & FLAG_CHANGED_DURING_READ))) {
+        if (!(this->m_relative->m_layoutFlags & CLayoutFrame::LAYOUT_DEFERRED_RESIZE) || (this->m_relative->SetDeferredResize(0), !(this->m_flags & FLAG_CHANGED_DURING_READ))) {
             if (this->m_relative->GetRect(&rect)) {
                 if (this->m_relative->IsAttachmentOrigin()) {
                     float offsetX = -rect.minX;
@@ -87,7 +87,7 @@ int32_t CFramePoint::GetRelativeRect(CRect& rect) {
     }
 
     if (!busy) {
-        this->m_flags &= ~2u;
+        this->m_flags &= ~FLAG_READING_RELATIVE_RECT;
     }
 
     return result;
@@ -165,6 +165,6 @@ CFramePoint::CFramePoint(CLayoutFrame* relative, FRAMEPOINT framePoint, float x,
     this->m_flags = 0;
 
     if (busy) {
-        this->m_flags |= 6;
+        this->m_flags |= FLAG_BUSY_CHANGED_MASK;
     }
 }

@@ -69,7 +69,7 @@ int32_t CGxFont::UpdateDimensions() {
 
     float height = this->FindNearestFixedSize(face, this->m_fontHeight);
     double minHeight = 2.0 / g_heightPixels;
-    height = height > minHeight ? height : minHeight;
+    height = static_cast<float>(height > minHeight ? height : minHeight);
 
     uint32_t pixelSize = static_cast<uint32_t>(static_cast<int64_t>(ScreenToPixelHeight(0, height)));
 
@@ -92,9 +92,9 @@ int32_t CGxFont::UpdateDimensions() {
     float baseline = static_cast<float>(pixelSize * face->ascender) / units;
     this->m_baseline = static_cast<uint32_t>(static_cast<int64_t>(baseline + 0.5));
 
-    if (this->m_fontFlags & 8) {
+    if (this->m_fontFlags & CGxFont::FONT_THICK_OUTLINE) {
         this->m_cellHeight = pixelSize + 4;
-    } else if (this->m_fontFlags & 1) {
+    } else if (this->m_fontFlags & CGxFont::FONT_OUTLINE) {
         this->m_cellHeight = pixelSize + 2;
     }
 
@@ -113,9 +113,9 @@ bool CGxFont::GetGlyphData(GLYPHBITMAPDATA* data, uint32_t code) {
 
     uint32_t padding = 0;
 
-    if (this->m_fontFlags & 8) {
+    if (this->m_fontFlags & CGxFont::FONT_THICK_OUTLINE) {
         padding = 4;
-    } else if (this->m_fontFlags & 1) {
+    } else if (this->m_fontFlags & CGxFont::FONT_OUTLINE) {
         padding = 2;
     }
 
@@ -172,7 +172,7 @@ float CGxFont::GetGlyphAdvance(uint32_t code) {
 
     float advance = desc->m_bitmapData.m_glyphAdvance;
 
-    if (this->m_fontFlags & 8) {
+    if (this->m_fontFlags & CGxFont::FONT_THICK_OUTLINE) {
         advance += 1.0;
     }
 
@@ -253,7 +253,7 @@ float CGxFont::ComputeStep(uint32_t code, uint32_t nextCode) {
 
     KERNNODE* node = this->m_kernInfo.Ptr(code, key);
 
-    if (node && (node->m_flags & 2)) {
+    if (node && (node->m_flags & KERNNODE::KERN_PROPORTIONAL_SPACING)) {
         return node->m_proportionalSpacing;
     }
 
@@ -279,7 +279,7 @@ float CGxFont::ComputeStep(uint32_t code, uint32_t nextCode) {
         node = this->m_kernInfo.New(code, key, 0, 0);
     }
 
-    node->m_flags |= 2;
+    node->m_flags |= KERNNODE::KERN_PROPORTIONAL_SPACING;
     node->m_proportionalSpacing = ceil(step);
 
     return node->m_proportionalSpacing;
@@ -293,7 +293,7 @@ float CGxFont::ComputeStepFixedWidth(uint32_t code, uint32_t nextCode) {
 
     KERNNODE* node = this->m_kernInfo.Ptr(code, key);
 
-    if (node && (node->m_flags & 1)) {
+    if (node && (node->m_flags & KERNNODE::KERN_FIXED_WIDTH_SPACING)) {
         return node->m_fixedWidthSpacing;
     }
 
@@ -302,7 +302,7 @@ float CGxFont::ComputeStepFixedWidth(uint32_t code, uint32_t nextCode) {
             node = this->m_kernInfo.New(code, key, 0, 0);
         }
 
-        node->m_flags |= 1;
+        node->m_flags |= KERNNODE::KERN_FIXED_WIDTH_SPACING;
         node->m_fixedWidthSpacing = 0.0f;
 
         return 0.0f;
@@ -311,7 +311,7 @@ float CGxFont::ComputeStepFixedWidth(uint32_t code, uint32_t nextCode) {
     uint32_t advance = static_cast<uint32_t>(static_cast<int64_t>(this->GetGlyphAdvance(code)));
 
     if (advance >= this->m_cellHeight) {
-        return this->m_cellHeight;
+        return static_cast<float>(this->m_cellHeight);
     }
 
     uint32_t padding = this->m_cellHeight - advance;
@@ -325,7 +325,7 @@ float CGxFont::ComputeStepFixedWidth(uint32_t code, uint32_t nextCode) {
     uint32_t nextAdvance = static_cast<uint32_t>(static_cast<int64_t>(this->GetGlyphAdvance(nextCode)));
 
     if (nextAdvance >= this->m_cellHeight) {
-        return step;
+        return static_cast<float>(step);
     }
 
     uint32_t nextPadding = this->m_cellHeight - nextAdvance;
@@ -334,7 +334,7 @@ float CGxFont::ComputeStepFixedWidth(uint32_t code, uint32_t nextCode) {
         nextPadding--;
     }
 
-    return step + nextPadding / 2;
+    return static_cast<float>(step + nextPadding / 2);
 }
 
 // VERIFY: 141d931e manual
@@ -378,7 +378,7 @@ CHARCODEDESC* CGxFont::NewCodeDesc(uint32_t code) {
                 cache->m_texture = nullptr;
             }
 
-            cache->CreateTexture(this->m_fontFlags & 4);
+            cache->CreateTexture(this->m_fontFlags & CGxFont::FONT_LINEAR_FILTER);
             cache->Initialize(this, this->m_cellHeight);
             desc = cache->AllocateNewGlyph(&data);
             break;

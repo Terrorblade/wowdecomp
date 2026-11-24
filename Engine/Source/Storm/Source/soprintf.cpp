@@ -160,7 +160,7 @@ int32_t vsnoprintf(char* out, size_t outSize, const char* format, va_list argume
 
         if (numSpecifiers >= MAX_ARGUMENTS) {
             *dest = 0;
-            return dest - out;
+            return static_cast<int32_t>(dest - out);
         }
 
         const char* start = curr - 1;
@@ -169,16 +169,16 @@ int32_t vsnoprintf(char* out, size_t outSize, const char* format, va_list argume
 
         if (result == -1) {
             *dest = 0;
-            return dest - out;
+            return static_cast<int32_t>(dest - out);
         }
 
         spec->start = start;
-        spec->length = curr - start;
+        spec->length = static_cast<uint32_t>(curr - start);
 
         if (result > 0) {
             if (sizes[orderingPtr] && sizes[orderingPtr] != size) {
                 *dest = 0;
-                return dest - out;
+                return static_cast<int32_t>(dest - out);
             }
 
             spec->argument = orderingPtr;
@@ -200,7 +200,7 @@ int32_t vsnoprintf(char* out, size_t outSize, const char* format, va_list argume
         switch (sizes[i]) {
         case e_unspecified:
             *dest = 0;
-            return dest - out;
+            return static_cast<int32_t>(dest - out);
         case e_intSized:
             values[i].intValue = va_arg(argumentList, int32_t);
             break;
@@ -280,7 +280,7 @@ int32_t vsnoprintf(char* out, size_t outSize, const char* format, va_list argume
     }
 
     *dest = 0;
-    return dest - out;
+    return static_cast<int32_t>(dest - out);
 }
 
 // VERIFY: 04457973 auto

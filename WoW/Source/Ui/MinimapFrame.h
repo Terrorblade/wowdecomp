@@ -14,6 +14,7 @@
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
+#include "Engine/Source/Tempest/C2iVector.h"
 
 class CRenderBatch;
 class CScriptRegion;
@@ -29,12 +30,35 @@ class CMapEntity;
 class CTexture;
 class C44Matrix;
 
+enum DYNAMIC_POI : int32_t {
+    DYNAMIC_POI_NONE = -2,
+    DYNAMIC_POI_QUEST = 0,
+    DYNAMIC_POI_GOSSIP = 1,
+    DYNAMIC_POI_CORPSE = 2,
+    DYNAMIC_POI_SPIRIT_HEALER = 3,
+    NUM_DYNAMIC_POIS = 4,
+};
+
+enum TRACKING_TYPE : int32_t {
+    TRACKING_TYPE_NPC_FLAGS = 1,
+    TRACKING_TYPE_GAMEOBJECT = 2,
+    TRACKING_TYPE_TRIVIAL_QUESTS = 3,
+};
+
 struct MINIMAPQUAD {
     /* 0000 */ CRect m_rect;
     /* 0010 */ C2Vector m_origin;
 };
 
 struct MINIMAPTILE {
+
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        QUAD_BUILT = 0x1,
+        IN_USE = 0x2,
+        TEXTURE_PENDING = 0x4,
+    };
+
     /* 0000 */ C3Vector m_vertices[4];
     /* 0030 */ C2Vector m_texCoords[4];
     /* 0050 */ C2Vector m_maskCoords[4];

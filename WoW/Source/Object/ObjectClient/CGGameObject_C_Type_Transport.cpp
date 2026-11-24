@@ -13,6 +13,7 @@
 #include "WoW/Source/Object/GameObject.h"
 #include <cmath>
 #include "WoW/Source/WorldClient/MapEntity.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00ADA96C
 static float s_progressBias = 0.5f;
@@ -79,7 +80,7 @@ static int32_t FindTransportRotationIndex(int32_t transportId) {
 
 // VERIFY: e9e508da manual
 // OFFSET: 0x00713820
-CGGameObject_C_Type_Transport::CGGameObject_C_Type_Transport(CGGameObject_C* owner) : CGGameObject_C_Type_TransportBase(owner), m_frames(nullptr), m_frameCount(0), m_currentFrame(0), m_rotations(nullptr), m_rotationCount(0), m_currentRotation(0), m_lastSequence(506), m_stateChangeSequenceTime(0) {
+CGGameObject_C_Type_Transport::CGGameObject_C_Type_Transport(CGGameObject_C* owner) : CGGameObject_C_Type_TransportBase(owner), m_frames(nullptr), m_frameCount(0), m_currentFrame(0), m_rotations(nullptr), m_rotationCount(0), m_currentRotation(0), m_lastSequence(ANIM_COUNT), m_stateChangeSequenceTime(0) {
     int32_t index = FindTransportAnimationIndex(owner->m_obj->m_entryID);
 
     if (index != -1) {
@@ -189,7 +190,7 @@ void CGGameObject_C_Type_Transport::PostInitWithStats() {
 // VERIFY: 1347bf69 auto
 // OFFSET: 0x0070B630
 void CGGameObject_C_Type_Transport::PostReenable() {
-    this->m_lastSequence = 506;
+    this->m_lastSequence = ANIM_COUNT;
     this->CreateWorldObj();
 
     if (this->m_worldObject) {
@@ -222,7 +223,7 @@ void CGGameObject_C_Type_Transport::InitializeMovement() {
     this->m_position.z = position.z + offset.z;
     CPassenger& passenger = this->m_owner->m_passenger;
     reinterpret_cast<C4QuaternionCompressed&>(passenger.m_facing) = rotation;
-    passenger.m_passengerFlags |= 0x2;
+    passenger.m_passengerFlags |= CPassenger::PASSENGER_QUATERNION_FACING;
     C44Matrix& matrix = this->m_owner->m_matrix;
     matrix = this->m_owner->GetRotation();
     matrix.d0 = this->m_position.x;
@@ -448,7 +449,7 @@ void CGGameObject_C_Type_Transport::UpdateMovement(uint32_t time, uint32_t elaps
         this->Interpolate(this->m_pathTime, &offset, &rotation);
         CPassenger& passenger = this->m_owner->m_passenger;
         reinterpret_cast<C4QuaternionCompressed&>(passenger.m_facing) = rotation;
-        passenger.m_passengerFlags |= 0x2;
+        passenger.m_passengerFlags |= CPassenger::PASSENGER_QUATERNION_FACING;
         C3Vector position = this->m_owner->m_passenger.GetPosition(this->m_owner->m_passenger.m_position);
         step = 250;
         this->m_position.x = position.x + offset.x;
@@ -476,7 +477,7 @@ void CGGameObject_C_Type_Transport::UpdateMovement(uint32_t time, uint32_t elaps
                 C44Matrix& matrix = this->UpdateOwnerMatrix();
 
                 for (CPassenger* passenger = this->m_passengers.Head(); passenger; passenger = this->m_passengers.Next(passenger)) {
-                    if (passenger->m_passengerFlags & 0x1) {
+                    if (passenger->m_passengerFlags & CPassenger::PASSENGER_MOVEMENT) {
                         static_cast<CMovement_C*>(passenger)->CollideWithTransport(time, step, speed, direction, matrix);
                     }
                 }
@@ -487,7 +488,7 @@ void CGGameObject_C_Type_Transport::UpdateMovement(uint32_t time, uint32_t elaps
 
         CPassenger& passenger = this->m_owner->m_passenger;
         reinterpret_cast<C4QuaternionCompressed&>(passenger.m_facing) = rotation;
-        passenger.m_passengerFlags |= 0x2;
+        passenger.m_passengerFlags |= CPassenger::PASSENGER_QUATERNION_FACING;
         C44Matrix& matrix = this->m_owner->m_matrix;
         matrix = this->m_owner->GetRotation();
         matrix.d0 = this->m_position.x;
@@ -499,7 +500,7 @@ void CGGameObject_C_Type_Transport::UpdateMovement(uint32_t time, uint32_t elaps
         this->m_position = position;
         CPassenger& passenger = this->m_owner->m_passenger;
         reinterpret_cast<C4QuaternionCompressed&>(passenger.m_facing) = rotation;
-        passenger.m_passengerFlags |= 0x2;
+        passenger.m_passengerFlags |= CPassenger::PASSENGER_QUATERNION_FACING;
         C44Matrix& matrix = this->m_owner->m_matrix;
         matrix = this->m_owner->GetRotation();
         matrix.d0 = this->m_position.x;

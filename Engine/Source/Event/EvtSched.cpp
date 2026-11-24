@@ -109,7 +109,7 @@ void IEvtSchedulerShutdown() {
 // VERIFY: d9dbe259 auto
 // OFFSET: 0x0047DB40
 int32_t SynthesizeInitialize(EvtContext* context) {
-    if (context->m_schedFlags & 1) {
+    if (context->m_schedFlags & EvtContext::SCHED_INITIALIZED) {
         return 0;
     }
 
@@ -144,7 +144,7 @@ void SynthesizeIdle(EvtContext* context, uint32_t currTime, float elapsedSec) {
     context->m_critsect.Leave();
 
     if (!closed) {
-        if (context->m_schedFlags & 2) {
+        if (context->m_schedFlags & EvtContext::SCHED_INTERACTIVE) {
             context->m_schedFlags |= 4;
         }
 
@@ -175,7 +175,7 @@ void SynthesizePaint(EvtContext* context) {
     int32_t closed = context->m_schedState == SCHEDSTATE_CLOSED;
     context->m_critsect.Leave();
 
-    if (!closed && (context->m_schedFlags & 4)) {
+    if (!closed && (context->m_schedFlags & EvtContext::SCHED_PAINT_PENDING)) {
         context->m_schedFlags &= ~4u;
         IEvtQueueDispatch(context, EVENT_ID_PAINT, nullptr);
     }
@@ -279,7 +279,7 @@ void IEvtSchedulerDestroy() {
 void SynthesizeDestroy(EvtContext* context) {
     SynthesizeInitialize(context);
 
-    if ((context->m_schedFlags & 2) && !InterlockedDecrement(&Event::s_interactiveCount)) {
+    if ((context->m_schedFlags & EvtContext::SCHED_INTERACTIVE) && !InterlockedDecrement(&Event::s_interactiveCount)) {
         IEvtSchedulerShutdown();
     }
 
@@ -340,7 +340,7 @@ uint32_t InitializeSchedulerThread() {
     EvtThread* thread = Event::s_threadSlots[slot];
 
     if (!thread) {
-        thread = Event::s_threadList.NewNode(2, 0, 0);
+        thread = Event::s_threadList.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         thread->m_threadCount = 0;
         thread->m_weightTotal = 0;
         thread->m_weightAvg = 0;
@@ -619,7 +619,7 @@ int32_t SchedulerThreadProcProcess(uint32_t hThread, int32_t* watchdogStarted) {
             IEvtTimerDispatch(context);
         }
 
-        if (context->m_schedFlags & 2) {
+        if (context->m_schedFlags & EvtContext::SCHED_INTERACTIVE) {
             int32_t shutdown = 0;
 
             {
@@ -670,7 +670,7 @@ int32_t SchedulerThreadProcProcess(uint32_t hThread, int32_t* watchdogStarted) {
 
     uint32_t delay;
 
-    if (context->m_schedFlags & 4) {
+    if (context->m_schedFlags & EvtContext::SCHED_PAINT_PENDING) {
         delay = 0;
     } else {
         delay = IEvtTimerGetNextTime(context, currTime);
@@ -788,13 +788,13 @@ HEVENTCONTEXT IEvtSchedulerCreateContext(int32_t interactive, EVENTHANDLERFUNC i
 
     void* callContext = nullptr;
 
-    if (debugFlags & 1) {
+    if (debugFlags & EvtContext::DEBUG_CALL_CONTEXT) {
         char name[256];
         SStrPrintf(name, sizeof(name), "Context: interactive = %u, idleTime = %u", interactive, idleTime);
         callContext = OsCallInitializeContext(name);
     }
 
-    EvtContext* context = new (SMemAlloc(sizeof(EvtContext), __FILE__, __LINE__, 0)) EvtContext(interactive ? 2 : 0, idleTime, interactive ? 1000 : 1, callContext, (debugFlags >> 1) & 1);
+    EvtContext* context = new (SMemAlloc(sizeof(EvtContext), __FILE__, __LINE__, 0)) EvtContext(interactive ? EvtContext::SCHED_INTERACTIVE : EvtContext::SCHED_NONE, idleTime, interactive ? 1000 : 1, callContext, (debugFlags >> 1) & 1);
 
     if (interactive) {
         InterlockedIncrement(&Event::s_interactiveCount);

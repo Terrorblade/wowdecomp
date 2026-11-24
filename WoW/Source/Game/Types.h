@@ -7,6 +7,8 @@
 #include <windows.h>
 #endif
 
+constexpr int32_t NUM_DECLENSIONS = 5;
+
 enum CHARSET : int32_t {
     CHARSET_UNKNOWN = -1,
     CHARSET_LATIN1 = 0,

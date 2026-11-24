@@ -14,6 +14,12 @@ class EffectDeath : public FFX::Effect {
 
 class EffectNetherWorld : public FFX::Effect {
     public:
+    enum PASS_STAGE : uint32_t {
+        BLUR_PASS = 0,
+        COMBINE_PASS = 1,
+        PASS_COUNT = 2,
+    };
+
     virtual ~EffectNetherWorld();
     void End() override;
 
@@ -22,6 +28,13 @@ class EffectNetherWorld : public FFX::Effect {
 
 class EffectSwirlingFog : public FFX::Effect {
     public:
+    enum PASS_STAGE : uint32_t {
+        SEED_PASS = 0,
+        PROPAGATION_PASS = 1,
+        COMBINE_PASS = 2,
+        PASS_COUNT = 3,
+    };
+
     /* 001C */ FFX::Tex m_fogTex;
     /* 0038 */ FFX::Tex m_seedTex;
 

@@ -10,6 +10,11 @@ class CMovement_C;
 
 class CMovementGlobals {
     public:
+
+    enum FLAGS : uint32_t {
+        FLAG_INITIALIZED = 0x1,
+    };
+
     /* 0000 */ char m_logFileName [260];
     /* 0104 */ FILE* m_movementLog;
     /* 0108 */ FILE* m_fallingLog;

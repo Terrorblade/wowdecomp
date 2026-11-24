@@ -363,38 +363,38 @@ void WowTime::WowEncodeTime(uint32_t& value, int32_t minute, int32_t hour, int32
 // OFFSET: 0x0076C970
 void WowTime::WowDecodeTime(uint32_t value, int32_t* minute, int32_t* hour, int32_t* weekDay, int32_t* monthDay, int32_t* month, int32_t* year, int32_t* flags) {
     if (minute) {
-        int32_t field = value & 0x3F;
-        *minute = field == 0x3F ? -1 : field;
+        int32_t field = value & PACKED_MINUTE_MASK;
+        *minute = field == PACKED_MINUTE_MASK ? -1 : field;
     }
 
     if (hour) {
-        int32_t field = (value >> 6) & 0x1F;
-        *hour = field == 0x1F ? -1 : field;
+        int32_t field = (value >> PACKED_HOUR_SHIFT) & PACKED_HOUR_MASK;
+        *hour = field == PACKED_HOUR_MASK ? -1 : field;
     }
 
     if (weekDay) {
-        int32_t field = (value >> 11) & 7;
-        *weekDay = field == 7 ? -1 : field;
+        int32_t field = (value >> PACKED_WEEKDAY_SHIFT) & PACKED_WEEKDAY_MASK;
+        *weekDay = field == PACKED_WEEKDAY_MASK ? -1 : field;
     }
 
     if (monthDay) {
-        int32_t field = (value >> 14) & 0x3F;
-        *monthDay = field == 0x3F ? -1 : field;
+        int32_t field = (value >> PACKED_MONTHDAY_SHIFT) & PACKED_MONTHDAY_MASK;
+        *monthDay = field == PACKED_MONTHDAY_MASK ? -1 : field;
     }
 
     if (month) {
-        int32_t field = (value >> 20) & 0xF;
-        *month = field == 0xF ? -1 : field;
+        int32_t field = (value >> PACKED_MONTH_SHIFT) & PACKED_MONTH_MASK;
+        *month = field == PACKED_MONTH_MASK ? -1 : field;
     }
 
     if (year) {
-        int32_t field = (value >> 24) & 0x1F;
-        *year = field == 0x1F ? -1 : field;
+        int32_t field = (value >> PACKED_YEAR_SHIFT) & PACKED_YEAR_MASK;
+        *year = field == PACKED_YEAR_MASK ? -1 : field;
     }
 
     if (flags) {
-        int32_t field = (value >> 29) & 3;
-        *flags = field == 3 ? -1 : field;
+        int32_t field = (value >> PACKED_FLAGS_SHIFT) & PACKED_FLAGS_MASK;
+        *flags = field == PACKED_FLAGS_MASK ? -1 : field;
     }
 }
 

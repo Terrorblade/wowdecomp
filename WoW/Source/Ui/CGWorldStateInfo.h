@@ -7,6 +7,10 @@
 
 struct lua_State;
 
+enum WORLD_STATE_ID : int32_t {
+    WORLD_STATE_ARENA_SEASON = 3191,
+};
+
 struct WORLDSTATE : public TSHashObject<WORLDSTATE, HASHKEY_NONE> {
     /* 0018 */ int32_t m_value;
 };

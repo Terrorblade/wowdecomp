@@ -4,23 +4,15 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace ComSat {
-
 enum MuteSetting {
     MUTE_SETTING_MUTE = 0,
     MUTE_SETTING_UNMUTE = 1,
     MUTE_SETTING_TOGGLE = 2,
 };
 
-namespace Sound {
-
 enum HeadsetDeviceStatus {
     HEADSET_DEVICE_STATUS_OK = 0,
     HEADSET_DEVICE_STATUS_ERROR = 1,
 };
-
-}
-
-}
 
 #endif

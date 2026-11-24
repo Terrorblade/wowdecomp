@@ -1,5 +1,8 @@
 #include "fmod_settings.h"
 
+#include <windows.h>
+#include <VersionHelpers.h>
+
 #include "fmod.h"
 #include "fmod_memory.h"
 #include "fmod_output.h"
@@ -82,19 +85,12 @@ FMOD_RESULT FMOD_OS_Output_Register(FMOD::PluginFactory *pluginfactory)
 // OFFSET: 0x00916030
 FMOD_RESULT FMOD_OS_Output_GetDefault(FMOD_OUTPUTTYPE *outputtype)
 {
-    OSVERSIONINFOA versioninfo;
-
     if (!outputtype)
     {
         return FMOD_ERR_INVALID_PARAM;
     }
 
-    FMOD_memset(&versioninfo, 0, sizeof(OSVERSIONINFOA));
-    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
-
-    GetVersionExA(&versioninfo);
-
-    *outputtype = versioninfo.dwMajorVersion < 6 ? FMOD_OUTPUTTYPE_DSOUND : FMOD_OUTPUTTYPE_WASAPI;
+    *outputtype = IsWindowsVistaOrGreater() ? FMOD_OUTPUTTYPE_WASAPI : FMOD_OUTPUTTYPE_DSOUND;
 
     return FMOD_OK;
 }

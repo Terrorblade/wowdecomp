@@ -8,6 +8,21 @@ class SFileImpl;
 
 class ChrClassesRec {
     public:
+
+    enum CLASS_FLAGS : int32_t {
+        USE_LOINCLOTH = 0x1,
+        IS_PLAYER_CLASS = 0x2,
+        DISPLAY_PET = 0x4,
+        HAS_RELIC_SLOT = 0x8,
+        CAN_WEAR_MAIL = 0x10,
+        CAN_WEAR_PLATE = 0x20,
+        BIND_STARTING_AREA = 0x40,
+    };
+
+    enum CLASS_FLAG_BITS : int32_t {
+        HAS_RELIC_SLOT_BIT_INDEX = 3,
+    };
+
     static const int32_t s_numColumns = 60;
     static const int32_t s_rowSize = 240;
     static const bool s_generatedID = false;

@@ -27,6 +27,12 @@ class CVehicleHeap {
 class CVehicle_C {
     public:
     static void EnterWorld();
+
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        BONE_ANIMS_PLAYING = 0x1,
+    };
+
     struct BoneAnimListener {
         /* 0000 */ WOWGUID m_guid;
         /* 0008 */ uint32_t m_boneId;

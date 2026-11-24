@@ -229,7 +229,7 @@ void ShadowInit() {
     s_shadowBlobTexture = TextureCreate("Textures\\ShadowBlob.blp", CGxTexFlags(), &status, 1);
     s_shadowAddTexture = TextureCreate(FADETEX_WIDTH, FADETEX_HEIGHT, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(), nullptr, ShadowAddCallback, "ShadowAdd", 0);
     s_shadowModTexture = TextureCreate(FADETEX_WIDTH, FADETEX_HEIGHT, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(), nullptr, ShadowModCallback, "ShadowMod", 0);
-    s_cvShadowLOD = CVar::Register("shadowLOD", "Unit shadow LOD", 1, "1", ShadowLODCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+    s_cvShadowLOD = CVar::Register("shadowLOD", "Unit shadow LOD", CVAR_ARCHIVE, "1", ShadowLODCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     s_cvExtShadowQuality = CVar::Lookup("extShadowQuality");
 }
 
@@ -242,7 +242,7 @@ CGxTex* ProjectTex2dGetAddFadeTex() {
 // VERIFY: ff93aa7d auto
 // OFFSET: 0x007E49E0
 void CWorldScene::RequestModelStreaming(CM2Model* model, const CAaBox* box) {
-    if (model && model->IsDrawable(0, 0) && !(model->m_fFlags & 0x4000) && !box->IsEmpty() && s_cvExtShadowQuality->m_intValue <= 0 && s_shadowLOD == 1) {
+    if (model && model->IsDrawable(0, 0) && !(model->m_fFlags & M2_UNKNOWN_4000) && !box->IsEmpty() && s_cvExtShadowQuality->m_intValue <= 0 && s_shadowLOD == 1) {
         CWorldScene::RenderStreamingRequestDecal(model, box, 0.4f);
     }
 }
@@ -310,7 +310,7 @@ void CWorldScene::RenderStreamingRequestDecal(CM2Model* model, const CAaBox* box
     C44Matrix projection(boundsScale * transpose * localScale);
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_BlendingMode, 4);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Mod);
     GxUpdateAlphaRef(GxRs_AlphaRef);
     GxRsSet(GxRs_Lighting, 0);
     GxRsSet(GxRs_Fog, 0);
@@ -339,7 +339,7 @@ void CWorldScene::RenderStreamingRequestDecal(CM2Model* model, const CAaBox* box
     color.g = 0xFF;
     color.r = 0xFF;
     color.a = static_cast<uint8_t>(static_cast<int32_t>(alpha * 255.0f + 0.5f));
-    ProjectTex::Render2d(bounds, color, &projection, 0.5f, 0x220122, 0, scale);
+    ProjectTex::Render2d(bounds, color, &projection, 0.5f, 0x220122, PROJECT_TEX_NONE, scale);
     g_theGxDevicePtr->RsPop();
 }
 
@@ -366,7 +366,7 @@ static void ProjectTexBuildVertexBuffer(World::TriData::Batch* triBatch, CGxBatc
     } else {
         batch->m_count = 0;
 
-        if (flags & 0x4) {
+        if (flags & PROJECT_TEX_ALL_FACES) {
             for (uint32_t i = 0; i < triBatch->m_indexCount; i += 3) {
                 const C3Vector& v0 = triBatch->m_vertexList[triBatch->m_indices[i]];
                 const C3Vector& v1 = triBatch->m_vertexList[triBatch->m_indices[i + 1]];
@@ -422,7 +422,7 @@ static void ProjectTexBuildVertexBufferVariant(World::TriData::Batch* triBatch, 
     } else {
         batch->m_count = 0;
 
-        if (flags & 0x4) {
+        if (flags & PROJECT_TEX_ALL_FACES) {
             for (uint32_t i = 0; i < triBatch->m_indexCount; i += 3) {
                 const C3Vector& v0 = triBatch->m_vertexList[triBatch->m_indices[i]];
                 const C3Vector& v1 = triBatch->m_vertexList[triBatch->m_indices[i + 1]];
@@ -479,7 +479,7 @@ static void ProjectTexRenderIndices(World::TriData::Batch* triBatch) {
 // VERIFY: 3c679037 auto
 // OFFSET: 0x007E35F0
 static int32_t ProjectTexRenderGetQuery2d(const CAaBox& box, uint32_t flags, uint32_t triFlags, int32_t* doodads, int32_t* tris) {
-    *doodads = flags & 0x1;
+    *doodads = flags & PROJECT_TEX_DOODADS;
     s_doodadModelCount = 0;
     s_queryTriFlags = 0;
     s_queryDoodads = 0;
@@ -489,7 +489,7 @@ static int32_t ProjectTexRenderGetQuery2d(const CAaBox& box, uint32_t flags, uin
 
     if (*doodads) {
         s_queryDoodads = 1;
-        s_doodadModelCount = World::GetIntersectingDoodadModels(s_doodadModelBuffer, 10, box, 0x2000000);
+        s_doodadModelCount = World::GetIntersectingDoodadModels(s_doodadModelBuffer, 10, box, WORLD_QUERY_PROJ_TEX_DOODADS);
     }
 
     if (*tris) {
@@ -532,7 +532,7 @@ void ProjectTex2dDrawShaderEffect(const CAaBox& box, const CImVector& color, uin
 
     CImVector packed = color;
 
-    if (flags & 0x2) {
+    if (flags & PROJECT_TEX_MATERIAL_COLOR) {
         CShaderEffect::SetDiffuse(C4Vector(color));
     } else {
         GxFormatColor(packed);
@@ -636,14 +636,14 @@ static void ProjectTexRender2d(const CAaBox& box, const CImVector& color, uint32
         GxRsSet(GxRs_PolygonOffset, (polygonOffset + polygonOffset) * 3.0518044e-05f);
     }
 
-    GxRsSet(GxRs_TexGen0, 2);
-    GxRsSet(GxRs_TexGen1, 2);
+    GxRsSet(GxRs_TexGen0, GxTexGen_World);
+    GxRsSet(GxRs_TexGen1, GxTexGen_World);
     GxRsSet(GxRs_TextureShader0, 1);
     GxRsSet(GxRs_TextureShader1, 1);
 
     CImVector packed = color;
 
-    if (flags & 0x2) {
+    if (flags & PROJECT_TEX_MATERIAL_COLOR) {
         GxRsSet(GxRs_MatDiffuse, *reinterpret_cast<const int32_t*>(&color));
     } else {
         GxFormatColor(packed);

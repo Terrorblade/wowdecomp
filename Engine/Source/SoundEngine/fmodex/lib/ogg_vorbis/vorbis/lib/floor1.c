@@ -215,7 +215,7 @@ static vorbis_look_floor *FMOD_floor1_look(vorbis_dsp_state *vd,
   qsort(sortpointer,n,sizeof(*sortpointer),icomp);
 
   /* points from sort order back to range number */
-  for(i=0;i<n;i++)look->forward_index[i]=sortpointer[i]-info->postlist;
+  for(i=0;i<n;i++)look->forward_index[i]=(int)(sortpointer[i]-info->postlist);
   /* points from range order to sorted position */
   for(i=0;i<n;i++)look->reverse_index[look->forward_index[i]]=i;
   /* we actually need the post values too */

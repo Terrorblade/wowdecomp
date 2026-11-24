@@ -27,6 +27,7 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Os/OsMemory.h"
 #include "HoT/Models/ModernM2.h"
+#include "WoW/Source/Object/ObjectClient/Types.h"
 
 // STATIC: 0x00A45644
 static const uint32_t s_skinProfileBoneCounts[4] = { 256, 64, 53, 21 };
@@ -229,7 +230,7 @@ int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Track<T>& tra
             track.m_sequenceKeys.Relocate(base);
 
             for (uint32_t i = 0; i < track.m_sequenceTimes.m_count; i++) {
-                if (data.m_sequences[i].m_flags & 0x20) {
+                if (data.m_sequences[i].m_flags & M2Sequence::LOADED) {
                     track.m_sequenceKeys[i].Relocate(base);
                 }
             }
@@ -264,26 +265,26 @@ int32_t M2Init<M2Sequence>(uint8_t* base, uint32_t size, const M2Data& data, M2A
     for (uint32_t i = 0; i < array.m_count; i++) {
         M2Sequence* sequence = &array[i];
 
-        if (sequence->m_flags & 1) {
-            sequence->m_flags |= 0x80;
+        if (sequence->m_flags & M2Sequence::NON_LOOPING) {
+            sequence->m_flags |= M2Sequence::SECONDARY_NON_LOOPING;
         }
 
         switch (sequence->m_id) {
-            case 0:
-            case 4:
-            case 5:
-            case 13:
-            case 41:
-            case 42:
-            case 43:
-            case 44:
-            case 45:
-            case 69:
-            case 119:
-            case 120:
-            case 143:
-            case 223:
-                sequence->m_flags &= ~1u;
+            case ANIM_STAND:
+            case ANIM_WALK:
+            case ANIM_RUN:
+            case ANIM_WALKBACKWARDS:
+            case ANIM_SWIM_IDLE:
+            case ANIM_SWIM:
+            case ANIM_SWIM_LEFT:
+            case ANIM_SWIM_RIGHT:
+            case ANIM_SWIM_BACKWARDS:
+            case ANIM_EMOTE_DANCE:
+            case ANIM_STEALTH_WALK:
+            case ANIM_STEALTH_STAND:
+            case ANIM_SPRINT:
+            case ANIM_STEALTH_RUN:
+                sequence->m_flags &= ~M2Sequence::NON_LOOPING;
                 break;
             default:
                 break;
@@ -377,7 +378,7 @@ int32_t CM2Shared::SetIndices() {
             return 0;
         }
 
-        int32_t sharedVertices = (this->m_cache->m_flags & 8) || (this->m_data->m_bones.m_count == 1 && (this->m_cache->m_flags & 0x40));
+        int32_t sharedVertices = (this->m_cache->m_flags & CM2Cache::CACHE_GPU_SHADERS) || (this->m_data->m_bones.m_count == 1 && (this->m_cache->m_flags & CM2Cache::CACHE_SINGLE_BONE_SHARED_VERTICES));
         uint32_t indexStart = 0;
 
         for (uint32_t i = 0; i < this->m_skinData->m_skinSections.m_count; i++) {
@@ -669,13 +670,13 @@ void CM2Shared::SubstituteSimpleShaders() {
     for (uint32_t i = 0; i < this->m_skinData->m_batches.m_count; i++) {
         M2Batch* batch = &this->m_skinData->m_batches[i];
 
-        if (batch->m_shader & 0x8000) {
+        if (batch->m_shader & M2Batch::SPECIAL) {
             continue;
         }
 
         M2Material* material = &this->m_data->m_materials[batch->m_materialIndex];
 
-        if (!(this->m_data->m_flags & 8)) {
+        if (!(this->m_data->m_flags & M2Data::HAS_TEXTURE_COMBINER_COMBOS)) {
             uint16_t coord = this->m_data->m_textureCoordCombos[batch->m_textureCoordComboIndex];
             uint16_t op = material->m_blendMode != M2BLEND_OPAQUE;
 
@@ -686,7 +687,7 @@ void CM2Shared::SubstituteSimpleShaders() {
             batch->m_shader = op << 4;
 
             if (coord == 1) {
-                batch->m_shader |= 0x4000;
+                batch->m_shader |= M2Batch::TEX_COORD_1;
             }
         } else {
             uint16_t combiner = batch->m_shader;
@@ -711,7 +712,7 @@ void CM2Shared::SubstituteSimpleShaders() {
                 }
 
                 if (coord == 1 && j + 1 == opCount) {
-                    batch->m_shader |= 0x4000;
+                    batch->m_shader |= M2Batch::TEX_COORD_1;
                 }
             }
 
@@ -746,7 +747,7 @@ int32_t M2Init<M2Texture>(uint8_t* base, uint32_t size, const M2Data& data, M2Ar
 CShaderEffect* CM2Shared::GetEffect(M2Batch* batch) {
     CShaderEffect* effect;
 
-    if (!(batch->m_shader & 0x8000)) {
+    if (!(batch->m_shader & M2Batch::SPECIAL)) {
         effect = this->GetEffect(batch->m_textureCount, batch->m_shader, batch->m_textureCoordComboIndex);
     } else {
         const char* vertexShader = nullptr;
@@ -754,7 +755,7 @@ CShaderEffect* CM2Shared::GetEffect(M2Batch* batch) {
         EGxTexOp colorOp = static_cast<EGxTexOp>(0);
         EGxTexOp alphaOp = static_cast<EGxTexOp>(0);
 
-        switch (batch->m_shader & 0x7FFF) {
+        switch (batch->m_shader & M2Batch::SPECIAL_INDEX_MASK) {
             case 0:
                 return nullptr;
             case 1:
@@ -909,12 +910,12 @@ void CM2Shared::ConvertTextureValuesToCombos() {
     // HoT: grown lists get their own near block instead of moving the model, so arrays outside the file buffer stay valid.
     if (combos.m_count > this->m_data->m_textureCombos.m_count) {
         this->m_data->m_textureCombos.Set(static_cast<uint16_t*>(AllocNear(&this->m_data->m_textureCombos, sizeof(uint16_t) * combos.m_count)));
-        this->m_data->m_flags |= 0x20;
+        this->m_data->m_flags |= M2Data::OWNS_TEXTURE_COMBOS;
     }
 
     if (transforms.m_count > this->m_data->m_textureTransformCombos.m_count) {
         this->m_data->m_textureTransformCombos.Set(static_cast<uint16_t*>(AllocNear(&this->m_data->m_textureTransformCombos, sizeof(uint16_t) * transforms.m_count)));
-        this->m_data->m_flags |= 0x40;
+        this->m_data->m_flags |= M2Data::OWNS_TEXTURE_TRANSFORM_COMBOS;
     }
 
     memcpy(this->m_data->m_textureCombos.Data(), combos.m_data, sizeof(uint16_t) * combos.m_count);
@@ -1059,9 +1060,9 @@ void CM2Shared::SubstituteSpecializedShaders() {
 
         switch (state0) {
             case 1:
-                if ((material->m_blendMode == M2BLEND_ALPHA || material->m_blendMode == M2BLEND_ALPHA_KEY) && batch->m_textureCount == 1 && !((material->m_flags ^ this->m_data->m_materials[base->m_materialIndex].m_flags) & 1) && batch->m_textureComboIndex == (base->m_textureComboIndex & 0xFF) && this->m_data->m_textureWeightCombos[base->m_textureWeightComboIndex] == this->m_data->m_textureWeightCombos[batch->m_textureWeightComboIndex]) {
-                    batch->m_shader = 0x8000;
-                    base->m_shader = 0x8001;
+                if ((material->m_blendMode == M2BLEND_ALPHA || material->m_blendMode == M2BLEND_ALPHA_KEY) && batch->m_textureCount == 1 && !((material->m_flags ^ this->m_data->m_materials[base->m_materialIndex].m_flags) & M2Material::UNLIT) && batch->m_textureComboIndex == (base->m_textureComboIndex & 0xFF) && this->m_data->m_textureWeightCombos[base->m_textureWeightComboIndex] == this->m_data->m_textureWeightCombos[batch->m_textureWeightComboIndex]) {
+                    batch->m_shader = M2Batch::SPECIAL_COMBINED;
+                    base->m_shader = M2Batch::SPECIAL_OPAQUE_MOD2XNA_ALPHA;
                     state0 = 3;
                     continue;
                 }
@@ -1086,9 +1087,9 @@ void CM2Shared::SubstituteSpecializedShaders() {
                 break;
             case 1:
                 if ((material->m_blendMode == M2BLEND_ADD || material->m_blendMode == M2BLEND_MOD2X) && batch->m_textureCount == 1 && this->m_data->m_textureCoordCombos[batch->m_textureCoordComboIndex] > 2 && this->m_data->m_textureWeightCombos[base->m_textureWeightComboIndex] == this->m_data->m_textureWeightCombos[batch->m_textureWeightComboIndex]) {
-                    batch->m_shader = 0x8000;
+                    batch->m_shader = M2Batch::SPECIAL_COMBINED;
                     combined = true;
-                    base->m_shader = material->m_blendMode != M2BLEND_ADD ? 0xE : 0x8002;
+                    base->m_shader = material->m_blendMode != M2BLEND_ADD ? (M2COMBINER_OPAQUE << 4) | M2COMBINER_ENVMAP | M2COMBINER_MOD2X_NA : M2Batch::SPECIAL_OPAQUE_ADDALPHA;
                     base->m_textureCount = 2;
                     state1 = 2;
                     base->m_textureComboIndex = static_cast<uint16_t>((base->m_textureComboIndex & 0xFF) | (batch->m_textureComboIndex << 8));
@@ -1099,10 +1100,10 @@ void CM2Shared::SubstituteSpecializedShaders() {
                 state1 = 0;
                 break;
             case 2:
-                if ((material->m_blendMode == M2BLEND_ALPHA || material->m_blendMode == M2BLEND_ALPHA_KEY) && batch->m_textureCount == 1 && !((material->m_flags ^ this->m_data->m_materials[base->m_materialIndex].m_flags) & 1) && (base->m_textureComboIndex & 0xFF) == (batch->m_textureComboIndex & 0xFF) && this->m_data->m_textureWeightCombos[base->m_textureWeightComboIndex] == this->m_data->m_textureWeightCombos[batch->m_textureWeightComboIndex]) {
-                    batch->m_shader = 0x8000;
+                if ((material->m_blendMode == M2BLEND_ALPHA || material->m_blendMode == M2BLEND_ALPHA_KEY) && batch->m_textureCount == 1 && !((material->m_flags ^ this->m_data->m_materials[base->m_materialIndex].m_flags) & M2Material::UNLIT) && (base->m_textureComboIndex & 0xFF) == (batch->m_textureComboIndex & 0xFF) && this->m_data->m_textureWeightCombos[base->m_textureWeightComboIndex] == this->m_data->m_textureWeightCombos[batch->m_textureWeightComboIndex]) {
+                    batch->m_shader = M2Batch::SPECIAL_COMBINED;
                     state1 = 3;
-                    base->m_shader = base->m_shader == 0x8002 ? 0x8003 : 0x8001;
+                    base->m_shader = base->m_shader == M2Batch::SPECIAL_OPAQUE_ADDALPHA ? M2Batch::SPECIAL_OPAQUE_ADDALPHA_ALPHA : M2Batch::SPECIAL_OPAQUE_MOD2XNA_ALPHA;
                     continue;
                 }
 
@@ -1164,7 +1165,7 @@ static void ShareBonePalettes(M2Data* data, M2SkinProfile* skin, uint32_t maxBon
             continue;
         }
 
-        if (!section.m_boneCount || section.m_boneCount > maxBones || section.m_boneComboIndex + section.m_boneCount > comboCount || section.m_vertexStart + section.m_vertexCount > slotCount) {
+        if (!section.m_boneCount || section.m_boneCount > maxBones || static_cast<uint32_t>(section.m_boneComboIndex + section.m_boneCount) > comboCount || static_cast<uint32_t>(section.m_vertexStart + section.m_vertexCount) > slotCount) {
             return;
         }
 
@@ -1375,7 +1376,7 @@ int32_t CM2Shared::InitializeSkinProfile() {
         }
     }
 
-    if (!(this->m_cache->m_flags & 8)) {
+    if (!(this->m_cache->m_flags & CM2Cache::CACHE_GPU_SHADERS)) {
         uint32_t count = this->m_skinData->m_vertices.m_count;
         M2Vertex* vertices = new (__FILE__, __LINE__) M2Vertex[count];
 
@@ -1409,7 +1410,7 @@ int32_t CM2Shared::InitializeSkinProfile() {
             memcpy(this->m_data->m_vertices.Data(), vertices, sizeof(M2Vertex) * this->m_skinData->m_vertices.m_count);
             delete[] vertices;
         } else {
-            this->m_flags |= 8;
+            this->m_flags |= FLAG_OWNS_REORDERED_VERTICES;
             uint32_t bytes = sizeof(M2Vertex) * this->m_skinData->m_vertices.m_count;
             M2Vertex* buffer = static_cast<M2Vertex*>(OsAllocNear(this->m_data, bytes));
             memcpy(buffer, vertices, bytes);
@@ -1420,12 +1421,12 @@ int32_t CM2Shared::InitializeSkinProfile() {
         this->m_data->m_vertices.m_count = this->m_skinData->m_vertices.m_count;
     }
 
-    if (!(this->m_cache->m_flags & 8)) {
+    if (!(this->m_cache->m_flags & CM2Cache::CACHE_GPU_SHADERS)) {
         for (uint32_t i = 0; i < this->m_skinData->m_batches.m_count; i++) {
             M2Batch* batches = this->m_skinData->m_batches.Data();
 
             if (batches[i].m_textureCount > 1) {
-                batches[i - batches[i].m_materialLayer].m_flags |= 0x40;
+                batches[i - batches[i].m_materialLayer].m_flags |= M2Batch::MULTI_SAMPLE_VERTICES;
             }
         }
 
@@ -1433,8 +1434,8 @@ int32_t CM2Shared::InitializeSkinProfile() {
             M2Batch* batches = this->m_skinData->m_batches.Data();
             uint16_t layer = batches[i].m_materialLayer;
 
-            if (layer && (batches[i - layer].m_flags & 0x40)) {
-                batches[i].m_flags |= 0x40;
+            if (layer && (batches[i - layer].m_flags & M2Batch::MULTI_SAMPLE_VERTICES)) {
+                batches[i].m_flags |= M2Batch::MULTI_SAMPLE_VERTICES;
             }
         }
     }
@@ -1489,7 +1490,7 @@ int32_t M2Init<M2TextureWeight>(uint8_t* base, uint32_t size, const M2Data& data
 // VERIFY: 2f176c2e auto
 // OFFSET: 0x00838490
 int32_t CM2Shared::FinishLoadingSkinProfile(uint32_t size) {
-    if (this->m_flags & 2) {
+    if (this->m_flags & FLAG_SKIN_LOADED) {
         return 1;
     }
 
@@ -1564,7 +1565,7 @@ int32_t CM2Shared::FinishLoadingSkinProfile(uint32_t size) {
         return 0;
     }
 
-    this->m_flags |= 2;
+    this->m_flags |= FLAG_SKIN_LOADED;
 
     while (this->m_callbackList) {
         CM2Model* model = this->m_callbackList;
@@ -1740,7 +1741,7 @@ int32_t M2Init<M2Particle>(uint8_t* base, uint32_t size, const M2Data& data, M2A
 // VERIFY: 95d98bd6 manual
 // OFFSET: 0x0083C5F0
 CM2Shared::CM2Shared(CM2Cache* cache) {
-    this->m_flags &= ~0x7Fu;
+    this->m_flags &= ~FLAG_INITIALIZATION_MASK;
     this->m_cache = cache;
     this->m_callbackList = nullptr;
     this->m_refCount = 1;
@@ -1789,7 +1790,7 @@ int32_t M2Init(uint8_t* base, uint32_t size, M2Data& data) {
         return 0;
     }
 
-    return M2Init(base, size, data, data.m_name) && M2Init(base, size, data, data.m_loops) && M2Init(base, size, data, data.m_sequences) && M2Init(base, size, data, data.m_sequenceIdxHashById) && M2Init(base, size, data, data.m_bones) && M2Init(base, size, data, data.m_boneIndicesById) && M2Init(base, size, data, data.m_vertices) && M2Init(base, size, data, data.m_colors) && M2Init(base, size, data, data.m_textures) && M2Init(base, size, data, data.m_textureWeights) && M2Init(base, size, data, data.m_textureTransforms) && M2Init(base, size, data, data.m_textureIndicesById) && M2Init(base, size, data, data.m_materials) && M2Init(base, size, data, data.m_boneCombos) && M2Init(base, size, data, data.m_textureCombos) && M2Init(base, size, data, data.m_textureCoordCombos) && M2Init(base, size, data, data.m_textureWeightCombos) && M2Init(base, size, data, data.m_textureTransformCombos) && M2Init(base, size, data, data.m_collisionIndices) && M2Init(base, size, data, data.m_collisionPositions) && M2Init(base, size, data, data.m_collisionFaceNormals) && M2Init(base, size, data, data.m_attachments) && M2Init(base, size, data, data.m_attachmentIndicesById) && M2Init(base, size, data, data.m_events) && M2Init(base, size, data, data.m_lights) && M2Init(base, size, data, data.m_cameras) && M2Init(base, size, data, data.m_cameraIndicesById) && M2Init(base, size, data, data.m_ribbons) && M2Init(base, size, data, data.m_particles) && (!(data.m_flags & 8) || M2Init(base, size, data, data.m_textureCombinerCombos));
+    return M2Init(base, size, data, data.m_name) && M2Init(base, size, data, data.m_loops) && M2Init(base, size, data, data.m_sequences) && M2Init(base, size, data, data.m_sequenceIdxHashById) && M2Init(base, size, data, data.m_bones) && M2Init(base, size, data, data.m_boneIndicesById) && M2Init(base, size, data, data.m_vertices) && M2Init(base, size, data, data.m_colors) && M2Init(base, size, data, data.m_textures) && M2Init(base, size, data, data.m_textureWeights) && M2Init(base, size, data, data.m_textureTransforms) && M2Init(base, size, data, data.m_textureIndicesById) && M2Init(base, size, data, data.m_materials) && M2Init(base, size, data, data.m_boneCombos) && M2Init(base, size, data, data.m_textureCombos) && M2Init(base, size, data, data.m_textureCoordCombos) && M2Init(base, size, data, data.m_textureWeightCombos) && M2Init(base, size, data, data.m_textureTransformCombos) && M2Init(base, size, data, data.m_collisionIndices) && M2Init(base, size, data, data.m_collisionPositions) && M2Init(base, size, data, data.m_collisionFaceNormals) && M2Init(base, size, data, data.m_attachments) && M2Init(base, size, data, data.m_attachmentIndicesById) && M2Init(base, size, data, data.m_events) && M2Init(base, size, data, data.m_lights) && M2Init(base, size, data, data.m_cameras) && M2Init(base, size, data, data.m_cameraIndicesById) && M2Init(base, size, data, data.m_ribbons) && M2Init(base, size, data, data.m_particles) && (!(data.m_flags & M2Data::HAS_TEXTURE_COMBINER_COMBOS) || M2Init(base, size, data, data.m_textureCombinerCombos));
 }
 
 // VERIFY: 8000b812 manual
@@ -1810,7 +1811,7 @@ int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint
         return 0;
     }
 
-    sequence->m_flags = (sequence->m_flags & ~0x30u) | 0x20;
+    sequence->m_flags = (sequence->m_flags & ~M2Sequence::LOAD_STATE_MASK) | M2Sequence::LOADED;
 
     return 1;
 }
@@ -1917,7 +1918,7 @@ uint32_t CM2Shared::GetSkinProfileIndex(uint32_t maxBones) {
 int32_t CM2Shared::Initialize() {
     uint32_t maxBones = 256;
 
-    if (this->m_cache->m_flags & 8) {
+    if (this->m_cache->m_flags & CM2Cache::CACHE_GPU_SHADERS) {
         uint32_t constants = g_theGxDevicePtr->Caps().m_shaderConstants[0];
         uint32_t bones = (constants > 0xC0 ? constants - 64 : constants - 32) / 3;
 
@@ -1953,7 +1954,7 @@ int32_t CM2Shared::Initialize() {
         M2Material* material = &this->m_data->m_materials[i];
 
         if (material->m_blendMode >= M2BLEND_MOD) {
-            material->m_flags |= 1;
+            material->m_flags |= M2Material::UNLIT;
         }
     }
 
@@ -1966,9 +1967,9 @@ int32_t CM2Shared::Initialize() {
             texFlags.m_wrapU = 1;
             texFlags.m_wrapV = 1;
 
-            uint32_t flags = (this->m_flags & 4) ? 2 : 0;
+            uint32_t flags = (this->m_flags & FLAG_DIRECT_ACCESS) ? 2 : 0;
 
-            if (this->m_flags & 0x40) {
+            if (this->m_flags & FLAG_TEXTURE_PRIORITY_AND_DEFERRED_CANCEL) {
                 flags |= 0x30;
             }
 
@@ -1980,7 +1981,7 @@ int32_t CM2Shared::Initialize() {
     }
 
     for (uint32_t i = 0; i < this->m_data->m_bones.m_count; i++) {
-        if (this->m_data->m_bones[i].m_flags & 0x2F8) {
+        if (this->m_data->m_bones[i].m_flags & M2CompBone::DYNAMIC_TRANSFORM_MASK) {
             this->m_billboardBoneCount++;
         }
     }
@@ -1990,7 +1991,7 @@ int32_t CM2Shared::Initialize() {
 
 // INLINED
 int32_t CM2Shared::FinishLoading() {
-    if (this->m_flags & 1) {
+    if (this->m_flags & FLAG_MODEL_LOADED) {
         return 1;
     }
 
@@ -2009,7 +2010,7 @@ int32_t CM2Shared::FinishLoading() {
         return 0;
     }
 
-    this->m_data->m_flags &= ~0x60u;
+    this->m_data->m_flags &= ~M2Data::RUNTIME_ALLOCATION_MASK;
 
     if (this->m_modern) {
         HoT::Models::FinishModel(this->m_modern, this->m_data);
@@ -2023,14 +2024,14 @@ int32_t CM2Shared::FinishLoading() {
     uint32_t count = 0;
 
     for (uint32_t i = 0; i < this->m_data->m_sequences.m_count; i++) {
-        if (!(this->m_data->m_sequences[i].m_flags & 0x20)) {
+        if (!(this->m_data->m_sequences[i].m_flags & M2Sequence::LOADED)) {
             count++;
         }
     }
 
     this->m_lowPrioritySequenceBuffers = static_cast<uint8_t**>(SMemAlloc(sizeof(uint8_t*) * count, __FILE__, __LINE__, 8));
     this->m_lowPrioritySequenceCapacity = count;
-    this->m_flags |= 1;
+    this->m_flags |= FLAG_MODEL_LOADED;
     this->m_lowPrioritySequenceCount = 0;
 
     return 1;
@@ -2066,7 +2067,7 @@ CM2SequenceLoad::~CM2SequenceLoad() {
 // VERIFY: bacb8d39 manual
 // OFFSET: 0x0083D410
 int32_t CM2Shared::Load(SFileImpl* file, int32_t flags, CAaBox* boundingBox) {
-    this->m_flags = (this->m_flags & ~4u) | (flags ? 4 : 0);
+    this->m_flags = (this->m_flags & ~FLAG_DIRECT_ACCESS) | (flags ? FLAG_DIRECT_ACCESS : FLAG_NONE);
     this->m_fileSize = SFileGetFileSize(file, nullptr);
     this->m_data = static_cast<M2Data*>(OsAllocModel(this->m_fileSize));
 
@@ -2114,8 +2115,8 @@ void CM2Shared::CancelAllDeferredSequences() {
         }
     }
 
-    if (this->m_flags & 0x10) {
-        this->m_flags |= 0x20;
+    if (this->m_flags & FLAG_SEQUENCE_CALLBACK) {
+        this->m_flags |= FLAG_SEQUENCE_CLEAR_PENDING;
     } else {
         this->m_sequenceLoads.Clear();
     }
@@ -2180,16 +2181,16 @@ CM2Shared::~CM2Shared() {
         this->m_lowPrioritySequenceCapacity = 0;
     }
 
-    if (this->m_flags & 8) {
+    if (this->m_flags & FLAG_OWNS_REORDERED_VERTICES) {
         OsFreeNear(this->m_data->m_vertices.Data());
     }
 
-    if (this->m_flags & 1) {
-        if (this->m_data->m_flags & 0x20) {
+    if (this->m_flags & FLAG_MODEL_LOADED) {
+        if (this->m_data->m_flags & M2Data::OWNS_TEXTURE_COMBOS) {
             FreeNear(this->m_data->m_textureCombos.Data());
         }
 
-        if (this->m_data->m_flags & 0x40) {
+        if (this->m_data->m_flags & M2Data::OWNS_TEXTURE_TRANSFORM_COMBOS) {
             FreeNear(this->m_data->m_textureTransformCombos.Data());
         }
     }
@@ -2216,7 +2217,7 @@ void CM2Shared::LowPrioritySequenceLoadedCallback(void* param) {
     while (!load->m_playbacks.IsEnd(playback)) {
         CM2SequencePlayBack* next = load->m_playbacks.RawNext(playback);
 
-        if (playback->m_flags & 8) {
+        if (playback->m_flags & CM2SequencePlayBack::CANCELED) {
             load->m_playbacks.DeleteNode(playback);
             playback = next;
             continue;
@@ -2228,15 +2229,15 @@ void CM2Shared::LowPrioritySequenceLoadedCallback(void* param) {
             uint16_t boneIndex = playback->m_boneIndex;
             M2ModelBone* bone = &model->m_bones[boneIndex];
 
-            if (playback->m_flags & 2) {
+            if (playback->m_flags & CM2SequencePlayBack::PRIMARY) {
                 M2Sequence* sequence = &shared->m_data->m_sequences[load->m_sequenceIndex];
                 bone->m_sequenceId = sequence->m_id;
                 bone->m_variationIndex = sequence->m_variationIndex;
-                model->SetPrimaryBoneSequence(load->m_sequenceIndex, playback->m_boneIndex, playback->m_fallback, playback->m_time, playback->m_speed, playback->m_flags & 1);
-                bone->m_sequence.m_pickRandomVariation = playback->m_flags & 4;
+                model->SetPrimaryBoneSequence(load->m_sequenceIndex, playback->m_boneIndex, playback->m_fallback, playback->m_time, playback->m_speed, playback->m_flags & CM2SequencePlayBack::BLEND);
+                bone->m_sequence.m_pickRandomVariation = playback->m_flags & CM2SequencePlayBack::PICK_RANDOM_VARIATION;
             } else {
                 model->SetSecondaryBoneSequence(load->m_sequenceIndex, boneIndex, playback->m_fallback, playback->m_time, playback->m_speed);
-                bone->m_secondarySequence.m_pickRandomVariation = playback->m_flags & 4;
+                bone->m_secondarySequence.m_pickRandomVariation = playback->m_flags & CM2SequencePlayBack::PICK_RANDOM_VARIATION;
             }
 
             playback->m_model = nullptr;
@@ -2245,13 +2246,13 @@ void CM2Shared::LowPrioritySequenceLoadedCallback(void* param) {
         playback = next;
     }
 
-    if (shared->m_flags & 0x20) {
+    if (shared->m_flags & FLAG_SEQUENCE_CLEAR_PENDING) {
         shared->m_sequenceLoads.Clear();
-        shared->m_flags &= ~0x30u;
+        shared->m_flags &= ~FLAG_SEQUENCE_CALLBACK_MASK;
     } else {
         load->~CM2SequenceLoad();
         SMemFree(load, typeid(CM2SequenceLoad).raw_name(), SLOG_OBJECT, 0);
-        shared->m_flags &= ~0x10u;
+        shared->m_flags &= ~FLAG_SEQUENCE_CALLBACK;
     }
 }
 
@@ -2267,7 +2268,7 @@ void CM2Shared::LowPrioritySequenceFailedCallback(void* param) {
 // OFFSET: 0x0083DA10
 CM2SequenceLoad* CM2Shared::LoadLowPrioritySequence(uint16_t sequenceIndex) {
     M2Sequence* sequence = &this->m_data->m_sequences[sequenceIndex];
-    CM2SequenceLoad* load = this->m_sequenceLoads.NewNode(2, 0, 0);
+    CM2SequenceLoad* load = this->m_sequenceLoads.NewNode(TSLIST_LINK_BEFORE, 0, 0);
 
     if (!load) {
         return nullptr;
@@ -2322,10 +2323,10 @@ CM2SequenceLoad* CM2Shared::LoadLowPrioritySequence(uint16_t sequenceIndex) {
     load->m_sequenceBufferIndex = static_cast<uint16_t>(this->m_lowPrioritySequenceCount);
     this->m_lowPrioritySequenceBuffers[this->m_lowPrioritySequenceCount++] = buffer;
 
-    sequence->m_flags |= 0x10;
+    sequence->m_flags |= M2Sequence::LOAD_PENDING;
 
     for (uint16_t i = sequence->m_aliasNext; i != sequenceIndex; i = this->m_data->m_sequences[i].m_aliasNext) {
-        this->m_data->m_sequences[i].m_flags |= 0x10;
+        this->m_data->m_sequences[i].m_flags |= M2Sequence::LOAD_PENDING;
     }
 
     load->m_asyncObject->m_file = file;

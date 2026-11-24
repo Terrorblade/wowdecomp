@@ -45,6 +45,7 @@
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "WoW/Source/WorldClient/DayNight.h"
 #include "Engine/Source/Model2/M2Light.h"
+#include "Engine/Source/Tempest/Color.h"
 
 // STATIC: 0x00A3FBB8
 static const uint16_t s_bitMask[8] = { 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80 };
@@ -111,7 +112,7 @@ void CMapChunk::Purge() {
         CMapDoodadDef* doodadDef = static_cast<CMapDoodadDef*>(link->m_owner);
         CMap::FreeBaseObjLink(link);
 
-        if (!(doodadDef->m_flags & 0x200)) {
+        if (!(doodadDef->m_flags & MAPOBJ_FLAG_IN_MAPOBJ)) {
             CMapDoodadDef::Purge(doodadDef);
         }
 
@@ -182,7 +183,7 @@ void CMapChunk::ProcessIffChunks(bool a3) {
         remaining -= offsetof(SIffChunk, m_data);
 
         switch (chunk->m_token) {
-            case 0x4D434E52:
+            case SIffChunk::TOKEN_MCNR:
                 this->m_normals = reinterpret_cast<int8_t*>(data);
 
                 if (a3) {
@@ -191,30 +192,30 @@ void CMapChunk::ProcessIffChunks(bool a3) {
 
                 break;
 
-            case 0x4D435348:
+            case SIffChunk::TOKEN_MCSH:
                 this->m_shadowMap = data;
                 break;
 
-            case 0x4D435654:
+            case SIffChunk::TOKEN_MCVT:
                 this->m_height = reinterpret_cast<float*>(data);
                 break;
 
-            case 0x4D435246:
+            case SIffChunk::TOKEN_MCRF:
                 this->m_mcrfPtr = data;
                 break;
 
-            case 0x4D435345:
+            case SIffChunk::TOKEN_MCSE:
                 if (this->m_header->m_nSndEmitters) {
                     this->m_soundEmitters = reinterpret_cast<CWSoundEmitter*>(data);
                 }
 
                 break;
 
-            case 0x4D434C59:
+            case SIffChunk::TOKEN_MCLY:
                 this->m_layers = reinterpret_cast<SMLayer*>(data);
                 break;
 
-            case 0x4D434C51:
+            case SIffChunk::TOKEN_MCLQ:
                 if (this->m_header->m_sizeLiquid > 8) {
                     this->m_liquid = reinterpret_cast<SMLiquidChunk*>(data);
                     chunk->m_size = this->m_header->m_sizeLiquid - 8;
@@ -222,7 +223,7 @@ void CMapChunk::ProcessIffChunks(bool a3) {
 
                 break;
 
-            case 0x4D43414C:
+            case SIffChunk::TOKEN_MCAL:
                 this->m_additionalShadowmap = data;
 
                 if (a3) {
@@ -231,7 +232,7 @@ void CMapChunk::ProcessIffChunks(bool a3) {
 
                 break;
 
-            case 0x4D434356:
+            case SIffChunk::TOKEN_MCCV:
                 this->m_vertexShading = reinterpret_cast<uint32_t*>(data);
                 break;
         }
@@ -284,7 +285,7 @@ void CMapChunk::Destroy() {
 // OFFSET: 0x007C3B40
 void CMapChunk::AllocRenderChunkAndBatch() {
     this->m_renderChunk = CMap::AllocRenderChunk();
-    this->m_renderChunk->AddBatch(this, nullptr, &this->m_topLeftCoords, 0);
+    this->m_renderChunk->AddBatch(this, nullptr, &this->m_topLeftCoords, CMapRenderChunk::BATCH_NONE);
 }
 
 // VERIFY: b0c09ba2 manual
@@ -641,7 +642,7 @@ void CMapChunk::CreateIndices(uint16_t* buf, CGxBatch* batch) {
 
     int32_t maxIndex = CMapRenderChunk::s_chunkBatch.m_maxIndex + baseVertex;
 
-    if (batch->m_maxIndex > maxIndex) {
+    if (batch->m_maxIndex > static_cast<uint32_t>(maxIndex)) {
         maxIndex = batch->m_maxIndex;
     }
 
@@ -782,14 +783,14 @@ void CMapChunk::CreateLiquids(bool a3) {
     SMLiquidChunk* mclq = this->m_liquid;
 
     if (mclq) {
-        uint32_t flag = 4;
+        uint32_t flag = SMChunk::LIQUID_WATER;
 
         for (uint32_t i = 0; i < 4; i++) {
             if (flag & this->m_header->m_flags) {
                 uint32_t type = i + 1;
 
-                if (s_mapId == 530 && i == 2) {
-                    type = 15;
+                if (s_mapId == MAP_EXPANSION01 && i == LIQUID_BASIC_TYPE_MAGMA) {
+                    type = LIQUID_TYPE_GREEN_LAVA;
                 }
 
                 LiquidTypeRec* typeRec = g_liquidTypeDB.GetRecord(type);
@@ -972,7 +973,7 @@ void CMapChunk::CreateRefs(CMapArea* area, uint32_t* mcrfPtr, uint32_t doodadRef
     for (uint32_t i = 0; i < mapObjRefs; i++) {
         SMMapObjDef* def = &area->m_mapObjDef[mapObjRefList[i]];
 
-        if (def->m_flags & 0x1) {
+        if (def->m_flags & SMMapObjDef::F_DESTROYABLE) {
             if (def->m_uniqueId != 0x5476ED || CMap::mapObjDefHash.Ptr(0x5476ED, CMap::s_mapObjDefHashKey)) {
                 continue;
             }
@@ -997,7 +998,7 @@ void CMapChunk::CreateRefs(CMapArea* area, uint32_t* mcrfPtr, uint32_t doodadRef
 
             if (proxy.m_sphere.r < 0.001f) {
                 proxy.m_sphere.r = 50.0f;
-                SysMsgPrintf(SYSMSG_ERROR, 2, "Destructible building WMO(%s) has invalid geobox", &area->m_wmoFileNames[area->m_wmoFilenamesOffsets[def->m_nameId]]);
+                SysMsgPrintf(SYSMSG_ERROR, SYSMSG_FILTER_WORLD, "Destructible building WMO(%s) has invalid geobox", &area->m_wmoFileNames[area->m_wmoFilenamesOffsets[def->m_nameId]]);
             }
 
             World::FindOrCreateDestructibleProxy(&proxy);
@@ -1050,7 +1051,7 @@ void CMapChunk::Create(SIffChunk* headerChunk, bool a3) {
 
     this->m_flags = static_cast<MapObjFlag>(0);
 
-    if (this->m_header->m_flags & 2) {
+    if (this->m_header->m_flags & SMChunk::IMPASSABLE) {
         this->m_flags = MAPOBJ_FLAG_IMPASSABLE;
     }
 
@@ -1064,11 +1065,11 @@ void CMapChunk::Create(SIffChunk* headerChunk, bool a3) {
 // OFFSET: 0x007C65A0
 void CMapChunk::UpdateLights() {
     for (CMapBaseObjLink* link = this->m_doodadDefLinkList.Head(); link; link = this->m_doodadDefLinkList.Next(link)) {
-        link->m_owner->m_flags = static_cast<MapObjFlag>(link->m_owner->m_flags | 0x1);
+        link->m_owner->m_flags = static_cast<MapObjFlag>(link->m_owner->m_flags | MAPOBJ_FLAG_UNPLACED);
     }
 
     for (CMapBaseObjLink* link = this->m_entityLinkList.Head(); link; link = this->m_entityLinkList.Next(link)) {
-        link->m_owner->m_flags = static_cast<MapObjFlag>(link->m_owner->m_flags | 0x1);
+        link->m_owner->m_flags = static_cast<MapObjFlag>(link->m_owner->m_flags | MAPOBJ_FLAG_UNPLACED);
     }
 }
 
@@ -1120,7 +1121,7 @@ int32_t CMapChunk::LoadDetailDoodadModels() {
             continue;
         }
 
-        for (uint32_t j = 0; j < 4; j++) {
+        for (uint32_t j = 0; j < NUM_GROUND_EFFECT_DOODADS; j++) {
             if (record->m_doodadID[j] && !CDetailDoodad::LoadModel(record->m_doodadID[j])) {
                 loaded = 0;
             }
@@ -1158,7 +1159,7 @@ void CMapChunk::CreateDetailDoodads() {
 
     uint8_t used[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    for (uint32_t i = 0; i < World::s_detailDoodadDensity; i++) {
+    for (uint32_t i = 0; i < static_cast<uint32_t>(World::s_detailDoodadDensity); i++) {
         uint32_t x = CRandom::uint32_(seed) & 7;
         uint32_t y = CRandom::uint32_(seed) & 7;
         s_cells[i].x = x;
@@ -1205,8 +1206,8 @@ void CMapChunk::CreateDetailDoodads() {
                 uint32_t k = 4 * cell + j;
 
                 s_colorBase[k] = C3Vector(shadeCenter[2], shadeCenter[1], shadeCenter[0]);
-                s_colorEdgeA[k] = C3Vector(shadeA[2] - shadeCenter[2], shadeA[1] - shadeCenter[1], shadeA[0] - shadeCenter[0]);
-                s_colorEdgeB[k] = C3Vector(shadeB[2] - shadeA[2], shadeB[1] - shadeA[1], shadeB[0] - shadeA[0]);
+                s_colorEdgeA[k] = C3Vector(static_cast<float>(shadeA[2] - shadeCenter[2]), static_cast<float>(shadeA[1] - shadeCenter[1]), static_cast<float>(shadeA[0] - shadeCenter[0]));
+                s_colorEdgeB[k] = C3Vector(static_cast<float>(shadeB[2] - shadeA[2]), static_cast<float>(shadeB[1] - shadeA[1]), static_cast<float>(shadeB[0] - shadeA[0]));
 
                 s_colorBase[k] *= 2.0f;
                 s_colorEdgeA[k] *= 2.0f;
@@ -1218,7 +1219,7 @@ void CMapChunk::CreateDetailDoodads() {
     C3Vector position(0.0f, 0.0f, 0.0f);
     CImVector color;
 
-    for (uint32_t i = 0; i < World::s_detailDoodadDensity; i++) {
+    for (uint32_t i = 0; i < static_cast<uint32_t>(World::s_detailDoodadDensity); i++) {
         int32_t x = s_cells[i].x;
         int32_t y = s_cells[i].y;
 
@@ -1247,7 +1248,7 @@ void CMapChunk::CreateDetailDoodads() {
         uint32_t slot = 0;
         uint32_t filled = 0;
 
-        for (uint32_t k = 0; k < 4; k++) {
+        for (uint32_t k = 0; k < NUM_GROUND_EFFECT_DOODADS; k++) {
             int32_t weight = record->m_doodadWeight[k];
             int32_t id = record->m_doodadID[k];
 
@@ -1303,7 +1304,7 @@ void CMapChunk::CreateDetailDoodads() {
                 continue;
             }
 
-            if ((data->m_record->m_flags & 2) || !this->m_vertexShading) {
+            if ((data->m_record->m_flags & GROUND_EFFECT_DOODAD_NO_VERTEX_SHADING) || !this->m_vertexShading) {
                 color.r = 0xFF;
                 color.g = 0xFF;
                 color.b = 0xFF;
@@ -1377,7 +1378,7 @@ void CMapChunk::RenderPrep() {
         float dx = CWorldScene::s_activeWorldView.x - this->m_sphere.c.x;
 
         if (CWorld::shadowMipLevel || dx * dx + dz * dz + dy * dy > 603729.0f) {
-            this->m_renderChunk->m_renderFlags |= 0x10;
+            this->m_renderChunk->m_renderFlags |= CMapRenderChunk::LayerFlags_ShouldMip;
         }
 
         this->m_renderChunk->RenderPrep();
@@ -1400,12 +1401,12 @@ bool CMapChunk::CanMergeChunkLayers(CMapChunk* chunkA, CMapChunk* chunkB) {
     chunkB->m_bLoaded = 1;
     chunkA->m_bLoaded = 1;
 
-    if (CMap::header.m_flags & 4) {
+    if (CMap::header.m_flags & SMMapHeader::BIG_ALPHA) {
         uint32_t count = chunkB->m_header->m_nLayers;
         SMLayer* layerA = chunkA->m_layers;
 
         for (uint32_t i = 0; i < chunkA->m_header->m_nLayers; i++, layerA++) {
-            if (layerA->m_flags & 0x4C0) {
+            if (layerA->m_flags & SMLayer::BIG_ALPHA_MERGE_BLOCK_MASK) {
                 return false;
             }
 
@@ -1413,7 +1414,7 @@ bool CMapChunk::CanMergeChunkLayers(CMapChunk* chunkA, CMapChunk* chunkB) {
             bool found = false;
 
             for (uint32_t j = 0; j < chunkB->m_header->m_nLayers; j++, layerB++) {
-                if (layerB->m_flags & 0x4C0) {
+                if (layerB->m_flags & SMLayer::BIG_ALPHA_MERGE_BLOCK_MASK) {
                     return false;
                 }
 
@@ -1441,7 +1442,7 @@ bool CMapChunk::CanMergeChunkLayers(CMapChunk* chunkA, CMapChunk* chunkB) {
         SMLayer& layerA = chunkA->m_layers[i];
         SMLayer& layerB = chunkB->m_layers[i];
 
-        if ((layerA.m_flags & 0xC0) || (layerB.m_flags & 0xC0) || layerB.m_textureId != layerA.m_textureId) {
+        if ((layerA.m_flags & SMLayer::ANIMATED_OR_OVERBRIGHT) || (layerB.m_flags & SMLayer::ANIMATED_OR_OVERBRIGHT) || layerB.m_textureId != layerA.m_textureId) {
             return false;
         }
     }
@@ -1505,7 +1506,7 @@ void CMapChunk::Intersect(CiRect* rect, CAaBox* box, TSGrowableArray<CFacet>* fa
                 const int32_t* indices = &s_subVertexTriangles[tri];
 
                 if (outcodes[indices[0]] & outcodes[indices[1]] & outcodes[indices[2]]) {
-                    if (!(CWorld::enables & Enable_ShowQuery)) {
+                    if (!(CWorld::enables & Enable_CollisionDebug)) {
                         continue;
                     }
 
@@ -1540,7 +1541,7 @@ void CMapChunk::Intersect(CiRect* rect, CAaBox* box, TSGrowableArray<CFacet>* fa
                     facet->plane.From3Pos(facet->v[0], facet->v[1], facet->v[2]);
                 }
 
-                if (CWorld::enables & Enable_ShowQuery) {
+                if (CWorld::enables & Enable_CollisionDebug) {
                     CImVector color;
                     *reinterpret_cast<uint32_t*>(&color) = 0x8000FF00;
                     CMap::TestQueryAdd(*facet, color, nullptr);

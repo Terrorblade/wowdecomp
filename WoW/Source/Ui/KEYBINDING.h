@@ -16,6 +16,12 @@ struct KEYBINDINGDATA {
 
 class KEYBINDING : public TSHashObject<KEYBINDING, HASHKEY_STRI> {
     public:
+
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        DEFAULT = 0x1,
+    };
+
     /* 0018 */ uint32_t m_flags;
     /* 001C */ KEYBINDINGDATA m_data [4];
 

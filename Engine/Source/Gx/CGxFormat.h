@@ -19,6 +19,12 @@ class CGxFormat {
         Formats_Last = 8,
     };
 
+    enum Maximize : int32_t {
+        Maximize_None = 0,
+        Maximize_Screen = 1,
+        Maximize_Unknown_2 = 2,
+    };
+
     /* 0000 */ uint32_t m_apiSpecificModeID;
     /* 0004 */ bool m_hwTnL;
     /* 0005 */ bool m_hwCursor;

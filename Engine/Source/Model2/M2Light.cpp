@@ -25,7 +25,7 @@ void CM2Light::Initialize(CM2Scene* scene) {
 void CM2Lighting::Initialize(CM2Scene* scene, const CAaSphere& sphere) {
     memset(this, 0, sizeof(*this));
     this->m_scene = scene;
-    this->m_flags |= 0x20;
+    this->m_flags |= CM2Lighting::ABOVE_LIQUID;
     this->m_sphere4 = sphere;
 }
 
@@ -111,15 +111,15 @@ void CM2Light::SetDirection(const C3Vector& dir) {
 // OFFSET: 0x00834B50
 void CM2Light::GxLightSet(uint32_t index) {
     CGxLight light;
-    light.m_flags = (light.m_flags & ~1u) | (this->m_visible & 1);
+    light.m_flags = (light.m_flags & ~CGxLight::F_ENABLED) | (this->m_visible & CGxLight::F_ENABLED);
 
     if (this->m_type == M2LIGHT_DIRECT) {
-        light.m_flags &= ~2u;
+        light.m_flags &= ~CGxLight::F_OMNI;
         light.m_dir = this->m_dir;
         light.m_ambientColor = this->m_ambColor;
         light.m_specularColor = this->m_specColor;
     } else {
-        light.m_flags |= 2;
+        light.m_flags |= CGxLight::F_OMNI;
         light.m_dir = this->m_pos;
         light.m_ambientColor = C3Vector();
         light.m_specularColor = C3Vector();
@@ -158,7 +158,7 @@ void CM2Light::Link() {
         if (this->m_lightNext) {
             this->m_lightNext->m_lightPrev = &this->m_lightNext;
         }
-    } else if (!(this->m_scene->m_flags & 1)) {
+    } else if (!(this->m_scene->m_flags & CM2Scene::WORLD_ANIMATION_ACTIVE)) {
         CM2Light** head = &this->m_scene->m_lightList;
 
         this->m_lightPrev = head;
@@ -257,7 +257,7 @@ void CM2Lighting::AddLight(CM2Light* light) {
 // VERIFY: 58f9ffa3 manual
 // OFFSET: 0x008350A0
 void CM2Lighting::CameraSpace() {
-    if (this->m_flags & 1) {
+    if (this->m_flags & CM2Lighting::CAMERA_SPACE_READY) {
         return;
     }
 
@@ -266,7 +266,7 @@ void CM2Lighting::CameraSpace() {
             this->m_lights[i]->m_viewPos = this->m_lights[i]->m_pos * this->m_scene->m_view;
         }
 
-        if ((this->m_flags & 0x60) == 0x60) {
+        if ((this->m_flags & CM2Lighting::LIQUID_SIDES_MASK) == CM2Lighting::LIQUID_SIDES_MASK) {
             float d = -this->m_liquidPlane.d;
             C3Vector point(d * this->m_liquidPlane.n.x, this->m_liquidPlane.n.y * d, d * this->m_liquidPlane.n.z);
 
@@ -283,13 +283,13 @@ void CM2Lighting::CameraSpace() {
         }
     }
 
-    this->m_flags |= 1;
+    this->m_flags |= CM2Lighting::CAMERA_SPACE_READY;
 }
 
 // VERIFY: 0203843d manual
 // OFFSET: 0x00835280
 void CM2Lighting::SetupSunlight() {
-    if (this->m_flags & 2) {
+    if (this->m_flags & CM2Lighting::SUNLIGHT_READY) {
         return;
     }
 
@@ -308,18 +308,18 @@ void CM2Lighting::SetupSunlight() {
     this->m_sunDiffuse = C3Vector(red * 1.25f - this->m_vector48.x * 0.25f, green * 1.25f - this->m_vector48.y * 0.25f, 1.25f * blue - this->m_vector48.z * 0.25f);
     this->m_sunAmbient += C3Vector((this->m_vector48.x - red) * 0.25f, (this->m_vector48.y - green) * 0.25f, (this->m_vector48.z - blue) * 0.25f);
 
-    this->m_flags |= 2;
+    this->m_flags |= CM2Lighting::SUNLIGHT_READY;
 }
 
 // VERIFY: 52fc9b8b manual
 // OFFSET: 0x008353D0
 void CM2Lighting::SetupGxLights(const C3Vector* origin) {
     CGxLight light;
-    light.m_flags |= 1;
+    light.m_flags |= CGxLight::F_ENABLED;
 
     this->SetupSunlight();
 
-    light.m_flags &= ~2u;
+    light.m_flags &= ~CGxLight::F_OMNI;
     light.m_dir = this->m_sunDir;
     light.m_ambientColor = this->m_sunAmbient;
     light.m_dirColor = this->m_sunDiffuse;
@@ -328,7 +328,7 @@ void CM2Lighting::SetupGxLights(const C3Vector* origin) {
     g_theGxDevicePtr->LightSet(0, light, C3Vector());
     g_theGxDevicePtr->LightEnable(0, 1);
 
-    light.m_flags |= 2;
+    light.m_flags |= CGxLight::F_OMNI;
     light.m_ambientColor = C3Vector();
     light.m_specularColor = C3Vector();
 
@@ -425,7 +425,7 @@ void CM2Lighting::SetupGxFog() {
         return;
     }
 
-    if (!g_theGxDevicePtr->Caps().m_shaderTargets[0]) {
+    if (!g_theGxDevicePtr->Caps().m_shaderTargets[GxSh_Vertex]) {
         GxRsSet(GxRs_FogStart, this->m_fogStart);
         GxRsSet(GxRs_FogEnd, this->m_fogEnd);
     }

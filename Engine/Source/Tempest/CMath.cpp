@@ -472,8 +472,8 @@ CSoftFloat operator*(const CSoftFloat& l, const CSoftFloat& r) {
     uint32_t a = l.m_bits;
     uint32_t b = r.m_bits;
     uint32_t sign = (a ^ b) & 0x80000000;
-    uint32_t expA = a & 0x7F800000;
-    uint32_t expB = b & 0x7F800000;
+    uint32_t expA = a & CSoftFloat::EXPONENT_MASK;
+    uint32_t expB = b & CSoftFloat::EXPONENT_MASK;
     uint32_t manA = a & 0x7FFFFF;
     uint32_t manB = b & 0x7FFFFF;
 
@@ -501,14 +501,14 @@ CSoftFloat operator*(const CSoftFloat& l, const CSoftFloat& r) {
 // OFFSET: 0x0095D2F0
 CSoftFloat operator+(const CSoftFloat& l, const CSoftFloat& r) {
     uint32_t a = l.m_bits;
-    uint32_t expA = a & 0x7F800000;
+    uint32_t expA = a & CSoftFloat::EXPONENT_MASK;
 
     if (!expA) {
         return r;
     }
 
     uint32_t b = r.m_bits;
-    uint32_t expB = b & 0x7F800000;
+    uint32_t expB = b & CSoftFloat::EXPONENT_MASK;
 
     if (!expB) {
         return l;
@@ -569,7 +569,7 @@ CSoftFloat operator+(const CSoftFloat& l, const CSoftFloat& r) {
 CSoftFloat CSoftFloat::Reciprocal(const CSoftFloat& value) {
     uint32_t bits = value.m_bits;
     uint32_t mantissa = bits & 0x7FFFFF;
-    uint32_t exp = 0x7E800000 - (bits & 0x7F800000);
+    uint32_t exp = 0x7E800000 - (bits & CSoftFloat::EXPONENT_MASK);
     uint32_t high = mantissa << 19;
     uint32_t fraction = high | ((((mantissa << 19) >> 13) | high) >> 13);
     uint32_t index = mantissa >> 13;

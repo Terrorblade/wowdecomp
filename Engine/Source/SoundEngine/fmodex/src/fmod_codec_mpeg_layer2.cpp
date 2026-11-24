@@ -324,12 +324,12 @@ FMOD_RESULT CodecMPEG::II_step_one(unsigned int *bit_alloc,int *scale)
 
     if(stereo)
     {
-		for (i=jsbound;i;i--,alloc1+=(1<<step))
+		for (i=jsbound;i;i--,alloc1+=((ptrdiff_t)1<<step))
 		{
 			*bita++ = (char)getBits(step=alloc1->bits);
 			*bita++ = (char)getBits(step);
 		}
-		for (i=sblimit-jsbound;i;i--,alloc1+=(1<<step))
+		for (i=sblimit-jsbound;i;i--,alloc1+=((ptrdiff_t)1<<step))
 		{
 			bita[0] = (char) getBits(step=alloc1->bits);
 			bita[1] = bita[0];
@@ -345,7 +345,7 @@ FMOD_RESULT CodecMPEG::II_step_one(unsigned int *bit_alloc,int *scale)
     }
     else // mono 
     {
-		for (i=sblimit;i;i--,alloc1+=(1<<step))
+		for (i=sblimit;i;i--,alloc1+=((ptrdiff_t)1<<step))
         {
 			*bita++ = (char) getBits(step=alloc1->bits);
         }
@@ -423,7 +423,7 @@ FMOD_RESULT CodecMPEG::II_step_two(unsigned int *bit_alloc,float fraction[2][4][
     unsigned int *	bita=bit_alloc;
     int				d1,step;
 
-	for (i=0;i<jsbound;i++,alloc1+=(1<<step))
+	for (i=0;i<jsbound;i++,alloc1+=((ptrdiff_t)1<<step))
 	{
 		step = alloc1->bits;
 		for (j=0;j<stereo;j++)
@@ -463,7 +463,7 @@ FMOD_RESULT CodecMPEG::II_step_two(unsigned int *bit_alloc,float fraction[2][4][
 	}
 
 
-	for (i=jsbound;i<sblimit;i++,alloc1+=(1<<step))
+	for (i=jsbound;i<sblimit;i++,alloc1+=((ptrdiff_t)1<<step))
 	{
 		step = alloc1->bits;
 		bita++;	// channel 1 and channel 2 bitalloc are the same 

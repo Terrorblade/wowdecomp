@@ -8,6 +8,12 @@
 
 class CGxLight {
     public:
+    enum FLAGS : uint32_t {
+        F_ENABLED = 0x1,
+        F_OMNI = 0x2,
+        F_STATE_MASK = 0x3,
+    };
+
     /* 0000 */ uint32_t m_flags;
     /* 0004 */ C3Vector m_dir;
     /* 0010 */ C3Vector m_ambientColor;
@@ -22,6 +28,19 @@ class CGxLight {
 
 class CGxApiLight {
     public:
+    enum FIELD_MASK : uint16_t {
+        FIELD_ENABLE = 0x01,
+        FIELD_DIRECTION_OR_POSITION = 0x02,
+        FIELD_AMBIENT = 0x04,
+        FIELD_DIFFUSE = 0x08,
+        FIELD_SPECULAR = 0x10,
+        FIELD_CONSTANT_ATTENUATION = 0x20,
+        FIELD_LINEAR_ATTENUATION = 0x40,
+        FIELD_QUADRATIC_ATTENUATION = 0x80,
+        FIELD_ATTENUATION = 0xE0,
+        FIELD_ALL = 0xFF,
+    };
+
     /* 0000 */ C4Vector m_dir;
     /* 0010 */ C3Vector m_ambColor;
     /* 001C */ C3Vector m_dirColor;

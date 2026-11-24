@@ -20,6 +20,7 @@
 #include "WoW/Source/UIUtil/PortraitButton.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
+#include "WoW/Source/Object/ObjectClient/Player_C.h"
 
 // VERIFY: 55f64cec manual
 // OFFSET: 0x00588CC0
@@ -134,25 +135,25 @@ static int32_t Script_GetLootRollItemInfo(lua_State* L) {
     lua_pushnumber(L, roll->m_count);
     lua_pushnumber(L, static_cast<int32_t>(stats->m_quality));
 
-    if (stats->m_bonding == 1) {
+    if (stats->m_bonding == ITEM_BINDING_ON_PICKUP) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (roll->m_voteMask & 2) {
+    if (roll->m_voteMask & (1 << LOOT_ROLL_NEED)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (roll->m_voteMask & 4) {
+    if (roll->m_voteMask & (1 << LOOT_ROLL_GREED)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
 
-    if (roll->m_voteMask & 8) {
+    if (roll->m_voteMask & (1 << LOOT_ROLL_DISENCHANT)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -227,7 +228,7 @@ static int32_t Script_GetLootSlotInfo(lua_State* L) {
             index = slot - 1;
         }
 
-        if (index < 18 && CGLootInfo::m_slots[index].m_slotType == 3) {
+        if (index < 18 && CGLootInfo::m_slots[index].m_slotType == LOOT_SLOT_TYPE_LOCKED) {
             lua_pushnumber(L, 1.0);
             return 5;
         }

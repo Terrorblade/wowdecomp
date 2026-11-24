@@ -10,10 +10,17 @@ class CGxShader;
 
 class PassNetherBlur : public FFX::Pass {
     public:
+    enum NOISE_TABLE_ROLE : uint32_t {
+        BLEND_FROM = 0,
+        BLEND_TO = 1,
+        REGENERATE = 2,
+        ROLE_COUNT = 3,
+    };
+
     /* 0030 */ uint32_t m_useRect;
-    /* 0034 */ float m_noise[3][36];
+    /* 0034 */ float m_noise[ROLE_COUNT][36];
     /* 01E4 */ float m_blendedNoise[36];
-    /* 0274 */ float* m_noiseTables[3];
+    /* 0274 */ float* m_noiseTables[ROLE_COUNT];
     /* 0280 */ float m_noiseBlend;
     /* 0284 */ CRndSeed m_seed;
     /* 028C */ CGxShader* m_vertexShader;

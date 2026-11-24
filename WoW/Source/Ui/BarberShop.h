@@ -6,6 +6,7 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Ui/USEABLESTYLE.h"
+#include "WoW/Source/DB/Rec/BarberShopStyleRec.h"
 
 struct lua_State;
 
@@ -16,6 +17,15 @@ int32_t Packet_SMSG_BARBER_SHOP_RESULT(void* param, NETMESSAGE msgId, uint32_t t
 
 class CGBarberShop {
     public:
+
+    enum APPLY_RESULT : uint32_t {
+        BARBER_SUCCESS = 0,
+        BARBER_UI_NOT_ENOUGH_MONEY_1 = 1,
+        BARBER_UI_NOT_SITTING = 2,
+        BARBER_UI_NOT_ENOUGH_MONEY_3 = 3,
+        BARBER_RESULT_NOT_READ = 0xFFFFFFFF,
+    };
+
     static void EnterWorld();
     static STYLEREC* GetStyle(int32_t type, int32_t race, int32_t sex, int32_t data);
     static float GetMinCameraDistance();

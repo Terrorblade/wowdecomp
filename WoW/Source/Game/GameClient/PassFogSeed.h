@@ -7,6 +7,12 @@
 
 class PassFogSeed : public FFX::Pass {
     public:
+
+    enum CLEAR_STATE : uint32_t {
+        CLEAR_NOT_PENDING = 0,
+        CLEAR_PENDING = 1,
+    };
+
     static void __fastcall DeviceRestoredCallback();
 
     /* 0030 */ uint32_t m_row;

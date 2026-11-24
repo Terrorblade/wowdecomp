@@ -82,6 +82,65 @@ bool IsCurrentMapArena();
 
 class CGBattlefieldInfo {
     public:
+
+    enum QUEUE_STATUS : int32_t {
+        QUEUE_NONE = 0,
+        QUEUE_QUEUED = 1,
+        QUEUE_CONFIRM = 2,
+        QUEUE_ACTIVE = 3,
+    };
+
+    enum GROUP_JOIN_RESULT : int32_t {
+        IN_NON_RANDOM_BG = -15,
+        IN_RANDOM_BG = -14,
+        LFG = -13,
+        UNKNOWN_MINUS_12 = -12,
+        UNKNOWN_MINUS_11 = -11,
+        RANGE_INDEX = -10,
+        XP_GAIN = -9,
+        NOT_IN_BATTLEGROUND = -8,
+        TEAM_LEFT_QUEUE = -7,
+        QUEUED_FOR_RATED = -6,
+        CANNOT_QUEUE_FOR_RATED = -5,
+        TOO_MANY_QUEUES = -4,
+        ARENA_TEAM_PARTY_SIZE = -3,
+        DESERTERS = -2,
+        UNKNOWN_MINUS_1 = -1,
+    };
+
+    enum EJECTION_REASON : int32_t {
+        UNKNOWN_1 = 1,
+        UNKNOWN_2 = 2,
+        UNKNOWN_4 = 4,
+        UNKNOWN_5 = 5,
+        UNKNOWN_7 = 7,
+        PLAYER_EXIT = 8,
+        UNKNOWN_9 = 9,
+        LOW_LEVEL = 10,
+        UNKNOWN_11 = 11,
+    };
+
+    enum SCORE_SORT_COLUMN : int32_t {
+        COLUMN_KILLING_BLOWS = 0,
+        COLUMN_DEATHS = 1,
+        COLUMN_BONUS_HONOR = 2,
+        COLUMN_NAME = 3,
+        COLUMN_CLASS = 4,
+        COLUMN_HONORABLE_KILLS = 5,
+        COLUMN_DAMAGE_DONE = 6,
+        COLUMN_HEALING_DONE = 7,
+        COLUMN_TEAM = 8,
+        COLUMN_STAT1 = 9,
+        COLUMN_STAT2 = 10,
+        COLUMN_STAT3 = 11,
+        COLUMN_STAT4 = 12,
+        COLUMN_STAT5 = 13,
+        COLUMN_STAT6 = 14,
+        COLUMN_STAT7 = 15,
+        COLUMN_STAT8 = 16,
+        NUM_COLUMNS = 17,
+    };
+
     static void JoinBattlefield(uint32_t index, int32_t asGroup, int32_t isRated);
     static void RequestBattlegroundInstanceInfo(uint32_t index);
     static void SetBattlemaster(WOWGUID battlemaster);
@@ -140,7 +199,7 @@ class CGBattlefieldInfo {
     static uint32_t m_winner;
     static int32_t m_arenaOpponentSeen[5];
     static WorldPvPQueueStatus m_worldPvPQueues[1];
-    static BattlefieldScoreSortCriteria m_scoreSortCriteria[17];
+    static BattlefieldScoreSortCriteria m_scoreSortCriteria[NUM_COLUMNS];
     static TSGrowableArray<int32_t> m_battlegroundTypes;
 
     static void AddArenaOpponent(const WOWGUID& guid);

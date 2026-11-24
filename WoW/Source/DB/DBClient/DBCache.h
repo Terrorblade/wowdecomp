@@ -323,7 +323,7 @@ T* DBCache<T, TKey, THashKey>::GetRecord(TKey key, const WOWGUID& guid, void (*c
             hash = this->m_entries.New(DBCacheHashKey(key), key, 0, 0);
             hash->m_id = key;
 
-            DBCACHECALLBACK* node = hash->m_callbacks.NewNode(2, 0, 0);
+            DBCACHECALLBACK* node = hash->m_callbacks.NewNode(TSLIST_LINK_BEFORE, 0, 0);
             node->m_callback = callback;
             node->m_guid = guid;
             node->m_param = param;
@@ -351,7 +351,7 @@ T* DBCache<T, TKey, THashKey>::GetRecord(TKey key, const WOWGUID& guid, void (*c
             }
         }
 
-        DBCACHECALLBACK* node = hash->m_callbacks.NewNode(2, 0, 0);
+        DBCACHECALLBACK* node = hash->m_callbacks.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         node->m_callback = callback;
         node->m_guid = guid;
         node->m_param = param;

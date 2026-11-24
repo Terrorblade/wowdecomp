@@ -10,6 +10,7 @@
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Services/TextBlock.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00AC0F04
 static uint16_t s_quadIndices[6] = { 0, 1, 2, 2, 1, 3 };
@@ -90,7 +91,7 @@ CRenderBatch::CRenderBatch() {
 // VERIFY: 6542125c manual
 // OFFSET: 0x004858E0
 void CRenderBatch::QueueCallback(void (*callback)(void*), void* param) {
-    RENDERCALLBACKNODE* node = this->m_callbacks.NewNode(2, 0, 0);
+    RENDERCALLBACKNODE* node = this->m_callbacks.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_callback = callback;
     node->m_param = param;
     this->m_count++;
@@ -152,7 +153,7 @@ void CRenderBatch::QueueFontString(CSimpleFontString* string) {
 // OFFSET: 0x004847A0
 void CRenderBatch::QueueTexture(CSimpleTexture* texture) {
     HoT::LuaRuntime::Count(HoT::LuaRuntime::Counter::Textures);
-    CGxTex* gxTex = TextureGetGxTex(texture->m_texture, (texture->m_textureFlags & 1) ? 0 : 2, nullptr);
+    CGxTex* gxTex = TextureGetGxTex(texture->m_texture, (texture->m_textureFlags & CSimpleTexture::FLAG_NONBLOCKING) ? 0 : 2, nullptr);
 
     if (!gxTex) {
         texture->NotifyDelayedLoad();
@@ -165,7 +166,7 @@ void CRenderBatch::QueueTexture(CSimpleTexture* texture) {
 
     uint32_t flags = texture->m_textureFlags;
 
-    if (flags & 2) {
+    if (flags & CSimpleTexture::FLAG_TEXCOORDS_DIRTY) {
         C2Vector texCoords[4];
         texture->GetTexCoord(texCoords);
 
@@ -174,7 +175,7 @@ void CRenderBatch::QueueTexture(CSimpleTexture* texture) {
         float bottom = texture->m_positions[1].y;
         float top = texture->m_positions[0].y;
 
-        if (flags & 4) {
+        if (flags & CSimpleTexture::FLAG_HORIZ_TILE) {
             uint32_t width = gxTex->m_width;
             float ndcWidth = DDCToNDCWidth(CoordinateGetAspectCompensation() * 1024.0f * (right - left));
 
@@ -197,7 +198,7 @@ void CRenderBatch::QueueTexture(CSimpleTexture* texture) {
             }
         }
 
-        if (texture->m_textureFlags & 8) {
+        if (texture->m_textureFlags & CSimpleTexture::FLAG_VERT_TILE) {
             uint32_t height = gxTex->m_height;
             float ndcHeight = DDCToNDCWidth(CoordinateGetAspectCompensation() * 1024.0f * (top - bottom));
 

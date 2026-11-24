@@ -12,6 +12,7 @@
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CRect.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 static const float DEFAULT_DIST = 100.0f;
 static const float DEFAULT_FARZ = 5000.0f;
@@ -24,7 +25,7 @@ static float s_inv2Pi = 1.0f / 6.2831855f;
 
 // INLINED
 CBaseManaged::CBaseManaged() {
-    this->m_dataTypeId = 0;
+    this->m_dataTypeId = CBaseManaged::UNKNOWN_0;
     this->m_flags = 0;
     this->m_updateFcn = nullptr;
     this->m_updateData = nullptr;
@@ -341,7 +342,7 @@ static void GetManagedValue(CDataMgr* mgr, uint32_t index, float* value, uint8_t
 // OFFSET: 0x004C11F0
 float CameraGetFloat(CCamera* camera, uint32_t index) {
     float value = 0.0f;
-    GetManagedValue(camera, index, &value, 6);
+    GetManagedValue(camera, index, &value, CBaseManaged::FLOAT);
 
     return value;
 }
@@ -370,14 +371,14 @@ static void GetManagedValue(CDataMgr* mgr, uint32_t index, C3Vector* value, uint
 // VERIFY: 15f73a5e auto
 // OFFSET: 0x004C1290
 void DataMgrGetCoord(CDataMgr* mgr, uint32_t index, C3Vector* value) {
-    GetManagedValue(mgr, index, value, 3);
+    GetManagedValue(mgr, index, value, CBaseManaged::VECTOR3);
 }
 
 // VERIFY: 6e02d0ab manual
 // OFFSET: 0x004C12B0
 void CameraSetCoord(CCamera* camera, uint32_t index, const C3Vector& value, uint32_t keepMask) {
     C3Vector current(0.0f, 0.0f, 0.0f);
-    GetManagedValue(camera, index, &current, 3);
+    GetManagedValue(camera, index, &current, CBaseManaged::VECTOR3);
 
     C3Vector newValue((keepMask & 0x1) ? current.x : value.x, (keepMask & 0x2) ? current.y : value.y, (keepMask & 0x4) ? current.z : value.z);
 
@@ -413,7 +414,7 @@ void CameraSetFloat(CCamera* camera, uint32_t index, float value) {
 void CDataMgr::InsertByPriority(CBaseManaged* data) {
     for (CBaseManaged* node = this->m_updateList.Head(); node; node = this->m_updateList.Next(node)) {
         if (node->m_updatePriority <= data->m_updatePriority) {
-            this->m_updateList.LinkNode(data, 2, node);
+            this->m_updateList.LinkNode(data, TSLIST_LINK_BEFORE, node);
             return;
         }
     }

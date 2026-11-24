@@ -6,6 +6,7 @@
 #include "WoW/Source/DB/Rec/ItemDisplayInfoRec.h"
 #include "WoW/Source/DB/Rec/SpellItemEnchantmentRec.h"
 #include "WoW/Source/Object/ItemStats.h"
+#include "WoW/Common/ComponentCore/Types.h"
 
 // STATIC
 // VERIFY: 9c793a34 auto
@@ -42,7 +43,7 @@ uint32_t VisibleItem_C::GetInventoryType() {
     }
 
     ItemRec* rec = g_itemDB.GetRecord(abs(this->m_itemId));
-    return rec ? rec->m_inventoryType : 0;
+    return rec ? rec->m_inventoryType : INVTYPE_NON_EQUIP;
 }
 
 // VERIFY: 9f906c98 auto
@@ -84,7 +85,7 @@ uint32_t VisibleItem_C::GetSheatheType() {
     }
 
     ItemRec* rec = g_itemDB.GetRecord(abs(this->m_itemId));
-    return rec ? rec->m_sheatheType : 0;
+    return rec ? rec->m_sheatheType : SHEATHE_NONE;
 }
 
 // VERIFY: 610fe897 auto

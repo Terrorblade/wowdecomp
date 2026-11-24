@@ -6,6 +6,14 @@
 
 class SFileImpl;
 
+enum SOCKET_COLOR : int32_t {
+    SOCKET_COLOR_META = 0x1,
+    SOCKET_COLOR_RED = 0x2,
+    SOCKET_COLOR_YELLOW = 0x4,
+    SOCKET_COLOR_BLUE = 0x8,
+};
+constexpr int32_t NUM_SOCKET_COLORS = 4;
+
 class GemPropertiesRec {
     public:
     static const int32_t s_numColumns = 5;

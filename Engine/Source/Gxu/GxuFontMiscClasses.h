@@ -84,6 +84,13 @@ struct BATCHEDRENDERFONTDESC : public TSHashObject<BATCHEDRENDERFONTDESC, HASHKE
 };
 
 struct CGxStringBatch : public TSLinkedNode<CGxStringBatch> {
+
+    enum STRING_BATCH_FLAGS : int32_t {
+        BATCH_NONE = 0,
+        BATCH_BILLBOARDED = 1,
+        BATCH_CLEAR_STRINGS_AFTER_RENDER = 2,
+    };
+
     /* 0008 */ uint32_t m_flags;
     /* 000C */ TSHashTable<BATCHEDRENDERFONTDESC, HASHKEY_PTR> m_fontBatch;
 

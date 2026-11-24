@@ -11,6 +11,21 @@ class CGItem_C;
 struct lua_State;
 
 struct AuctionSortCriteria {
+
+    enum COLUMN : int32_t {
+        LEVEL = 0,
+        QUALITY = 1,
+        BUYOUT_THEN_BID = 2,
+        DURATION = 3,
+        BID_STATUS = 4,
+        NAME = 5,
+        MIN_BID_BUYOUT = 6,
+        SELLER = 7,
+        BID = 8,
+        QUANTITY = 9,
+        BUYOUT = 10,
+    };
+
     /* 0000 */ int32_t m_column;
     /* 0004 */ int32_t m_reverse;
     /* 0008 */ int32_t m_valid;
@@ -40,6 +55,12 @@ struct AuctionInvType {
 };
 
 struct AuctionItemInfo {
+
+    enum SALE_STATE : int32_t {
+        UNSOLD = 0,
+        SOLD = 1,
+    };
+
     /* 0000 */ int32_t m_auctionHouseID;
     /* 0004 */ uint32_t m_auctionID;
     /* 0008 */ uint32_t m_itemID;
@@ -69,6 +90,51 @@ struct AuctionNotifyInfo {
 
 class CGAuctionHouse {
     public:
+
+    enum COMMAND_RESULT : uint32_t {
+        SUCCESS = 0,
+        INVENTORY_ERROR = 1,
+        NOT_ENOUGH_MONEY = 3,
+        ITEM_NOT_FOUND = 4,
+        HIGHER_BID = 5,
+        BID_INCREMENT = 7,
+        BID_OWN_AUCTION = 10,
+        RESTRICTED_ACCOUNT = 13,
+    };
+
+    enum TIME_LEFT_CATEGORY : uint32_t {
+        TIME_LEFT_SHORT = 1,
+        TIME_LEFT_MEDIUM = 2,
+        TIME_LEFT_LONG = 3,
+        TIME_LEFT_VERY_LONG = 4,
+    };
+
+    enum COMMAND_ACTION : uint32_t {
+        START_AUCTION = 0,
+        CANCEL_AUCTION = 1,
+        PLACE_BID = 2,
+    };
+
+    enum RUN_TIME : uint32_t {
+        RUN_TIME_SHORT = 720,
+        RUN_TIME_DEFAULT = 1440,
+        RUN_TIME_LONG = 2880,
+        NUM_RUN_TIMES = 3,
+    };
+
+    enum BIDDER_SORT_RANK : int32_t {
+        NO_BIDDER = 0,
+        OTHER_BIDDER = 1,
+        ACTIVE_PLAYER_MATCH = 2,
+    };
+
+    enum LIST_TYPE : int32_t {
+        BROWSE_LIST = 0,
+        BIDDER_LIST = 1,
+        OWNER_LIST = 2,
+        NUM_LIST_TYPES = 3,
+    };
+
     static void CloseAuctionHouse();
     static bool IsItemForSell(WOWGUID item);
     static AuctionSortCriteria m_bidSortCriteria[12];
@@ -94,8 +160,8 @@ class CGAuctionHouse {
     static AuctionSellItem m_sellItems[200];
     static int32_t m_havePendingSell;
     static WOWGUID m_sellItemContainer;
-    static uint32_t m_lastQueryTime[3];
-    static int32_t m_queryPending[3];
+    static uint32_t m_lastQueryTime[NUM_LIST_TYPES];
+    static int32_t m_queryPending[NUM_LIST_TYPES];
     static uint32_t m_numTotalOwned;
     static int32_t m_canGetOwnerList;
     static int32_t m_canGetBidderList;

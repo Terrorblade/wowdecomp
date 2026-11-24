@@ -22,6 +22,8 @@
 #include "WoW/Source/Ui/LFGInfo.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/Types.h"
+#include "WoW/Common/Types.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 
 // VERIFY: a2e71192 auto
@@ -54,53 +56,53 @@ static int32_t Script_IsRaceClassRestricted(lua_State* L) {
     bool restricted;
 
     switch (raceID) {
-        case 1: {
-            restricted = (CCharacterSelection::s_raceRestrictions[0] & (1 << classID)) != 0;
+        case RACE_HUMAN: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_HUMAN] & (1 << classID)) != 0;
             break;
         }
 
-        case 2: {
-            restricted = (CCharacterSelection::s_raceRestrictions[5] & (1 << classID)) != 0;
+        case RACE_ORC: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_ORC] & (1 << classID)) != 0;
             break;
         }
 
-        case 3: {
-            restricted = (CCharacterSelection::s_raceRestrictions[1] & (1 << classID)) != 0;
+        case RACE_DWARF: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_DWARF] & (1 << classID)) != 0;
             break;
         }
 
-        case 4: {
-            restricted = (CCharacterSelection::s_raceRestrictions[3] & (1 << classID)) != 0;
+        case RACE_NIGHT_ELF: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_NIGHT_ELF] & (1 << classID)) != 0;
             break;
         }
 
-        case 5: {
-            restricted = (CCharacterSelection::s_raceRestrictions[8] & (1 << classID)) != 0;
+        case RACE_UNDEAD: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_UNDEAD] & (1 << classID)) != 0;
             break;
         }
 
-        case 6: {
-            restricted = (CCharacterSelection::s_raceRestrictions[7] & (1 << classID)) != 0;
+        case RACE_TAUREN: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_TAUREN] & (1 << classID)) != 0;
             break;
         }
 
-        case 7: {
-            restricted = (CCharacterSelection::s_raceRestrictions[2] & (1 << classID)) != 0;
+        case RACE_GNOME: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_GNOME] & (1 << classID)) != 0;
             break;
         }
 
-        case 8: {
-            restricted = (CCharacterSelection::s_raceRestrictions[6] & (1 << classID)) != 0;
+        case RACE_TROLL: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_TROLL] & (1 << classID)) != 0;
             break;
         }
 
-        case 10: {
-            restricted = (CCharacterSelection::s_raceRestrictions[9] & (1 << classID)) != 0;
+        case RACE_BLOOD_ELF: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_BLOOD_ELF] & (1 << classID)) != 0;
             break;
         }
 
-        case 11: {
-            restricted = (CCharacterSelection::s_raceRestrictions[4] & (1 << classID)) != 0;
+        case RACE_DRAENEI: {
+            restricted = (CCharacterSelection::s_raceRestrictions[CCharacterSelection::RACE_RESTRICTION_DRAENEI] & (1 << classID)) != 0;
             break;
         }
 
@@ -135,7 +137,7 @@ static int32_t Script_GetRandomName(lua_State* L) {
 
     do {
         CCharacterCreation::m_nameGen.GenerateName(name, 14);
-        length = SStrLen(name);
+        length = static_cast<uint32_t>(SStrLen(name));
     } while (length && ++attempts < 200 && (ClientServices::CharacterValidateName(name) != CHAR_NAME_SUCCESS || length < 4 || length > 10));
 
     lua_pushstring(L, name);
@@ -314,9 +316,9 @@ static int32_t Script_GetSelectedClass(lua_State* L) {
     lua_pushnumber(L, index + 1);
 
     uint8_t roles = CGLookingForGroup::GetClassRoles(CCharacterCreation::m_selectedClassID);
-    lua_pushboolean(L, roles & 0x2);
-    lua_pushboolean(L, roles & 0x4);
-    lua_pushboolean(L, roles & 0x8);
+    lua_pushboolean(L, roles & ROLE_TANK);
+    lua_pushboolean(L, roles & ROLE_HEALER);
+    lua_pushboolean(L, roles & ROLE_DAMAGER);
     return 6;
 }
 
@@ -349,7 +351,7 @@ static int32_t Script_SetCharacterCreateFacing(lua_State* L) {
         return 0;
     }
 
-    CCharacterCreation::SetCharacterFacing(lua_tonumber(L, 1) * 0.017453292f);
+    CCharacterCreation::SetCharacterFacing(static_cast<float>(lua_tonumber(L, 1) * 0.017453292f));
     return 1;
 }
 
@@ -416,8 +418,8 @@ static int32_t Script_GetCreateBackgroundModel(lua_State* L) {
         return 1;
     }
 
-    if (CCharacterCreation::m_selectedClassID == 6) {
-        ChrClassesRec* classRec = g_chrClassesDB.GetRecord(6);
+    if (CCharacterCreation::m_selectedClassID == CLASS_DEATH_KNIGHT) {
+        ChrClassesRec* classRec = g_chrClassesDB.GetRecord(CLASS_DEATH_KNIGHT);
 
         if (classRec) {
             lua_pushstring(L, classRec->m_filename);
@@ -426,10 +428,10 @@ static int32_t Script_GetCreateBackgroundModel(lua_State* L) {
     } else if (CCharacterCreation::m_character) {
         uint32_t raceID = CCharacterCreation::m_character->m_data.m_preferences.m_raceID;
 
-        if (raceID == 7) {
-            raceID = 3;
-        } else if (raceID == 8) {
-            raceID = 2;
+        if (raceID == RACE_GNOME) {
+            raceID = RACE_DWARF;
+        } else if (raceID == RACE_TROLL) {
+            raceID = RACE_ORC;
         }
 
         ChrRacesRec* raceRec = g_chrRacesDB.GetRecord(raceID);

@@ -14,6 +14,7 @@
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/ShaderEffect/Types.h"
+#include "Engine/Source/Tempest/Color.h"
 
 static const float MaxLightRange = 10000.0f;
 
@@ -21,7 +22,7 @@ static const float MaxLightRange = 10000.0f;
 const D3DFORMAT CGxDeviceD3d::s_GxFormatToD3dFormat[CGxFormat::Formats_Last] = { D3DFMT_R5G6B5, D3DFMT_X8R8G8B8, D3DFMT_A8R8G8B8, D3DFMT_A2R10G10B10, D3DFMT_D16, D3DFMT_D24X8, D3DFMT_D24S8, D3DFMT_D32 };
 
 // STATIC: 0x00A2E4C8
-const uint32_t CGxDeviceD3d::s_gxAttribToD3dAttribSize[7] = { 4, 4, 4, 8, 12, 4, 4 };
+const uint32_t CGxDeviceD3d::s_gxAttribToD3dAttribSize[GxVertexAttribTypes_Last] = { 4, 4, 4, 8, 12, 4, 4 };
 
 // STATIC: 0x00A2E4E4
 static const D3DQUERYTYPE s_d3dQueryTypes[1] = { D3DQUERYTYPE_OCCLUSION };
@@ -69,7 +70,7 @@ const D3DCULL CGxDeviceD3d::s_cullMode[3] = { D3DCULL_NONE, D3DCULL_CW, D3DCULL_
 EGxTexFormat CGxDeviceD3d::s_GxTexFormatToUse[GxTexFormats_Last] = { GxTex_Unknown, GxTex_Abgr8888, GxTex_Argb8888, GxTex_Argb4444, GxTex_Argb1555, GxTex_Rgb565, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5, GxTex_Uv88, GxTex_Gr1616F, GxTex_R32F, GxTex_D24X8 };
 
 // STATIC: 0x00AD8F24
-D3DDECLTYPE CGxDeviceD3d::s_gxAttribToD3dAttribType[7] = { D3DDECLTYPE_D3DCOLOR, D3DDECLTYPE_UBYTE4, D3DDECLTYPE_UBYTE4N, D3DDECLTYPE_FLOAT2, D3DDECLTYPE_FLOAT3, D3DDECLTYPE_SHORT2, D3DDECLTYPE_FLOAT1 };
+D3DDECLTYPE CGxDeviceD3d::s_gxAttribToD3dAttribType[GxVertexAttribTypes_Last] = { D3DDECLTYPE_D3DCOLOR, D3DDECLTYPE_UBYTE4, D3DDECLTYPE_UBYTE4N, D3DDECLTYPE_FLOAT2, D3DDECLTYPE_FLOAT3, D3DDECLTYPE_SHORT2, D3DDECLTYPE_FLOAT1 };
 
 // STATIC: 0x00AD8F40
 D3DTEXTUREFILTERTYPE CGxDeviceD3d::s_filterModes[GxTexFilters_Last][3] = { { D3DTEXF_POINT, D3DTEXF_POINT, D3DTEXF_NONE }, { D3DTEXF_LINEAR, D3DTEXF_LINEAR, D3DTEXF_NONE }, { D3DTEXF_POINT, D3DTEXF_POINT, D3DTEXF_POINT }, { D3DTEXF_LINEAR, D3DTEXF_LINEAR, D3DTEXF_POINT }, { D3DTEXF_LINEAR, D3DTEXF_LINEAR, D3DTEXF_LINEAR }, { D3DTEXF_LINEAR, D3DTEXF_LINEAR, D3DTEXF_LINEAR } };
@@ -457,11 +458,11 @@ bool CGxDeviceD3d::QueryGetParam(CGxQuery* query, EGxQueryParam param, uint32_t&
     }
 
     switch (param) {
-        case GxQueryParam_Unk0:
+        case GxQueryParam_DataSize:
             data = static_cast<LPDIRECT3DQUERY9>(query->m_apiSpecific)->GetDataSize();
             return true;
 
-        case GxQueryParam_Unk1:
+        case GxQueryParam_ResultAvailable:
             data = static_cast<LPDIRECT3DQUERY9>(query->m_apiSpecific)->GetData(nullptr, 0, 0) == D3D_OK;
             return false;
 
@@ -529,7 +530,7 @@ void CGxDeviceD3d::DeviceOverride(EGxOverride override, uint32_t value) {
 
     if (override == GxOverride_PixelShader) {
         this->m_caps.m_shaderTargets[GxSh_Pixel] = value;
-    } else if (override == GxOverride_Unk7) {
+    } else if (override == GxOverride_TexNonPow2) {
         this->m_caps.m_texNonPow2 = value != 0;
     }
 }
@@ -1315,7 +1316,7 @@ void CGxDeviceD3d::IStateSyncLights() {
             this->m_ambientOnlyMode = 0;
         }
 
-        this->DsSet(Ds_Lighting, this->m_appMasterEnables & 0x1);
+        this->DsSet(Ds_Lighting, this->m_appMasterEnables & (1 << GxMasterEnable_Lighting));
         this->DsSet(Ds_Ambient, 0);
 
         for (uint32_t i = 0; i < 4; i++) {
@@ -1325,9 +1326,9 @@ void CGxDeviceD3d::IStateSyncLights() {
                 continue;
             }
 
-            if (light.m_flags & 0x1) {
+            if (light.m_flags & CGxApiLight::FIELD_ENABLE) {
                 if (!light.m_enable) {
-                    light.m_flags &= ~0x1;
+                    light.m_flags &= ~CGxApiLight::FIELD_ENABLE;
                     this->m_d3dDevice->LightEnable(i, FALSE);
                     continue;
                 }
@@ -1389,9 +1390,9 @@ void CGxDeviceD3d::IStateSyncLights() {
                 this->m_d3dDevice->LightEnable(i, FALSE);
 
                 if (this->m_lights[i].m_enable) {
-                    this->m_lights[i].m_flags |= 0x1;
+                    this->m_lights[i].m_flags |= CGxApiLight::FIELD_ENABLE;
                 } else {
-                    this->m_lights[i].m_flags &= ~0x1;
+                    this->m_lights[i].m_flags &= ~CGxApiLight::FIELD_ENABLE;
                 }
             }
         }
@@ -1627,7 +1628,7 @@ void CGxDeviceD3d::IRsSendToHw(EGxRenderState which) {
         case GxRs_Lighting: {
             uint32_t enable = 0;
 
-            if (this->m_appMasterEnables & 0x1) {
+            if (this->m_appMasterEnables & (1 << GxMasterEnable_Lighting)) {
                 enable = value.m_data.i[0] != 0;
             }
 
@@ -1638,7 +1639,7 @@ void CGxDeviceD3d::IRsSendToHw(EGxRenderState which) {
         case GxRs_Fog: {
             uint32_t enable = 0;
 
-            if (this->m_appMasterEnables & 0x2) {
+            if (this->m_appMasterEnables & (1 << GxMasterEnable_Fog)) {
                 enable = value.m_data.i[0] != 0;
             }
 
@@ -1650,7 +1651,7 @@ void CGxDeviceD3d::IRsSendToHw(EGxRenderState which) {
         case GxRs_DepthFunc: {
             uint32_t func;
 
-            if ((this->m_appMasterEnables & 0x4) && this->m_appRenderStates[GxRs_DepthTest].m_value.m_data.i[0]) {
+            if ((this->m_appMasterEnables & (1 << GxMasterEnable_DepthTest)) && this->m_appRenderStates[GxRs_DepthTest].m_value.m_data.i[0]) {
                 func = s_cmpFunc[this->m_appRenderStates[GxRs_DepthFunc].m_value.m_data.i[0]];
             } else {
                 func = D3DCMP_ALWAYS;
@@ -1665,7 +1666,7 @@ void CGxDeviceD3d::IRsSendToHw(EGxRenderState which) {
         case GxRs_DepthWrite: {
             uint32_t enable = 0;
 
-            if (this->m_appMasterEnables & 0x8) {
+            if (this->m_appMasterEnables & (1 << GxMasterEnable_DepthWrite)) {
                 enable = value.m_data.i[0] != 0;
             }
 
@@ -1676,7 +1677,7 @@ void CGxDeviceD3d::IRsSendToHw(EGxRenderState which) {
         case GxRs_ColorWrite: {
             uint32_t mask = 0;
 
-            if (this->m_appMasterEnables & 0x10) {
+            if (this->m_appMasterEnables & (1 << GxMasterEnable_ColorWrite)) {
                 mask = value.m_data.u[0];
             }
 
@@ -1687,7 +1688,7 @@ void CGxDeviceD3d::IRsSendToHw(EGxRenderState which) {
         case GxRs_Culling: {
             uint32_t cull = 0;
 
-            if (this->m_appMasterEnables & 0x20) {
+            if (this->m_appMasterEnables & (1 << GxMasterEnable_Culling)) {
                 cull = value.m_data.i[0];
 
                 if (value.m_data.i[0] > 2) {
@@ -2243,24 +2244,24 @@ void CGxDeviceD3d::ISetCaps(const CGxFormat& format) {
     uint32_t pixelShaderVersion = this->m_d3dCaps.PixelShaderVersion;
 
     if (pixelShaderVersion >= D3DPS_VERSION(3, 0)) {
-        this->m_caps.m_shaderTargets[GxSh_Pixel] = 4;
+        this->m_caps.m_shaderTargets[GxSh_Pixel] = GxShPS_ps_3_0;
     } else if (pixelShaderVersion >= D3DPS_VERSION(2, 0)) {
-        this->m_caps.m_shaderTargets[GxSh_Pixel] = 3;
+        this->m_caps.m_shaderTargets[GxSh_Pixel] = GxShPS_ps_2_0;
     } else if (pixelShaderVersion >= D3DPS_VERSION(1, 4)) {
-        this->m_caps.m_shaderTargets[GxSh_Pixel] = 2;
+        this->m_caps.m_shaderTargets[GxSh_Pixel] = GxShPS_ps_1_4;
     } else if (pixelShaderVersion >= D3DPS_VERSION(1, 1)) {
-        this->m_caps.m_shaderTargets[GxSh_Pixel] = 1;
+        this->m_caps.m_shaderTargets[GxSh_Pixel] = GxShPS_ps_1_1;
     }
 
     if (this->m_caps.m_shaderTargets[GxSh_Pixel]) {
         uint32_t vertexShaderVersion = this->m_d3dCaps.VertexShaderVersion;
 
         if (vertexShaderVersion >= D3DVS_VERSION(3, 0)) {
-            this->m_caps.m_shaderTargets[GxSh_Vertex] = 3;
+            this->m_caps.m_shaderTargets[GxSh_Vertex] = GxShVS_vs_3_0;
         } else if (vertexShaderVersion >= D3DVS_VERSION(2, 0)) {
-            this->m_caps.m_shaderTargets[GxSh_Vertex] = 2;
+            this->m_caps.m_shaderTargets[GxSh_Vertex] = GxShVS_vs_2_0;
         } else if (vertexShaderVersion == D3DVS_VERSION(1, 1)) {
-            this->m_caps.m_shaderTargets[GxSh_Vertex] = 1;
+            this->m_caps.m_shaderTargets[GxSh_Vertex] = GxShVS_vs_1_1;
         }
 
         this->m_caps.m_shaderConstants[GxSh_Vertex] = this->m_d3dCaps.MaxVertexShaderConst;
@@ -2274,8 +2275,8 @@ void CGxDeviceD3d::ISetCaps(const CGxFormat& format) {
         this->m_caps.m_shaderTargets[GxSh_Vertex] = format.m_fixedFunction[GxSh_Vertex];
     }
 
-    if (this->m_caps.m_shaderTargets[GxSh_Pixel] == 4 && this->m_caps.m_shaderTargets[GxSh_Vertex] != 3) {
-        this->m_caps.m_shaderTargets[GxSh_Pixel] = 3;
+    if (this->m_caps.m_shaderTargets[GxSh_Pixel] == GxShPS_ps_3_0 && this->m_caps.m_shaderTargets[GxSh_Vertex] != GxShVS_vs_3_0) {
+        this->m_caps.m_shaderTargets[GxSh_Pixel] = GxShPS_ps_2_0;
     }
 
     D3DDEVICE_CREATION_PARAMETERS creationParameters;
@@ -2284,7 +2285,7 @@ void CGxDeviceD3d::ISetCaps(const CGxFormat& format) {
     D3DADAPTER_IDENTIFIER9 identifier;
     this->m_d3d->GetAdapterIdentifier(creationParameters.AdapterOrdinal, 0, &identifier);
 
-    if (identifier.VendorId == 0x10DE && identifier.DeviceId - 0x300 <= 0xFF && this->m_caps.m_shaderConstants[GxSh_Vertex] > 192) {
+    if (identifier.VendorId == GX_PCI_VENDOR_NVIDIA && identifier.DeviceId - 0x300 <= 0xFF && this->m_caps.m_shaderConstants[GxSh_Vertex] > 192) {
         this->m_caps.m_shaderConstants[GxSh_Vertex] = 192;
     }
 
@@ -2298,9 +2299,9 @@ void CGxDeviceD3d::ISetCaps(const CGxFormat& format) {
 
     this->m_caps.m_generateMipMaps = (this->m_d3dCaps.Caps2 & D3DCAPS2_CANAUTOGENMIPMAP) != 0;
 
-    if (this->m_caps.m_shaderTargets[GxSh_Vertex] <= 1) {
-        s_gxAttribToD3dAttribType[1] = D3DDECLTYPE_D3DCOLOR;
-        s_gxAttribToD3dAttribType[2] = D3DDECLTYPE_D3DCOLOR;
+    if (this->m_caps.m_shaderTargets[GxSh_Vertex] <= GxShVS_vs_1_1) {
+        s_gxAttribToD3dAttribType[GxVAT_UByte4] = D3DDECLTYPE_D3DCOLOR;
+        s_gxAttribToD3dAttribType[GxVAT_UByte4N] = D3DDECLTYPE_D3DCOLOR;
     }
 
     this->m_caps.m_rttFormat[GxTex_Argb8888] = this->m_d3d->CheckDeviceFormat(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, this->m_devAdapterFormat, D3DUSAGE_RENDERTARGET, D3DRTYPE_TEXTURE, D3DFMT_A8R8G8B8) == D3D_OK;
@@ -2323,7 +2324,7 @@ void CGxDeviceD3d::ISetCaps(const CGxFormat& format) {
     if (this->m_caps.m_texTarget[GxTex_NonPow2]) {
         this->m_caps.m_texNonPow2 = (textureCaps & D3DPTEXTURECAPS_NONPOW2CONDITIONAL) != 0;
 
-        if (identifier.VendorId == 0x10DE) {
+        if (identifier.VendorId == GX_PCI_VENDOR_NVIDIA) {
             this->m_caps.m_texNonPow2 = 0;
         }
     }
@@ -2345,8 +2346,8 @@ void CGxDeviceD3d::ISetCaps(const CGxFormat& format) {
     this->m_caps.unused_0114[2] = 0;
     this->m_caps.unused_0114[3] = 0;
     this->m_caps.unused_0114[4] = 0;
-    this->m_caps.unk_0134 = this->m_caps.m_shaderTargets[GxSh_Pixel] != 4;
-    this->m_caps.unk_0138 = this->m_caps.m_shaderTargets[GxSh_Pixel] != 4;
+    this->m_caps.unk_0134 = this->m_caps.m_shaderTargets[GxSh_Pixel] != GxShPS_ps_3_0;
+    this->m_caps.unk_0138 = this->m_caps.m_shaderTargets[GxSh_Pixel] != GxShPS_ps_3_0;
 }
 
 // VERIFY: fa4490e9 manual
@@ -2415,7 +2416,7 @@ int32_t CGxDeviceD3d::ICreateD3dDevice(const CGxFormat& format) {
     this->ICursorCreate(format);
 
     // STATIC: 0x00C60444
-    static uint32_t s_defaultColor = 0xFF00FF00;
+    static uint32_t s_defaultColor = COLOR_GREEN_ARGB;
 
     GxTexCreate(8, 8, GxTex_Argb8888, CGxTexFlags(GxTex_Linear), reinterpret_cast<void*>(static_cast<uintptr_t>(s_defaultColor)), DefaultTexUserFunc, this->m_texture3B58);
 

@@ -28,6 +28,8 @@
 #include "Engine/Source/BlizzardCore/Source/System/String/Path.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/BlizzardCore/SFile2-Core.h"
+#include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/Types.h"
 
 // STATIC: 0x00AB7B8C
 Blizzard::Lock::Atomic System_SFile::s_nextArchiveId = { static_cast<int32_t>(0x80000000) };
@@ -176,7 +178,7 @@ bool System_SFile::BlockEntryTable::UnpackEntry(uint32_t index, BLOCKENTRY* entr
         entry->m_flags = this->m_flagTable[entry->m_flags];
     }
 
-    if (this->m_tableFlags & 0x200) {
+    if (this->m_tableFlags & ARCHIVE_FLAG_PACKED_MD5_CHECK) {
         uint8_t md5Check = 0;
         this->m_entries->ReadBits(base + this->m_md5Bit, this->m_md5Bits, &md5Check, 1);
         entry->m_md5Check = md5Check != 0;
@@ -535,7 +537,7 @@ bool Blizzard::Mopaq::SFileSetBasePath(const char* path) {
     }
 
     if (strlen(path) + 1 >= sizeof(globals->m_basePath)) {
-        System_SFile::s_lastError = 161;
+        System_SFile::s_lastError = STORM_ERROR_BAD_PATHNAME;
         Blizzard::String::QuickFormat<1024> message("SFileSetBasePath - SFILE_ERROR_BAD_PATHNAME");
         Blizzard::File::AddToLastErrorStack(161, message.m_buffer, 4);
         return false;
@@ -561,7 +563,7 @@ System_SFile::ARCHIVEREC* System_SFile::GetArchivePtr(ARCHIVEREC* handle, bool a
     System_MPQGlobals::ArchiveList::iterator it = list->find(handle);
 
     if (it == list->end()) {
-        s_lastError = 6;
+        s_lastError = STORM_ERROR_INVALID_HANDLE;
         Blizzard::String::QuickFormat<1024> message("GetArchivePtr - SFILE_ERROR_INVALID_HANDLE");
         Blizzard::File::AddToLastErrorStack(6, message.m_buffer, 4);
     } else {
@@ -669,7 +671,7 @@ bool Blizzard::Mopaq::SFileAuthenticateArchiveEx(System_SFile::ARCHIVEREC* handl
     }
 
     *result = AUTH_FAILED;
-    System_SFile::s_lastError = 1244;
+    System_SFile::s_lastError = STORM_ERROR_NOT_AUTHENTICATED;
     Blizzard::String::QuickFormat<1024> message("SFileAuthenticateArchiveEx - SFILE_ERROR_NOT_AUTHENTICATED");
     Blizzard::File::AddToLastErrorStack(1244, message.m_buffer, 4);
 
@@ -734,7 +736,7 @@ bool System_SFile::s_OpenArchive(ARCHIVEREC* archive, uint32_t flags, ARCHIVEREC
                     break;
                 }
 
-                if (!(flags & 0x20) || !haveCandidate) {
+                if (!(flags & ARCHIVE_FLAG_RETRY_HEADER_CANDIDATE) || !haveCandidate) {
                     error = "OpenArchive - SFILE_ERROR_NOT_ARCHIVE - %s";
                     goto fail;
                 }
@@ -797,14 +799,14 @@ bool System_SFile::s_OpenArchive(ARCHIVEREC* archive, uint32_t flags, ARCHIVEREC
                 haveCandidate = true;
                 candidate = archive->m_archiveOffset;
 
-                if (retried || !(flags & 0x20)) {
+                if (retried || !(flags & ARCHIVE_FLAG_RETRY_HEADER_CANDIDATE)) {
                     break;
                 }
             }
         }
 
     next:
-        if (flags & 8) {
+        if (flags & ARCHIVE_FLAG_NO_HEADER_SCAN) {
             error = "OpenArchive - SFILE_ERROR_NOT_ARCHIVE - %s";
             goto fail;
         }
@@ -813,11 +815,11 @@ bool System_SFile::s_OpenArchive(ARCHIVEREC* archive, uint32_t flags, ARCHIVEREC
     }
 
     archive->m_sectorSize = 512 << archive->m_header.m_sectorSizeShift;
-    archive->m_attributeFlags = 1;
+    archive->m_attributeFlags = ATTRIBUTE_FLAG_CRC32;
 
     {
         Blizzard::Mopaq::CompressionAlgorithm algorithm;
-        algorithm.m_type = 2;
+        algorithm.m_type = COMPRESSION_ZLIB;
         algorithm.m_level = 0;
         archive->m_compression.push_back(algorithm);
     }
@@ -830,7 +832,7 @@ bool System_SFile::s_OpenArchive(ARCHIVEREC* archive, uint32_t flags, ARCHIVEREC
         s_archiveListGeneration++;
     }
 
-    if (flags & 0x800) {
+    if (flags & ARCHIVE_FLAG_INITIALIZE_TABLES_ON_OPEN) {
         archive->InitializeTables();
 
         Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
@@ -842,7 +844,7 @@ bool System_SFile::s_OpenArchive(ARCHIVEREC* archive, uint32_t flags, ARCHIVEREC
     return true;
 
 fail:
-    s_lastError = 108;
+    s_lastError = STORM_ERROR_DRIVE_LOCKED;
 
     {
         Blizzard::String::QuickFormat<1024> message(error, archive->m_name);
@@ -892,7 +894,7 @@ bool Blizzard::Mopaq::SFileOpenArchive(const char* path, int32_t priority, uint3
     }
 
     if (exists == 1) {
-        int32_t mode = ((flags & 0x10) | 0x8028) >> 3;
+        int32_t mode = ((flags & ARCHIVE_FLAG_UNKNOWN_10) | 0x8028) >> 3;
         IOUnit* file;
 
         if (mode & 0x40) {
@@ -910,7 +912,7 @@ bool Blizzard::Mopaq::SFileOpenArchive(const char* path, int32_t priority, uint3
         System_File::FileError& fileError = System_File::s_error;
 
         if (fileError.m_errorStack->FindCategoryCode(1, 4)) {
-            System_SFile::s_lastError = 5;
+            System_SFile::s_lastError = STORM_ERROR_ACCESS_DENIED;
             return false;
         }
     } else if (exists == 2) {
@@ -989,7 +991,7 @@ void System_SFile::BlockEntryTable::SetLayout(BLOCKENTRY& maxima) {
         this->UpdateLayout();
     }
 
-    if (this->m_tableFlags & 0x200) {
+    if (this->m_tableFlags & ARCHIVE_FLAG_PACKED_MD5_CHECK) {
         this->m_md5Bits = 1;
         this->UpdateLayout();
     }
@@ -1030,7 +1032,7 @@ bool System_SFile::BlockEntryTable::PackEntry(uint32_t index, const BLOCKENTRY* 
         return false;
     }
 
-    if (this->m_tableFlags & 0x200) {
+    if (this->m_tableFlags & ARCHIVE_FLAG_PACKED_MD5_CHECK) {
         uint8_t md5Check = entry->m_md5Check != 0;
         return this->m_entries->WriteBits(base + this->m_md5Bit, this->m_md5Bits, &md5Check, 1);
     }
@@ -1070,15 +1072,15 @@ System_SFile::BlockEntryTable::BlockEntryTable(uint32_t count, uint32_t flags) {
     this->m_count = count;
     this->m_tableFlags = flags;
 
-    if (flags & 0x80) {
+    if (flags & ARCHIVE_FLAG_BLOCK_CRC) {
         this->m_crcs.resize(this->m_count, 0);
     }
 
-    if (this->m_tableFlags & 0x40) {
+    if (this->m_tableFlags & ARCHIVE_FLAG_BLOCK_MD5) {
         this->m_md5s.resize(this->m_count);
     }
 
-    if (this->m_tableFlags & 0x100) {
+    if (this->m_tableFlags & ARCHIVE_FLAG_BLOCK_FILETIME) {
         this->m_fileTimes.resize(this->m_count, 0);
     }
 }
@@ -1355,7 +1357,7 @@ void System_SFile::ARCHIVEREC::InitializeTables() {
         }
     }
 
-    if (!(this->m_flags & 0x10) && (this->m_flags & 0x400)) {
+    if (!(this->m_flags & ARCHIVE_FLAG_UNKNOWN_10) && (this->m_flags & ARCHIVE_FLAG_CONVERT_LEGACY_TABLES)) {
         this->BuildBlockTable();
         this->ConvertToNewHashTableFormat();
     }
@@ -1397,15 +1399,15 @@ System_SFile::BLOCKENTRY System_SFile::ARCHIVEREC::GetBlockEntry(uint32_t index)
     BLOCKENTRY entry;
     blocks->UnpackEntry(index, &entry);
 
-    if (this->m_flags & 0x80) {
+    if (this->m_flags & ARCHIVE_FLAG_BLOCK_CRC) {
         entry.m_crc = this->m_blockEntryTable->m_crcs[index];
     }
 
-    if (this->m_flags & 0x40) {
+    if (this->m_flags & ARCHIVE_FLAG_BLOCK_MD5) {
         entry.m_md5 = this->m_blockEntryTable->m_md5s[index];
     }
 
-    if (this->m_flags & 0x100) {
+    if (this->m_flags & ARCHIVE_FLAG_BLOCK_FILETIME) {
         entry.m_fileTime = this->m_blockEntryTable->m_fileTimes[index];
     }
 
@@ -1459,7 +1461,7 @@ uint32_t System_SFile::SearchHashTable(ARCHIVEREC* archive, const char* name, bo
     }
 
     if (found != -1 && deleted) {
-        *deleted = (archive->GetBlockEntry(table[found].m_blockIndex).m_flags & 0x2000000) != 0;
+        *deleted = (archive->GetBlockEntry(table[found].m_blockIndex).m_flags & MPQ_FILE_DELETE_MARKER) != 0;
     }
 
     return found;
@@ -1481,7 +1483,7 @@ bool System_SFile::CheckFileExistsOnDisk(const char* name, uint32_t flags, char*
     if (flags & 2) {
         ConvertRelativePathName(Blizzard::String::FindFilename(name), result);
 
-        if (Blizzard::File::Exists(result) == 1) {
+        if (Blizzard::File::Exists(result) == EXISTENCE_FILE) {
             return true;
         }
     }
@@ -1496,7 +1498,7 @@ bool System_SFile::CheckFileExistsOnDisk(const char* name, uint32_t flags, char*
         ConvertRelativePathName(name, result);
     }
 
-    return Blizzard::File::Exists(result) == 1;
+    return Blizzard::File::Exists(result) == EXISTENCE_FILE;
 }
 
 // VERIFY: 138e567c manual
@@ -1533,7 +1535,7 @@ uint32_t System_SFile::FindBlockEntry(ARCHIVEREC* archive, const Blizzard::Util:
         return -1;
     }
 
-    *deleted = (archive->GetBlockEntry(it->second).m_flags & 0x2000000) != 0;
+    *deleted = (archive->GetBlockEntry(it->second).m_flags & MPQ_FILE_DELETE_MARKER) != 0;
 
     return it->second;
 }
@@ -1546,7 +1548,7 @@ bool System_SFile::CreateArchiveView(IOUnit* file, const char* name, int32_t pri
     ARCHIVEREC* archive = NewZerofill<ARCHIVEREC>();
     archive->m_priority = priority;
     archive->m_id = s_nextArchiveId.Increment() - 1;
-    archive->m_flags = 16;
+    archive->m_flags = ARCHIVE_FLAG_UNKNOWN_10;
     archive->m_externalRefs.Increment();
     archive->m_internalRefs.Increment();
     Blizzard::String::Copy(archive->m_name, name, sizeof(archive->m_name));
@@ -1564,11 +1566,11 @@ bool System_SFile::CreateArchiveView(IOUnit* file, const char* name, int32_t pri
         archive->m_compressedTables = false;
     }
 
-    archive->m_attributeFlags = 1;
+    archive->m_attributeFlags = ATTRIBUTE_FLAG_CRC32;
 
     {
         Blizzard::Mopaq::CompressionAlgorithm algorithm;
-        algorithm.m_type = 2;
+        algorithm.m_type = COMPRESSION_ZLIB;
         algorithm.m_level = 0;
         archive->m_compression.push_back(algorithm);
     }
@@ -1620,7 +1622,7 @@ bool Blizzard::Mopaq::SFileCreateArchive(const char* path, int32_t priority, uin
     IOUnit* file = IOFileUnit::Create(nullptr, path, 0xC07);
 
     if (!file) {
-        System_SFile::s_lastError = 110;
+        System_SFile::s_lastError = STORM_ERROR_OPEN_FAILED;
         Blizzard::String::QuickFormat<1024> message("SFileCreateArchive - SFILE_ERROR_INVALID_PARAMETERS - %s", path);
         Blizzard::File::AddToLastErrorStack(110, message.m_buffer, 4);
         return false;
@@ -1633,7 +1635,7 @@ bool Blizzard::Mopaq::SFileCreateArchive(const char* path, int32_t priority, uin
         return true;
     }
 
-    System_SFile::s_lastError = 110;
+    System_SFile::s_lastError = STORM_ERROR_OPEN_FAILED;
     Blizzard::String::QuickFormat<1024> message("SFileCreateArchive - SFILE_ERROR_INVALID_PARAMETERS - %s", path);
     Blizzard::File::AddToLastErrorStack(110, message.m_buffer, 4);
     Blizzard::File::Delete(path);
@@ -1715,7 +1717,7 @@ int32_t FindFileInOneArchive(System_SFile::ARCHIVEREC* archive, const char* name
                 return 0;
             }
 
-            deleted = (archive->GetBlockEntry(lookup->m_blockIndex).m_flags & 0x2000000) != 0;
+            deleted = (archive->GetBlockEntry(lookup->m_blockIndex).m_flags & MPQ_FILE_DELETE_MARKER) != 0;
         } else {
             lookup->m_hashIndex = System_SFile::SearchHashTable(archive, name, true, &deleted);
 
@@ -2010,7 +2012,7 @@ bool Blizzard::Mopaq::SFileGetFileDetails(System_SFile::ARCHIVEREC* handle, cons
 int32_t Blizzard::Mopaq::SFileFileIsLocal(const char* name, int32_t flags) {
     int32_t result = Blizzard::Streaming::CheckFileRange(nullptr, 0, 0, name, flags);
 
-    if (result == 1) {
+    if (result == SFILE_LOCAL_YES) {
         return result;
     }
 
@@ -2019,7 +2021,7 @@ int32_t Blizzard::Mopaq::SFileFileIsLocal(const char* name, int32_t flags) {
     uint32_t size;
 
     if (!Blizzard::Mopaq::SFileGetFileDetails(nullptr, name, &archive, &offset, &size)) {
-        return 1;
+        return SFILE_LOCAL_YES;
     }
 
     result = Blizzard::Streaming::CheckFileRange(archive->m_name, offset, size, name, flags);
@@ -2065,7 +2067,7 @@ void System_SFile::ARCHIVEREC::SetMD5Check(uint32_t index, bool enabled) {
     BlockEntryTable* blocks = this->m_blockEntryTable;
 
     if (blocks) {
-        if ((this->m_flags & 0x200) && (blocks->m_tableFlags & 0x200)) {
+        if ((this->m_flags & ARCHIVE_FLAG_PACKED_MD5_CHECK) && (blocks->m_tableFlags & ARCHIVE_FLAG_PACKED_MD5_CHECK)) {
             uint8_t bit = enabled;
             blocks->m_entries->WriteBits(blocks->m_md5Bit + index * blocks->m_entryBits, blocks->m_md5Bits, &bit, 1);
         }
@@ -2086,7 +2088,7 @@ void System_SFile::ARCHIVEREC::SetBlockFileTime(uint32_t index, uint64_t fileTim
     BlockEntryTable* blocks = this->m_blockEntryTable;
 
     if (blocks) {
-        if (this->m_flags & 0x100) {
+        if (this->m_flags & ARCHIVE_FLAG_BLOCK_FILETIME) {
             blocks->m_fileTimes[index] = fileTime;
         }
     } else {
@@ -2100,7 +2102,7 @@ void System_SFile::ARCHIVEREC::SetBlockMd5(uint32_t index, const Blizzard::Util:
     BlockEntryTable* blocks = this->m_blockEntryTable;
 
     if (blocks) {
-        if (this->m_flags & 0x40) {
+        if (this->m_flags & ARCHIVE_FLAG_BLOCK_MD5) {
             blocks->m_md5s[index] = md5;
         }
     } else {
@@ -2114,7 +2116,7 @@ void System_SFile::ARCHIVEREC::SetBlockCrc(uint32_t index, uint32_t crc) {
     BlockEntryTable* blocks = this->m_blockEntryTable;
 
     if (blocks) {
-        if (this->m_flags & 0x80) {
+        if (this->m_flags & ARCHIVE_FLAG_BLOCK_CRC) {
             blocks->m_crcs[index] = crc;
         }
     } else {
@@ -2177,38 +2179,38 @@ bool System_SFile::ARCHIVEREC::ReadAdditionalAttributes() {
     uint32_t needed = 0;
     uint32_t unknown = flags;
 
-    if (flags & 1) {
+    if (flags & ATTRIBUTE_FLAG_CRC32) {
         needed = 4 * count;
-        unknown &= ~1u;
+        unknown &= ~ATTRIBUTE_FLAG_CRC32;
     }
 
-    if (flags & 2) {
+    if (flags & ATTRIBUTE_FLAG_FILETIME) {
         needed += 8 * count;
-        unknown &= ~2u;
+        unknown &= ~ATTRIBUTE_FLAG_FILETIME;
     }
 
-    if (flags & 4) {
+    if (flags & ATTRIBUTE_FLAG_MD5) {
         needed += 16 * count;
-        unknown &= ~4u;
+        unknown &= ~ATTRIBUTE_FLAG_MD5;
     }
 
     if (remaining < needed || (!unknown && remaining != needed)) {
         return false;
     }
 
-    if (flags & 1) {
+    if (flags & ATTRIBUTE_FLAG_CRC32) {
         for (uint32_t i = 0; i < count; i++, p += 4) {
             this->SetBlockCrc(i, *reinterpret_cast<const uint32_t*>(p));
         }
     }
 
-    if (flags & 2) {
+    if (flags & ATTRIBUTE_FLAG_FILETIME) {
         for (uint32_t i = 0; i < count; i++, p += 8) {
             this->SetBlockFileTime(i, *reinterpret_cast<const uint64_t*>(p));
         }
     }
 
-    if (flags & 4) {
+    if (flags & ATTRIBUTE_FLAG_MD5) {
         for (uint32_t i = 0; i < count; i++, p += 16) {
             this->SetBlockMd5(i, *reinterpret_cast<const Blizzard::Util::Digest<16>*>(p));
         }
@@ -2513,7 +2515,7 @@ bool System_Mopaq::CreateDiskFile(const char* name, uint32_t flags, const char* 
     *result = IOMpqDiskUnit::Create(&container, archive, name, path, file);
 
     if (!*result) {
-        System_SFile::s_lastError = 1006;
+        System_SFile::s_lastError = STORM_ERROR_FILE_INVALID;
         return false;
     }
 
@@ -2567,7 +2569,7 @@ bool System_SFile::ARCHIVEREC::AcquireListfileUncompressedBlockHash() {
     this->InitializeTables();
 
     std::vector<BlockHash> hashes;
-    uint32_t count = this->m_hashTable.size();
+    uint32_t count = static_cast<uint32_t>(this->m_hashTable.size());
     hashes.reserve(count);
 
     for (uint32_t i = 0; i < count; i++) {
@@ -2581,7 +2583,7 @@ bool System_SFile::ARCHIVEREC::AcquireListfileUncompressedBlockHash() {
 
     std::sort(hashes.begin(), hashes.end());
 
-    uint32_t unlisted = hashes.size();
+    uint32_t unlisted = static_cast<uint32_t>(hashes.size());
     const char* special[3];
     special[0] = "(listfile)";
     special[1] = "(attributes)";
@@ -2776,10 +2778,10 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
         Blizzard::Lock::ScopedMutex lock(System_MPQGlobals::GetArchiveLock()->m_mutex);
         archive->m_locale = 0;
         archive->m_platform = 0;
-        archive->m_attributeFlags = 1;
+        archive->m_attributeFlags = ATTRIBUTE_FLAG_CRC32;
 
         std::map<uint32_t, uint32_t> remap;
-        uint32_t count = archive->m_blockTable.size();
+        uint32_t count = static_cast<uint32_t>(archive->m_blockTable.size());
         uint32_t kept = 0;
 
         for (uint32_t i = 0; i < count; i++) {
@@ -2795,7 +2797,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
 
         archive->m_blockTable.resize(kept);
 
-        uint32_t hashCount = archive->m_hashTable.size();
+        uint32_t hashCount = static_cast<uint32_t>(archive->m_hashTable.size());
 
         for (uint32_t i = 0; i < hashCount; i++) {
             uint32_t index = archive->m_hashTable[i].m_blockIndex;
@@ -2822,7 +2824,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
             }
         }
 
-        uint32_t size = listfile.size();
+        uint32_t size = static_cast<uint32_t>(listfile.size());
         IOMpqUnit* file;
 
         if (Blizzard::Mopaq::SFileCreateFile(archive, "(listfile)", size, 0x200, &file)) {
@@ -2842,7 +2844,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
     }
 
     {
-        uint32_t count = archive->m_blockTable.size();
+        uint32_t count = static_cast<uint32_t>(archive->m_blockTable.size());
         std::vector<uint32_t> crcs(count + 1, 0);
         std::vector<uint64_t> times(count + 1, 0);
         std::vector<Blizzard::Util::Digest<16>> md5s(count + 1);
@@ -2859,27 +2861,27 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
 
         uint32_t header[2];
         header[0] = 100;
-        header[1] = 7;
+        header[1] = ATTRIBUTE_FLAG_ALL;
 
         IOMpqUnit* file;
 
-        if (Blizzard::Mopaq::SFileCreateFile(archive, "(attributes)", 4 * (crcs.size() + 2 * (times.size() + 2 * md5s.size()) + 2), 0x200, &file)) {
+        if (Blizzard::Mopaq::SFileCreateFile(archive, "(attributes)", static_cast<uint32_t>(4 * (crcs.size() + 2 * (times.size() + 2 * md5s.size()) + 2)), 0x200, &file)) {
             if (!Blizzard::Mopaq::SFileWriteFile(file, header, 8)) {
                 fputs("*** WriteArchiveChanges: writing attributes file header failed\n", stderr);
                 result = false;
             }
 
-            if (!Blizzard::Mopaq::SFileWriteFile(file, &crcs[0], 4 * crcs.size())) {
+            if (!Blizzard::Mopaq::SFileWriteFile(file, &crcs[0], static_cast<uint32_t>(4 * crcs.size()))) {
                 fputs("*** WriteArchiveChanges: writing attributes file CRC block failed\n", stderr);
                 result = false;
             }
 
-            if (!Blizzard::Mopaq::SFileWriteFile(file, &times[0], 8 * times.size())) {
+            if (!Blizzard::Mopaq::SFileWriteFile(file, &times[0], static_cast<uint32_t>(8 * times.size()))) {
                 fputs("*** WriteArchiveChanges: writing attributes file time block failed\n", stderr);
                 result = false;
             }
 
-            if (!Blizzard::Mopaq::SFileWriteFile(file, &md5s[0], 16 * md5s.size())) {
+            if (!Blizzard::Mopaq::SFileWriteFile(file, &md5s[0], static_cast<uint32_t>(16 * md5s.size()))) {
                 fputs("*** WriteArchiveChanges: writing attributes file MD5 block failed\n", stderr);
                 result = false;
             }
@@ -2894,7 +2896,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
         }
     }
 
-    uint32_t blockCount = archive->m_blockTable.size();
+    uint32_t blockCount = static_cast<uint32_t>(archive->m_blockTable.size());
     uint32_t hashSize;
 
     if (blockCount - 0x8000 <= 0x7FFF) {
@@ -2909,7 +2911,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
     RebuildHashTable(archive, hashSize);
 
     int64_t hashPos = GetDataEnd(archive);
-    uint32_t hashCount = archive->m_hashTable.size();
+    uint32_t hashCount = static_cast<uint32_t>(archive->m_hashTable.size());
     uint32_t hashBytes = 16 * hashCount;
     uint32_t hashWritten = hashBytes;
 
@@ -2939,7 +2941,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
             data = Blizzard::Memory::Allocate(hashBytes);
 
             Blizzard::Mopaq::CompressionAlgorithm algorithm;
-            algorithm.m_type = 2;
+            algorithm.m_type = COMPRESSION_ZLIB;
             algorithm.m_level = 0;
             bool checksum;
             System_SComp::Compress(data, &hashWritten, &checksum, &hashes[0], hashBytes, 1, &algorithm);
@@ -2964,7 +2966,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
 
     bool extended = false;
     int64_t blockPos = hashPos + hashWritten;
-    uint32_t blockTableCount = archive->m_blockTable.size();
+    uint32_t blockTableCount = static_cast<uint32_t>(archive->m_blockTable.size());
     uint32_t blockBytes = 16 * blockTableCount;
     uint32_t blockWritten = blockBytes;
 
@@ -2996,7 +2998,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
             data = Blizzard::Memory::Allocate(blockBytes);
 
             Blizzard::Mopaq::CompressionAlgorithm algorithm;
-            algorithm.m_type = 2;
+            algorithm.m_type = COMPRESSION_ZLIB;
             algorithm.m_level = 0;
             bool checksum;
             System_SComp::Compress(data, &blockWritten, &checksum, &blocks[0], blockBytes, 1, &algorithm);
@@ -3232,7 +3234,7 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
             System_SFile::HASHENTRY& entry = record->m_hashTable[index];
             System_SFile::BLOCKENTRY block = record->GetBlockEntry(entry.m_blockIndex);
             System_SFile::HASHENTRY& next = record->m_hashTable[(index + 1) & (record->m_hashTable.size() - 1)];
-            block.m_flags &= ~0x80000000;
+            block.m_flags &= ~MPQ_FILE_EXISTS;
             record->SetBlockEntry(entry.m_blockIndex, block);
             entry.m_blockIndex = (next.m_blockIndex == 0xFFFFFFFF) - 2;
             record->m_dataEnd = -1;
@@ -3246,7 +3248,7 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
     int64_t dataEnd = System_SFile::GetDataEnd(record);
 
     if (!record->m_header.m_formatVersion) {
-        uint32_t listfileCount = record->m_listfile.size();
+        uint32_t listfileCount = static_cast<uint32_t>(record->m_listfile.size());
         int64_t total = static_cast<int64_t>(record->m_blockTable.size() * 49) + record->m_hashTable.size() * 16 + (size / (record->m_sectorSize >> 2) + 8) + listfileCount * 262 + size + dataEnd + 0x10000;
 
         if (total > 0xFFFFFFFF) {
@@ -3258,23 +3260,23 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
     entry.m_offset = dataEnd;
     entry.m_compressedSize = 0;
     entry.m_fileSize = size;
-    entry.m_flags = flags | 0x80000000;
+    entry.m_flags = flags | MPQ_FILE_EXISTS;
     entry.m_fileTime = 0;
     entry.m_crc = 0;
     entry.m_md5 = System_SFile::s_emptyMd5;
     entry.m_md5Check = false;
 
-    if ((flags & 0x1000200) == 0x200) {
-        entry.m_flags = flags | 0x84000000;
+    if ((flags & (MPQ_FILE_SINGLE_UNIT | MPQ_FILE_COMPRESS)) == MPQ_FILE_COMPRESS) {
+        entry.m_flags = flags | MPQ_FILE_EXISTS | MPQ_FILE_SECTOR_CRC;
     }
 
-    uint32_t blockIndex = record->m_blockTable.size();
+    uint32_t blockIndex = static_cast<uint32_t>(record->m_blockTable.size());
     uint32_t hash = System_MPQEncrypt::Hash(buffer, 0);
     bool rebuilt = false;
     System_SFile::HASHENTRY* slot;
 
     for (;;) {
-        uint32_t hashCount = record->m_hashTable.size();
+        uint32_t hashCount = static_cast<uint32_t>(record->m_hashTable.size());
         uint32_t index = hash & (hashCount - 1);
         slot = nullptr;
 
@@ -3328,21 +3330,21 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
 
     record->m_file->m_refCount.Increment();
 
-    if (size && (flags & 0xFF00)) {
+    if (size && (flags & MPQ_FILE_COMPRESS_MASK)) {
         IOUnitContainer container(sizeof(IOMpqArchiveWriteUnit), sizeof(IOAlignUnit), sizeof(IOCrcUnit), sizeof(IOMd5Unit), sizeof(IOMpqWriteUnit), sizeof(IORangeUnit), 0);
         IOUnit* unit;
 
-        if (flags & 0x1000000) {
+        if (flags & MPQ_FILE_SINGLE_UNIT) {
             unit = System_SFile::CreateRangeUnit(&container, dataEnd, dataEnd + size, record->m_file);
             unit = IOMpqWriteUnit::CreateSingle(&container, record->m_compression, size, System_SFile::FinishFileWrite, &writer, unit);
-            unit = IOMd5Unit::Create(&container, size, (record->m_attributeFlags & 4) ? System_SFile::SetFileMd5 : nullptr, false, &md5Unit, unit);
-            unit = IOCrcUnit::Create(&container, size, (record->m_attributeFlags & 1) ? System_SFile::SetFileCrc : nullptr, false, &crcUnit, unit);
+            unit = IOMd5Unit::Create(&container, size, (record->m_attributeFlags & ATTRIBUTE_FLAG_MD5) ? System_SFile::SetFileMd5 : nullptr, false, &md5Unit, unit);
+            unit = IOCrcUnit::Create(&container, size, (record->m_attributeFlags & ATTRIBUTE_FLAG_CRC32) ? System_SFile::SetFileCrc : nullptr, false, &crcUnit, unit);
             unit = IOAlignUnit::Create(&container, 0, size, 1, false, false, 1, false, unit);
         } else {
             unit = System_SFile::CreateRangeUnit(&container, dataEnd, dataEnd + 0xFFFFFFFF, record->m_file);
             unit = IOMpqWriteUnit::Create(&container, record->m_compression, size, record->m_sectorSize, System_SFile::FinishFileWrite, &writer, unit);
-            unit = IOMd5Unit::Create(&container, size, (record->m_attributeFlags & 4) ? System_SFile::SetFileMd5 : nullptr, false, &md5Unit, unit);
-            unit = IOCrcUnit::Create(&container, size, (record->m_attributeFlags & 1) ? System_SFile::SetFileCrc : nullptr, false, &crcUnit, unit);
+            unit = IOMd5Unit::Create(&container, size, (record->m_attributeFlags & ATTRIBUTE_FLAG_MD5) ? System_SFile::SetFileMd5 : nullptr, false, &md5Unit, unit);
+            unit = IOCrcUnit::Create(&container, size, (record->m_attributeFlags & ATTRIBUTE_FLAG_CRC32) ? System_SFile::SetFileCrc : nullptr, false, &crcUnit, unit);
             unit = IOAlignUnit::Create(&container, 0, record->m_sectorSize, 1, true, true, 1, false, unit);
         }
 
@@ -3350,8 +3352,8 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
     } else {
         IOUnitContainer container(sizeof(IOMpqArchiveWriteUnit), sizeof(IOCrcUnit), sizeof(IOMd5Unit), sizeof(IORangeUnit), 0);
         IOUnit* unit = IORangeUnit::Create(&container, dataEnd, dataEnd + size, record->m_file);
-        unit = IOMd5Unit::Create(&container, size, (record->m_attributeFlags & 4) ? System_SFile::SetFileMd5 : nullptr, false, &md5Unit, unit);
-        unit = IOCrcUnit::Create(&container, size, (record->m_attributeFlags & 1) ? System_SFile::SetFileCrc : nullptr, false, &crcUnit, unit);
+        unit = IOMd5Unit::Create(&container, size, (record->m_attributeFlags & ATTRIBUTE_FLAG_MD5) ? System_SFile::SetFileMd5 : nullptr, false, &md5Unit, unit);
+        unit = IOCrcUnit::Create(&container, size, (record->m_attributeFlags & ATTRIBUTE_FLAG_CRC32) ? System_SFile::SetFileCrc : nullptr, false, &crcUnit, unit);
 
         IOMpqArchiveWriteUnit* file = IOMpqArchiveWriteUnit::Create(&container, record, buffer, blockIndex, unit);
         System_SFile::FinishFileWrite(file, size);
@@ -3359,7 +3361,7 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
     }
 
     if (!*result) {
-        System_SFile::s_lastError = 1006;
+        System_SFile::s_lastError = STORM_ERROR_FILE_INVALID;
         Blizzard::String::QuickFormat<1024> message("SFileCreateFile - SFILE_ERROR_FILE_INVALID");
         Blizzard::File::AddToLastErrorStack(1006, message.m_buffer, 4);
         return false;

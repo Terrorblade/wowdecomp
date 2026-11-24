@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <windows.h>
 #include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
+#include "Engine/Source/Os/Win64/WinVersion.h"
 
 // STATIC: 0x009E56C0
 const int32_t System_Time::s_daysBeforeMonth[13] = { 0, 31, 59, 90, 120, 151, 182, 212, 243, 273, 304, 334, 365 };
@@ -188,9 +189,8 @@ bool System_Time::CalibrateFrequency(LARGE_INTEGER* frequency) {
 
 // OFFSET: 0x004337C0
 bool System_Time::InitFrequency(LARGE_INTEGER* frequency) {
-    OSVERSIONINFOA versionInfo;
-    versionInfo.dwOSVersionInfoSize = sizeof(versionInfo);
-    GetVersionExA(&versionInfo);
+    OSVERSIONINFOEXW versionInfo;
+    OsGetWindowsVersion(&versionInfo);
 
     if (versionInfo.dwMajorVersion >= 6) {
         return QueryPerformanceFrequency(frequency) != 0;

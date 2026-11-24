@@ -5,6 +5,8 @@
 #include <cstdint>
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Object/ObjectClient/Object_C.h"
+#include "WoW/Source/Ui/LFGRoles.h"
+#include "WoW/Source/Ui/TalentInfo.h"
 
 class LFGListParty;
 
@@ -16,7 +18,7 @@ class LFGListPlayer : public TSHashObject<LFGListPlayer, CHashKeyGUID> {
     /* 002C */ uint8_t m_level;
     /* 002D */ uint8_t m_class;
     /* 002E */ uint8_t m_race;
-    /* 002F */ uint8_t m_talents[3];
+    /* 002F */ uint8_t m_talents[MAX_TALENT_TABS];
     /* 0034 */ uint32_t m_armor;
     /* 0038 */ uint32_t m_spellDamage;
     /* 003C */ uint32_t m_spellHeal;

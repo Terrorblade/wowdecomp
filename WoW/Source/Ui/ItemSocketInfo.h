@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Common/ItemTypes.h"
 
 struct lua_State;
 
@@ -13,9 +14,9 @@ class ItemStats_C;
 
 class CGItemSocketInfo {
     public:
-    static uint8_t m_gemContainerSlot[3];
-    static WOWGUID m_gemItemContainer[3];
-    static WOWGUID m_gemItems[3];
+    static uint8_t m_gemContainerSlot[MAX_NUM_SOCKETS];
+    static WOWGUID m_gemItemContainer[MAX_NUM_SOCKETS];
+    static WOWGUID m_gemItems[MAX_NUM_SOCKETS];
     static WOWGUID m_socketItem;
     static ItemStats_C* m_socketItemStats;
 

@@ -127,7 +127,7 @@ static int32_t Script_GetQuestWatchIndex(lua_State* L) {
     }
 
     for (uint32_t i = 0; i < CGQuestLog::m_numQuestWatches; i++) {
-        if ((i < 25 ? CGQuestLog::m_questWatches[i].m_questId : 0) == questId) {
+        if ((i < MAX_WATCHABLE_QUESTS ? CGQuestLog::m_questWatches[i].m_questId : 0) == questId) {
             lua_pushnumber(L, i + 1);
             return 1;
         }
@@ -152,7 +152,7 @@ static int32_t Script_IsQuestWatched(lua_State* L) {
 
         if (questId && CGQuestLog::m_numQuestWatches) {
             for (uint32_t i = 0; i < CGQuestLog::m_numQuestWatches; i++) {
-                if ((i < 25 ? CGQuestLog::m_questWatches[i].m_questId : 0) == questId) {
+                if ((i < MAX_WATCHABLE_QUESTS ? CGQuestLog::m_questWatches[i].m_questId : 0) == questId) {
                     watched = 1;
                 }
             }
@@ -179,7 +179,7 @@ static int32_t Script_GetQuestIndexForWatch(lua_State* L) {
     uint32_t watch = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
     int32_t questId;
 
-    if (watch < 25 && (questId = CGQuestLog::m_questWatches[watch].m_questId) && CGQuestLog::m_numQuest) {
+    if (watch < MAX_WATCHABLE_QUESTS && (questId = CGQuestLog::m_questWatches[watch].m_questId) && CGQuestLog::m_numQuest) {
         for (uint32_t i = 0; i < static_cast<uint32_t>(CGQuestLog::m_numQuest); i++) {
             int32_t id = static_cast<int32_t>(i) < 0 || static_cast<int32_t>(i) >= CGQuestLog::m_numQuest || CGQuestLog::m_quests[i].m_isHeader ? 0 : CGQuestLog::m_quests[i].m_questId;
 
@@ -234,7 +234,7 @@ static int32_t Script_GetQuestLogPushable(lua_State* L) {
     int32_t questId = index ? CGQuestLog::GetQuestAt(index - 1) : CGQuestLog::m_selectedQuest;
     QuestCache* quest = g_questDBCache.GetRecord(questId, WOWGUID(), nullptr, nullptr, false);
 
-    if (!quest || !(quest->m_flags & 8)) {
+    if (!quest || !(quest->m_flags & QUEST_FLAG_SHARABLE)) {
         return 0;
     }
 
@@ -273,7 +273,7 @@ static int32_t Script_GetQuestTimers(lua_State* L) {
 
         PlayerQuestLogEntry* entry = player->GetQuestLogEntry(slot);
 
-        if (!entry || !entry->m_time || (entry->m_state & 2) || (i < CGQuestLog::m_numQuest && CGQuestLog::m_quests[i].m_expired)) {
+        if (!entry || !entry->m_time || (entry->m_state & QUEST_LOG_ENTRY_FAILED) || (i < CGQuestLog::m_numQuest && CGQuestLog::m_quests[i].m_expired)) {
             continue;
         }
 
@@ -460,8 +460,8 @@ static int32_t Script_GetQuestLogRewardFactionInfo(lua_State* L) {
     }
 
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1) - 1.0));
-    lua_pushnumber(L, index > 9 ? 0 : CGQuestInfo::m_rewardFactionList[index]);
-    lua_pushnumber(L, index > 9 ? 0 : CGQuestInfo::m_rewardFactionAmounts[index]);
+    lua_pushnumber(L, index >= MAX_QUEST_REWARD_FACTIONS ? 0 : CGQuestInfo::m_rewardFactionList[index]);
+    lua_pushnumber(L, index >= MAX_QUEST_REWARD_FACTIONS ? 0 : CGQuestInfo::m_rewardFactionAmounts[index]);
     return 2;
 }
 
@@ -509,7 +509,7 @@ static int32_t Script_GetQuestLogCompletionText(lua_State* L) {
 
     char text[3000];
 
-    if ((quest->m_flags & 0x40000) || !quest->m_completionText[0]) {
+    if ((quest->m_flags & QUEST_FLAG_USE_OBJECTIVE_TEXT) || !quest->m_completionText[0]) {
         WOWGUID player = ClntObjMgrGetActivePlayer();
         QuestParserParseText(quest->m_objText, text, sizeof(text), player, nullptr, 0);
     } else {
@@ -543,10 +543,10 @@ static int32_t Script_GetAbandonQuestItems(lua_State* L) {
     for (uint32_t i = 0; i < 6; i++) {
         int32_t itemId = abandon->m_collectItemId[i];
 
-        if (itemId > 0 && player->m_bag.GetItemTypeCount(itemId, 8) > 0) {
+        if (itemId > 0 && player->m_bag.GetItemTypeCount(itemId, BAG_SEARCH_BANK) > 0) {
             ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, none, nullptr, nullptr, false);
 
-            if (stats && stats->m_bonding == 4) {
+            if (stats && stats->m_bonding == ITEM_BINDING_QUEST) {
                 uint32_t j;
 
                 for (j = 0; j < count && items[j] != itemId; j++) {
@@ -561,10 +561,10 @@ static int32_t Script_GetAbandonQuestItems(lua_State* L) {
 
     int32_t startingItem = abandon->m_startingItemId;
 
-    if (startingItem > 0 && player->m_bag.GetItemTypeCount(startingItem, 8) > 0) {
+    if (startingItem > 0 && player->m_bag.GetItemTypeCount(startingItem, BAG_SEARCH_BANK) > 0) {
         ItemStats_C* stats = g_itemDBCache.GetRecord(startingItem, none, nullptr, nullptr, false);
 
-        if (stats && stats->m_bonding == 4) {
+        if (stats && stats->m_bonding == ITEM_BINDING_QUEST) {
             uint32_t j;
 
             for (j = 0; j < count && items[j] != startingItem; j++) {
@@ -579,7 +579,7 @@ static int32_t Script_GetAbandonQuestItems(lua_State* L) {
     for (uint32_t i = 0; i < 4; i++) {
         int32_t itemId = abandon->m_intermediateItemId[i];
 
-        if (itemId > 0 && player->m_bag.GetItemTypeCount(itemId, 8) > 0) {
+        if (itemId > 0 && player->m_bag.GetItemTypeCount(itemId, BAG_SEARCH_BANK) > 0) {
             uint32_t j;
 
             for (j = 0; j < count && items[j] != itemId; j++) {
@@ -871,7 +871,7 @@ static int32_t Script_GetQuestLogRewardSpell(lua_State* L) {
 
     lua_pushstring(L, spell.m_name);
 
-    if (spell.m_attributes & 0x20) {
+    if (spell.m_attributes & SPELL_ATTR0_IS_TRADESKILL) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -883,7 +883,7 @@ static int32_t Script_GetQuestLogRewardSpell(lua_State* L) {
         SpellRec effect;
 
         if (g_spellDB.GetRecord(quest->m_effectOnPlayer, &effect)) {
-            for (uint32_t i = 0; i < 3; i++) {
+            for (uint32_t i = 0; i < NUM_SPELL_EFFECTS; i++) {
                 if (effect.m_effect[i] == SPELL_EFFECT_LEARN_SPELL || effect.m_effect[i] == SPELL_EFFECT_LEARN_PET_SPELL) {
                     learns = 1;
                     break;
@@ -929,7 +929,7 @@ static int32_t Script_GetQuestIndexForTimer(lua_State* L) {
 
             PlayerQuestLogEntry* entry = player->GetQuestLogEntry(slot);
 
-            if (!entry || !entry->m_time || (entry->m_state & 2) || timeOffset - static_cast<int32_t>(time(nullptr)) + static_cast<int32_t>(entry->m_time) - 1 < 0) {
+            if (!entry || !entry->m_time || (entry->m_state & QUEST_LOG_ENTRY_FAILED) || timeOffset - static_cast<int32_t>(time(nullptr)) + static_cast<int32_t>(entry->m_time) - 1 < 0) {
                 continue;
             }
 
@@ -1113,7 +1113,7 @@ static int32_t Script_GetQuestLogTimeLeft(lua_State* L) {
             PlayerQuestLogEntry* entry = player->GetQuestLogEntry(slot);
             int32_t timeOffset = CGQuestLog::m_timeOffset;
 
-            if (entry && entry->m_time && !(entry->m_state & 2) && timeOffset) {
+            if (entry && entry->m_time && !(entry->m_state & QUEST_LOG_ENTRY_FAILED) && timeOffset) {
                 int32_t left = timeOffset + static_cast<int32_t>(entry->m_time) - static_cast<int32_t>(time(nullptr)) - 1;
 
                 if (left < 0) {
@@ -1142,7 +1142,7 @@ static int32_t Script_IsCurrentQuestFailed(lua_State* L) {
         if (slot < HoT::QuestLog::NUM_SLOTS) {
             PlayerQuestLogEntry* entry = player->GetQuestLogEntry(slot);
 
-            if (entry && ((entry->m_state & 2) || CGQuestLog::IsSelectedQuestExpired())) {
+            if (entry && ((entry->m_state & QUEST_LOG_ENTRY_FAILED) || CGQuestLog::IsSelectedQuestExpired())) {
                 lua_pushnumber(L, 1.0);
                 return 1;
             }
@@ -1265,13 +1265,13 @@ static int32_t Script_GetQuestLogRewardTitle(lua_State* L) {
         gender = player->m_player->m_playerBytes3[0];
         name = player->GetUnitName(nullptr, 1);
     } else {
-        gender = 0;
+        gender = UNITSEX_MALE;
         name = "";
     }
 
     const char* format = title->m_name1;
 
-    if (!*format || (gender != 1 && *title->m_name)) {
+    if (!*format || (gender != UNITSEX_FEMALE && *title->m_name)) {
         format = title->m_name;
     }
 
@@ -1298,7 +1298,7 @@ static int32_t Script_QuestLogPushQuest(lua_State* L) {
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(questId, none, nullptr, nullptr, false);
 
-    if (player && quest && (quest->m_flags & 0x8) && (CGPartyInfo::m_members[0] || CGRaidInfo::m_numMembers)) {
+    if (player && quest && (quest->m_flags & QUEST_FLAG_SHARABLE) && (CGPartyInfo::m_members[0] || CGRaidInfo::m_numMembers)) {
         CGPlayer_C::PushQuestToParty(questId);
     }
 
@@ -1358,7 +1358,7 @@ static int32_t Script_IsQuestLogSpecialItemInRange(lua_State* L) {
     }
 
     CGItem_C* item = CGQuestLog::GetQuestSpecialItem(static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1);
-    int32_t spellId = item ? item->GetEnchantmentSpell(0) : 0;
+    int32_t spellId = item ? item->GetEnchantmentSpell(SPELL_EFFECT_NONE) : 0;
     SpellRec spell;
     CGPlayer_C* player;
     WOWGUID target;
@@ -1467,7 +1467,7 @@ static int32_t Script_GetQuestLogTitle(lua_State* L) {
             if (slot < HoT::QuestLog::NUM_SLOTS) {
                 PlayerQuestLogEntry* entry = player->GetQuestLogEntry(slot);
 
-                if (entry && (entry->m_state & 2)) {
+                if (entry && (entry->m_state & QUEST_LOG_ENTRY_FAILED)) {
                     failed = true;
                 }
             }
@@ -1576,7 +1576,7 @@ static int32_t Script_QuestMapUpdateAllQuests(lua_State* L) {
     DungeonMapRec* dungeonMap = g_dungeonMapDB.GetRecord(dungeonMapId);
     int32_t updated = 0;
 
-    if ((area && (CGWorldMap::m_currentZone != -1 || CGWorldMap::m_currentContinent == -2)) || dungeonMap) {
+    if ((area && (CGWorldMap::m_currentZone != WORLDMAP_ZONE_NONE || CGWorldMap::m_currentContinent == WORLDMAP_CONTINENT_COSMIC)) || dungeonMap) {
         updated = CGQuestLog::UpdateAllQuestPOI();
     }
 
@@ -1604,8 +1604,8 @@ static int32_t Script_QuestPOIGetIconInfo(lua_State* L) {
     }
 
     C3Vector position;
-    position.x = iconX;
-    position.y = iconY;
+    position.x = static_cast<float>(iconX);
+    position.y = static_cast<float>(iconY);
     position.z = 0.0f;
     float x;
     float y;

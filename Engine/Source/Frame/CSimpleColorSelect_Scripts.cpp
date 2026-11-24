@@ -257,9 +257,9 @@ static int32_t Script_SetColorValueThumbTexture(lua_State* L) {
 // OFFSET: 0x00970F50
 static int32_t Script_SetColorHSV(lua_State* L) {
     CSimpleColorSelect* colorSelect = static_cast<CSimpleColorSelect*>(FrameScript_GetObjectThis(L, CSimpleColorSelect::GetObjectType()));
-    float h = lua_tonumber(L, 2);
-    float s = lua_tonumber(L, 3);
-    float v = lua_tonumber(L, 4);
+    float h = static_cast<float>(lua_tonumber(L, 2));
+    float s = static_cast<float>(lua_tonumber(L, 3));
+    float v = static_cast<float>(lua_tonumber(L, 4));
 
     colorSelect->m_hsv.x = h;
     colorSelect->m_hsv.y = s;

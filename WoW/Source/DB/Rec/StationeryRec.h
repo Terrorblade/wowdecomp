@@ -8,6 +8,11 @@ class SFileImpl;
 
 class StationeryRec {
     public:
+
+    enum STATIONERY_FLAGS : int32_t {
+        DEFAULT = 1,
+    };
+
     static const int32_t s_numColumns = 4;
     static const int32_t s_rowSize = 16;
     static const bool s_generatedID = false;

@@ -3,6 +3,7 @@
 #include "Engine/Source/Gx/Blit.h"
 #include "Engine/Source/Tempest/C2iVector.h"
 #include "Engine/Source/Tempest/CImVector.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00C60930
 static BLIT_FUNCTION s_blits[BlitFormats_Last][BlitFormats_Last][BlitAlphas_Last];

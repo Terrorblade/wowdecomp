@@ -89,19 +89,19 @@ void CLCDText::SetFontFaceName(const char* faceName) {
     char fontFile[64];
 
     switch (s_locale) {
-        case 1:
+        case LOCALE_ko_KR:
             SStrCopy(fontFile, "Fonts\\2002.ttf", STORM_MAX_STR);
             SStrCopy(font.lfFaceName, "2002L", sizeof(font.lfFaceName));
             break;
-        case 4:
+        case LOCALE_zh_CN:
             SStrCopy(fontFile, "Fonts\\ZYHei.ttf", STORM_MAX_STR);
             SStrCopy(font.lfFaceName, "ZYHei_FRIZQT", sizeof(font.lfFaceName));
             break;
-        case 5:
+        case LOCALE_zh_TW:
             SStrCopy(fontFile, "Fonts\\bHEI00M.ttf", STORM_MAX_STR);
             SStrCopy(font.lfFaceName, "AR Heiti2 Medium B5", sizeof(font.lfFaceName));
             break;
-        case 8:
+        case LOCALE_ru_RU:
             SStrCopy(fontFile, "Fonts\\NIM_____.ttf", STORM_MAX_STR);
             SStrCopy(font.lfFaceName, "Nimrod MT", sizeof(font.lfFaceName));
             break;

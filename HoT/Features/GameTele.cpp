@@ -44,7 +44,7 @@ static int32_t Script_RequestGameTeles(lua_State* L) {
 }
 
 static int32_t Script_GetGameTeleCount(lua_State* L) {
-    lua_pushnumber(L, s_hasData ? s_teles.size() : 0);
+    lua_pushnumber(L, static_cast<lua_Number>(s_hasData ? s_teles.size() : 0));
     return 1;
 }
 

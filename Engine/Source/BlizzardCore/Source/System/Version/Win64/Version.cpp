@@ -79,7 +79,7 @@ static bool GetVersionInfo(const char* path, Blizzard::Version::FileVersion& ver
     version.m_build = 0;
     version.m_revision = 0;
 
-    if (Blizzard::File::Exists(path) != 1) {
+    if (Blizzard::File::Exists(path) != EXISTENCE_FILE) {
         return false;
     }
 

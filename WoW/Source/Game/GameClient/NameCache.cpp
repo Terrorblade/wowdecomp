@@ -24,7 +24,7 @@ void NameCache::Pack(CDataStore* msg) {
     if (this->m_declinedNames) {
         msg->Put(static_cast<uint8_t>(1));
 
-        for (uint32_t i = 0; i < 5; i++) {
+        for (uint32_t i = 0; i < NUM_DECLENSIONS; i++) {
             msg->PutString(this->m_declinedNames->m_names[i]);
         }
     } else {
@@ -73,7 +73,7 @@ void NameCache::Unpack(CDataStore* msg) {
             this->m_declinedNames = static_cast<NameCache::DeclinedNames*>(SMemAlloc(sizeof(NameCache::DeclinedNames), __FILE__, __LINE__, 0));
         }
 
-        for (uint32_t i = 0; i < 5; i++) {
+        for (uint32_t i = 0; i < NUM_DECLENSIONS; i++) {
             msg->GetString(this->m_declinedNames->m_names[i], sizeof(this->m_declinedNames->m_names[i]));
         }
     }

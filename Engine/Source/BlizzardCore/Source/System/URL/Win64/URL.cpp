@@ -149,7 +149,7 @@ Blizzard::URL::HttpRequest::~HttpRequest() {
 
 // OFFSET: 0x0042CDC0
 static HINTERNET ConnectServer(Blizzard::URL::HttpRequest* request, const char* serverName, INTERNET_PORT serverPort) {
-    request->m_state = 0;
+    request->m_state = Blizzard::URL::HttpRequest::STATE_CONNECTING;
 
     HINTERNET connect = InternetConnectA(request->m_session, serverName, serverPort, nullptr, nullptr, INTERNET_SERVICE_HTTP, 0, reinterpret_cast<DWORD_PTR>(request));
 
@@ -177,7 +177,7 @@ Blizzard::URL::HttpRequest::HttpRequest() {
     this->m_session = nullptr;
     this->m_connect = nullptr;
     this->m_request = nullptr;
-    this->m_state = 0;
+    this->m_state = Blizzard::URL::HttpRequest::STATE_CONNECTING;
     this->m_done = false;
     this->m_connected = false;
     this->m_callback = nullptr;
@@ -234,10 +234,10 @@ static void CALLBACK InternetCallback(HINTERNET internet, DWORD_PTR context, DWO
             break;
 
         case INTERNET_STATUS_REQUEST_COMPLETE:
-            if (request->m_state == 2) {
+            if (request->m_state == Blizzard::URL::HttpRequest::STATE_REQUEST_COMPLETE) {
                 SetEvent(request->m_completeEvent);
             } else {
-                request->m_state = 2;
+                request->m_state = Blizzard::URL::HttpRequest::STATE_REQUEST_COMPLETE;
                 request->m_error = static_cast<INTERNET_ASYNC_RESULT*>(statusInformation)->dwError;
                 Blizzard::Thread::CreateDetachedFromPool(nullptr, ReadResponseData, request, 0, 0);
             }
@@ -313,7 +313,7 @@ bool Blizzard::URL::DownloadURL(const char* url, DownloadCallback* callback) {
         verb = "HEAD";
     }
 
-    request->m_state = 1;
+    request->m_state = Blizzard::URL::HttpRequest::STATE_REQUESTING;
     request->m_request = HttpOpenRequestA(request->m_connect, verb, urlPath, nullptr, nullptr, nullptr, (components.nScheme == INTERNET_SCHEME_HTTPS ? INTERNET_FLAG_SECURE : 0) | INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE | INTERNET_FLAG_NO_UI, reinterpret_cast<DWORD_PTR>(request));
 
     if (!request->m_request) {

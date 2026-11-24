@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_SCALING_STAT_DISTRIBUTION_STATS = 10;
 
 class ScalingStatDistributionRec {
     public:
@@ -13,8 +14,8 @@ class ScalingStatDistributionRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t m_statID [10];
-    /* 002C */ int32_t m_bonus [10];
+    /* 0004 */ int32_t m_statID [NUM_SCALING_STAT_DISTRIBUTION_STATS];
+    /* 002C */ int32_t m_bonus [NUM_SCALING_STAT_DISTRIBUTION_STATS];
     /* 0054 */ int32_t m_maxlevel;
 
     ScalingStatDistributionRec();

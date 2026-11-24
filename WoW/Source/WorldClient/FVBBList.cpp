@@ -23,7 +23,7 @@ void FVBBList::Initialize(EGxPoolTarget target, EGxPoolUsage usage, uint32_t ite
     this->m_pool = g_theGxDevicePtr->PoolCreate(target, usage, blockCount * this->m_blockSize, GxPoolHintBit_Unk2, target ? "FVBBList_idx" : "FVBBList_vtx");
 
     for (uint32_t i = 0; i < blockCount; i++) {
-        Block* block = this->m_blocks.NewNode(2, 0, 0);
+        Block* block = this->m_blocks.NewNode(TSLIST_LINK_BEFORE, 0, 0);
         block->m_buf = g_theGxDevicePtr->BufCreate(this->m_pool, itemSize, itemCount, i * this->m_blockSize);
     }
 }

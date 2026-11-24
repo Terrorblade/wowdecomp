@@ -133,28 +133,28 @@ int32_t Blizzard::Mopaq::SFileOpenFoundFile(FoundFile* location, const char* nam
                 entry = archive->GetBlockEntry(blockIndex);
             }
 
-            if (!(entry.m_flags & 0x80000000)) {
+            if (!(entry.m_flags & MPQ_FILE_EXISTS)) {
                 error = 1006;
                 goto fail;
             }
 
             IOChecksumUnit* checksum = nullptr;
 
-            if (entry.m_flags & 0xFFF00) {
+            if (entry.m_flags & MPQ_FILE_TRANSFORM_MASK) {
                 uint32_t fileSize = entry.m_fileSize;
                 uint32_t key = 0;
 
-                if (entry.m_flags & 0xF0000) {
+                if (entry.m_flags & MPQ_FILE_ENCRYPTION_MASK) {
                     key = System_MPQEncrypt::Hash(Blizzard::String::FindFilename(name), 3);
 
-                    if (entry.m_flags & 0x20000) {
+                    if (entry.m_flags & MPQ_FILE_FIX_KEY) {
                         key = fileSize ^ (key + static_cast<uint32_t>(entry.m_offset) - static_cast<uint32_t>(archive->m_archiveOffset));
                     }
                 }
 
                 archive->m_file->m_refCount.Increment();
 
-                if (entry.m_flags & 0x1000000) {
+                if (entry.m_flags & MPQ_FILE_SINGLE_UNIT) {
                     IOUnitContainer container(sizeof(IOMpqArchiveReadUnit), sizeof(IOCrcUnit), sizeof(IOAlignUnit), sizeof(IOLockUnit), sizeof(IOMpqReadUnit), sizeof(IORangeUnit), 0);
                     IOUnit* range = System_SFile::CreateRangeUnit(&container, entry.m_offset, entry.m_offset + entry.m_compressedSize, archive->m_file);
                     IOUnit* read = IOMpqReadUnit::CreateSingle(&container, fileSize, entry.m_compressedSize, entry.m_flags, key, range);
@@ -163,7 +163,7 @@ int32_t Blizzard::Mopaq::SFileOpenFoundFile(FoundFile* location, const char* nam
                     IOUnit* lock = IOLockUnit::Create(&container, align);
                     file = IOMpqArchiveReadUnit::Create(&container, archive, name, blockIndex, lock);
                 } else {
-                    bool checkCrc = !(entry.m_flags & 0x4000000) && entry.m_crc;
+                    bool checkCrc = !(entry.m_flags & MPQ_FILE_SECTOR_CRC) && entry.m_crc;
                     IOUnitContainer container(sizeof(IOMpqArchiveReadUnit), sizeof(IOCrcUnit), sizeof(IOAlignUnit), sizeof(IOLockUnit), sizeof(IOMpqReadUnit), sizeof(IORangeUnit), 0);
                     IOUnit* range = System_SFile::CreateRangeUnit(&container, entry.m_offset, entry.m_offset + entry.m_compressedSize, archive->m_file);
                     IOUnit* read = IOMpqReadUnit::Create(&container, fileSize, entry.m_compressedSize, archive->m_sectorSize, entry.m_flags, key, range);
@@ -355,7 +355,7 @@ bool Blizzard::Mopaq::SFileReadFile(IOMpqUnit* file, void* buffer, uint32_t coun
     }
 
     if (read != count) {
-        System_SFile::s_lastError = 38;
+        System_SFile::s_lastError = STORM_ERROR_HANDLE_EOF;
     }
 
     if (!result) {
@@ -383,13 +383,13 @@ bool Blizzard::Mopaq::SFileReadFile(IOMpqUnit* file, void* buffer, uint32_t coun
 // OFFSET: 0x0045A610
 int32_t Blizzard::Mopaq::SFileFileIsLocal(IOMpqUnit* file, int32_t flags) {
     if (!file) {
-        return 1;
+        return SFILE_LOCAL_YES;
     }
 
     const char* path = file->GetPath();
     int32_t result = Blizzard::Streaming::CheckFileRange(nullptr, 0, 0, path, flags);
 
-    if (result == 1) {
+    if (result == SFILE_LOCAL_YES) {
         return result;
     }
 
@@ -400,7 +400,7 @@ int32_t Blizzard::Mopaq::SFileFileIsLocal(IOMpqUnit* file, int32_t flags) {
 
     // The original released the caller's file here, which left SFileImpl::m_file dangling for loose disk files.
     if (!archive) {
-        return 1;
+        return SFILE_LOCAL_YES;
     }
 
     char name[260];

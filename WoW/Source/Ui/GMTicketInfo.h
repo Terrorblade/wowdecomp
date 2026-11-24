@@ -8,6 +8,24 @@
 class CDataStore;
 struct lua_State;
 
+enum GM_TICKET_RESPONSE : uint32_t {
+    GM_TICKET_RESPONSE_DB_ERROR       = 0,
+    GM_TICKET_RESPONSE_ALREADY_EXISTS = 1,
+    GM_TICKET_RESPONSE_CREATED        = 2,
+    GM_TICKET_RESPONSE_CREATE_ERROR   = 3,
+    GM_TICKET_RESPONSE_UPDATED        = 4,
+    GM_TICKET_RESPONSE_UPDATE_ERROR   = 5,
+    GM_TICKET_RESPONSE_HAS_TICKET     = 6,
+    GM_TICKET_RESPONSE_DELETED        = 9,
+};
+
+enum GM_TICKET_STATUS : uint32_t {
+    GM_TICKET_STATUS_UNKNOWN_1 = 1,
+    GM_TICKET_STATUS_CLOSED    = 2,
+    GM_TICKET_STATUS_SURVEY    = 3,
+    GM_TICKET_STATUS_UNKNOWN_4 = 4,
+};
+
 int32_t Packet_Group_5(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
 
 struct StaticConstant {

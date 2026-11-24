@@ -9,6 +9,7 @@
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "WoW/Source/DB/Rec/TransportPhysicsRec.h"
 #include "WoW/Source/Object/ObjectClient/Types.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // INLINED
 ShipPath::ShipPath() {
@@ -143,7 +144,7 @@ void ShipPath::BuildLegs() {
 
         // The scratch arrays above hold 1024 nodes per leg, longer legs drop the extra nodes.
         if (points.m_count < 0x3000 / sizeof(C3Vector)) {
-            if ((node->m_flags & 0x2) && points.m_count) {
+            if ((node->m_flags & TAXI_PATH_NODE_FLAG_STOP) && points.m_count) {
                 ShipPathPause* pause = &pauses.m_data[pauses.m_count++];
 
                 if (pause) {
@@ -171,7 +172,7 @@ void ShipPath::BuildLegs() {
             }
         }
 
-        teleport = node->m_flags & 0x1;
+        teleport = node->m_flags & TAXI_PATH_NODE_FLAG_TELEPORT;
         index++;
 
         if (index < 0 || index >= g_taxiPathNodeDB.m_numRecords) {
@@ -745,7 +746,7 @@ void ShipPath::FindLegAndSegment(uint32_t pathTime, uint32_t* leg, uint32_t* seg
 void ShipPath::WaitAtNextPausePoint(uint32_t time, bool pause) {
     uint32_t total = this->m_totalPathTime;
 
-    if (!total || this->m_waiting == pause) {
+    if (!total || this->m_waiting == static_cast<uint8_t>(pause)) {
         return;
     }
 

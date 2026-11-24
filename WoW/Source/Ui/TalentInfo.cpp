@@ -36,7 +36,7 @@ TSFixedArray<TalentTabInfo*> CGTalentInfo::m_tabs;
 TSFixedArray<TalentTabInfo*> CGTalentInfo::m_petTabs;
 
 // STATIC: 0x00C21030
-CGTalentGroup_C CGTalentInfo::m_talentGroups[2];
+CGTalentGroup_C CGTalentInfo::m_talentGroups[MAX_TALENT_GROUPS];
 
 // STATIC: 0x00C210D8
 CGTalentGroup_C CGTalentInfo::m_petTalentGroup;
@@ -57,7 +57,7 @@ int32_t CGTalentInfo_Inspect::m_unspentTalentPoints;
 TSFixedArray<TalentTabInfo*> CGTalentInfo_Inspect::m_tabs;
 
 // STATIC: 0x00C21138
-CGTalentGroup_C CGTalentInfo_Inspect::m_talentGroups[2];
+CGTalentGroup_C CGTalentInfo_Inspect::m_talentGroups[MAX_TALENT_GROUPS];
 
 // VERIFY: 05fa25fb auto
 // OFFSET: 0x005C57C0
@@ -205,7 +205,7 @@ static int TierCompare(const void* a, const void* b) {
 // VERIFY: 2584c2bc auto
 // OFFSET: 0x005C5770
 uint32_t CGTalentGroup_C::GetGlyph(uint32_t index) {
-    return index < 6 ? this->m_glyphs[index] : 6;
+    return index < NUM_GLYPH_SLOTS ? this->m_glyphs[index] : NUM_GLYPH_SLOTS;
 }
 
 // VERIFY: 577e032d auto
@@ -219,7 +219,7 @@ void CGTalentInfo::LeaveWorld() {
 // OFFSET: 0x005C57D0
 uint32_t TalentInfoGetScriptGroupIndex(lua_State* L, int32_t index) {
     if (lua_isnumber(L, index)) {
-        return lua_tointeger(L, index) - 1;
+        return static_cast<uint32_t>(lua_tointeger(L, index) - 1);
     }
 
     return CGTalentInfo::m_activeTalentGroup;
@@ -613,7 +613,7 @@ int32_t CGTalentGroup_C::ValidatePreviewTalentPoints(uint32_t tabIndex, const Ta
     int32_t rank = item ? item->m_rank : -1;
     int32_t previewRank = item ? item->m_previewRank : -1;
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < MAX_TALENT_PREREQS; i++) {
         int32_t prereqId = talent->m_prereqTalent[i];
 
         if (prereqId && g_talentDB.GetRecord(prereqId)) {
@@ -627,7 +627,7 @@ int32_t CGTalentGroup_C::ValidatePreviewTalentPoints(uint32_t tabIndex, const Ta
 
     int32_t maxRank = rank;
 
-    for (int32_t i = 8; i >= 0; i--) {
+    for (int32_t i = MAX_TALENT_RANKS - 1; i >= 0; i--) {
         if (talent->m_spellRank[i]) {
             maxRank = i;
             break;
@@ -659,7 +659,7 @@ int32_t CGTalentGroup_C::ValidatePreviewTalentPoints(uint32_t tabIndex, const Ta
             continue;
         }
 
-        for (uint32_t i = 0; i < 3; i++) {
+        for (uint32_t i = 0; i < MAX_TALENT_PREREQS; i++) {
             int32_t prereqId = otherTalent->m_prereqTalent[i];
 
             if (prereqId && g_talentDB.GetRecord(prereqId) == talent && item && change + item->m_previewRank < otherTalent->m_prereqRank[i]) {
@@ -820,7 +820,7 @@ void CGTalentGroup_C::AddTalentItem(int32_t talentId, int32_t rank) {
 
     TalentRec* talent = g_talentDB.GetRecord(talentId);
 
-    if (!talent || static_cast<uint32_t>(rank) >= 9 || !talent->m_spellRank[rank]) {
+    if (!talent || static_cast<uint32_t>(rank) >= MAX_TALENT_RANKS || !talent->m_spellRank[rank]) {
         return;
     }
 
@@ -964,7 +964,7 @@ static void ReadTalentGroups(CDataStore* msg, uint32_t* activeGroup, int32_t* un
                 break;
             }
 
-            if (group && j < 6) {
+            if (group && j < NUM_GLYPH_SLOTS) {
                 group->m_glyphs[j] = glyph;
             }
         }
@@ -1005,7 +1005,7 @@ void CGTalentGroup_C::Reset() {
     this->m_tabs.Clear();
     this->m_unspentPoints = 0;
 
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_GLYPH_SLOTS; i++) {
         this->m_glyphs[i] = 0;
     }
 }
@@ -1053,7 +1053,7 @@ void CGTalentInfo::ResetTalentGroups(int32_t pet) {
         return;
     }
 
-    for (uint32_t i = 0; i < 2; i++) {
+    for (uint32_t i = 0; i < MAX_TALENT_GROUPS; i++) {
         CGTalentInfo::m_talentGroups[i].Reset();
     }
 
@@ -1065,7 +1065,7 @@ void CGTalentInfo::ResetTalentGroups(int32_t pet) {
 // VERIFY: b1d0ceef manual
 // OFFSET: 0x005C9AD0
 void CGTalentInfo_Inspect::Reset() {
-    for (uint32_t i = 0; i < 2; i++) {
+    for (uint32_t i = 0; i < MAX_TALENT_GROUPS; i++) {
         CGTalentInfo_Inspect::m_talentGroups[i].Reset();
     }
 

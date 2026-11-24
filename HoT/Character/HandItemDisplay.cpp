@@ -121,7 +121,7 @@ static void MainHandShieldOffset(CM2Model* parent, float out[3]) {
     C3Vector shield;
     C3Vector hand;
 
-    if (AttachmentBindPosition(parent, ATTACH_SHIELD, shield) && AttachmentBindPosition(parent, ATTACH_HANDLEFT, hand)) {
+    if (AttachmentBindPosition(parent, ATTACH_SHIELD, shield) && AttachmentBindPosition(parent, ATTACH_HANDL, hand)) {
         out[0] = shield.x - hand.x;
         out[1] = hand.y - shield.y;
         out[2] = shield.z - hand.z;
@@ -151,7 +151,7 @@ void SetMainHandShieldTransform(CM2Model* child, CM2Model* parent, bool applied)
 
 void MirrorMainHandShield(CM2Model* parent) {
     for (CM2Model* child = parent->m_attachList; child; child = child->m_attachNext) {
-        if (child->m_attachmentId == static_cast<uint32_t>(ATTACH_HANDRIGHT)) {
+        if (child->m_attachmentId == static_cast<uint32_t>(ATTACH_HANDR)) {
             SetMainHandShieldTransform(child, parent, true);
             return;
         }

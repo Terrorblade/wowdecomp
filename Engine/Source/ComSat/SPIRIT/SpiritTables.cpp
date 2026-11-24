@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdint>
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 extern "C" {
 

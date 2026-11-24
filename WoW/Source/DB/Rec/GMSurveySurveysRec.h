@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_GM_SURVEY_QUESTIONS = 10;
 
 class GMSurveySurveysRec {
     public:
@@ -13,7 +14,7 @@ class GMSurveySurveysRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t m_questionIds [10];
+    /* 0004 */ int32_t m_questionIds [NUM_GM_SURVEY_QUESTIONS];
 
     GMSurveySurveysRec();
     ~GMSurveySurveysRec();

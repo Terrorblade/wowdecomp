@@ -8,6 +8,21 @@ class SFileImpl;
 
 class SpellChainEffectsRec {
     public:
+
+    enum CHAIN_EFFECT_FLAGS : int32_t {
+        USE_FIXED_JOINT_COUNT = 0x1,
+        USE_HIERARCHICAL_POINTS = 0x2,
+        JOINT_JUMP = 0x4,
+        HELICAL_WAVE = 0x8,
+        FLICKER = 0x10,
+        PULSE = 0x20,
+        LOOP_PULSE = 0x40,
+        UNKNOWN_80 = 0x80,
+        SCALE_TEXTURE_BY_LENGTH = 0x100,
+        OFFSET_TEXTURE_BY_LENGTH = 0x200,
+        USE_DEFINED_WAVE_PHASE = 0x400,
+    };
+
     static const int32_t s_numColumns = 48;
     static const int32_t s_rowSize = 177;
     static const bool s_generatedID = false;

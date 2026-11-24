@@ -13,7 +13,7 @@
 // VERIFY: acac9576 auto
 // OFFSET: 0x006C5E60
 void CGxString::RemoveShadow() {
-    this->m_flags &= ~1;
+    this->m_flags &= ~EGxStringFlags_Shadow;
 }
 
 // VERIFY: d84bd657 auto
@@ -30,7 +30,7 @@ void CGxString::WriteGeometry(CGxVertexPCT* buf, int32_t texturePage, int32_t ve
     TEXTLINETEXTURE* textLine = this->m_textLines[texturePage];
 
     if (textLine) {
-        textLine->WriteGeometry(buf, this->m_fontColor, this->m_shadowOffset, this->m_shadowColor, this->m_viewTranslation, this->m_flags & 1, (this->m_flags >> 5) & 1, vertIndex, numVerts);
+        textLine->WriteGeometry(buf, this->m_fontColor, this->m_shadowOffset, this->m_shadowColor, this->m_viewTranslation, this->m_flags & EGxStringFlags_Shadow, (this->m_flags >> 5) & 1, vertIndex, numVerts);
     }
 }
 
@@ -102,17 +102,17 @@ uint8_t CGxString::GetGradientAlpha(const GRADIENTINFO& info) {
 void CGxString::InitializeViewTranslation() {
     this->m_viewTranslation = this->m_position;
 
-    if (!this->m_numLines || (this->m_flags & 0x80)) {
+    if (!this->m_numLines || (this->m_flags & EGxStringFlags_Unscaled)) {
         return;
     }
 
     if (this->m_horzJust == GxHJ_Right) {
         this->m_viewTranslation.x = this->m_blockWidth + this->m_viewTranslation.x;
     } else if (this->m_horzJust == GxHJ_Center) {
-        this->m_viewTranslation.x = this->m_blockWidth * 0.5 + this->m_viewTranslation.x;
+        this->m_viewTranslation.x = static_cast<float>(this->m_blockWidth * 0.5 + this->m_viewTranslation.x);
     }
 
-    float heightPixels = g_heightPixels;
+    float heightPixels = static_cast<float>(g_heightPixels);
     float spacingPixels = this->m_spacing * heightPixels;
     float spacing = static_cast<uint32_t>(static_cast<int64_t>(spacingPixels + 0.99995)) / heightPixels;
     float textHeight = spacing * (this->m_numLines - 1) + this->m_numLines * this->m_currentFontHeight;
@@ -126,7 +126,7 @@ void CGxString::InitializeViewTranslation() {
     if (this->m_vertJust == GxVJ_Top) {
         this->m_viewTranslation.y = this->m_blockHeight + this->m_viewTranslation.y;
     } else if (this->m_vertJust == GxVJ_Middle) {
-        this->m_viewTranslation.y = 0.5 * (this->m_blockHeight - textHeight) + textHeight + this->m_viewTranslation.y;
+        this->m_viewTranslation.y = static_cast<float>(0.5 * (this->m_blockHeight - textHeight) + textHeight + this->m_viewTranslation.y);
     } else {
         this->m_viewTranslation.y = this->m_viewTranslation.y + textHeight;
     }
@@ -141,7 +141,7 @@ void CGxString::InitializeViewTranslation() {
 // VERIFY: 4d328ee6 auto
 // OFFSET: 0x006C63E0
 int32_t CGxString::CalculateVertsNeeded(int32_t texturePage) {
-    if (this->m_flags & 1) {
+    if (this->m_flags & EGxStringFlags_Shadow) {
         return 2 * this->m_textLines[texturePage]->m_verts.m_count;
     }
 
@@ -158,11 +158,11 @@ void CGxString::SetStringPosition(const C3Vector& position) {
 // VERIFY: c663729d manual
 // OFFSET: 0x006C6A70
 void CGxString::AddHyperlinkParseInfo(GXUFONTHYPERLINKINFO info) {
-    float heightPixels = g_heightPixels;
+    float heightPixels = static_cast<float>(g_heightPixels);
     info.m_lineHeight = info.m_lineHeight / heightPixels;
     info.m_baseLineHeight = info.m_baseLineHeight / heightPixels;
 
-    float widthPixels = g_widthPixels;
+    float widthPixels = static_cast<float>(g_widthPixels);
     info.m_indentation = info.m_indentation / widthPixels;
     info.m_right = info.m_right / widthPixels;
 
@@ -172,11 +172,11 @@ void CGxString::AddHyperlinkParseInfo(GXUFONTHYPERLINKINFO info) {
 // VERIFY: c6a61c76 manual
 // OFFSET: 0x006C6AF0
 void CGxString::AddEmbeddedTextureParseInfo(GXUEMBEDDEDTEXTUREINFO info) {
-    float heightPixels = g_heightPixels;
+    float heightPixels = static_cast<float>(g_heightPixels);
     info.m_lineHeight = info.m_lineHeight / heightPixels;
     info.m_baseLineHeight = info.m_baseLineHeight / heightPixels;
 
-    float widthPixels = g_widthPixels;
+    float widthPixels = static_cast<float>(g_widthPixels);
     info.m_left = info.m_left / widthPixels;
     info.m_right = info.m_right / widthPixels;
     info.m_height = info.m_height / heightPixels;
@@ -227,7 +227,7 @@ void CGxString::SetColor(const CImVector& color) {
     this->m_fontColor = color;
     this->m_shadowColor.a = color.a < this->m_shadowColor.a ? color.a : this->m_shadowColor.a;
 
-    if (!(this->m_flags & 8) || (this->m_flags & 0x20) || this->m_gradientInfo.m_count) {
+    if (!(this->m_flags & EGxStringFlags_UniformColor) || (this->m_flags & EGxStringFlags_Gradient) || this->m_gradientInfo.m_count) {
         this->ClearInstanceData();
     }
 }
@@ -235,12 +235,12 @@ void CGxString::SetColor(const CImVector& color) {
 // VERIFY: ef8566ca manual
 // OFFSET: 0x006C6C70
 void CGxString::HandleScreenSizeChange() {
-    if (this->m_flags & 4) {
+    if (this->m_flags & EGxStringFlags_FixedSize) {
         this->m_requestedFontHeight = GxuFontGetOneToOneHeight(this->m_currentFace);
     }
 
     double minHeight = 2.0 / g_heightPixels;
-    this->m_currentFontHeight = this->m_requestedFontHeight > minHeight ? this->m_requestedFontHeight : minHeight;
+    this->m_currentFontHeight = static_cast<float>(this->m_requestedFontHeight > minHeight ? this->m_requestedFontHeight : minHeight);
 
     this->ClearInstanceData();
 }
@@ -314,7 +314,7 @@ static void BuildMsdfQuad(CGxFont* face, const CHARCODEDESC* desc, uint32_t stri
 // VERIFY: 6a878b65 manual
 // OFFSET: 0x006C6CD0
 void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVector& color, const C3Vector& position, uint32_t* texturePagesUsed, EMBEDDEDPARSEINFO& parseInfo) {
-    if (this->m_flags & 8) {
+    if (this->m_flags & EGxStringFlags_UniformColor) {
         for (uint32_t i = 0; i < 8; i++) {
             if (this->m_textLines[i]) {
                 this->m_textLines[i]->m_colors.SetCount(0);
@@ -327,13 +327,13 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
 
     float fontPixelHeight = ScreenToPixelHeight((this->m_flags >> 7) & 1, this->m_currentFontHeight);
     double pixelHeight = fontPixelHeight;
-    float scale = pixelHeight / this->m_currentFace->GetPixelSize();
+    float scale = static_cast<float>(pixelHeight / this->m_currentFace->GetPixelSize());
     float cellHeight = ScreenToPixelHeight((this->m_flags >> 7) & 1, this->m_currentFontHeight);
 
-    if (this->m_currentFace->m_fontFlags & 8) {
-        cellHeight = cellHeight + 4.0;
-    } else if (this->m_currentFace->m_fontFlags & 1) {
-        cellHeight = cellHeight + 2.0;
+    if (this->m_currentFace->m_fontFlags & CGxFont::FONT_THICK_OUTLINE) {
+        cellHeight = static_cast<float>(cellHeight + 4.0);
+    } else if (this->m_currentFace->m_fontFlags & CGxFont::FONT_OUTLINE) {
+        cellHeight = static_cast<float>(cellHeight + 2.0);
     }
 
     if (parseInfo.m_state == HYPERLINKDISPLAY) {
@@ -358,7 +358,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
             numBytes -= advance;
 
             if (lastCode) {
-                if (this->m_flags & 0x10) {
+                if (this->m_flags & EGxStringFlags_FixedWidth) {
                     step = this->m_currentFace->ComputeStepFixedWidth(lastCode, wide);
                 } else {
                     step = this->m_currentFace->ComputeStep(lastCode, wide);
@@ -369,7 +369,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
 
             switch (code) {
                 case CODE_COLORON: {
-                    if (!(this->m_flags & 8)) {
+                    if (!(this->m_flags & EGxStringFlags_UniformColor)) {
                         codeColor.a = this->m_fontColor.a;
                         color = codeColor;
                     }
@@ -385,7 +385,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                 }
 
                 case CODE_NEWLINE:
-                case CODE_TEXTURESTOP: {
+                case CODE_EMBEDDEDTEXTURESTOP: {
                     break;
                 }
 
@@ -411,7 +411,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                             parseInfo.m_hyperlink.m_colorCodeLength = 0;
                         }
 
-                        parseInfo.m_hyperlink.m_linkTextLength = end - parseInfo.m_hyperlink.m_linkText;
+                        parseInfo.m_hyperlink.m_linkTextLength = static_cast<uint32_t>(end - parseInfo.m_hyperlink.m_linkText);
                         parseInfo.m_hyperlink.m_indentation = x + pos.x;
                     } else {
                         parseInfo.m_hyperlink.m_linkTextLength = 0;
@@ -433,7 +433,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                     break;
                 }
 
-                case CODE_TEXTURESTART: {
+                case CODE_EMBEDDEDTEXTURESTART: {
                     if (parseInfo.m_state == HYPERLINKTEXTURE) {
                         break;
                     }
@@ -462,9 +462,9 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                             x = 0.0;
                         }
 
-                        if (this->m_currentFace->m_fontFlags & 8) {
-                            x = 4.0 * scale + x;
-                        } else if (this->m_currentFace->m_fontFlags & 1) {
+                        if (this->m_currentFace->m_fontFlags & CGxFont::FONT_THICK_OUTLINE) {
+                            x = static_cast<float>(4.0 * scale + x);
+                        } else if (this->m_currentFace->m_fontFlags & CGxFont::FONT_OUTLINE) {
                             x = scale + scale + x;
                         }
                     }
@@ -472,7 +472,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                     float left = x + pos.x;
                     texture.m_left = left;
 
-                    if (this->m_flags & 1) {
+                    if (this->m_flags & EGxStringFlags_Shadow) {
                         texture.m_left = this->m_shadowOffset.x * scale + left;
                     }
 
@@ -485,7 +485,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                         texture.m_lineHeight = scale * texture.m_height + texture.m_baseLineHeight;
                     } else if (this->m_vertJust == GxVJ_Middle) {
                         float height = scale * texture.m_height;
-                        float top = (height - fontPixelHeight) * 0.5 + texture.m_lineHeight;
+                        float top = static_cast<float>((height - fontPixelHeight) * 0.5 + texture.m_lineHeight);
                         texture.m_lineHeight = top;
                         texture.m_baseLineHeight = top - height;
                     }
@@ -531,10 +531,10 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
 
                     TEXTLINETEXTURE* textLine = this->m_textLines[texturePage];
 
-                    if (!(this->m_flags & 8)) {
+                    if (!(this->m_flags & EGxStringFlags_UniformColor)) {
                         uint32_t colorIndex = textLine->m_colors.Add(4, 0, &color);
 
-                        if (this->m_flags & 0x20) {
+                        if (this->m_flags & EGxStringFlags_Gradient) {
                             GRADIENTINFO gradient[4];
                             gradient[0].m_texturePage = texturePage;
                             gradient[0].m_vertIndex = colorIndex;
@@ -550,8 +550,8 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
 
                     uint32_t flags = this->m_flags;
 
-                    if (!(flags & 0x80)) {
-                        x = x + 0.5;
+                    if (!(flags & EGxStringFlags_Unscaled)) {
+                        x = static_cast<float>(x + 0.5);
                         x = floor(x);
                     }
 
@@ -568,14 +568,14 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
 
                     float width = desc->m_bitmapData.m_glyphCellWidth * scale;
 
-                    if (!(this->m_flags & 0x80)) {
+                    if (!(this->m_flags & EGxStringFlags_Unscaled)) {
                         width = floor(width);
                     }
 
-                    if (this->m_currentFace->m_fontFlags & 8) {
-                        vert.m_vc.y = vert.m_vc.y - 2.0;
-                    } else if (this->m_currentFace->m_fontFlags & 1) {
-                        vert.m_vc.y = vert.m_vc.y - 1.0;
+                    if (this->m_currentFace->m_fontFlags & CGxFont::FONT_THICK_OUTLINE) {
+                        vert.m_vc.y = static_cast<float>(vert.m_vc.y - 2.0);
+                    } else if (this->m_currentFace->m_fontFlags & CGxFont::FONT_OUTLINE) {
+                        vert.m_vc.y = static_cast<float>(vert.m_vc.y - 1.0);
                     }
 
                     vert.m_vc.y = desc->m_bitmapData.m_yOffset * scale + vert.m_vc.y;
@@ -589,14 +589,14 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                     verts[3].m_vc.x = width;
                     verts[2].m_vc.x = width;
 
-                    float top = (this->m_flags & 0x80 ? fontPixelHeight : cellHeight) + verts[3].m_vc.y;
+                    float top = (this->m_flags & EGxStringFlags_Unscaled ? fontPixelHeight : cellHeight) + verts[3].m_vc.y;
                     verts[3].m_vc.y = top;
                     verts[1].m_vc.y = top;
                     verts[0].m_vc.y = verts[2].m_vc.y;
 
                     CRect coords = desc->m_bitmapData.m_textureCoords;
 
-                    if (this->m_flags & 0x80) {
+                    if (this->m_flags & EGxStringFlags_Unscaled) {
                         coords.minY = coords.minY + pixelAdjustments.minY;
                         coords.minX = coords.minX + pixelAdjustments.minX;
                         coords.maxY = coords.maxY + pixelAdjustments.maxY;
@@ -637,9 +637,9 @@ void CGxString::AddShadow(const C2Vector& offset, const CImVector& color) {
     this->m_shadowColor = color;
     this->m_shadowColor.a = color.a < this->m_fontColor.a ? color.a : this->m_fontColor.a;
     this->m_shadowOffset = offset;
-    this->m_flags |= 1;
+    this->m_flags |= EGxStringFlags_Shadow;
 
-    if (this->m_flags & 0x20) {
+    if (this->m_flags & EGxStringFlags_Gradient) {
         this->ClearInstanceData();
     }
 }
@@ -667,7 +667,7 @@ int32_t CGxString::CheckGeometry() {
 // VERIFY: 10d868ef manual
 // OFFSET: 0x006C74D0
 int32_t CGxString::Initialize(float fontHeight, const C3Vector& position, float blockWidth, float blockHeight, CGxFont* face, const char* text, EGxFontVJusts vertJust, EGxFontHJusts horzJust, float spacing, uint32_t flags, const CImVector& color, float scale) {
-    uint32_t textLen = SStrLen(text) + 1;
+    uint32_t textLen = static_cast<uint32_t>(SStrLen(text) + 1);
 
     if (textLen > this->m_textLen) {
         if (this->m_text) {
@@ -693,14 +693,14 @@ int32_t CGxString::Initialize(float fontHeight, const C3Vector& position, float 
 
     face->m_strings.LinkToTail(this);
 
-    if ((flags & 4) && !(this->m_flags & 0x80)) {
+    if ((flags & EGxStringFlags_FixedSize) && !(this->m_flags & EGxStringFlags_Unscaled)) {
         this->m_requestedFontHeight = GxuFontGetOneToOneHeight(face);
     } else {
         this->m_requestedFontHeight = fontHeight;
     }
 
     double minHeight = 2.0 / g_heightPixels;
-    this->m_currentFontHeight = this->m_requestedFontHeight > minHeight ? this->m_requestedFontHeight : minHeight;
+    this->m_currentFontHeight = static_cast<float>(this->m_requestedFontHeight > minHeight ? this->m_requestedFontHeight : minHeight);
 
     return 1;
 }
@@ -739,7 +739,7 @@ CGxString::CGxString() {
     this->m_vertJust = GxVJ_Top;
     this->m_horzJust = GxHJ_Left;
     this->m_spacing = 0.0f;
-    this->m_flags = 0;
+    this->m_flags = EGxStringFlags_None;
     this->m_texturePagesUsed = 0;
     this->m_textureEvicted = 0;
     this->m_lastGradientStart = -1;
@@ -788,7 +788,7 @@ int32_t CGxString::SetGradient(int32_t start, int32_t length) {
 
     this->m_lastGradientLength = length;
     this->m_lastGradientStart = start;
-    this->m_flags = (this->m_flags & ~8) | 0x20;
+    this->m_flags = (this->m_flags & ~EGxStringFlags_UniformColor) | EGxStringFlags_Gradient;
 
     if (!this->m_gradientInfo.m_count) {
         this->ClearInstanceData();
@@ -861,7 +861,7 @@ void CGxString::CreateGeometry() {
 
     C3Vector position;
     position.x = 0.0f;
-    position.y = this->m_flags & 0x80 ? 0.0f : top;
+    position.y = this->m_flags & EGxStringFlags_Unscaled ? 0.0f : top;
     position.z = 0.0f;
 
     const char* text = this->m_text;
@@ -875,12 +875,12 @@ void CGxString::CreateGeometry() {
     uint32_t numBytes = 0;
 
     float spacingPixels = g_heightPixels * spacing;
-    spacingPixels = static_cast<uint32_t>(static_cast<int64_t>(spacingPixels + 0.99995));
+    spacingPixels = static_cast<float>(static_cast<uint32_t>(static_cast<int64_t>(spacingPixels + 0.99995)));
 
     float fontPixelHeight = ScreenToPixelHeight(0, this->m_currentFontHeight);
     float lineHeight;
 
-    if (this->m_flags & 0x80) {
+    if (this->m_flags & EGxStringFlags_Unscaled) {
         lineHeight = this->m_currentFontHeight + spacing;
     } else {
         spacing = spacingPixels / g_heightPixels;
@@ -903,7 +903,7 @@ void CGxString::CreateGeometry() {
             break;
         }
 
-        if ((this->m_flags & 0x2000) && this->m_numLines == 1) {
+        if ((this->m_flags & EGxStringFlags_Indented) && this->m_numLines == 1) {
             blockWidth = blockWidth - g_indentNormWidth;
         }
 
@@ -927,7 +927,7 @@ void CGxString::CreateGeometry() {
         }
 
         float lineHeightUsed = 0.0f;
-        float shadowWidth = this->m_flags & 1 ? this->m_shadowOffset.x : 0.0f;
+        float shadowWidth = this->m_flags & EGxStringFlags_Shadow ? this->m_shadowOffset.x : 0.0f;
 
         CalcWrapPoint(this->m_currentFace, text, this->m_currentFontHeight, blockWidth, &numBytes, &width, &nextText, shadowWidth, this->m_flags, &wordBreak, &lineHeightUsed, this->m_scale);
 
@@ -936,13 +936,13 @@ void CGxString::CreateGeometry() {
         }
 
         if (this->m_horzJust == GxHJ_Right) {
-            float indent = (this->m_flags & 0x2000) && this->m_numLines ? g_indentPixelWidth : 0.0f;
+            float indent = (this->m_flags & EGxStringFlags_Indented) && this->m_numLines ? g_indentPixelWidth : 0.0f;
             position.x = ScreenToPixelWidth((this->m_flags >> 7) & 1, -width) - indent;
         } else if (this->m_horzJust == GxHJ_Center) {
-            float halfWidth = -(width * 0.5);
+            float halfWidth = static_cast<float>(-(width * 0.5));
             position.x = ScreenToPixelWidth((this->m_flags >> 7) & 1, halfWidth);
         } else {
-            position.x = (this->m_flags & 0x2000) && this->m_numLines ? g_indentPixelWidth : 0.0f;
+            position.x = (this->m_flags & EGxStringFlags_Indented) && this->m_numLines ? g_indentPixelWidth : 0.0f;
         }
 
         float offset = 0.0f;
@@ -951,7 +951,7 @@ void CGxString::CreateGeometry() {
             if (this->m_vertJust == GxVJ_Bottom) {
                 offset = lineHeightUsed - fontPixelHeight;
             } else if (this->m_vertJust == GxVJ_Middle) {
-                float halfOffset = (lineHeightUsed - fontPixelHeight) * 0.5;
+                float halfOffset = static_cast<float>((lineHeightUsed - fontPixelHeight) * 0.5);
                 offset = floor(halfOffset);
             }
         }
@@ -977,7 +977,7 @@ void CGxString::CreateGeometry() {
             if (this->m_vertJust == GxVJ_Top) {
                 offset = lineHeightUsed - fontPixelHeight;
             } else if (this->m_vertJust == GxVJ_Middle) {
-                offset = (lineHeightUsed - fontPixelHeight) * 0.5;
+                offset = static_cast<float>((lineHeightUsed - fontPixelHeight) * 0.5);
             }
         }
 
@@ -991,7 +991,7 @@ void CGxString::CreateGeometry() {
         float advanceY = offset + lineHeight;
         position.y = position.y - advanceY;
 
-        if (this->m_flags & 2) {
+        if (this->m_flags & EGxStringFlags_NoWordWrap) {
             break;
         }
 
@@ -1003,7 +1003,7 @@ void CGxString::CreateGeometry() {
 
     this->InitializeViewTranslation();
 
-    if ((this->m_flags & 0x20) && (lastGradientStart != -1 || lastGradientLength != -1)) {
+    if ((this->m_flags & EGxStringFlags_Gradient) && (lastGradientStart != -1 || lastGradientLength != -1)) {
         this->SetGradient(lastGradientStart, lastGradientLength);
     }
 }

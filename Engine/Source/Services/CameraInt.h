@@ -11,6 +11,13 @@ class CRect;
 
 class CBaseManaged {
     public:
+    enum DATA_TYPE : uint8_t {
+        UNKNOWN_0 = 0,
+        VECTOR3 = 3,
+        FLOAT = 6,
+        DATATYPEIDS = 7,
+    };
+
     enum : uint8_t {
         ALWAYSUPDATE = 0x1,
         READONLY = 0x2,

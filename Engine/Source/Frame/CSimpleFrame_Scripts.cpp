@@ -906,7 +906,7 @@ static int32_t Script_SetAlpha(lua_State* L) {
         return 0;
     }
 
-    float alpha = lua_tonumber(L, 2);
+    float alpha = static_cast<float>(lua_tonumber(L, 2));
 
     if (alpha < 0.0f) {
         alpha = 0.0f;
@@ -963,7 +963,7 @@ static int32_t Script_SetToplevel(lua_State* L) {
         return 0;
     }
 
-    frame->SetFrameFlag(0x1, StringToBOOL(L, 2, 1));
+    frame->SetFrameFlag(CSimpleFrame::FRAME_TOPLEVEL, StringToBOOL(L, 2, 1));
     return 0;
 }
 
@@ -972,7 +972,7 @@ static int32_t Script_SetToplevel(lua_State* L) {
 static int32_t Script_IsToplevel(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (frame->m_frameFlags & 0x1) {
+    if (frame->m_frameFlags & CSimpleFrame::FRAME_TOPLEVEL) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1143,13 +1143,13 @@ static int32_t Script_SetHitRectInsets(lua_State* L) {
         return 0;
     }
 
-    float left = lua_tonumber(L, 2);
+    float left = static_cast<float>(lua_tonumber(L, 2));
     left = NDCToDDCWidth(left / (CoordinateGetAspectCompensation() * 1024.0f));
-    float right = lua_tonumber(L, 3);
+    float right = static_cast<float>(lua_tonumber(L, 3));
     right = NDCToDDCWidth(right / (CoordinateGetAspectCompensation() * 1024.0f));
-    float top = lua_tonumber(L, 4);
+    float top = static_cast<float>(lua_tonumber(L, 4));
     top = NDCToDDCWidth(top / (CoordinateGetAspectCompensation() * 1024.0f));
-    float bottom = lua_tonumber(L, 5);
+    float bottom = static_cast<float>(lua_tonumber(L, 5));
     bottom = NDCToDDCWidth(bottom / (CoordinateGetAspectCompensation() * 1024.0f));
 
     frame->SetHitRectInsets(left, right, top, bottom);
@@ -1186,13 +1186,13 @@ static int32_t Script_SetClampRectInsets(lua_State* L) {
         return 0;
     }
 
-    float left = lua_tonumber(L, 2);
+    float left = static_cast<float>(lua_tonumber(L, 2));
     left = NDCToDDCWidth(left / (CoordinateGetAspectCompensation() * 1024.0f));
-    float right = lua_tonumber(L, 3);
+    float right = static_cast<float>(lua_tonumber(L, 3));
     right = NDCToDDCWidth(right / (CoordinateGetAspectCompensation() * 1024.0f));
-    float top = lua_tonumber(L, 4);
+    float top = static_cast<float>(lua_tonumber(L, 4));
     top = NDCToDDCWidth(top / (CoordinateGetAspectCompensation() * 1024.0f));
-    float bottom = lua_tonumber(L, 5);
+    float bottom = static_cast<float>(lua_tonumber(L, 5));
     bottom = NDCToDDCWidth(bottom / (CoordinateGetAspectCompensation() * 1024.0f));
 
     frame->SetClampRectInsets(left, right, top, bottom);
@@ -1223,9 +1223,9 @@ static int32_t Script_SetMinResize(lua_State* L) {
         return 0;
     }
 
-    float width = lua_tonumber(L, 2);
+    float width = static_cast<float>(lua_tonumber(L, 2));
     bounds.minX = NDCToDDCWidth(width / (CoordinateGetAspectCompensation() * 1024.0f));
-    float height = lua_tonumber(L, 3);
+    float height = static_cast<float>(lua_tonumber(L, 3));
     bounds.minY = NDCToDDCWidth(height / (CoordinateGetAspectCompensation() * 1024.0f));
 
     frame->m_resizeRect = bounds;
@@ -1256,9 +1256,9 @@ static int32_t Script_SetMaxResize(lua_State* L) {
         return 0;
     }
 
-    float width = lua_tonumber(L, 2);
+    float width = static_cast<float>(lua_tonumber(L, 2));
     bounds.maxX = NDCToDDCWidth(width / (CoordinateGetAspectCompensation() * 1024.0f));
-    float height = lua_tonumber(L, 3);
+    float height = static_cast<float>(lua_tonumber(L, 3));
     bounds.maxY = NDCToDDCWidth(height / (CoordinateGetAspectCompensation() * 1024.0f));
 
     frame->m_resizeRect = bounds;
@@ -1270,7 +1270,7 @@ static int32_t Script_SetMaxResize(lua_State* L) {
 static int32_t Script_SetMovable(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    frame->SetFrameFlag(0x100, StringToBOOL(L, 2, 1));
+    frame->SetFrameFlag(CSimpleFrame::FRAME_MOVABLE, StringToBOOL(L, 2, 1));
     return 0;
 }
 
@@ -1279,7 +1279,7 @@ static int32_t Script_SetMovable(lua_State* L) {
 static int32_t Script_IsMovable(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (frame->m_frameFlags & 0x100) {
+    if (frame->m_frameFlags & CSimpleFrame::FRAME_MOVABLE) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1293,7 +1293,7 @@ static int32_t Script_IsMovable(lua_State* L) {
 static int32_t Script_SetDontSavePosition(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    frame->SetFrameFlag(0x80000, StringToBOOL(L, 2, 1));
+    frame->SetFrameFlag(CSimpleFrame::FRAME_DONT_SAVE_POSITION, StringToBOOL(L, 2, 1));
     return 0;
 }
 
@@ -1302,7 +1302,7 @@ static int32_t Script_SetDontSavePosition(lua_State* L) {
 static int32_t Script_GetDontSavePosition(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (frame->m_frameFlags & 0x80000) {
+    if (frame->m_frameFlags & CSimpleFrame::FRAME_DONT_SAVE_POSITION) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1316,7 +1316,7 @@ static int32_t Script_GetDontSavePosition(lua_State* L) {
 static int32_t Script_SetResizable(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    frame->SetFrameFlag(0x200, StringToBOOL(L, 2, 1));
+    frame->SetFrameFlag(CSimpleFrame::FRAME_RESIZABLE, StringToBOOL(L, 2, 1));
     return 0;
 }
 
@@ -1325,7 +1325,7 @@ static int32_t Script_SetResizable(lua_State* L) {
 static int32_t Script_IsResizable(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (frame->m_frameFlags & 0x200) {
+    if (frame->m_frameFlags & CSimpleFrame::FRAME_RESIZABLE) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1339,7 +1339,7 @@ static int32_t Script_IsResizable(lua_State* L) {
 static int32_t Script_StartMoving(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (!(frame->m_frameFlags & 0x100)) {
+    if (!(frame->m_frameFlags & CSimpleFrame::FRAME_MOVABLE)) {
         const char* name = frame->GetName();
         luaL_error(L, "Frame %s is not movable", name ? name : "<unnamed>");
         return 0;
@@ -1365,7 +1365,7 @@ static int32_t Script_StartMoving(lua_State* L) {
 static int32_t Script_StartSizing(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (!(frame->m_frameFlags & 0x200)) {
+    if (!(frame->m_frameFlags & CSimpleFrame::FRAME_RESIZABLE)) {
         const char* name = frame->GetName();
         luaL_error(L, "Frame %s is not resizable", name ? name : "<unnamed>");
         return 0;
@@ -1410,13 +1410,13 @@ static int32_t Script_StopMovingOrSizing(lua_State* L) {
 static int32_t Script_SetUserPlaced(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (!(frame->m_frameFlags & 0x300)) {
+    if (!(frame->m_frameFlags & CSimpleFrame::FRAME_MOVABLE_OR_RESIZABLE_MASK)) {
         const char* name = frame->GetName();
         luaL_error(L, "Frame %s is not movable or resizable", name ? name : "<unnamed>");
         return 0;
     }
 
-    frame->SetFrameFlag(0x1000, StringToBOOL(L, 2, 1));
+    frame->SetFrameFlag(CSimpleFrame::FRAME_USER_PLACED, StringToBOOL(L, 2, 1));
     return 0;
 }
 
@@ -1425,7 +1425,7 @@ static int32_t Script_SetUserPlaced(lua_State* L) {
 static int32_t Script_IsUserPlaced(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (frame->m_frameFlags & 0x1000) {
+    if (frame->m_frameFlags & CSimpleFrame::FRAME_USER_PLACED) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1448,7 +1448,7 @@ static int32_t Script_SetClampedToScreen(lua_State* L) {
 static int32_t Script_IsClampedToScreen(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (frame->m_layoutFlags & 0x1000) {
+    if (frame->m_layoutFlags & CLayoutFrame::LAYOUT_CLAMPED_TO_SCREEN) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1736,7 +1736,7 @@ static int32_t Script_SetBackdrop(lua_State* L) {
 
     if (lua_isnumber(L, -1)) {
         hasTileSize = true;
-        tileSize = lua_tonumber(L, -1);
+        tileSize = static_cast<float>(lua_tonumber(L, -1));
         tileSize = NDCToDDCWidth(tileSize / (CoordinateGetAspectCompensation() * 1024.0f));
     }
 
@@ -1749,7 +1749,7 @@ static int32_t Script_SetBackdrop(lua_State* L) {
 
     if (lua_isnumber(L, -1)) {
         hasEdgeSize = true;
-        edgeSize = lua_tonumber(L, -1);
+        edgeSize = static_cast<float>(lua_tonumber(L, -1));
         edgeSize = NDCToDDCWidth(edgeSize / (CoordinateGetAspectCompensation() * 1024.0f));
     }
 
@@ -1770,7 +1770,7 @@ static int32_t Script_SetBackdrop(lua_State* L) {
         lua_gettable(L, -2);
 
         if (lua_isnumber(L, -1)) {
-            left = lua_tonumber(L, -1);
+            left = static_cast<float>(lua_tonumber(L, -1));
             left = NDCToDDCWidth(left / (CoordinateGetAspectCompensation() * 1024.0f));
         }
 
@@ -1780,7 +1780,7 @@ static int32_t Script_SetBackdrop(lua_State* L) {
         lua_gettable(L, -2);
 
         if (lua_isnumber(L, -1)) {
-            right = lua_tonumber(L, -1);
+            right = static_cast<float>(lua_tonumber(L, -1));
             right = NDCToDDCWidth(right / (CoordinateGetAspectCompensation() * 1024.0f));
         }
 
@@ -1790,7 +1790,7 @@ static int32_t Script_SetBackdrop(lua_State* L) {
         lua_gettable(L, -2);
 
         if (lua_isnumber(L, -1)) {
-            top = lua_tonumber(L, -1);
+            top = static_cast<float>(lua_tonumber(L, -1));
             top = NDCToDDCWidth(top / (CoordinateGetAspectCompensation() * 1024.0f));
         }
 
@@ -1800,7 +1800,7 @@ static int32_t Script_SetBackdrop(lua_State* L) {
         lua_gettable(L, -2);
 
         if (lua_isnumber(L, -1)) {
-            bottom = lua_tonumber(L, -1);
+            bottom = static_cast<float>(lua_tonumber(L, -1));
             bottom = NDCToDDCWidth(bottom / (CoordinateGetAspectCompensation() * 1024.0f));
         }
 
@@ -1934,7 +1934,7 @@ static int32_t Script_SetDepth(lua_State* L) {
 static int32_t Script_GetDepth(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (frame->m_frameFlags & 0x40000) {
+    if (frame->m_frameFlags & CSimpleFrame::FRAME_HIDE_SCRIPT_DEPTH) {
         return 0;
     }
 
@@ -1947,7 +1947,7 @@ static int32_t Script_GetDepth(lua_State* L) {
 static int32_t Script_GetEffectiveDepth(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if (frame->m_frameFlags & 0x40000) {
+    if (frame->m_frameFlags & CSimpleFrame::FRAME_HIDE_SCRIPT_DEPTH) {
         return 0;
     }
 

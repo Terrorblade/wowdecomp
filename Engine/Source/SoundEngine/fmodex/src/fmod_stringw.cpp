@@ -108,7 +108,7 @@ short *FMOD_strlwrW(short *string)
 
 int FMOD_strcmpW( const short *string1, const short *string2 )
 {
-    register short c1, c2;
+    short c1, c2;
     do 
     {
         c1 = *string1++;
@@ -121,7 +121,7 @@ int FMOD_strcmpW( const short *string1, const short *string2 )
 
 int FMOD_strncmpW( const short *string1, const short *string2, int len )
 {
-    register short c1, c2;
+    short c1, c2;
     int count=0;
     do 
     {
@@ -136,7 +136,7 @@ int FMOD_strncmpW( const short *string1, const short *string2, int len )
 
 int FMOD_stricmpW( const short *string1, const short *string2 )
 {
-    register short c1, c2;
+    short c1, c2;
     do 
     {
         c1 = FMOD_tolowerW(*string1++);
@@ -148,7 +148,7 @@ int FMOD_stricmpW( const short *string1, const short *string2 )
 
 int FMOD_strnicmpW( const short *string1, const short *string2, int len )
 {
-    register short c1, c2;
+    short c1, c2;
     int count=0;
     do 
     {

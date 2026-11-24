@@ -34,8 +34,8 @@ uint32_t CVehicle_C::IsSpecialBoneAnimPlaying() const {
 // VERIFY: ce2db0fa manual
 // OFFSET: 0x00756D10
 int32_t CVehicle_C::InstallBoneAnimListener(WOWGUID guid, uint32_t boneId, void (*callback)(CGUnit_C* unit, int32_t& a2, TSGrowableArray<CVehiclePassenger_C*>& passengers)) {
-    if (boneId >= 35) {
-        boneId = 26;
+    if (boneId >= NUM_KEY_BONES) {
+        boneId = KEY_BONE_ROOT;
     }
 
     uint32_t i = 0;
@@ -65,8 +65,8 @@ void CVehicle_C::UninstallBoneAnimListener(WOWGUID guid) {
 // VERIFY: f7a08bf8 auto
 // OFFSET: 0x00756DB0
 void CVehicle_C::SetBoneAnimForceFacing(WOWGUID guid, uint32_t boneId) {
-    if (boneId >= 35) {
-        boneId = 26;
+    if (boneId >= NUM_KEY_BONES) {
+        boneId = KEY_BONE_ROOT;
     }
 
     this->m_forceFacingGuid = guid;
@@ -128,7 +128,7 @@ VehicleSeatRec* CVehicle_C::GetVehicleSeatRec(uint8_t seat) const {
 // VERIFY: 244d9d64 auto
 // OFFSET: 0x00756F00
 int32_t CVehicle_C::IsSuppressingCameraPitchWhileMouseAiming() const {
-    if (!(this->m_unit->m_movement->m_flags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) && this->m_vehicleRec && (this->m_vehicleRec->m_flags & 0x40040000) == 0x40000) {
+    if (!(this->m_unit->m_movement->m_flags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING)) && this->m_vehicleRec && (this->m_vehicleRec->m_flags & VehicleRec::MOUSE_AIM_CAMERA_PITCH_MASK) == VehicleRec::ALLOW_CAMERA_PITCH_INPUT) {
         return 1;
     }
 
@@ -138,12 +138,12 @@ int32_t CVehicle_C::IsSuppressingCameraPitchWhileMouseAiming() const {
 // VERIFY: 62fd8da2 auto
 // OFFSET: 0x00756CD0
 uint32_t CVehicle_C::IsBoneAnimPlaying(uint32_t bone) const {
-    if (bone == 26) {
+    if (bone == KEY_BONE_ROOT) {
         return 0;
     }
 
-    if (bone >= 35) {
-        bone = 26;
+    if (bone >= NUM_KEY_BONES) {
+        bone = KEY_BONE_ROOT;
     }
 
     return this->m_playingBoneAnims[bone >> 5] & (1 << (bone & 0x1F));
@@ -152,10 +152,10 @@ uint32_t CVehicle_C::IsBoneAnimPlaying(uint32_t bone) const {
 // VERIFY: 0f448e4f manual
 // OFFSET: 0x00756F40
 int32_t CVehicle_C::HasHighPriorityCastingAnim() const {
-    if (this->m_vehicleRec && (this->m_vehicleRec->m_flags & 0x10000)) {
+    if (this->m_vehicleRec && (this->m_vehicleRec->m_flags & VehicleRec::HIGH_PRIORITY_CASTING_ANIMATION)) {
         CGUnit_C* unit = this->m_unit;
 
-        if ((unit->m_animationState & 0x400) || unit->m_specialIdleAnim != -1) {
+        if ((unit->m_animationState & UNIT_ANIM_FLAG_CASTING) || unit->m_specialIdleAnim != -1) {
             return 1;
         }
     }
@@ -170,13 +170,13 @@ int32_t CVehicle_C::HasHighPriorityAnim() const {
         return 1;
     }
 
-    if (!this->m_vehicleRec || !(this->m_vehicleRec->m_flags & 0x10000)) {
+    if (!this->m_vehicleRec || !(this->m_vehicleRec->m_flags & VehicleRec::HIGH_PRIORITY_CASTING_ANIMATION)) {
         return 0;
     }
 
     CGUnit_C* unit = this->m_unit;
 
-    if (!(unit->m_animationState & 0x400) && unit->m_specialIdleAnim == -1) {
+    if (!(unit->m_animationState & UNIT_ANIM_FLAG_CASTING) && unit->m_specialIdleAnim == -1) {
         return 0;
     }
 
@@ -314,7 +314,7 @@ int32_t CVehicle_C::GetVirtualSeatInfo(int32_t virtualSeat, const char*& type, c
         return 0;
     }
 
-    if (seatRec->m_flags & 0x800) {
+    if (seatRec->m_flags & VEHICLE_SEAT_FLAG_CAN_CONTROL) {
         type = vehicle == this ? s_vehicleSeatTypes[1] : s_vehicleSeatTypes[2];
     } else {
         type = s_vehicleSeatTypes[0];
@@ -329,7 +329,7 @@ int32_t CVehicle_C::GetVirtualSeatInfo(int32_t virtualSeat, const char*& type, c
         occupant = nullptr;
     }
 
-    canEject = seatRec->m_flagsB & 0x20;
+    canEject = seatRec->m_flagsB & VEHICLE_SEAT_FLAG_B_EJECTABLE;
     canSwitch = (seatRec->m_flags >> 26) & 1;
     return 1;
 }
@@ -418,7 +418,7 @@ void CVehicle_C::UpdateLargestPassengerBoundsRadius() {
         CGUnit_C* unit = vehicle->m_unit;
         CVehiclePassenger_C* vehiclePassenger = unit->m_vehiclePassenger;
 
-        if (!vehiclePassenger || vehiclePassenger->m_state != 3) {
+        if (!vehiclePassenger || vehiclePassenger->m_state != CVehiclePassenger_C::STATE_RIDING) {
             break;
         }
 
@@ -477,7 +477,7 @@ int32_t CVehicle_C::GetVehicleAndSeatFromVirtualSeat(int32_t virtualSeat, const 
 // VERIFY: bfa3b17f manual
 // OFFSET: 0x00757980
 int32_t CVehicle_C::AddPassenger(CPassenger* passenger) {
-    if (!(passenger->m_passengerFlags & 0x1)) {
+    if (!(passenger->m_passengerFlags & CPassenger::PASSENGER_MOVEMENT)) {
         return 0;
     }
 
@@ -515,7 +515,7 @@ CVehicle_C* CVehicle_C::Create(const CClientObjCreate* create, CGUnit_C* unit, i
         vehicle = nullptr;
     }
 
-    vehicle->m_flags = 0;
+    vehicle->m_flags = CVehicle_C::NONE;
     vehicle->m_unit = unit;
 
     float facing;
@@ -613,14 +613,14 @@ void CVehicle_C::StartMirroringAnimsToPassengers() {
 int32_t CVehicle_C::PlayBoneAnim(uint32_t boneId, uint32_t animId) {
     CM2Model* model = this->m_unit->GetObjectModel();
 
-    if (!model || animId > 505) {
+    if (!model || animId > (ANIM_COUNT - 1)) {
         return 0;
     }
 
-    uint32_t slot = boneId >= 35 ? 26 : boneId;
-    this->m_unit->SetKeyBoneSequence(model, slot == 26 ? 0xFFFFFFFF : slot, animId, 0xFFFFFFFF, 0, 1.0f, 1, 1, 0);
+    uint32_t slot = boneId >= NUM_KEY_BONES ? KEY_BONE_ROOT : boneId;
+    this->m_unit->SetKeyBoneSequence(model, slot == KEY_BONE_ROOT ? 0xFFFFFFFF : slot, animId, 0xFFFFFFFF, 0, 1.0f, 1, 1, 0);
     this->m_playingBoneAnims[slot >> 5] |= 1 << (slot & 0x1F);
-    this->m_flags |= 0x1;
+    this->m_flags |= CVehicle_C::BONE_ANIMS_PLAYING;
     return 1;
 }
 
@@ -631,14 +631,14 @@ int32_t CVehicle_C::CanPlayBoneAnim(uint32_t animId) const {
         return 0;
     }
 
-    return animId <= 0x1F9;
+    return animId <= (ANIM_COUNT - 1);
 }
 
 // VERIFY: 86ddcfee manual
 // OFFSET: 0x00757060
 void CVehicle_C::HandleBoneAnimGrabEvent(uint32_t boneId, uint32_t eventId) {
-    if (boneId >= 35) {
-        boneId = 26;
+    if (boneId >= NUM_KEY_BONES) {
+        boneId = KEY_BONE_ROOT;
     }
 
     for (uint32_t i = 0; i < 16; i++) {
@@ -660,8 +660,8 @@ void CVehicle_C::HandleBoneAnimGrabEvent(uint32_t boneId, uint32_t eventId) {
 // VERIFY: b18617fe manual
 // OFFSET: 0x007570F0
 void CVehicle_C::HandleBoneAnimThrowEvent(uint32_t boneId, uint32_t eventId) {
-    if (boneId >= 35) {
-        boneId = 26;
+    if (boneId >= NUM_KEY_BONES) {
+        boneId = KEY_BONE_ROOT;
     }
 
     for (uint32_t i = 0; i < 16; i++) {
@@ -694,11 +694,11 @@ void CVehicle_C::EnterWorld() {
 // VERIFY: 269d0959 auto
 // OFFSET: 0x00757420
 void CVehicle_C::PlayBoneAnimOrFallback(CM2Model* model, uint32_t boneId) {
-    uint32_t bone = boneId == 26 ? 0xFFFFFFFF : boneId;
+    uint32_t bone = boneId == KEY_BONE_ROOT ? 0xFFFFFFFF : boneId;
 
     if (!this->m_unit->UnsetKeyBoneSequence(model, bone, 1, 1, 0)) {
-        this->BoneAnimEndHandler(model, bone, 0xFFFFFFFF, 1, 0);
-        this->m_unit->UpdateBaseAnimation(0, -1);
+        this->BoneAnimEndHandler(model, bone, INVALID_ANIMATION, 1, 0);
+        this->m_unit->UpdateBaseAnimation(PLAY_NONE, ALL);
     }
 }
 
@@ -711,8 +711,8 @@ void CVehicle_C::RemoveBoneAnimListener(uint32_t boneId, WOWGUID guid) {
         return;
     }
 
-    if (boneId >= 35) {
-        boneId = 26;
+    if (boneId >= NUM_KEY_BONES) {
+        boneId = KEY_BONE_ROOT;
     }
 
     this->UninstallBoneAnimListener(guid);
@@ -728,13 +728,13 @@ void CVehicle_C::RemoveBoneAnimListener(uint32_t boneId, WOWGUID guid) {
         return;
     }
 
-    if (boneId == 26) {
+    if (boneId == KEY_BONE_ROOT) {
         boneId = 0xFFFFFFFF;
     }
 
     if (!this->m_unit->UnsetKeyBoneSequence(model, boneId, 1, 1, 0)) {
-        this->BoneAnimEndHandler(model, boneId, 0xFFFFFFFF, 1, 0);
-        this->m_unit->UpdateBaseAnimation(0, -1);
+        this->BoneAnimEndHandler(model, boneId, INVALID_ANIMATION, 1, 0);
+        this->m_unit->UpdateBaseAnimation(PLAY_NONE, ALL);
     }
 }
 
@@ -745,8 +745,8 @@ void CVehicle_C::BoneAnimEndHandler(CM2Model* model, uint32_t boneId, uint32_t s
         return;
     }
 
-    if (boneId >= 35) {
-        boneId = 26;
+    if (boneId >= NUM_KEY_BONES) {
+        boneId = KEY_BONE_ROOT;
     }
 
     TSGrowableArray<CVehiclePassenger_C*> passengers;
@@ -781,10 +781,10 @@ void CVehicle_C::BoneAnimEndHandler(CM2Model* model, uint32_t boneId, uint32_t s
     if (!interrupted) {
         if (handled) {
             s_inBoneAnimEnd = 1;
-            this->m_unit->SetKeyBoneSequence(model, boneId == 26 ? 0xFFFFFFFF : boneId, sequenceId, 0xFFFFFFFF, time, 1.0f, 1, 1, 0);
+            this->m_unit->SetKeyBoneSequence(model, boneId == KEY_BONE_ROOT ? 0xFFFFFFFF : boneId, sequenceId, 0xFFFFFFFF, time, 1.0f, 1, 1, 0);
             s_inBoneAnimEnd = 0;
-        } else if (boneId == 26) {
-            this->m_unit->UpdateBaseAnimation(0, -1);
+        } else if (boneId == KEY_BONE_ROOT) {
+            this->m_unit->UpdateBaseAnimation(PLAY_NONE, ALL);
         } else {
             this->PlayBoneAnimOrFallback(model, boneId);
         }
@@ -818,9 +818,9 @@ void CVehicle_C::RemoveAllPassengersLocally() {
             movement->TryStartFallingLocal();
         }
 
-        unit->m_clientFlags |= 0x20000000;
+        unit->m_clientFlags |= UNIT_CLIENT_FLAG_ALLOW_VEHICLE_TRANSITION;
         movement->ForceSetTransport(WOWGUID{ 0 }, 0xFF, 1);
-        unit->m_clientFlags &= ~0x20000000;
+        unit->m_clientFlags &= ~UNIT_CLIENT_FLAG_ALLOW_VEHICLE_TRANSITION;
         passenger = next;
     }
 }

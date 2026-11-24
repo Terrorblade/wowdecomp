@@ -3,6 +3,7 @@
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/CImVector.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // VERIFY: 237e1aa1 auto
 // OFFSET: 0x00407990

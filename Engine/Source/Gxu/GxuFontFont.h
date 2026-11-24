@@ -21,12 +21,27 @@ struct KERNINGHASHKEY {
 };
 
 struct KERNNODE : public TSHashObject<KERNNODE, KERNINGHASHKEY> {
+
+    enum KERN_FLAGS : uint32_t {
+        KERN_FIXED_WIDTH_SPACING = 0x1,
+        KERN_PROPORTIONAL_SPACING = 0x2,
+    };
+
     /* 0018 */ uint32_t m_flags;
     /* 001C */ float m_proportionalSpacing;
     /* 0020 */ float m_fixedWidthSpacing;
 };
 
 struct CGxFont : public TSLinkedNode<CGxFont> {
+
+    enum FONT_FLAGS : uint32_t {
+        FONT_NONE = 0,
+        FONT_OUTLINE = 1,
+        FONT_MONOCHROME = 2,
+        FONT_LINEAR_FILTER = 4,
+        FONT_THICK_OUTLINE = 8,
+    };
+
     /* 0008 */ TSExplicitList<CGxString, offsetof(CGxString, m_fontStringLink)> m_strings;
     /* 0014 */ TSHashTable<CHARCODEDESC, HASHKEY_NONE> m_activeCharacters;
     /* 003C */ TSHashTable<KERNNODE, KERNINGHASHKEY> m_kernInfo;

@@ -35,7 +35,7 @@ int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStor
 
     int32_t invalid = 0;
 
-    if (count > 10) {
+    if (count > RealmConnection::CHARACTER_ENUM_COUNT_LIMIT) {
         count = 0;
         invalid = 1;
     }
@@ -70,7 +70,7 @@ int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStor
         msg->Get(info->m_petExperienceLevel);
         msg->Get(info->m_petCreatureFamilyID);
 
-        for (int32_t j = 0; j < 23; j++) {
+        for (int32_t j = 0; j < CHARACTER_INFO::INVENTORY_DISPLAY_SLOT_COUNT; j++) {
             msg->Get(info->m_inventoryItemDisplayID[j]);
 
             uint8_t inventoryType;
@@ -124,7 +124,7 @@ int32_t RealmConnection::MessageHandler(void* param, NETMESSAGE msgId, uint32_t 
             result = connection->HandleCharacterCreate(msgId, time, msg);
             break;
 
-        case SMSG_ENUM_CHARACTERS_RESULT:
+        case SMSG_CHAR_ENUM:
             result = connection->HandleCharEnum(msgId, time, msg);
             break;
 
@@ -182,13 +182,13 @@ int32_t RealmConnection::MessageHandler(void* param, NETMESSAGE msgId, uint32_t 
 
 // VERIFY: 0d14ec4d manual
 // OFFSET: 0x004650E0
-RealmConnection::RealmConnection(RealmResponse* realmResponse) : m_realmResponse(realmResponse), m_authenticated(0), m_queuePosition(0), m_freeCharacterMigration(0), m_billingTimeRemaining(0), m_billingTimeRested(0), m_billingFlags(0), m_accountExpansion(0), m_regionId(0), m_battlegroupId(0), m_realmId(0) {
+RealmConnection::RealmConnection(RealmResponse* realmResponse) : m_realmResponse(realmResponse), m_authenticated(0), m_queuePosition(0), m_freeCharacterMigration(0), m_billingTimeRemaining(0), m_billingTimeRested(0), m_billingFlags(RealmConnection::BILLING_FLAGS_NONE), m_accountExpansion(0), m_regionId(0), m_battlegroupId(0), m_realmId(0) {
     this->Initialize();
 
     this->SetMessageHandler(SMSG_AUTH_CHALLENGE, RealmConnection::MessageHandler, this);
     this->SetMessageHandler(SMSG_AUTH_RESPONSE, RealmConnection::MessageHandler, this);
     this->SetMessageHandler(SMSG_ADDON_INFO, RealmConnection::MessageHandler, this);
-    this->SetMessageHandler(SMSG_ENUM_CHARACTERS_RESULT, RealmConnection::MessageHandler, this);
+    this->SetMessageHandler(SMSG_CHAR_ENUM, RealmConnection::MessageHandler, this);
     this->SetMessageHandler(SMSG_CHAR_CREATE, RealmConnection::MessageHandler, this);
     this->SetMessageHandler(SMSG_CHARACTER_LOGIN_FAILED, RealmConnection::MessageHandler, this);
     this->SetMessageHandler(SMSG_LOGOUT_COMPLETE, RealmConnection::MessageHandler, this);
@@ -199,7 +199,7 @@ RealmConnection::RealmConnection(RealmResponse* realmResponse) : m_realmResponse
     HoT::OnRealmConnectionCreated(this);
 
     RealmConnection::s_allRealmConnectionsCrit.Enter();
-    RealmConnection::REALMCONNECTIONNODE* node = RealmConnection::s_allRealmConnections.NewNode(2, 0, 0);
+    RealmConnection::REALMCONNECTIONNODE* node = RealmConnection::s_allRealmConnections.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_connection = this;
     RealmConnection::s_allRealmConnectionsCrit.Leave();
 }
@@ -282,19 +282,19 @@ int32_t RealmConnection::HandleAuthResponse(uint32_t msgId, uint32_t time, CData
     uint8_t result = 13;
     msg->Get(result);
 
-    if (result == 12 || result == 27) {
-        if (result == 12) {
+    if (result == AUTH_OK || result == AUTH_WAIT_QUEUE) {
+        if (result == AUTH_OK) {
             this->m_authenticated = 1;
         }
 
-        if (msg->m_size - (result == 27 ? 5 : 0) - msg->m_read >= 10) {
+        if (msg->m_size - (result == AUTH_WAIT_QUEUE ? 5 : 0) - msg->m_read >= 10) {
             msg->Get(this->m_billingTimeRemaining);
             msg->Get(this->m_billingFlags);
             msg->Get(this->m_billingTimeRested);
             msg->Get(this->m_accountExpansion);
         }
 
-        if (result == 27) {
+        if (result == AUTH_WAIT_QUEUE) {
             msg->Get(this->m_queuePosition);
 
             uint8_t freeCharacterMigration = 0;
@@ -389,7 +389,7 @@ void RealmConnection::HandleAuthChallenge(AuthenticationChallenge* challenge) {
 
     SHA1_CONTEXT context;
     SHA1_Init(&context);
-    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(this->m_loginData.m_account), SStrLen(this->m_loginData.m_account));
+    SHA1_Update(&context, reinterpret_cast<const uint8_t*>(this->m_loginData.m_account), static_cast<uint32_t>(SStrLen(this->m_loginData.m_account)));
     SHA1_Update(&context, reinterpret_cast<const uint8_t*>(&zero), sizeof(zero));
     SHA1_Update(&context, reinterpret_cast<const uint8_t*>(&clientSeed), sizeof(clientSeed));
     SHA1_Update(&context, reinterpret_cast<const uint8_t*>(&challenge->m_serverSeed), sizeof(challenge->m_serverSeed));
@@ -454,7 +454,7 @@ RealmConnection::~RealmConnection() {
     this->ResetHandler(SMSG_AUTH_CHALLENGE);
     this->ResetHandler(SMSG_AUTH_RESPONSE);
     this->ResetHandler(SMSG_ADDON_INFO);
-    this->ResetHandler(SMSG_ENUM_CHARACTERS_RESULT);
+    this->ResetHandler(SMSG_CHAR_ENUM);
     this->ResetHandler(SMSG_CHAR_CREATE);
     this->ResetHandler(SMSG_CHARACTER_LOGIN_FAILED);
     this->ResetHandler(SMSG_LOGOUT_COMPLETE);

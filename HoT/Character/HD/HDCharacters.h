@@ -116,7 +116,7 @@ class HelmScope {
 };
 
 // CCharacterComponent::AddLink, the HD helm model next to the stock one when it exists. buffer holds 260 chars.
-const char* HelmModelPath(const CM2Model* parent, GEOCOMPONENTLINKS link, const char* modelPath, char* buffer);
+const char* HelmModelPath(const CM2Model* parent, MODEL_ATTACHMENT_ID link, const char* modelPath, char* buffer);
 
 // CM2Scene::DuplicateModel, keeps the placement of an HD helm on the copy.
 void CopyHelmPlacement(CM2Model* copy, const CM2Model* source);

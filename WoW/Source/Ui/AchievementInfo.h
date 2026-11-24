@@ -12,6 +12,11 @@ class Achievement_CriteriaRec;
 class CDataStore;
 struct lua_State;
 
+enum CRITERIA_PROGRESS_FLAGS : uint32_t {
+    CRITERIA_PROGRESS_FLAG_NONE = 0x0,
+    CRITERIA_PROGRESS_FLAG_RESET = 0x1,
+};
+
 struct CLIENT_ACHIEVEMENT_CRITERIA : public TSLinkedNode<CLIENT_ACHIEVEMENT_CRITERIA> {
     /* 0008 */ int32_t m_id;
     /* 000C */ uint32_t unused_000C;

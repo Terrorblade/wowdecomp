@@ -6,6 +6,32 @@
 
 class SFileImpl;
 
+enum MAP_FLAGS : int32_t {
+    MAP_FLAG_NONE               = 0x00000000,
+    MAP_FLAG_DYNAMIC_DIFFICULTY = 0x00000100,
+};
+
+enum MAP_INSTANCE_TYPE : int32_t {
+    MAP_INSTANCE_TYPE_NOT_INSTANCED      = 0,
+    MAP_INSTANCE_TYPE_PARTY_DUNGEON      = 1,
+    MAP_INSTANCE_TYPE_RAID_DUNGEON       = 2,
+    MAP_INSTANCE_TYPE_PVP_BATTLEFIELD    = 3,
+    MAP_INSTANCE_TYPE_ARENA_BATTLEFIELD  = 4,
+};
+
+enum MAP_ID : int32_t {
+    MAP_PVP_ZONE01       = 30,
+    MAP_PVP_ZONE03       = 489,
+    MAP_PVP_ZONE04       = 529,
+    MAP_EXPANSION01      = 530,
+    MAP_HELLFIRE_RAMPART = 543,
+    MAP_NETHERSTORM_BG   = 566,
+    MAP_NORTHREND        = 571,
+    MAP_UTGARDE_PINNACLE = 575,
+    MAP_NORTHREND_BG     = 607,
+    MAP_ISLE_OF_CONQUEST = 628,
+};
+
 class MapRec {
     public:
     static const int32_t s_numColumns = 66;

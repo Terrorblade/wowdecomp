@@ -148,7 +148,7 @@ void FriendList::Initialize() {
 FriendInfo* FriendList::ClearRecruitAFriend(WOWGUID guid) {
     for (uint32_t i = 0; i < 100; i++) {
         if (this->m_friends[i].m_guid == guid) {
-            this->m_friends[i].m_flags &= ~0x8;
+            this->m_friends[i].m_flags &= ~FRIEND_STATUS_REFER_A_FRIEND;
             return &this->m_friends[i];
         }
     }
@@ -165,7 +165,7 @@ void FriendList::ReadPacket(CDataStore* msg) {
     msg->Get(flags);
     msg->Get(count);
 
-    if (flags & 0x1) {
+    if (flags & CONTACT_LIST_FRIEND) {
         for (uint32_t i = 0; i < 100; i++) {
             if (this->m_friends[i].m_name) {
                 SMemFree(this->m_friends[i].m_name, __FILE__, __LINE__, 0);
@@ -175,11 +175,11 @@ void FriendList::ReadPacket(CDataStore* msg) {
         }
     }
 
-    if (flags & 0x2) {
+    if (flags & CONTACT_LIST_IGNORE) {
         memset(this->m_ignores, 0, sizeof(this->m_ignores));
     }
 
-    if (flags & 0x4) {
+    if (flags & CONTACT_LIST_MUTE) {
         memset(this->m_mutes, 0, sizeof(this->m_mutes));
     }
 
@@ -195,7 +195,7 @@ void FriendList::ReadPacket(CDataStore* msg) {
             break;
         }
 
-        if (entryFlags & 0x1) {
+        if (entryFlags & CONTACT_LIST_FRIEND) {
             uint32_t area = 0;
             uint32_t level = 0;
             uint32_t classId = 0;
@@ -208,7 +208,7 @@ void FriendList::ReadPacket(CDataStore* msg) {
                 msg->Get(classId);
             }
 
-            if ((flags & 0x1) && friendIndex < 100) {
+            if ((flags & CONTACT_LIST_FRIEND) && friendIndex < 100) {
                 FriendInfo& info = this->m_friends[friendIndex];
                 info.m_flags = status;
                 info.m_guid = guid;
@@ -233,17 +233,17 @@ void FriendList::ReadPacket(CDataStore* msg) {
                     info.m_name = SStrDupA(name, __FILE__, __LINE__);
 
                     if (info.m_connected) {
-                        CGAutoCompleteName::AddFlags(guid, 0x24, 0, nullptr);
+                        CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_FRIEND | AUTOCOMPLETE_FLAG_ONLINE, 0, nullptr);
                     } else {
-                        CGAutoCompleteName::AddFlags(guid, 0x4, 0, nullptr);
-                        CGAutoCompleteName::RemoveFlags(guid, 0x20);
+                        CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_FRIEND, 0, nullptr);
+                        CGAutoCompleteName::RemoveFlags(guid, AUTOCOMPLETE_FLAG_ONLINE);
                     }
                 } else {
                     if (info.m_connected) {
-                        CGAutoCompleteName::AddFlags(guid, 0x24, 0, nullptr);
+                        CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_FRIEND | AUTOCOMPLETE_FLAG_ONLINE, 0, nullptr);
                     } else {
-                        CGAutoCompleteName::AddFlags(guid, 0x4, 0, nullptr);
-                        CGAutoCompleteName::RemoveFlags(guid, 0x20);
+                        CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_FRIEND, 0, nullptr);
+                        CGAutoCompleteName::RemoveFlags(guid, AUTOCOMPLETE_FLAG_ONLINE);
                     }
 
                     this->m_pendingFriendNames++;
@@ -253,7 +253,7 @@ void FriendList::ReadPacket(CDataStore* msg) {
             }
         }
 
-        if (entryFlags & flags & 0x2) {
+        if (entryFlags & flags & CONTACT_LIST_IGNORE) {
             WOWGUID ignoreGuid = guid;
 
             for (uint32_t i = 0; i < 50; i++) {
@@ -273,7 +273,7 @@ void FriendList::ReadPacket(CDataStore* msg) {
             }
         }
 
-        if (entryFlags & flags & 0x4) {
+        if (entryFlags & flags & CONTACT_LIST_MUTE) {
             WOWGUID muteGuid = guid;
 
             for (uint32_t i = 0; i < 50; i++) {
@@ -292,17 +292,17 @@ void FriendList::ReadPacket(CDataStore* msg) {
         }
     }
 
-    if ((flags & 0x1) && !this->m_pendingFriendNames) {
+    if ((flags & CONTACT_LIST_FRIEND) && !this->m_pendingFriendNames) {
         qsort(this->m_friends, 100, sizeof(FriendInfo), QSortFriends);
         FrameScript_SignalEvent(SCRIPT_EVENT_FRIENDLIST_UPDATE, nullptr);
     }
 
-    if ((flags & 0x2) && !this->m_pendingIgnoreNames) {
+    if ((flags & CONTACT_LIST_IGNORE) && !this->m_pendingIgnoreNames) {
         qsort(this->m_ignores, 50, sizeof(IgnoreInfo), QSortIgnore);
         FrameScript_SignalEvent(SCRIPT_EVENT_IGNORELIST_UPDATE, nullptr);
     }
 
-    if ((flags & 0x4) && !this->m_pendingMuteNames) {
+    if ((flags & CONTACT_LIST_MUTE) && !this->m_pendingMuteNames) {
         qsort(this->m_mutes, 50, sizeof(IgnoreInfo), QSortIgnore);
         FrameScript_SignalEvent(SCRIPT_EVENT_MUTELIST_UPDATE, nullptr);
     }
@@ -575,13 +575,13 @@ static void PrintWho(const char* name, int32_t race, int32_t classId, const char
         SStrPrintf(text, sizeof(text), FrameScript_GetText("WHO_LIST_FORMAT", -1, GENDER_NOT_APPLICABLE), name, name, level, raceName, className, zoneName);
     }
 
-    CGChat::AddChatMessage(text, 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+    CGChat::AddChatMessage(text, CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
 }
 
 // VERIFY: b37debf7 manual
 // OFFSET: 0x006B5400
 void __stdcall FriendList::AddFriend(const char* name, const char* note) {
-    CGTutorial::FlagTutorial(21);
+    CGTutorial::FlagTutorial(TUTORIAL_FRIENDS);
     char noteBuffer[512];
     SStrCopy(noteBuffer, note, sizeof(noteBuffer));
     char nameBuffer[308];
@@ -614,7 +614,7 @@ void FriendList::SendWho(const char* filter) {
     name[0] = '\0';
     guild[0] = '\0';
     SStrCopy(text, filter, sizeof(text) - 1);
-    uint32_t length = SStrLen(text);
+    uint32_t length = static_cast<uint32_t>(SStrLen(text));
     text[length] = ' ';
     text[length + 1] = '\0';
     uint32_t wordCount = 0;
@@ -942,7 +942,7 @@ int32_t FriendList::DoLocalWho() {
 
         char buffer[256];
         sprintf(buffer, "%s-", name->m_name);
-        uint32_t length = strlen(name->m_name) + 1;
+        uint32_t length = static_cast<uint32_t>(strlen(name->m_name) + 1);
 
         for (const char* realm = name->m_realmName; *realm && length < sizeof(buffer) - 1; realm++) {
             if (*realm != ' ') {
@@ -1054,7 +1054,7 @@ int32_t Packet_SMSG_WHO(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
     if (print) {
         char text[3000];
         SStrPrintf(text, sizeof(text), FrameScript_GetText("WHO_NUM_RESULTS", -1, GENDER_NOT_APPLICABLE), count);
-        CGChat::AddChatMessage(text, 0, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
+        CGChat::AddChatMessage(text, CHAT_MSG_SYSTEM, nullptr, 0, nullptr, nullptr, nullptr, WOWGUID(), 0, WOWGUID(), 0, false, nullptr);
     } else {
         FrameScript_SignalEvent(SCRIPT_EVENT_WHO_LIST_UPDATE, nullptr);
     }
@@ -1200,9 +1200,9 @@ void FriendList::SetConnected(WOWGUID guid, uint8_t connected) {
             this->m_friends[i].m_connected = connected;
 
             if (connected) {
-                CGAutoCompleteName::AddFlags(guid, 0x20, 0, nullptr);
+                CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_ONLINE, 0, nullptr);
             } else {
-                CGAutoCompleteName::RemoveFlags(guid, 0x20);
+                CGAutoCompleteName::RemoveFlags(guid, AUTOCOMPLETE_FLAG_ONLINE);
             }
 
             return;
@@ -1680,7 +1680,7 @@ void FriendList::HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* ms
             display = !deleted;
             error = static_cast<UIErrors>(4 * deleted + ERR_FRIEND_REMOVED_S);
             this->FriendRemoved(guid);
-            CGAutoCompleteName::RemoveFlags(guid, 0x4);
+            CGAutoCompleteName::RemoveFlags(guid, AUTOCOMPLETE_FLAG_FRIEND);
             friendChange = true;
             CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
@@ -1714,7 +1714,7 @@ void FriendList::HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* ms
                 info->m_class = classId;
             }
 
-            CGAutoCompleteName::AddFlags(guid, 0x4, 0, nullptr);
+            CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_FRIEND, 0, nullptr);
             this->SetConnected(guid, 1);
             friendChange = true;
             CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
@@ -1739,7 +1739,7 @@ void FriendList::HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* ms
                 SStrCopy(this->m_friends[index].m_notes, note, sizeof(this->m_friends[index].m_notes));
             }
 
-            CGAutoCompleteName::AddFlags(guid, 0x4, 0, nullptr);
+            CGAutoCompleteName::AddFlags(guid, AUTOCOMPLETE_FLAG_FRIEND, 0, nullptr);
             this->SetConnected(guid, 0);
             friendChange = true;
             record = g_nameDBCache.GetRecord(guid.m_guid, guid, FriendListNameCallbackWithSort, reinterpret_cast<void*>(ERR_FRIEND_ADDED_S), false);
@@ -1837,7 +1837,7 @@ void FriendList::HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* ms
             CGGameUI::DisplayError(ERR_VOICE_IGNORE_AMBIGUOUS);
             return;
 
-        case FRIEND_UNKNOWN_25:
+        case FRIEND_NOOP:
             CGGameUI::DisplayError(error);
             return;
 

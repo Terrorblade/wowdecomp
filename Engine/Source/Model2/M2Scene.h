@@ -8,6 +8,7 @@
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Storm/H/stpl.h"
+#include "Engine/Source/Tempest/CRange.h"
 
 class C3Vector;
 class CAaBox;
@@ -29,6 +30,13 @@ class M2HitRec {
 
 class M2Element {
     public:
+    enum FLAGS : uint32_t {
+        NONE = 0x0,
+        DEPTH_ONLY = 0x1,
+        LIQUID_CLIP = 0x2,
+        OPTIMIZED = 0x4,
+    };
+
     /* 0000 */ int32_t m_type;
     /* 0004 */ CM2Model* m_model;
     /* 0008 */ uint32_t m_flags;
@@ -53,6 +61,13 @@ class M2Element {
 
 class CM2Scene {
     public:
+    enum SCENE_FLAGS : uint32_t {
+        NONE = 0,
+        WORLD_ANIMATION_ACTIVE = 1,
+        HIT_TEST_ACTIVE = 2,
+        PROCESSING_CALLBACKS = 4,
+    };
+
     /* 0000 */ int32_t m_refCount;
     /* 0004 */ CM2Cache* m_cache;
     /* 0008 */ CM2Model* m_modelList;

@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class SFileImpl;
+constexpr int32_t NUM_QUEST_FACTION_REWARD_DIFFICULTIES = 10;
 
 class QuestFactionRewardRec {
     public:
@@ -13,7 +14,7 @@ class QuestFactionRewardRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t m_difficulty [10];
+    /* 0004 */ int32_t m_difficulty [NUM_QUEST_FACTION_REWARD_DIFFICULTIES];
 
     QuestFactionRewardRec();
     ~QuestFactionRewardRec();

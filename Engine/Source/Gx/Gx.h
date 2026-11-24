@@ -8,6 +8,10 @@
 #include "Engine/Source/Gx/CGxTex.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/C2iVector.h"
+#include "Engine/Source/Gx/CGxBuf.h"
+#include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Engine/Source/Gx/CGxPool.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 static const float oo255 = (1.0f / 255.0f);
 

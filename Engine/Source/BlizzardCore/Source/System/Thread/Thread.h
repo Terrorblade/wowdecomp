@@ -19,6 +19,12 @@ class ThreadWorker;
 
 }
 
+enum THREAD_STATE : int32_t {
+    THREAD_STATE_FINISHED = -1,
+    THREAD_STATE_SUSPENDED = 0,
+    THREAD_STATE_RUNNING = 1,
+};
+
 namespace Blizzard {
 namespace Thread {
 

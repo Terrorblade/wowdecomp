@@ -6,6 +6,11 @@
 
 class SFileImpl;
 
+enum TERRAIN_TYPE_FLAGS : int32_t {
+    TERRAIN_TYPE_FLAG_NONE = 0x0,
+    TERRAIN_TYPE_FLAG_FOOTPRINTS = 0x1,
+};
+
 class TerrainTypeRec {
     public:
     static const int32_t s_numColumns = 6;

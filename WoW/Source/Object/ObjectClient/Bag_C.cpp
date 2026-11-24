@@ -109,7 +109,7 @@ int32_t CGBag_C::GetNumFreeInvSlots() {
                 WOWGUID guid = slot < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
                 CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
-                if (item && item->GetClassID() == 1) {
+                if (item && item->GetClassID() == ITEM_CLASS_CONTAINER) {
                     freeSlots += item->GetBag()->GetNumFreeInvSlots();
                 }
 
@@ -449,7 +449,7 @@ int32_t GetDisplayErrorByInventoryError(int32_t error) {
 int32_t GetItemTypeChargesCallback(const CGItem_C* item, void* param) {
     ItemTypeCountParam* count = static_cast<ItemTypeCountParam*>(param);
 
-    if ((static_cast<int32_t>(item->m_obj->m_entryID) == count->m_itemId || count->m_itemId == -1) && const_cast<CGItem_C*>(item)->GetEnchantmentSpell(0)) {
+    if ((static_cast<int32_t>(item->m_obj->m_entryID) == count->m_itemId || count->m_itemId == -1) && const_cast<CGItem_C*>(item)->GetEnchantmentSpell(SPELL_EFFECT_NONE)) {
         int32_t charges = const_cast<CGItem_C*>(item)->GetCurrentSpellCharges();
 
         if (charges <= 0) {
@@ -670,12 +670,12 @@ static int32_t FindItemLinkCallback(const CGItem_C* item, void* param) {
     }
 
     if (object->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) {
-        if (link->m_enchants[0]) {
+        if (link->m_enchants[CGItemData::PERMANENT]) {
             return 0;
         }
 
         for (uint32_t i = 0; i < 3; i++) {
-            if (link->m_enchants[2 + i]) {
+            if (link->m_enchants[CGItemData::SOCKET_1 + i]) {
                 return 0;
             }
         }
@@ -687,12 +687,12 @@ static int32_t FindItemLinkCallback(const CGItem_C* item, void* param) {
         return !link->m_propertySeed;
     }
 
-    if (link->m_enchants[0] && link->m_enchants[0] != object->GetEnchantmentId(0)) {
+    if (link->m_enchants[CGItemData::PERMANENT] && link->m_enchants[CGItemData::PERMANENT] != object->GetEnchantmentId(CGItemData::PERMANENT)) {
         return 0;
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (link->m_enchants[2 + i] && link->m_enchants[2 + i] != object->GetEnchantmentId(2 + i)) {
+        if (link->m_enchants[CGItemData::SOCKET_1 + i] && link->m_enchants[CGItemData::SOCKET_1 + i] != object->GetEnchantmentId(CGItemData::SOCKET_1 + i)) {
             return 0;
         }
     }
@@ -712,7 +712,7 @@ static int32_t FindItemLinkCallback(const CGItem_C* item, void* param) {
 // OFFSET: 0x00753B20
 static int32_t FindItemNameCallback(const CGItem_C* item, void* param) {
     const char* name = static_cast<const char*>(param);
-    int32_t length = SStrLenUTF8(name);
+    int32_t length = static_cast<int32_t>(SStrLenUTF8(name));
     char fullName[1024];
     item->GetFullItemName(fullName, sizeof(fullName));
     return SStrCmpUTF8I(name, fullName, length) == 0;
@@ -801,7 +801,7 @@ CGItem_C* CGBag_C::FindItem(int32_t (*callback)(const CGItem_C* item, void* para
             WOWGUID guid = index < numSlots ? this->m_slots[index] : WOWGUID();
             CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
-            if (item && !(item->m_modelFlags & 0x10000) && ((flags & BAG_SEARCH_IGNORE_ITEM_STATE) || (((item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) || !item->m_item->m_itemFieldMaxdurability || item->m_item->m_itemFieldDurability) && !(item->m_item->m_itemFieldFlags & 0x10))) && (!(flags & BAG_SEARCH_REQUIRE_CHARGES) || (item->GetBag() && !(flags & BAG_SEARCH_NO_RECURSE)) || (item->GetEnchantmentSpell(0) && item->GetCurrentSpellCharges()))) {
+            if (item && !(item->m_modelFlags & 0x10000) && ((flags & BAG_SEARCH_IGNORE_ITEM_STATE) || (((item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) || !item->m_item->m_itemFieldMaxdurability || item->m_item->m_itemFieldDurability) && !(item->m_item->m_itemFieldFlags & ITEM_DFLAG_UNUSABLE))) && (!(flags & BAG_SEARCH_REQUIRE_CHARGES) || (item->GetBag() && !(flags & BAG_SEARCH_NO_RECURSE)) || (item->GetEnchantmentSpell(0) && item->GetCurrentSpellCharges()))) {
                 if (callback(item, param)) {
                     container = this->m_guid;
                     slot = index;
@@ -878,7 +878,7 @@ bool CGBag_C::ItemCountValid(int32_t itemId, const ItemStats_C* stats, int32_t c
             int32_t data[2] = { itemId, 0 };
             WOWGUID container;
             uint32_t slot;
-            this->FindItem(GetItemTypeCountCallback, data, container, slot, 79);
+            this->FindItem(GetItemTypeCountCallback, data, container, slot, inventoryFlags | BAG_SEARCH_BANK | BAG_SEARCH_KEYRING);
             current = data[1];
         }
 
@@ -897,7 +897,7 @@ bool CGBag_C::ItemCountValid(int32_t itemId, const ItemStats_C* stats, int32_t c
         int32_t data[2] = { static_cast<int32_t>(stats->m_itemLimitCategory), 0 };
         WOWGUID container;
         uint32_t slot;
-        this->FindItem(GetItemLimitCategoryCallback, data, container, slot, 79);
+        this->FindItem(GetItemLimitCategoryCallback, data, container, slot, inventoryFlags | BAG_SEARCH_BANK | BAG_SEARCH_KEYRING);
 
         if (count + data[1] > category->m_quantity) {
             if (showError) {

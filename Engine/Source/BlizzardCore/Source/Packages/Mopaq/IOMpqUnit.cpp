@@ -158,7 +158,7 @@ uint32_t IOMpqArchiveUnit::GetFlags() {
 // VERIFY: 22f28fcc auto
 // OFFSET: 0x00431FA0
 bool IOMpqArchiveUnit::MarkDeleted() {
-    this->m_blockEntry.m_flags |= 0x2000000;
+    this->m_blockEntry.m_flags |= MPQ_FILE_DELETE_MARKER;
 
     {
         Blizzard::Lock::ScopedMutex archiveLock(this->m_archive->m_mutex.m_mutex);
@@ -172,7 +172,7 @@ bool IOMpqArchiveUnit::MarkDeleted() {
 // VERIFY: f5430f38 auto
 // OFFSET: 0x00431F70
 bool IOMpqArchiveUnit::IsEncrypted() {
-    return (this->m_blockEntry.m_flags & 0xF0000) != 0;
+    return (this->m_blockEntry.m_flags & MPQ_FILE_ENCRYPTION_MASK) != 0;
 }
 
 // VERIFY: 41863b5d manual
@@ -340,7 +340,7 @@ bool IOMpqReadUnit::DecompressBlocks(IOMpqReadUnit* unit, uint32_t offset, uint3
         uint32_t compressedSize = unit->m_sectorOffsets.m_data[sector + 1] - unit->m_sectorOffsets.m_data[sector];
         uint32_t sectorSize = sector >= unit->m_sectorOffsets.m_count - 3 ? unit->m_lastSectorSize : unit->m_sectorSize;
 
-        if (unit->m_flags & 0xF0000) {
+        if (unit->m_flags & MPQ_FILE_ENCRYPTION_MASK) {
             System_MPQEncrypt::Decrypt(reinterpret_cast<uint32_t*>(source), compressedSize & ~3u, sector + unit->m_key);
         }
 
@@ -361,9 +361,9 @@ bool IOMpqReadUnit::DecompressBlocks(IOMpqReadUnit* unit, uint32_t offset, uint3
         }
 
         uint32_t outSize = sectorSize;
-        uint32_t method = unit->m_flags & 0xFF00;
+        uint32_t method = unit->m_flags & MPQ_FILE_COMPRESS_MASK;
 
-        if (method == 0x100) {
+        if (method == MPQ_FILE_IMPLODE) {
             System_SComp::PkwareBuffer buffer;
             buffer.m_output = dest;
             buffer.m_outputPos = 0;
@@ -376,7 +376,7 @@ bool IOMpqReadUnit::DecompressBlocks(IOMpqReadUnit* unit, uint32_t offset, uint3
             }
 
             outSize = buffer.m_outputPos;
-        } else if (method != 0x200 || !System_SComp::Decompress(dest, &outSize, source, compressedSize)) {
+        } else if (method != MPQ_FILE_COMPRESS || !System_SComp::Decompress(dest, &outSize, source, compressedSize)) {
             return false;
         }
 
@@ -487,7 +487,7 @@ void IOMpqReadUnit::ReadSectors(SectorJob* job) {
 bool IOMpqReadUnit::VerifyBlocks(IOMpqReadUnit* unit, uint32_t offset, uint32_t size, uint8_t* source, uint32_t first, uint32_t count, uint8_t* dest) {
     bool hasChecksums = unit->m_checksums.m_count != 0;
 
-    if (!(unit->m_flags & 0xF0000) && !hasChecksums) {
+    if (!(unit->m_flags & MPQ_FILE_ENCRYPTION_MASK) && !hasChecksums) {
         return true;
     }
 
@@ -500,7 +500,7 @@ bool IOMpqReadUnit::VerifyBlocks(IOMpqReadUnit* unit, uint32_t offset, uint32_t 
     while (true) {
         uint32_t sectorSize = sector >= unit->m_sectorOffsets.m_count - 3 ? unit->m_lastSectorSize : unit->m_sectorSize;
 
-        if (unit->m_flags & 0xF0000) {
+        if (unit->m_flags & MPQ_FILE_ENCRYPTION_MASK) {
             System_MPQEncrypt::Decrypt(reinterpret_cast<uint32_t*>(dest), sectorSize & ~3u, sector + unit->m_key);
         }
 
@@ -806,7 +806,7 @@ bool IOMpqReadUnit::LoadSectorTable() {
 
     bytesRead &= ~3u;
 
-    if (this->m_flags & 0xF0000) {
+    if (this->m_flags & MPQ_FILE_ENCRYPTION_MASK) {
         System_MPQEncrypt::Decrypt(this->m_sectorOffsets.m_data, bytesRead, this->m_key - 1);
     }
 
@@ -1050,7 +1050,7 @@ void IOMpqWriteUnit::CompressBlock(void* param) {
         bool compressed;
 
         if (!unit->m_compression.empty()) {
-            compressed = System_SComp::Compress(dst, &size, &checksum, src, chunk, unit->m_compression.size(), &unit->m_compression[0]);
+            compressed = System_SComp::Compress(dst, &size, &checksum, src, chunk, static_cast<uint32_t>(unit->m_compression.size()), &unit->m_compression[0]);
         } else {
             compressed = System_SComp::Compress(dst, &size, &checksum, src, chunk, 0, nullptr);
         }
@@ -1202,7 +1202,7 @@ bool IOMpqWriteUnit::Write(const void* buffer, int64_t offset, uint32_t count) {
             if (this->m_hasChecksums) {
                 uint32_t size = 4 * this->m_checksums.m_count;
                 Blizzard::Mopaq::CompressionAlgorithm algorithm;
-                algorithm.m_type = 0x20;
+                algorithm.m_type = COMPRESSION_RLE;
                 algorithm.m_level = 0;
                 bool checksum;
 

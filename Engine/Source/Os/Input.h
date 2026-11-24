@@ -7,6 +7,7 @@
 struct tagRECT;
 
 enum OSINPUT {
+    OS_INPUT_NONE = -1,
     OS_INPUT_CAPTURE_CHANGED = 0,
     OS_INPUT_CHAR = 1,
     OS_INPUT_STRING = 2,

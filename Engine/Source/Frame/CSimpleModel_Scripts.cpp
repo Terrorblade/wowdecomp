@@ -12,6 +12,7 @@
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
+#include "WoW/Source/Object/ObjectClient/Types.h"
 
 // STATIC: 0x00B2CBD0
 int32_t CSimpleModel::s_metatable = LUA_NOREF;
@@ -26,22 +27,22 @@ void CSimpleModel::DestroyScriptMetaTable() {
 // VERIFY: 1d94299e manual
 // OFFSET: 0x00960420
 int32_t FrameScript_GetColor(lua_State* L, int32_t index, CImVector& color) {
-    float r = lua_tonumber(L, index);
+    float r = static_cast<float>(lua_tonumber(L, index));
     r = r < 0.0f ? 0.0f : (r >= 1.0f ? 1.0f : r);
     index++;
 
-    float g = lua_tonumber(L, index);
+    float g = static_cast<float>(lua_tonumber(L, index));
     g = g < 0.0f ? 0.0f : (g >= 1.0f ? 1.0f : g);
     index++;
 
-    float b = lua_tonumber(L, index);
+    float b = static_cast<float>(lua_tonumber(L, index));
     b = b < 0.0f ? 0.0f : (b >= 1.0f ? 1.0f : b);
     index++;
 
     float a;
 
     if (lua_isnumber(L, index)) {
-        a = lua_tonumber(L, index);
+        a = static_cast<float>(lua_tonumber(L, index));
         a = a < 0.0f ? 0.0f : (a >= 1.0f ? 1.0f : a);
         index++;
     } else {
@@ -55,15 +56,15 @@ int32_t FrameScript_GetColor(lua_State* L, int32_t index, CImVector& color) {
 // VERIFY: 51dc23ed manual
 // OFFSET: 0x0061BE50
 int32_t FrameScript_GetColorNoAlpha(lua_State* L, int32_t index, CImVector& color) {
-    float r = lua_tonumber(L, index);
+    float r = static_cast<float>(lua_tonumber(L, index));
     r = r < 0.0f ? 0.0f : (r >= 1.0f ? 1.0f : r);
     index++;
 
-    float g = lua_tonumber(L, index);
+    float g = static_cast<float>(lua_tonumber(L, index));
     g = g < 0.0f ? 0.0f : (g >= 1.0f ? 1.0f : g);
     index++;
 
-    float b = lua_tonumber(L, index);
+    float b = static_cast<float>(lua_tonumber(L, index));
     b = b < 0.0f ? 0.0f : (b >= 1.0f ? 1.0f : b);
     index++;
 
@@ -118,9 +119,9 @@ static int32_t Script_ClearModel(lua_State* L) {
 // OFFSET: 0x00960660
 static int32_t Script_SetPosition(lua_State* L) {
     CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
-    float x = lua_tonumber(L, 2);
-    float y = lua_tonumber(L, 3);
-    float z = lua_tonumber(L, 4);
+    float x = static_cast<float>(lua_tonumber(L, 2));
+    float y = static_cast<float>(lua_tonumber(L, 3));
+    float z = static_cast<float>(lua_tonumber(L, 4));
 
     model->m_position.x = x;
     model->m_position.y = y;
@@ -135,7 +136,7 @@ static int32_t Script_SetFacing(lua_State* L) {
     CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
 
     if (lua_isnumber(L, 2)) {
-        model->m_facing = lua_tonumber(L, 2);
+        model->m_facing = static_cast<float>(lua_tonumber(L, 2));
         return 0;
     }
 
@@ -150,7 +151,7 @@ static int32_t Script_SetModelScale(lua_State* L) {
     CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
 
     if (lua_isnumber(L, 2)) {
-        model->m_modelScale = lua_tonumber(L, 2);
+        model->m_modelScale = static_cast<float>(lua_tonumber(L, 2));
         return 0;
     }
 
@@ -172,9 +173,9 @@ static int32_t Script_SetSequence(lua_State* L) {
 
     uint32_t sequence = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 2)));
 
-    if (sequence >= 506) {
+    if (sequence >= ANIM_COUNT) {
         const char* name = model->GetName();
-        luaL_error(L, "Error: %s:SetSequence(sequence) exceeds valid range of 0 - %d", name ? name : "<unnamed>", 506);
+        luaL_error(L, "Error: %s:SetSequence(sequence) exceeds valid range of 0 - %d", name ? name : "<unnamed>", ANIM_COUNT);
         return 0;
     }
 
@@ -234,18 +235,18 @@ int32_t CSimpleModel::SetLightHelper(lua_State* L, int32_t index, CM2Light* ligh
     light->SetLightType(static_cast<M2LIGHTTYPE>(lua_tonumber(L, index + 1) != 0.0));
 
     if (light->m_type == M2LIGHT_POINT) {
-        float x = lua_tonumber(L, index + 2);
-        float y = lua_tonumber(L, index + 3);
-        float z = lua_tonumber(L, index + 4);
+        float x = static_cast<float>(lua_tonumber(L, index + 2));
+        float y = static_cast<float>(lua_tonumber(L, index + 3));
+        float z = static_cast<float>(lua_tonumber(L, index + 4));
         light->SetPosition(C3Vector(x, y, z));
     } else {
-        float x = lua_tonumber(L, index + 2);
-        float y = lua_tonumber(L, index + 3);
-        float z = lua_tonumber(L, index + 4);
+        float x = static_cast<float>(lua_tonumber(L, index + 2));
+        float y = static_cast<float>(lua_tonumber(L, index + 3));
+        float z = static_cast<float>(lua_tonumber(L, index + 4));
         light->SetDirection(C3Vector(x, y, z));
     }
 
-    float ambIntensity = lua_tonumber(L, index + 5);
+    float ambIntensity = static_cast<float>(lua_tonumber(L, index + 5));
     int32_t next = index + 6;
 
     CImVector ambColor;
@@ -263,7 +264,7 @@ int32_t CSimpleModel::SetLightHelper(lua_State* L, int32_t index, CM2Light* ligh
     light->m_ambColor.z = ambColor.b * 0.0039215689f * ambIntensity;
 
     if (lua_isnumber(L, next)) {
-        float dirIntensity = lua_tonumber(L, next);
+        float dirIntensity = static_cast<float>(lua_tonumber(L, next));
         next++;
 
         CImVector dirColor;
@@ -458,7 +459,7 @@ static int32_t Script_SetFogNear(lua_State* L) {
     CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
 
     if (lua_isnumber(L, 2)) {
-        model->m_fogNear = lua_tonumber(L, 2);
+        model->m_fogNear = static_cast<float>(lua_tonumber(L, 2));
         return 0;
     }
 
@@ -482,7 +483,7 @@ static int32_t Script_SetFogFar(lua_State* L) {
     CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
 
     if (lua_isnumber(L, 2)) {
-        model->m_fogFar = lua_tonumber(L, 2);
+        model->m_fogFar = static_cast<float>(lua_tonumber(L, 2));
         return 0;
     }
 
@@ -520,7 +521,7 @@ static int32_t Script_SetGlow(lua_State* L) {
         return 0;
     }
 
-    model->SetGlow(lua_tonumber(L, 2));
+    model->SetGlow(static_cast<float>(lua_tonumber(L, 2)));
     return 0;
 }
 

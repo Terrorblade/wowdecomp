@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <windows.h>
 #include "ThirdParty/lgLcd/lglcd.h"
+#include "Engine/Source/Tempest/C2iVector.h"
 
 class CLCDGfxBase {
     public:

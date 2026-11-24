@@ -14,7 +14,7 @@ CLCDBase::CLCDBase() {
     this->m_sizeLogical.cx = 0;
     this->m_sizeLogical.cy = 0;
     this->m_nBkMode = TRANSPARENT;
-    this->m_nObjectType = 4;
+    this->m_nObjectType = LCD_OBJECT_TYPE_DEFAULT;
     this->m_crBackgroundColor = RGB(0, 0, 0);
     this->m_crForegroundColor = RGB(255, 255, 255);
 }

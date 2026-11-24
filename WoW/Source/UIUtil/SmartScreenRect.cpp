@@ -17,8 +17,8 @@ enum SCREENRECT_CLAMP_FLAGS : uint32_t {
     SRECTCLAMP_RIGHT = 2,
     SRECTCLAMP_TOP = 4,
     SRECTCLAMP_BOTTOM = 8,
-    SRECTCLAMP_HORIZONTAL = 3,
-    SRECTCLAMP_VERTICAL = 12,
+    HORZ_FLAGS = 3,
+    VERT_FLAGS = 12,
 };
 
 struct BFSNODE : public TSLinkedNode<BFSNODE> {
@@ -118,7 +118,7 @@ static uint32_t SmartScreenRectClampToScreen(CRect* out, CRect rect, int32_t tes
         return 0;
     }
 
-    if (flags & SRECTCLAMP_VERTICAL) {
+    if (flags & VERT_FLAGS) {
         if (flags & SRECTCLAMP_TOP) {
             rect.minY = top;
             rect.maxY = top - height;
@@ -128,7 +128,7 @@ static uint32_t SmartScreenRectClampToScreen(CRect* out, CRect rect, int32_t tes
         }
     }
 
-    if (flags & SRECTCLAMP_HORIZONTAL) {
+    if (flags & HORZ_FLAGS) {
         if (flags & SRECTCLAMP_LEFT) {
             rect.minX = LEFTBORDER;
             rect.maxX = width;
@@ -308,7 +308,7 @@ static BFSNODE* SmartScreenRectAllocNode() {
         return node;
     }
 
-    node = s_searchQueue.NewNode(2, 0, 0);
+    node = s_searchQueue.NewNode(TSLIST_LINK_BEFORE, 0, 0);
     node->m_direction = TEST_INVALID;
 
     return node;

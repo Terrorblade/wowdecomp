@@ -8,6 +8,7 @@
 #include "Engine/Source/FrameXML/XMLTree.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
+#include "Engine/Source/Services/Types.h"
 
 // STATIC: 0x00B499B4
 static TSHashTable<SIMPLEFONT, HASHKEY_STRI> s_fontList;
@@ -236,20 +237,20 @@ void CSimpleFont::LoadXML(XMLNode* node, CStatus* status) {
 
             if (outline && *outline) {
                 if (!SStrCmpI(outline, "NORMAL", STORM_MAX_STR)) {
-                    fontFlags = 1;
+                    fontFlags = TEXTBLOCK_FONT_OUTLINE;
                 } else if (!SStrCmpI(outline, "THICK", STORM_MAX_STR)) {
-                    fontFlags = 5;
+                    fontFlags = TEXTBLOCK_FONT_OUTLINE | TEXTBLOCK_FONT_THICKOUTLINE;
                 }
             }
 
             const char* monochrome = node->GetAttributeByName("monochrome");
 
             if (monochrome && *monochrome && StringToBOOL(monochrome)) {
-                fontFlags |= 2;
+                fontFlags |= TEXTBLOCK_FONT_MONOCHROME;
             }
 
             if (this->m_attributes.SetFont(fontName, fontHeight, fontFlags)) {
-                this->m_fontableFlags &= ~0x1u;
+                this->m_fontableFlags &= ~FLAG_FONT_UPDATE;
             } else {
                 status->Add(STATUS_WARNING, "Font %s: Unable to load font file %s", this->GetDisplayName(), fontName);
             }
@@ -262,12 +263,12 @@ void CSimpleFont::LoadXML(XMLNode* node, CStatus* status) {
         float spacing = SStrToFloat(spacingAttr);
         float ddcSpacing = NDCToDDCWidth(spacing / (CoordinateGetAspectCompensation() * 1024.0f));
 
-        if (fabsf(ddcSpacing - this->m_attributes.m_spacing) >= 0.00000023841858f || !(this->m_attributes.m_flags & 0x1000)) {
-            this->m_attributes.m_flags |= 0x1010;
+        if (fabsf(ddcSpacing - this->m_attributes.m_spacing) >= 0.00000023841858f || !(this->m_attributes.m_flags & FLAG_SPACING_PRESENT)) {
+            this->m_attributes.m_flags |= FLAG_SPACING_PRESENT | FLAG_SPACING_UPDATE;
             this->m_attributes.m_spacing = ddcSpacing;
         }
 
-        this->m_fontableFlags &= ~0x10u;
+        this->m_fontableFlags &= ~FLAG_SPACING_UPDATE;
     }
 
     uint32_t justify;
@@ -275,23 +276,23 @@ void CSimpleFont::LoadXML(XMLNode* node, CStatus* status) {
 
     if (justifyV && *justifyV && StringToJustify(justifyV, justify)) {
         this->m_attributes.SetJustifyV(justify);
-        this->m_fontableFlags &= ~0x2u;
+        this->m_fontableFlags &= ~FLAG_STYLE_UPDATE;
     }
 
     const char* justifyH = node->GetAttributeByName("justifyH");
 
     if (justifyH && *justifyH && StringToJustify(justifyH, justify)) {
         this->m_attributes.SetJustifyH(justify);
-        this->m_fontableFlags &= ~0x2u;
+        this->m_fontableFlags &= ~FLAG_STYLE_UPDATE;
     }
 
     const char* nonSpaceWrap = node->GetAttributeByName("nonspacewrap");
 
     if (nonSpaceWrap && *nonSpaceWrap) {
-        uint32_t styleFlags = StringToBOOL(nonSpaceWrap) ? this->m_attributes.m_styleFlags | 0x1000 : this->m_attributes.m_styleFlags & ~0x1000u;
+        uint32_t styleFlags = StringToBOOL(nonSpaceWrap) ? this->m_attributes.m_styleFlags | TEXTBLOCK_NON_SPACE_WRAP : this->m_attributes.m_styleFlags & ~TEXTBLOCK_NON_SPACE_WRAP;
 
-        if (styleFlags != this->m_attributes.m_styleFlags || !(this->m_attributes.m_flags & 0x200)) {
-            this->m_attributes.m_flags |= 0x202;
+        if (styleFlags != this->m_attributes.m_styleFlags || !(this->m_attributes.m_flags & FLAG_STYLE_PRESENT)) {
+            this->m_attributes.m_flags |= FLAG_STYLE_PRESENT | FLAG_STYLE_UPDATE;
             this->m_attributes.m_styleFlags = styleFlags;
         }
     }
@@ -299,10 +300,10 @@ void CSimpleFont::LoadXML(XMLNode* node, CStatus* status) {
     const char* indented = node->GetAttributeByName("indented");
 
     if (indented && *indented) {
-        uint32_t styleFlags = StringToBOOL(indented) ? this->m_attributes.m_styleFlags | 0x20000 : this->m_attributes.m_styleFlags & ~0x20000u;
+        uint32_t styleFlags = StringToBOOL(indented) ? this->m_attributes.m_styleFlags | TEXTBLOCK_INDENTED : this->m_attributes.m_styleFlags & ~TEXTBLOCK_INDENTED;
 
-        if (styleFlags != this->m_attributes.m_styleFlags || !(this->m_attributes.m_flags & 0x200)) {
-            this->m_attributes.m_flags |= 0x202;
+        if (styleFlags != this->m_attributes.m_styleFlags || !(this->m_attributes.m_flags & FLAG_STYLE_PRESENT)) {
+            this->m_attributes.m_flags |= FLAG_STYLE_PRESENT | FLAG_STYLE_UPDATE;
             this->m_attributes.m_styleFlags = styleFlags;
         }
     }
@@ -312,12 +313,12 @@ void CSimpleFont::LoadXML(XMLNode* node, CStatus* status) {
             CImVector color;
             LoadXML_Color(child, color, status);
 
-            if (*reinterpret_cast<uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&this->m_attributes.m_color) || !(this->m_attributes.m_flags & 0x400)) {
+            if (*reinterpret_cast<uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&this->m_attributes.m_color) || !(this->m_attributes.m_flags & FLAG_COLOR_PRESENT)) {
                 this->m_attributes.m_color = color;
-                this->m_attributes.m_flags |= 0x404;
+                this->m_attributes.m_flags |= FLAG_COLOR_PRESENT | FLAG_COLOR_UPDATE;
             }
 
-            this->m_fontableFlags &= ~0x4u;
+            this->m_fontableFlags &= ~FLAG_COLOR_UPDATE;
         } else if (!SStrCmpI(child->m_name.m_str, "Shadow", STORM_MAX_STR)) {
             CImVector color;
             color.a = 0xFF;
@@ -337,13 +338,13 @@ void CSimpleFont::LoadXML(XMLNode* node, CStatus* status) {
                 LoadXML_Dimensions(offsetNode, offset.x, offset.y, status);
             }
 
-            if (*reinterpret_cast<uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&this->m_attributes.m_shadowColor) || offset.x != this->m_attributes.m_shadowOffset.x || offset.y != this->m_attributes.m_shadowOffset.y || !(this->m_attributes.m_flags & 0x800)) {
+            if (*reinterpret_cast<uint32_t*>(&color) != *reinterpret_cast<uint32_t*>(&this->m_attributes.m_shadowColor) || offset.x != this->m_attributes.m_shadowOffset.x || offset.y != this->m_attributes.m_shadowOffset.y || !(this->m_attributes.m_flags & FLAG_SHADOW_PRESENT)) {
                 this->m_attributes.m_shadowColor = color;
-                this->m_attributes.m_flags |= 0x808;
+                this->m_attributes.m_flags |= FLAG_SHADOW_PRESENT | FLAG_SHADOW_UPDATE;
                 this->m_attributes.m_shadowOffset = offset;
             }
 
-            this->m_fontableFlags &= ~0x8u;
+            this->m_fontableFlags &= ~FLAG_SHADOW_UPDATE;
         }
     }
 

@@ -17,11 +17,14 @@
 #include "WoW/Source/DB/Rec/LiquidTypeRec.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "Engine/Source/Tempest/Color.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 static const float PTSIZE = 0.19921875f;
+static constexpr uint32_t PARTICLE_TEX_SLOTS_CNT = 5;
 
 // STATIC: 0x00A3F970
-static const int32_t s_texSlots[5][8] = {
+static const int32_t s_texSlots[PARTICLE_TEX_SLOTS_CNT][8] = {
     { 0, 1, 2, 3, 4, 5, 6, 7 },
     { 8, 9, 10, 11, 8, 9, 10, 11 },
     { 12, 12, 12, 12, 12, 12, 12, 12 },
@@ -160,11 +163,11 @@ C3Vector Particulate::ComputeMovement(float elapsed) {
         return C3Vector(0.0f, 0.0f, 0.0f);
     }
 
-    if (liquidType->m_particleMovement == 1) {
+    if (liquidType->m_particleMovement == LIQUID_PARTICLE_MOVEMENT_SINK) {
         return C3Vector(0.0f, 0.0f, s_sinkSpeed * elapsed);
     }
 
-    if (liquidType->m_particleMovement == 2) {
+    if (liquidType->m_particleMovement == LIQUID_PARTICLE_MOVEMENT_RISE) {
         return C3Vector(0.0f, 0.0f, s_riseSpeed * elapsed);
     }
 
@@ -285,7 +288,7 @@ void Particulate::Render() {
                     vertices->p.x = s_corners[j].x * particle.m_size + viewX;
                     vertices->p.y = s_corners[j].y * particle.m_size + viewY;
                     vertices->p.z = depth;
-                    vertices->c = CImVector(0xFF, 0xFF, 0xFF, 0xFF);
+                    vertices->c = CImVector(COLOR_WHITE_BGRA);
                     vertices->tc = s_texCoords[texSlot][j];
                     vertices++;
                 }
@@ -319,7 +322,7 @@ void Particulate::Render() {
     g_theGxDevicePtr->RsPush();
     GxRsSet(GxRs_Fog, (liquidType->m_flags >> 4) & 1);
     GxRsSet(GxRs_Texture0, texture);
-    GxRsSet(GxRs_BlendingMode, 2);
+    GxRsSet(GxRs_BlendingMode, GxBlend_Alpha);
     GxRsSet(GxRs_AlphaRef, static_cast<int32_t>(CGxDevice::s_alphaRef[g_theGxDevicePtr->m_appRenderStates.m_data[GxRs_BlendingMode].m_value.m_data.i[0]]));
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Lighting, 0);

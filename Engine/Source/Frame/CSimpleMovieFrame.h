@@ -8,10 +8,21 @@
 #include "Engine/Source/FrameScript/FrameScript_Object.h"
 #include "Engine/Source/SoundEngine/SoundEngine.h"
 #include "Engine/Source/Storm/H/stpl.h"
+#include "Engine/Source/Tempest/C2iVector.h"
 
 class CGxTex;
 class CRenderBatch;
 struct lua_State;
+
+enum MOVIE_LAYOUT : uint32_t {
+    MOVIE_LAYOUT_800 = 0,
+    MOVIE_LAYOUT_1024 = 1,
+    MOVIE_LAYOUT_800X448 = 2,
+    MOVIE_LAYOUT_1024X576 = 3,
+    MOVIE_LAYOUT_800X342 = 4,
+    MOVIE_LAYOUT_1024X436 = 5,
+    NUM_MOVIE_LAYOUTS = 6,
+};
 
 struct MOVIEKEYFRAME {
     int32_t m_frame;

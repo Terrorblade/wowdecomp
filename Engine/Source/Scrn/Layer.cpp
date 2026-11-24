@@ -128,7 +128,7 @@ static int32_t OnPaint(const void* data, void* param) {
             layer->m_visible.right = layer->m_rect.right <= layer->m_visible.right ? layer->m_rect.right : layer->m_visible.right;
             layer->m_visible.top = layer->m_rect.top <= layer->m_visible.top ? layer->m_rect.top : layer->m_visible.top;
 
-            if (!(layer->m_flags & 1)) {
+            if (!(layer->m_flags & SCRN_LAYER_TRANSPARENT)) {
                 SRgnCombineRectf(rgn, &layer->m_rect, nullptr, 4);
             }
         }
@@ -149,13 +149,13 @@ static int32_t OnPaint(const void* data, void* param) {
             next = s_zorderlist.RawNext(layer);
 
             if (layer->m_visible.left < layer->m_visible.right && layer->m_visible.bottom < layer->m_visible.top) {
-                if (layer->m_flags & 4) {
+                if (layer->m_flags & SCRN_LAYER_FULLSCREEN_VIEWPORT) {
                     GxXformSetViewport(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f);
                 } else {
                     GxXformSetViewport(layer->m_visible.left, layer->m_visible.right, layer->m_visible.bottom, layer->m_visible.top, 0.0f, 1.0f);
                 }
 
-                if (layer->m_flags & 2) {
+                if (layer->m_flags & SCRN_LAYER_ORTHO) {
                     C44Matrix view;
                     C44Matrix proj;
                     GxuXformCreateOrtho(layer->m_visible.left, layer->m_visible.right, layer->m_visible.bottom, layer->m_visible.top, 0.0f, 500.0f, proj);
@@ -244,7 +244,7 @@ void ScrnLayerCreate(const RECTF* rect, float zorder, uint32_t flags, void* para
     for (existing = s_zorderlist.Tail(); existing && zorder < existing->m_zorder; existing = s_zorderlist.Prev(existing)) {
     }
 
-    s_zorderlist.LinkNode(ilayer, 1, existing);
+    s_zorderlist.LinkNode(ilayer, TSLIST_LINK_AFTER, existing);
 
     *layer = reinterpret_cast<HLAYER>(HandleCreate(ilayer, "HLAYER"));
 }

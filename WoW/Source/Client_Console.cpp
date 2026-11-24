@@ -18,6 +18,7 @@
 #include "WoW/Source/Ui/WorldFrame.h"
 #include "WoW/Source/WorldClient/World.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // VERIFY: 803d6cc2 auto
 // OFFSET: 0x00401B00

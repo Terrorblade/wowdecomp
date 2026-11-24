@@ -51,7 +51,7 @@ int32_t Script_GetWorldStateUIInfo(lua_State* L) {
     lua_pushstring(L, rec->m_dynamicTooltip);
     lua_pushstring(L, rec->m_extendedUi);
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < NUM_WORLD_STATE_UI_EXTENDED_VARIABLES; i++) {
         WORLDSTATE* worldState = CGWorldStateInfo::m_worldStates.Ptr(rec->m_extendedUistateVariable[i], HASHKEY_NONE());
         lua_pushnumber(L, worldState ? worldState->m_value : 0);
     }

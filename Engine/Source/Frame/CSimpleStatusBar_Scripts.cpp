@@ -85,8 +85,8 @@ static int32_t Script_SetMinMaxValues(lua_State* L) {
         return 0;
     }
 
-    float minValue = lua_tonumber(L, 2);
-    float maxValue = lua_tonumber(L, 3);
+    float minValue = static_cast<float>(lua_tonumber(L, 2));
+    float maxValue = static_cast<float>(lua_tonumber(L, 3));
 
     if (minValue < -1.0e12 || minValue > 1.0e12 || maxValue < -1.0e12 || maxValue > 1.0e12) {
         luaL_error(L, "Min or Max out of range");
@@ -117,7 +117,7 @@ static int32_t Script_SetValue(lua_State* L) {
     CSimpleStatusBar* statusBar = static_cast<CSimpleStatusBar*>(FrameScript_GetObjectThis(L, CSimpleStatusBar::GetObjectType()));
 
     if (lua_isnumber(L, 2)) {
-        statusBar->SetValue(lua_tonumber(L, 2));
+        statusBar->SetValue(static_cast<float>(lua_tonumber(L, 2)));
         return 0;
     }
 

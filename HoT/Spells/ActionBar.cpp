@@ -2,14 +2,13 @@
 #include "HoT/Lua/Script.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/DB/Rec/SummonPropertiesRec.h"
 #include "WoW/Source/Ui/ActionBarFrame.h"
 #include "WoW/Source/Ui/GameUI.h"
 
 namespace HoT::Spells {
 
-static const int32_t SPELL_EFFECT_SUMMON = 28;
-static const int32_t SUMMON_TYPE_TOTEM = 4;
 static const int32_t SUMMON_SLOT_TOTEM_FIRE = 1;
 static const uint32_t FIRST_MULTICAST_SLOT = 0x84;
 static const uint32_t NUM_MULTICAST_SLOTS = 12;

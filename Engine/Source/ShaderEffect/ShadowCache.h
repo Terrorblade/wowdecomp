@@ -9,6 +9,7 @@
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Tempest/CFrustum.h"
+#include "Engine/Source/Tempest/CRect.h"
 
 class CGxTex;
 class CTexture;
@@ -33,6 +34,16 @@ struct CShadowBand {
 };
 
 struct CShadowCacheQueryData {
+
+    enum QUERY_FLAGS : int32_t {
+        QUERY_NONE = 0x0,
+        QUERY_UNITS = 0x1,
+        QUERY_INTERIOR = 0x2,
+        QUERY_BILLBOARDED = 0x4,
+        QUERY_STATIC = 0x8,
+        QUERY_WORLD_MASK = QUERY_BILLBOARDED | QUERY_STATIC,
+    };
+
     /* 0000 */ int32_t m_queryFlags[3];
     /* 000C */ int32_t m_active[3];
     /* 0018 */ int32_t m_useCullFrustum[3];

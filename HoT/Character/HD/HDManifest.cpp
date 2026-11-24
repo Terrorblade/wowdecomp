@@ -4,10 +4,9 @@
 #include "HoT/Core/Log.h"
 #include "HoT/DB/Custom.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#include "WoW/Common/Types.h"
 
 namespace HoT::HD::Manifest {
-
-static const uint32_t CLASS_DEATH_KNIGHT = 6;
 
 static std::map<int32_t, std::unique_ptr<Data>> s_manifests;
 

@@ -1235,7 +1235,7 @@ void CHuffman::BuildTree(uint8_t hint) {
     HUFFNODE* node;
 
     while ((node = this->m_nodelist.Head()) != nullptr) {
-        this->m_nodefreelist.LinkNode(node, 1, nullptr);
+        this->m_nodefreelist.LinkNode(node, TSLIST_LINK_AFTER, nullptr);
     }
 
     memset(this->m_symbol, 0, sizeof(this->m_symbol));
@@ -1263,7 +1263,7 @@ void CHuffman::BuildTree(uint8_t hint) {
                 }
             }
 
-            this->m_nodelist.LinkNode(newnode, 2, insert);
+            this->m_nodelist.LinkNode(newnode, TSLIST_LINK_BEFORE, insert);
         } else {
             maxweight = newnode->weight;
         }
@@ -1300,7 +1300,7 @@ void CHuffman::BuildTree(uint8_t hint) {
                 }
             }
 
-            this->m_nodelist.LinkNode(parent, 2, insert);
+            this->m_nodelist.LinkNode(parent, TSLIST_LINK_BEFORE, insert);
         } else {
             maxweight = parent->weight;
         }
@@ -1332,8 +1332,8 @@ void CHuffman::IncrementWeight(HUFFNODE* node) {
             continue;
         }
 
-        this->m_nodelist.LinkNode(last, 2, curr);
-        this->m_nodelist.LinkNode(curr, 2, next);
+        this->m_nodelist.LinkNode(last, TSLIST_LINK_BEFORE, curr);
+        this->m_nodelist.LinkNode(curr, TSLIST_LINK_BEFORE, next);
 
         HUFFNODE* lastchild = last->parent->child;
 

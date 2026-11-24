@@ -42,5 +42,5 @@ bool ViolenceLevelChanged(CVar* var, const char* oldValue, const char* value, vo
 void ViolenceLevelsRegisterCVars() {
     char value[12];
     SStrPrintf(value, sizeof(value), "%d", s_maxViolenceLevel[s_locale]);
-    CVar::Register("violenceLevel", "Sets the violence level of the game", 0x10, value, ViolenceLevelChanged, CATEGORY_GAME, false, nullptr, false);
+    CVar::Register("violenceLevel", "Sets the violence level of the game", CVAR_SCOPE_ACCOUNT, value, ViolenceLevelChanged, CATEGORY_GAME, false, nullptr, false);
 }

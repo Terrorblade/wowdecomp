@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "Engine/Source/Services/SysMessage.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/Tempest/CMath.h"
 
 // STATIC: 0x00AC3208
 static const SYSMSGSEVERITY s_severities[SYSMSG_NUMTYPES] = { { 0xFF, 0xFF, 0xFF, 0, 10.0f }, { 0xFF, 0xFF, 0x7F, 0, 15.0f }, { 0xFF, 0x7F, 0x7F, 0, 15.0f }, { 0x7F, 0xFF, 0xFF, 0, 20.0f } };
@@ -80,7 +81,7 @@ int32_t SysMsgPrintf(SYSMSG_TYPE severity, uint32_t flags, const char* format, .
 int32_t SysMsgPrintf(SYSMSG_TYPE severity, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int32_t result = SysMsgVPrintf(severity, 1, format, args);
+    int32_t result = SysMsgVPrintf(severity, SYSMSG_FILTER_GENERAL, format, args);
     va_end(args);
 
     return result;

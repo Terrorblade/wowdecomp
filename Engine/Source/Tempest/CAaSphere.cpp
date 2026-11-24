@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdint>
 #include "Engine/Source/Tempest/CAaSphere.h"
+#include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 0e73d0a5 manual
 // OFFSET: 0x006FC1E0

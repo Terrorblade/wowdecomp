@@ -6,6 +6,12 @@
 
 class CLCDGfxBase;
 
+enum LCD_OBJECT_TYPE : int32_t {
+    LCD_OBJECT_TYPE_UNKNOWN_0 = 0,
+    LCD_OBJECT_TYPE_TEXT = 1,
+    LCD_OBJECT_TYPE_DEFAULT = 4
+};
+
 class CLCDBase {
     public:
     /* 0004 */ SIZE m_Size;

@@ -168,7 +168,7 @@ static int32_t Script_NewGMTicket(lua_State* L) {
         return 0;
     }
 
-    if (CGGameUI::CanPerformAction(17)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_GM_TICKET)) {
         const char* text = lua_tolstring(L, 1, nullptr);
         CGGMTicketInfo::CreateTicket(text, lua_toboolean(L, 2), 0);
     }
@@ -184,7 +184,7 @@ static int32_t Script_UpdateGMTicket(lua_State* L) {
         return 0;
     }
 
-    if (CGGameUI::CanPerformAction(17)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_GM_TICKET)) {
         SendGMTicketUpdateText(lua_tolstring(L, 1, nullptr));
     }
 
@@ -206,7 +206,7 @@ static int32_t Script_GMResponseNeedMoreHelp(lua_State* L) {
         return 0;
     }
 
-    if (CGGameUI::CanPerformAction(17)) {
+    if (CGGameUI::CanPerformAction(UI_ACTION_GM_TICKET)) {
         CGGMTicketInfo::CreateTicket(lua_tolstring(L, 1, nullptr), 1, 1);
     }
 

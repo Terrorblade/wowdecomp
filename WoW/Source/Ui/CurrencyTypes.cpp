@@ -37,7 +37,7 @@ int32_t CGCurrencyTypes::CurrencyCategorySortCallback(const void* a, const void*
         return 0;
     }
 
-    int32_t result = (categoryA->m_flags & 1) - (categoryB->m_flags & 1);
+    int32_t result = (categoryA->m_flags & CURRENCY_CATEGORY_FLAG_UNKNOWN_1) - (categoryB->m_flags & CURRENCY_CATEGORY_FLAG_UNKNOWN_1);
 
     if (!result) {
         return SStrSortUTF8I(categoryA->m_name, categoryB->m_name, 0x7FFFFFFF);

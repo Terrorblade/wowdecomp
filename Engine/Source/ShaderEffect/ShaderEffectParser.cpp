@@ -69,14 +69,14 @@ int32_t CShaderEffectParser::ExtractFuncKeyword(const char* text, const char* ke
 
     if (text[length + 1] == ')') {
         argCount = 0;
-        pos += length + 2;
+        pos += static_cast<uint32_t>(length + 2);
         return 1;
     }
 
     argCount = 1;
     memset(args[0], 0, sizeof(args[0]));
 
-    uint32_t i = length + 1;
+    uint32_t i = static_cast<uint32_t>(length + 1);
     uint32_t j = 0;
     char c = text[i];
 

@@ -14,6 +14,12 @@
 #include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
 #include "Engine/Source/BlizzardCore/Source/System/URL/URL.h"
 
+enum FILE_THREAD_CMD_TYPE : int32_t {
+    FILE_THREAD_CMD_NONE = 0,
+    FILE_THREAD_CMD_LOAD = 1,
+    FILE_THREAD_CMD_COMPLETION = 2,
+};
+
 namespace Blizzard {
 namespace Streaming {
 
@@ -204,6 +210,14 @@ extern void* s_storageEvent;
 
 }
 }
+
+enum STREAMING_GAME_STATE : int32_t {
+    STREAMING_GAME_STATE_NONE = 0,
+    STREAMING_GAME_STATE_CHARACTER_SELECT = 1,
+    STREAMING_GAME_STATE_ENTERING_WORLD = 2,
+    STREAMING_GAME_STATE_IN_WORLD = 3,
+    STREAMING_GAME_STATE_SHUTDOWN = 4,
+};
 
 bool CheckIfStreamingAndTrial();
 void StringToLower(char* str);

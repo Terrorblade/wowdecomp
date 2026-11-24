@@ -14,9 +14,26 @@ namespace Blizzard { namespace File { struct StreamRecord; }}
 namespace Blizzard { namespace File { struct StreamingInfo; }}
 namespace System_File { namespace Stacked { struct FileParms; }}
 
+enum ATTRIBUTE : int32_t {
+    ATTRIBUTE_READONLY = 0x1,
+    ATTRIBUTE_HIDDEN = 0x2,
+    ATTRIBUTE_SYSTEM = 0x4,
+    ATTRIBUTE_ARCHIVE = 0x8,
+    ATTRIBUTE_TEMPORARY = 0x10,
+    ATTRIBUTE_NORMAL = 0x20,
+    ATTRIBUTE_DIRECTORY = 0x40,
+};
+
+enum EXISTENCE : int32_t {
+    EXISTENCE_NONE = 0,
+    EXISTENCE_FILE = 1,
+    EXISTENCE_DIRECTORY = 2,
+};
+
 namespace Blizzard {
 namespace File {
 typedef int32_t INODE;
+
 }
 }
 
@@ -143,7 +160,6 @@ struct ProcessDirParms {
 };
 }
 }
-
 
 namespace Blizzard {
 namespace File {

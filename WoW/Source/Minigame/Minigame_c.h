@@ -12,6 +12,11 @@ enum MINIGAME_TYPE {
     MINIGAME_TICTACTOE = 1,
 };
 
+enum MINIGAME_STATE : uint32_t {
+    MINIGAME_STATE_NONE = 0,
+    MINIGAME_STATE_UNKNOWN_2 = 2,
+};
+
 struct MiniGameData {
     /* 0000 */ uint32_t m_type;
     /* 0004 */ uint8_t m_state;

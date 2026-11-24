@@ -21,6 +21,8 @@
 #include "Engine/Source/Model2/M2Scene.h"
 #include "WoW/Source/WorldClient/DayNight.h"
 #include "Engine/Source/Tempest/C3Segment.h"
+#include "Engine/Source/Storm/H/storm.h"
+#include "WoW/Source/Object/ObjectClient/Types.h"
 
 // VERIFY: 4012bf37 manual
 // OFFSET: 0x007B4FA0
@@ -60,7 +62,7 @@ void CMapDoodadDef::UpdateBounds() {
 
         CM2Model* model = this->m_model;
 
-        if (!(model->m_shared->m_flags & 0x1)) {
+        if (!(model->m_shared->m_flags & CM2Shared::FLAG_MODEL_LOADED)) {
             model->WaitForLoad(nullptr);
         }
 
@@ -105,15 +107,15 @@ void CMapDoodadDef::UpdateBounds() {
 
     this->m_fadeLevel = fadeLevel;
 
-    if (!(CWorld::enables & Enable_NoAnimation) && fadeLevel < 3) {
-        this->m_model->m_fFlags &= ~0x40u;
+    if (!(CWorld::enables & Enable_ObjectFadeZFill) && fadeLevel < 3) {
+        this->m_model->m_fFlags &= ~M2_DEPTH_SORT_ALLOWED;
     }
 }
 
 // VERIFY: f560b093 manual
 // OFFSET: 0x007C1150
 void CMapDoodadDef::SelectLights(CM2Lighting* lighting) {
-    if (this->m_flags & 0x2) {
+    if (this->m_flags & MAPOBJ_FLAG_INTERIOR) {
         lighting->AddAmbient(C3Vector(this->m_m2AmbientColor));
         lighting->AddDiffuse(C3Vector(this->m_m2DiffuseColor), CMapStaticEntity::s_interiorSunDir);
     } else {
@@ -127,16 +129,16 @@ void CMapDoodadDef::SelectLights(CM2Lighting* lighting) {
 
     DayNight::DNInfo* dayNight = DayNight::GetInfo();
 
-    if (this->m_flags & 0x8000) {
+    if (this->m_flags & MAPOBJ_FLAG_INT_FOG) {
         lighting->SetFog(C3Vector(dayNight->m_fogInterior.m_color), dayNight->m_fogInterior.m_start, dayNight->m_fogInterior.m_end, dayNight->m_fogInterior.m_density);
     } else {
         lighting->SetFog(C3Vector(dayNight->m_fog.m_color), dayNight->m_fog.m_start, dayNight->m_fog.m_end, dayNight->m_fog.m_density);
     }
 
-    if (this->m_flags & 0x2) {
-        lighting->m_flags |= 0x8;
+    if (this->m_flags & MAPOBJ_FLAG_INTERIOR) {
+        lighting->m_flags |= CM2Lighting::INTERIOR;
     } else {
-        lighting->m_flags &= ~0x8;
+        lighting->m_flags &= ~CM2Lighting::INTERIOR;
     }
 }
 
@@ -152,25 +154,25 @@ CMapDoodadDef::CMapDoodadDef() {
 // VERIFY: cf40d12f manual
 // OFFSET: 0x007C23F0
 void CMapDoodadDef::SelectUnderwater(CM2Lighting* lighting) {
-    if (!(this->m_staticFlags & 0x80)) {
-        this->m_staticFlags = (this->m_staticFlags & ~0xE0u) | 0x80;
+    if (!(this->m_staticFlags & MAP_STATIC_FLAG_LIQUID_QUERY_CACHED)) {
+        this->m_staticFlags = (this->m_staticFlags & ~MAP_STATIC_FLAG_LIQUID_CACHE_MASK) | MAP_STATIC_FLAG_LIQUID_QUERY_CACHED;
 
         for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
             CMapBaseObj* parent = link->m_ref;
 
             if (!(parent->m_type & CMapBaseObj::Type_MapObjDefGroup)) {
-                this->m_staticFlags |= 0x80;
+                this->m_staticFlags |= MAP_STATIC_FLAG_LIQUID_QUERY_CACHED;
                 C3Vector pos(this->m_position.x, this->m_position.y, this->m_bbox.b.z);
                 int32_t liquidType;
 
                 if (CMap::QueryLiquidTerrain(&pos, &liquidType, &this->m_liquidHeight, 0)) {
                     this->m_diffuseLightScale = 1.0f;
-                    this->m_staticFlags = (this->m_staticFlags & ~0x28u) | 0x20;
+                    this->m_staticFlags = (this->m_staticFlags & ~(MAP_STATIC_FLAG_SHADOWED | MAP_STATIC_FLAG_IN_LIQUID)) | MAP_STATIC_FLAG_IN_LIQUID;
 
                     if (this->m_liquidHeight <= this->m_bbox.t.z) {
-                        this->m_staticFlags |= 0x40;
+                        this->m_staticFlags |= MAP_STATIC_FLAG_LIQUID_SURFACE_CLIP;
                     } else {
-                        this->m_staticFlags &= ~0x40u;
+                        this->m_staticFlags &= ~MAP_STATIC_FLAG_LIQUID_SURFACE_CLIP;
                     }
                 }
 
@@ -182,7 +184,7 @@ void CMapDoodadDef::SelectUnderwater(CM2Lighting* lighting) {
             CMapObjGroup* group = mapObjDef->m_owner->GetGroup(defGroup->m_groupNum, 0);
 
             if (!group) {
-                this->m_staticFlags &= ~0x80u;
+                this->m_staticFlags &= ~MAP_STATIC_FLAG_LIQUID_QUERY_CACHED;
                 continue;
             }
 
@@ -191,17 +193,17 @@ void CMapDoodadDef::SelectUnderwater(CM2Lighting* lighting) {
             float level;
 
             if (group->QueryLiquid(localPos, &liquidType, &level)) {
-                this->m_staticFlags |= 0x20;
+                this->m_staticFlags |= MAP_STATIC_FLAG_IN_LIQUID;
                 C3Vector surface = C3Vector(localPos.x, localPos.y, level) * mapObjDef->m_mat;
                 this->m_liquidHeight = surface.z;
 
                 if (this->m_liquidHeight <= this->m_bbox.t.z) {
-                    this->m_staticFlags |= 0x40;
+                    this->m_staticFlags |= MAP_STATIC_FLAG_LIQUID_SURFACE_CLIP;
                 } else {
-                    this->m_staticFlags &= ~0x40u;
+                    this->m_staticFlags &= ~MAP_STATIC_FLAG_LIQUID_SURFACE_CLIP;
                 }
 
-                this->m_staticFlags |= 0x80;
+                this->m_staticFlags |= MAP_STATIC_FLAG_LIQUID_QUERY_CACHED;
                 break;
             }
         }
@@ -233,7 +235,7 @@ void CMapDoodadDef::Purge(CMapDoodadDef* doodadDef) {
 // VERIFY: 9bd1ba20 manual
 // OFFSET: 0x007BDA70
 void CMapDoodadDef::CreateModel(const char* fileName, CMapDoodadDef* doodadDef, int32_t waitForLoad, int32_t a4) {
-    CM2Model* model = World::s_m2Scene->CreateModel(fileName, a4 ? 0x20 : 0);
+    CM2Model* model = World::s_m2Scene->CreateModel(fileName, a4 ? CM2Model::INSTANCE_INITIALIZE_ON_DEMAND : 0);
     doodadDef->m_model = model;
 
     if (!model) {
@@ -245,7 +247,7 @@ void CMapDoodadDef::CreateModel(const char* fileName, CMapDoodadDef* doodadDef, 
     doodadDef->m_model->SetEventCallback(reinterpret_cast<void*>(CMapStaticEntity::ModelEventCallback), reinterpret_cast<uintptr_t>(doodadDef));
     doodadDef->m_model->m_lightingCallback = CMapStaticEntity::ModelLightingCallback;
     doodadDef->m_model->m_lightingArg = doodadDef;
-    doodadDef->m_model->SetBoneSequence(0xFFFFFFFF, 0, 0xFFFFFFFF, 0, 1.0f, 1, 1);
+    doodadDef->m_model->SetBoneSequence(0xFFFFFFFF, ANIM_STAND, 0xFFFFFFFF, 0, 1.0f, 1, 1);
 
     if (waitForLoad) {
         doodadDef->m_model->IsLoaded(1, 0);
@@ -279,7 +281,7 @@ void CMapDoodadDef::UpdateMatrixOnly(const C44Matrix& matrix) {
         box = this->m_model->GetBoundingBox();
         CM2Model* model = this->m_model;
 
-        if (!(model->m_shared->m_flags & 0x1)) {
+        if (!(model->m_shared->m_flags & CM2Shared::FLAG_MODEL_LOADED)) {
             model->WaitForLoad(nullptr);
         }
 
@@ -330,7 +332,7 @@ bool CMapDoodadDef::QueryInteriorLighting(CMapObjDef* mapObjDef, int32_t groupNu
     this->AdjustLightmap(&color, &this->m_m2DiffuseColor, limit, &this->m_m2AmbientColor, MAX_AMBIENT);
 
     if (!flag) {
-        this->m_staticFlags &= ~0x1000;
+        this->m_staticFlags &= ~MAP_STATIC_FLAG_BLEND_OUTDOOR_LIGHT;
         return result;
     }
 
@@ -342,7 +344,7 @@ bool CMapDoodadDef::QueryInteriorLighting(CMapObjDef* mapObjDef, int32_t groupNu
         this->m_m2AmbientColor.InterpColor(alpha, &info->m_light1.m_ambient);
     }
 
-    this->m_staticFlags |= 0x1000;
+    this->m_staticFlags |= MAP_STATIC_FLAG_BLEND_OUTDOOR_LIGHT;
     this->m_m2DiffuseColor.a = color.a;
     return result;
 }

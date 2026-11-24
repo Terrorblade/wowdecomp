@@ -3,6 +3,7 @@
 #include "HoT/Profiler/Profiler.h"
 #include "Controller/Controller.h"
 #include "HoT/Editor/Mode.h"
+#include "HoT/Features/Features.h"
 #include "HoT/Game/Session.h"
 #include "HoT/Runtime/SharedXML.h"
 #include "HoT/Streaming/PatchStatusUI.h"
@@ -7449,6 +7450,10 @@ void CGGameUI::ShutdownGame() {
 // VERIFY: d2a102de manual
 // OFFSET: 0x00528AF0
 void CGGameUI::StartCinematic(int32_t cinematic) {
+    if (HoT::CinematicSkip::SkipCinematic(cinematic)) {
+        return;
+    }
+
     if (CGGameUI::m_inCinematic) {
         SI2::StopSound(&CGGameUI::m_cinematic.m_cameraMusic, 1, -1.0f, 1);
         SI2::StopSound(&CGGameUI::m_cinematic.m_music, 1, -1.0f, 1);
@@ -8238,6 +8243,10 @@ void CGGameUI::DisplayPvPQueueRemovedError(int32_t reason) {
 // VERIFY: 2f21eef3 auto
 // OFFSET: 0x005235B0
 void CGGameUI::StartMovie(uint32_t movieId) {
+    if (HoT::CinematicSkip::SkipMovie(movieId)) {
+        return;
+    }
+
     MovieRec* movie = g_movieDB.GetRecord(movieId);
 
     if (!movie) {

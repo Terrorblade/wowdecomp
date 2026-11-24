@@ -50,6 +50,7 @@ std::vector<Module*>& Modules() {
         Profiler::GetModule(),
         Feature::GetModule(),
         AuraValues::GetModule(),
+        CinematicSkip::GetModule(),
         CooldownRate::GetModule(),
         Crafting::GetModule(),
         GameTele::GetModule(),

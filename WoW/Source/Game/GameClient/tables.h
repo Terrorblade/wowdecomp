@@ -2,6 +2,7 @@
 #define WOW_SOURCE_GAME_GAMECLIENT_TABLES_H
 
 #include <cstdint>
+#include "WoW/Source/DB/Rec/GameTablesRec.h"
 #include "WoW/Source/DB/WowClientDB.h"
 
 enum GAME_TABLE : int32_t {
@@ -19,8 +20,6 @@ enum GAME_TABLE : int32_t {
     GAME_TABLE_OCT_CLASS_COMBAT_RATING_SCALAR = 11,
     NUM_GAME_TABLES = 12,
 };
-
-class GameTablesRec;
 
 class ClientGameTableBase {
     public:

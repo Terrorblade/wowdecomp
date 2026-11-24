@@ -26,6 +26,16 @@ Module* GetModule();
 
 }
 
+namespace HoT::CinematicSkip {
+
+// Returns true when the cinematic was already watched and skipping is on, the server is told it completed.
+bool SkipCinematic(int32_t cinematicId);
+bool SkipMovie(uint32_t movieId);
+
+Module* GetModule();
+
+}
+
 namespace HoT::CooldownRate {
 
 // Resets the rate, called after Spell_C_ClearCooldowns.

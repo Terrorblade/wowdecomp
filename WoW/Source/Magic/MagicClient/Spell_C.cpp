@@ -3658,7 +3658,7 @@ const int32_t* SpellRec::GetClassMask(const SpellRec* spell, int32_t effect) {
 // VERIFY: 9c2128c3 auto
 // OFFSET: 0x007FDEC0
 bool SpellRec::IsAffectedBy(const SpellRec* spell, const SpellRec* modifier, int32_t effect) {
-    if (!spell || !modifier || spell->m_spellClassSet != modifier->m_spellClassSet) {
+    if (!spell || !modifier) {
         return false;
     }
 
@@ -3668,9 +3668,29 @@ bool SpellRec::IsAffectedBy(const SpellRec* spell, const SpellRec* modifier, int
         return false;
     }
 
-    for (uint32_t i = 0; i < 3; i++) {
-        if (mask[i] & spell->m_spellClassMask[i]) {
-            return true;
+    if (spell->m_spellClassSet == modifier->m_spellClassSet) {
+        for (uint32_t i = 0; i < 3; i++) {
+            if (mask[i] & spell->m_spellClassMask[i]) {
+                return true;
+            }
+        }
+    }
+
+    const HoT::DB::SpellClassMaskExtensionRec* ext = modifier->m_spellClassSet ? HoT::DB::g_spellClassMaskExtensionDB.GetRecord(spell->m_id) : nullptr;
+
+    if (!ext) {
+        return false;
+    }
+
+    for (const HoT::DB::SpellClassMaskExtensionRec::Block& block : ext->m_blocks) {
+        if (block.m_spellClassSet != modifier->m_spellClassSet) {
+            continue;
+        }
+
+        for (uint32_t i = 0; i < 3; i++) {
+            if (mask[i] & block.m_spellClassMask[i]) {
+                return true;
+            }
         }
     }
 

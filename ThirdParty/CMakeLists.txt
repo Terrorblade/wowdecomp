@@ -107,7 +107,10 @@ set(MSDFGEN_DYNAMIC_RUNTIME ON CACHE BOOL "" FORCE)
 add_subdirectory(msdfgen EXCLUDE_FROM_ALL)
 
 # Controller: gamepad input comes from SDL3, built static with only the joystick side enabled.
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/SDL/CMakeLists.txt)
+# Linux leaves it out because the client links SDL2 and SDL3's same-named symbols would replace SDL2's.
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    message(STATUS "Gamepad support is disabled on Linux, the client uses SDL2.")
+elseif (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/SDL/CMakeLists.txt)
     set(SDL_SHARED OFF CACHE BOOL "" FORCE)
     set(SDL_STATIC ON CACHE BOOL "" FORCE)
     set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)

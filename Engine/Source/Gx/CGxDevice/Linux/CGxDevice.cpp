@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <unistd.h>
 #include <SDL.h>
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/CGxDeviceD3d/CGxDeviceD3d.h"
@@ -178,11 +179,21 @@ int32_t CGxDevice::DeviceAdapterID(uint16_t& vendorID, uint16_t& deviceID, uint3
     for (int32_t i = 0; i < 16; i++) {
         char path[128];
 
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d", i);
+
+        if (access(path, F_OK) != 0) {
+            continue;
+        }
+
+        LOG_INFO << "startup: reading " << path;
+
         snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/vendor", i);
         uint16_t vendor = ReadSysfsHex(path);
 
         snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/device", i);
         uint16_t id = ReadSysfsHex(path);
+
+        LOG_INFO << "startup: card" << i << " is " << std::hex << vendor << ":" << id << std::dec;
 
         if (!vendor || !id) {
             continue;
@@ -219,7 +230,17 @@ int32_t CGxDevice::DeviceAdapterInfer(uint16_t& deviceID) {
     int32_t result = 0;
     deviceID = 0;
 
-    if (InitVideo() && SDL_GetNumVideoDisplays() > 0) {
+    LOG_INFO << "startup: SDL video init for hardware inference";
+    bool video = InitVideo();
+    const char* driver = SDL_GetCurrentVideoDriver();
+
+    if (video) {
+        LOG_INFO << "startup: SDL video ready, driver " << (driver ? driver : "<none>") << ", " << SDL_GetNumVideoDisplays() << " display(s)";
+    } else {
+        LOG_ERROR << "startup: SDL video init failed: " << SDL_GetError();
+    }
+
+    if (video && SDL_GetNumVideoDisplays() > 0) {
         deviceID = 3;
         result = 1;
     }

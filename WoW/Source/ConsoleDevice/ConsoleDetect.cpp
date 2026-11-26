@@ -111,6 +111,7 @@ static void ShowFatalMessageBox(int32_t stringID, const char* message) {
     const char* caption = titleRec ? titleRec->m_message : "World of Warcraft";
     Startup_StringsRec* rec = g_startup_StringsDB.GetRecord(stringID);
 
+    LOG_ERROR << "startup: fatal: " << message;
     OsGuiMessageBox(OsGuiGetWindow(OSGUI_WINDOW_TYPE_FRONT), OSGUI_MESSAGE_STYLE_OK, rec ? rec->m_message : message, caption);
     exit(0);
 }
@@ -149,7 +150,8 @@ void ConsoleDetectSaveHardware(const Hardware& hardware, bool& changed) {
         Startup_StringsRec* rec = g_startup_StringsDB.GetRecord(MSG_HW_CHANGED);
         const char* message = rec ? rec->m_message : "Hardware changed.  Reload default settings?";
 
-        changed = OsGuiMessageBox(OsGuiGetWindow(OSGUI_WINDOW_TYPE_FRONT), OSGUI_MESSAGE_STYLE_YESNO, message, caption) == OSGUI_MESSAGE_RESULT_YESOK;
+        LOG_INFO << "startup: showing the hardware changed prompt";
+        changed =OsGuiMessageBox(OsGuiGetWindow(OSGUI_WINDOW_TYPE_FRONT), OSGUI_MESSAGE_STYLE_YESNO, message, caption) == OSGUI_MESSAGE_RESULT_YESOK;
     }
 
     SRegSaveValue("World of Warcraft\\Client", s_hwRegNames[0], 0, hardware.m_cpuIdx);
@@ -179,12 +181,18 @@ void ConsoleDetectDetectHardware(Hardware& hardware, bool& changed) {
         SetVideoIdx(hardware);
     }
 
+    LOG_INFO << "startup: display adapter " << std::hex << hardware.m_videoDevice.m_vendorID << ":" << hardware.m_videoDevice.m_deviceID << std::dec << ", videoID " << hardware.m_videoID;
+
     if (!hardware.m_videoID) {
         hardware.m_videoDevice.m_vendorID = 0xFFFF;
+
+        LOG_INFO << "startup: adapter not in VideoHardware.dbc, inferring the hardware class";
 
         if (GxAdapterInfer(hardware.m_videoDevice.m_deviceID)) {
             SetVideoIdx(hardware);
         }
+
+        LOG_INFO << "startup: inferred videoID " << hardware.m_videoID;
 
         if (!hardware.m_videoID) {
             ShowFatalMessageBox(MSG_GX_NO_DEVICE, "Failed to find a suitable display device.  Exiting program.");
@@ -196,7 +204,9 @@ void ConsoleDetectDetectHardware(Hardware& hardware, bool& changed) {
     hardware.m_videoHw = g_videoHardwareDB.GetRecord(hardware.m_videoID);
     hardware.m_soundHw = &s_soundHwSettings;
 
+    LOG_INFO << "startup: comparing against saved hardware";
     ConsoleDetectSaveHardware(hardware, changed);
+    LOG_INFO << "startup: saved hardware " << (changed ? "changed" : "unchanged");
 
     char line[1024];
     GxLog("ConsoleDetectDetectHardware():");

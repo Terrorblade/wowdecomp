@@ -127,7 +127,7 @@ static SDL_Window* CreateGameWindow(CGxFormat& format, CGxDeviceOpenGl* device) 
     if (!format.m_window) {
         flags |= SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN;
     } else if (format.m_maximize == 1) {
-        flags |= SDL_WINDOW_BORDERLESS;
+        flags |= SDL_WINDOW_BORDERLESS | SDL_WINDOW_FULLSCREEN_DESKTOP;
     } else if (format.m_maximize == 2) {
         flags |= SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN;
     } else {

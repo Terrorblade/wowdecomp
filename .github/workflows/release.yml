@@ -67,7 +67,7 @@ jobs:
 
       - name: Build
         run: |
-          cmake --build "$env:PERSIST_DIR\build" --config Release --target WowClient --parallel
+          cmake --build "$env:PERSIST_DIR\build" --config RelWithDebInfo --target WowClient --parallel
           if ($LASTEXITCODE -ne 0) { throw "cmake build failed with exit code $LASTEXITCODE" }
 
       - name: Prepare cross sysroots
@@ -90,7 +90,7 @@ jobs:
         run: |
           $fresh = @()
           if ('${{ github.event.inputs.fresh }}' -eq 'true') { $fresh = @('--fresh') }
-          python source\Tools\Cross\cross.py build linux --name HoTClient64 --config Release --build-dir "$env:PERSIST_DIR\build-linux" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
+          python source\Tools\Cross\cross.py build linux --name HoTClient64 --config RelWithDebInfo --build-dir "$env:PERSIST_DIR\build-linux" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
           if ($LASTEXITCODE -ne 0) { throw "linux build failed with exit code $LASTEXITCODE" }
 
       - name: Build macOS
@@ -98,7 +98,7 @@ jobs:
           $fresh = @()
           if ('${{ github.event.inputs.fresh }}' -eq 'true') { $fresh = @('--fresh') }
           foreach ($arch in "arm64", "x86_64") {
-            python source\Tools\Cross\cross.py build "macos-$arch" --name HoTClient64 --config Release --build-dir "$env:PERSIST_DIR\build-macos-$arch" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
+            python source\Tools\Cross\cross.py build "macos-$arch" --name HoTClient64 --config RelWithDebInfo --build-dir "$env:PERSIST_DIR\build-macos-$arch" @fresh -- -DWOWDECOMP_DISABLE_SIGNATURE_CHECKS=1
             if ($LASTEXITCODE -ne 0) { throw "macos-$arch build failed with exit code $LASTEXITCODE" }
           }
           python source\Tools\Cross\cross.py package macos --name HoTClient64 --no-build

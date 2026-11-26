@@ -3183,13 +3183,21 @@ void CGPlayer_C::PostInitActivePlayer() {
 
     ClientServices::Connection()->CharacterSetInGame(1);
 
+    bool cinematicStarted = false;
+
     if (s_pendingMovie) {
         CGGameUI::StartCinematic(s_pendingMovie);
         s_pendingMovie = 0;
-    } else if (this->GetTransportGUID()) {
-        LoadingScreenSetTransparent(true);
-    } else {
-        LoadingScreenDisable();
+        cinematicStarted = CGGameUI::m_inCinematic;
+    }
+
+    // FIX: a skipped login cinematic never drops the loading screen, so fall through to the normal exit.
+    if (!cinematicStarted) {
+        if (this->GetTransportGUID()) {
+            LoadingScreenSetTransparent(true);
+        } else {
+            LoadingScreenDisable();
+        }
     }
 
     Spell_C_SetPlayerClass(this->m_unit->m_unitFieldBytes0[1]);

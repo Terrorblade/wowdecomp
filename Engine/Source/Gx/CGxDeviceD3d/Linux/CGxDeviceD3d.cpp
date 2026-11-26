@@ -75,6 +75,7 @@ void CGxDeviceD3d::IUnloadD3dLib(HINSTANCE& d3dLib, LPDIRECT3D9& d3d) {
     if (d3dLib) {
         dlclose(d3dLib);
         d3dLib = nullptr;
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
 }
 
@@ -87,7 +88,7 @@ int32_t CGxDeviceD3d::ILoadD3dLib(HINSTANCE& d3dLib, LPDIRECT3D9& d3d) {
 
     LOG_INFO << "startup: SDL video init";
 
-    if (!InitVideo()) {
+    if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
         LOG_ERROR << "startup: SDL video init failed: " << SDL_GetError();
         CGxDevice::Log("CGxDeviceD3d::ILoadD3dLib(): unable to init SDL video: %s", SDL_GetError());
         return 0;
@@ -118,6 +119,8 @@ int32_t CGxDeviceD3d::ILoadD3dLib(HINSTANCE& d3dLib, LPDIRECT3D9& d3d) {
         const char* error = dlerror();
         LOG_WARN << "startup: unable to load libdxvk_d3d9.so: " << (error ? error : "unknown error");
         CGxDevice::Log("CGxDeviceD3d::ILoadD3dLib(): unable to load libdxvk_d3d9.so: %s", error);
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        return 0;
     }
 
     CGxDeviceD3d::IUnloadD3dLib(d3dLib, d3d);

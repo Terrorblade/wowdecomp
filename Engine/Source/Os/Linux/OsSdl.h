@@ -23,4 +23,9 @@ OsSdlWindowProc OsSdlGetWindowProc(SDL_Window* window);
 // Dispatches one event as described above; OsInputGet calls it for every event it pumps.
 intptr_t OsSdlDispatchEvent(const SDL_Event* event);
 
+// Registers the client with the desktop, which has no other way to find its icon (ELF carries no icon resource):
+// writes $XDG_DATA_HOME/applications/wowdecomp.desktop and the icon it names, and sets the app_id / WM_CLASS that
+// windows are matched to that file by. Must run before SDL starts video; main calls it first thing.
+void OsSdlRegisterDesktopEntry();
+
 #endif

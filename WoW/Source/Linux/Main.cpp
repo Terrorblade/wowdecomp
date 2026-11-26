@@ -1,5 +1,6 @@
 #if defined(WOWDECOMP_PLATFORM_POSIX)
 
+#include "Engine/Source/Os/Linux/OsSdl.h"
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/Client.h"
@@ -8,6 +9,7 @@
 // already 8 MB by default, so main calls it directly. The MSVC floating-point setup in the Windows main (all
 // exceptions masked, round to nearest, denormals kept) is the default MXCSR state here.
 int main(int argc, char** argv) {
+    OsSdlRegisterDesktopEntry();
     OsSetCommandLine(argc, argv);
     StormRtlInitialize();
 

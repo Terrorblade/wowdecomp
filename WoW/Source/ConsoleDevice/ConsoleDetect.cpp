@@ -7,6 +7,7 @@
 #include "Engine/Source/Os/Processor.h"
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "HoT/Core/Log.h"
 #include "WoW/Source/Client.h"
 #include "WoW/Source/Hardware.h"
 
@@ -164,11 +165,15 @@ void ConsoleDetectDetectHardware(Hardware& hardware, bool& changed) {
         ShowFatalMessageBox(MSG_REMOTE_DESKTOP, "Running World of Warcraft through a Remote Desktop connection is not supported.  Exiting program.");
     }
 
+    LOG_INFO << "startup: loading VideoHardware.dbc";
     g_videoHardwareDB.Load(__FILE__, __LINE__);
+    LOG_INFO << "startup: VideoHardware.dbc loaded";
 
     hardware.m_cpuIdx = static_cast<int64_t>(OsGetProcessorTicksPerSecond()) * 0.000001f > 1500.0f;
     hardware.m_memIdx = 0;
     hardware.m_videoID = 0;
+
+    LOG_INFO << "startup: reading display adapter id";
 
     if (GxAdapterID(hardware.m_videoDevice.m_vendorID, hardware.m_videoDevice.m_deviceID, hardware.m_videoDevice.m_driverVersionHi, hardware.m_videoDevice.m_driverVersionLo)) {
         SetVideoIdx(hardware);

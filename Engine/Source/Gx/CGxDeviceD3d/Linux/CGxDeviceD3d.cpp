@@ -11,6 +11,7 @@
 #include "Engine/Source/Os/Linux/OsSdl.h"
 #include "Engine/Source/Os/Path.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "HoT/Core/Log.h"
 
 // Direct3D 9 runs on Vulkan through dxvk's native libdxvk_d3d9.so, and the HWND it takes is the SDL_Window*.
 
@@ -84,29 +85,39 @@ int32_t CGxDeviceD3d::ILoadD3dLib(HINSTANCE& d3dLib, LPDIRECT3D9& d3d) {
     // dxvk takes its window system from the environment, and its SDL2 must be the client's.
     setenv("DXVK_WSI_DRIVER", "SDL2", 0);
 
+    LOG_INFO << "startup: SDL video init";
+
     if (!InitVideo()) {
+        LOG_ERROR << "startup: SDL video init failed: " << SDL_GetError();
         CGxDevice::Log("CGxDeviceD3d::ILoadD3dLib(): unable to init SDL video: %s", SDL_GetError());
         return 0;
     }
 
+    LOG_INFO << "startup: SDL video driver " << (SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "<none>") << ", loading libdxvk_d3d9.so";
     d3dLib = static_cast<HINSTANCE>(OpenDxvk());
 
     if (d3dLib) {
         Direct3DCreate9Proc d3dCreateProc = reinterpret_cast<Direct3DCreate9Proc>(dlsym(d3dLib, "Direct3DCreate9"));
 
         if (d3dCreateProc) {
+            LOG_INFO << "startup: Direct3DCreate9";
             d3d = d3dCreateProc(D3D_SDK_VERSION);
+            LOG_INFO << "startup: Direct3DCreate9 returned, " << (d3d ? d3d->GetAdapterCount() : 0) << " Vulkan adapter(s)";
 
             if (d3d && d3d->GetAdapterCount()) {
                 return 1;
             }
 
+            LOG_WARN << "startup: dxvk found no Vulkan adapter";
             CGxDevice::Log("CGxDeviceD3d::ILoadD3dLib(): no Vulkan adapter");
         } else {
+            LOG_WARN << "startup: libdxvk_d3d9.so has no Direct3DCreate9";
             CGxDevice::Log("CGxDeviceD3d::ILoadD3dLib(): unable to find Direct3DCreate9");
         }
     } else {
-        CGxDevice::Log("CGxDeviceD3d::ILoadD3dLib(): unable to load libdxvk_d3d9.so: %s", dlerror());
+        const char* error = dlerror();
+        LOG_WARN << "startup: unable to load libdxvk_d3d9.so: " << (error ? error : "unknown error");
+        CGxDevice::Log("CGxDeviceD3d::ILoadD3dLib(): unable to load libdxvk_d3d9.so: %s", error);
     }
 
     CGxDeviceD3d::IUnloadD3dLib(d3dLib, d3d);
@@ -202,9 +213,11 @@ int32_t CGxDeviceD3d::ICreateWindow(CGxFormat& format) {
     int32_t x = format.m_window ? format.m_pos.x : static_cast<int32_t>(SDL_WINDOWPOS_UNDEFINED_DISPLAY(0));
     int32_t y = format.m_window ? format.m_pos.y : static_cast<int32_t>(SDL_WINDOWPOS_UNDEFINED_DISPLAY(0));
 
+    LOG_INFO << "startup: creating SDL window " << width << "x" << height;
     SDL_Window* window = SDL_CreateWindow("World of Warcraft", x, y, width, height, flags);
 
     if (!window) {
+        LOG_ERROR << "startup: SDL_CreateWindow failed: " << SDL_GetError();
         CGxDevice::Log("CGxDeviceD3d::ICreateWindow(): SDL_CreateWindow failed: %s", SDL_GetError());
         return 0;
     }

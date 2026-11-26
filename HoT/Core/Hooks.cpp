@@ -44,6 +44,8 @@ void OnInitializeGlobal() {
     for (Module* module : Modules()) {
         module->OnInitializeGlobal();
     }
+
+    LOG_INFO << "startup: modules initialized";
 }
 
 void OnClientDBInitialized() {

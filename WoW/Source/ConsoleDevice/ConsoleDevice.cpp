@@ -17,6 +17,7 @@
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "HoT/Core/Log.h"
 #include "WoW/Source/Client.h"
 #include "WoW/Source/Hardware.h"
 #include "WoW/Source/Ui/GameUI.h"
@@ -311,10 +312,12 @@ void RemoveConsoleDeviceDefaultCallback(void (*callback)(OPTION_PAGE page)) {
 // VERIFY: 9ac5dfc9 manual
 // OFFSET: 0x0076AB80
 void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) {
+    LOG_INFO << "startup: console device initialize";
     GxLogOpen();
 
     s_cvHwDetect = CVar::Register("hwDetect", "do hardware detection", CVAR_ARCHIVE, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
     ConsoleDetectDetectHardware(s_hardware, s_hwChanged);
+    LOG_INFO << "startup: hardware detected";
     s_hardwareDetected = true;
 
     if (CmdLineGetBool(static_cast<CMDOPT>(CMD_HW_DETECT)) || s_cvHwDetect->m_intValue) {
@@ -329,8 +332,10 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
     ConsoleDetectSetDefaultsFormat(s_defaults, s_hardware);
     RegisterGxCVars();
     ConsoleCommandRegister("gxRestart", CCGxRestart, CATEGORY_GRAPHICS, nullptr);
+    LOG_INFO << "startup: graphics cvars registered";
 
     GxAdapterMonitorModes(s_gxMonitorModes);
+    LOG_INFO << "startup: " << s_gxMonitorModes.Count() << " monitor modes";
     ValidateFormatMonitor(s_fallbackFormat);
 
     CGxMonitorMode desktop;
@@ -420,8 +425,11 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
     bool desktopTried = false;
     CGxFormat format = s_requestedFormat;
     ValidateFormatMonitor(format);
+    LOG_INFO << "startup: creating " << g_gxApiNames[api] << " device, " << format.m_size.x << "x" << format.m_size.y << (window ? " windowed" : " fullscreen");
 
     for (s_device = CreateGxDevice(api, OsWindowProc, format); !s_device; s_device = CreateGxDevice(api, OsWindowProc, format)) {
+        LOG_WARN << "startup: device creation failed at " << format.m_size.x << "x" << format.m_size.y << " multisample " << format.m_multisampleCount << ", retrying";
+
         if (format.m_multisampleCount > 1) {
             if (format.m_multisampleCount - 2 <= 1) {
                 format.m_multisampleCount = 1;
@@ -463,6 +471,7 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
         ValidateFormatMonitor(format);
     }
 
+    LOG_INFO << "startup: graphics device created";
     s_requestedFormat = format;
     s_lastGoodFormat = format;
     SetGxCVars(s_requestedFormat);

@@ -9,6 +9,7 @@
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/CGxDeviceD3d/CGxDeviceD3d.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "HoT/Core/Log.h"
 #include "HoT/Runtime/Display.h"
 
 static bool InitVideo() {
@@ -433,6 +434,7 @@ static bool D3dAvailable() {
         s_available = CGxDeviceD3d::ILoadD3dLib(d3dLib, d3d);
         CGxDeviceD3d::IUnloadD3dLib(d3dLib, d3d);
         CGxDevice::Log("Direct3D 9 through dxvk: %s", s_available ? "available" : "unavailable, using OpenGL");
+        LOG_INFO << "startup: Direct3D 9 through dxvk " << (s_available ? "available" : "unavailable, using OpenGL");
     }
 
     return s_available != 0;

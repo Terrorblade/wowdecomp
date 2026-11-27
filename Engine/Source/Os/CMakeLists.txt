@@ -27,6 +27,12 @@ if (WOWDECOMP_PLATFORM_LINUX)
         PUBLIC
             SDL2::SDL2
     )
+    # OsSdl.cpp embeds the icon with .incbin, which the compiler's dependency scan doesn't see.
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/Linux/OsSdl.cpp
+        PROPERTIES
+            COMPILE_DEFINITIONS WOWDECOMP_ICON_FILE="${CMAKE_SOURCE_DIR}/waystone.ico"
+            OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/waystone.ico
+    )
 elseif (WOWDECOMP_PLATFORM_MAC)
     target_link_libraries(Os
         PUBLIC

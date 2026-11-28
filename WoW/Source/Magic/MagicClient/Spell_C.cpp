@@ -1358,8 +1358,8 @@ static void Spell_C_RelaxEquippedItemRequirements(SpellRec* spell) {
     uint32_t subclass = static_cast<uint32_t>(spell->m_equippedItemSubclass);
 
     if (waiveWeaponClass && itemClass == 2) {
-        uint32_t required = subclass & ~Spell_C_GetSpellModifierMask(spell, SPELLMOD_IGNORE_ITEM_SUBCLASS);
-        if (required && !(required & ~(1u << 15))) {
+        uint32_t coveredMask = Spell_C_GetSpellModifierMask(spell, SPELLMOD_IGNORE_ITEM_SUBCLASS);
+        if (subclass && coveredMask && !(subclass & coveredMask)) {
             waiveWeaponClass = false;
         }
     }
